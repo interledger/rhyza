@@ -17,7 +17,8 @@ const SRC_GENERATED_DIR = path.resolve(SRC_DIR, 'proto_generated');
 const DIST_GENERATED_DIR = path.resolve(DIST_DIR, 'proto_generated');
 
 try {
-  rmSync(join(DIST_DIR), { recursive: true, force: true });
+  rmSync(join(DIST_GENERATED_DIR), { recursive: true, force: true });
+  rmSync(join(DIST_PROTO_DIR), { recursive: true, force: true });
   rmSync(join(SRC_GENERATED_DIR), { recursive: true, force: true });
 } catch (err) {
   console.error('Error while cleaning the output directory:', err);

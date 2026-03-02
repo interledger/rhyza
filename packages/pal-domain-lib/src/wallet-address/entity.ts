@@ -12,20 +12,20 @@
 import { IPalWalletAddress } from './interfaces';
 
 export class PalWalletAddress implements IPalWalletAddress {
-  private readonly _address: string;
+  private readonly _id: string;
   private readonly _publicName: string;
   private readonly _assetCode: string;
   private readonly _assetScale: number;
   private readonly _isActive: boolean;
 
   constructor(
-    address: string,
+    id: string,
     publicName: string,
     assetCode: string,
     assetScale: number,
     isActive?: boolean
   ) {
-    this._address = address;
+    this._id = id;
     this._publicName = publicName;
     this._assetCode = assetCode;
     this._assetScale = assetScale;
@@ -35,7 +35,7 @@ export class PalWalletAddress implements IPalWalletAddress {
 
   static fromObject(json: IPalWalletAddress): PalWalletAddress {
     return new PalWalletAddress(
-      json.address,
+      json.id,
       json.publicName,
       json.assetCode,
       json.assetScale,
@@ -45,7 +45,7 @@ export class PalWalletAddress implements IPalWalletAddress {
 
   toObject(): IPalWalletAddress {
     return {
-      address: this._address,
+      id: this._id,
       publicName: this._publicName,
       assetCode: this._assetCode,
       assetScale: this._assetScale,
@@ -53,8 +53,8 @@ export class PalWalletAddress implements IPalWalletAddress {
     };
   }
 
-  get address(): string {
-    return this._address;
+  get id(): string {
+    return this._id;
   }
 
   get publicName(): string {

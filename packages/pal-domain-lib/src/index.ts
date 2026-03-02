@@ -11,3 +11,4 @@
 
 export * from './assets';
 export * from './wallet-address';
+export * from './wallet-address-alias';

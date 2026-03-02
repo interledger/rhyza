@@ -11,3 +11,4 @@
 
 export * from './mock-asset-repo';
 export * from './mock-wallet-repo';
+export * from './mock-wallet-alias-repo';

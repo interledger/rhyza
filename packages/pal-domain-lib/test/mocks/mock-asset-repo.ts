@@ -9,7 +9,7 @@
 
 'use strict';
 
-import { IPalAsset, IPalAssetRepository } from 'pal-domain-lib';
+import { IPalAsset, IPalAssetRepository } from '../../src';
 
 export class MockAssetRepo implements IPalAssetRepository {
   private _data: Map<string, IPalAsset> = new Map<string, IPalAsset>();

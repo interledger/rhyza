@@ -10,12 +10,17 @@
 syntax = "proto3";
 package rafiki.pal.svc;
 
+import "google/protobuf/empty.proto";
+
 service PalGrpc {
   rpc CreateAsset(CreateAssetRequest) returns (CreateAssetResponse);
   rpc GetAsset(GetAssetRequest) returns (GetAssetResponse);
 
   rpc CreateWalletAddress(CreateWalletAddressRequest) returns (CreateWalletAddressResponse);
-  rpc GetWalletAddress(GetWalletAddressRequest) returns (GetWalletAddressResponse);
+  rpc GetWalletAddresses(GetWalletAddressesRequest) returns (GetWalletAddressesResponse);
+
+  rpc ResolveWalletAddressId(ResolveWalletAddressIdRequest) returns (ResolveWalletAddressIdResponse);
+  rpc CreateWalletAddressAlias(CreateWalletAddressAliasRequest) returns (google.protobuf.Empty);
 }
 
 /*
@@ -52,30 +57,51 @@ Wallet Address messages
 */
 
 message CreateWalletAddressRequest{
-  string address = 1;
+  string id = 1;
   string assetCode = 2;
   string publicName = 3;
   optional bool isActive = 4;
 }
 message CreateWalletAddressResponse{
-  string address = 1;
+  string id = 1;
   string publicName = 2;
   string assetCode = 3;
   uint32 assetScale = 4;
   bool isActive = 5;
 }
 
-message GetWalletAddressRequest{
-  string address = 1;
+message GetWalletAddressesRequest{
+  repeated string ids = 1;
 }
-message GetWalletAddressResponse{
-  optional GetNonEmptyWalletAddressResponse walletAddress = 1;
+message GetWalletAddressesResponse{
+  repeated SingleWalletAddressResponse walletAddresses = 1;
 }
-message GetNonEmptyWalletAddressResponse{
-  string address = 1;
+message SingleWalletAddressResponse{
+  string id = 1;
   string publicName = 2;
   string assetCode = 3;
   uint32 assetScale = 4;
   bool isActive = 5;
 }
 
+/*
+Wallet Address Aliases messages
+*/
+message ResolveWalletAddressIdRequest{
+  string suffix = 1;
+  optional string prefix =2;
+}
+message ResolveWalletAddressIdResponse{
+  optional ResolveWalletAddressNonEmptyResponse alias = 1;
+}
+message ResolveWalletAddressNonEmptyResponse{
+  string suffix = 1;
+  optional string prefix = 2;
+  string walletAddressId = 3;
+}
+
+message CreateWalletAddressAliasRequest{
+  string suffix = 1;
+  optional string prefix = 2;
+  string walletAddressId = 3;
+}

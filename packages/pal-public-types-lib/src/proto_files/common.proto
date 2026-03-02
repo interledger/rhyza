@@ -9,9 +9,4 @@
 
 syntax = "proto3";
 package rafiki.pal.svc;
-/*
 
-message Empty{
-
-}
-*/

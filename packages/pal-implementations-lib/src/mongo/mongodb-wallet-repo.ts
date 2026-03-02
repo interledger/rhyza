@@ -54,7 +54,7 @@ export class MongoDbWalletRepoRepo implements IPalWalletAddressRepository {
       } else {
         this._collection =
           await db.createCollection<IPalWalletAddress>(COLLECTION_NAME);
-        await this._collection.createIndex({ address: 1 }, { unique: true });
+        await this._collection.createIndex({ id: 1 }, { unique: true });
       }
     } catch (e: unknown) {
       if (e instanceof Error) {
@@ -77,11 +77,11 @@ export class MongoDbWalletRepoRepo implements IPalWalletAddressRepository {
     await this._client.close();
   }
 
-  async store(asset: IPalWalletAddress): Promise<void> {
+  async store(walletAddress: IPalWalletAddress): Promise<void> {
     this._checkInitialisedOrThrow();
 
     try{
-        await this._collection.insertOne(asset);
+        await this._collection.insertOne(walletAddress);
         return;
     }catch (e) {
         console.error(e);
@@ -91,22 +91,23 @@ export class MongoDbWalletRepoRepo implements IPalWalletAddressRepository {
     }
   }
 
-  async fetch(address: string): Promise<IPalWalletAddress | null> {
+  async fetch(ids: string[]): Promise<IPalWalletAddress[]>{
     this._checkInitialisedOrThrow();
 
     try{
-        const doc = await this._collection.findOne({ address: address });
-        if (!doc) {
-            return null;
+        const docs = await this._collection.find({id: {$in: ids}}).toArray()
+
+        if (!docs || docs.length === 0) {
+            return [];
         }
 
-        return {
-            address: doc.address,
-            publicName: doc.publicName,
-            isActive: doc.isActive,
-            assetCode: doc.assetCode,
-            assetScale: doc.assetScale
-        };
+        return docs.map(doc=>{return {
+          id: doc.id,
+          publicName: doc.publicName,
+          isActive: doc.isActive,
+          assetCode: doc.assetCode,
+          assetScale: doc.assetScale
+        };});
     }catch (e) {
         console.error(e);
         throw new Error(
