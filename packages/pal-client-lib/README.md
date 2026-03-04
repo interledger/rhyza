@@ -50,7 +50,7 @@ console.log(retrievedWallet);
 // Create a wallet address alias with a prefix, a suffix and the internal wallet address id - returns void
 await client.createWalletAddressAlias('domain.com', 'pedrobarreto', "123");
 
-// Create a wallet address alias with no prefix, a sufix and the internal wallet address id - returns void
+// Create a wallet address alias with no prefix, a suffix and the internal wallet address id - returns void
 await client.createWalletAddressAlias(null, 'pedrobarreto', "123");
 
 // resolve the internal wallet address id from a prefix and sufix - returns alias obj or null
