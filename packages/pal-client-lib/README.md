@@ -55,7 +55,7 @@ await client.createWalletAddressAlias(null, 'pedrobarreto', "123");
 
 // resolve the internal wallet address id from a prefix and suffix - returns alias obj or null
 const alias = await client.resolveWalletAddressId('domain.com', 'pedrobarreto');
-// resolve the internal wallet address id from a null prefix and sufix - returns alias obj or null
+// resolve the internal wallet address id from a null prefix and suffix - returns alias obj or null
 const alias2 = await client.resolveWalletAddressId(null, 'pedrobarreto');
 
 /* alias response type is:
