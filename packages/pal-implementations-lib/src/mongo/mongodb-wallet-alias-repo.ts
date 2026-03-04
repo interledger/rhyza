@@ -112,7 +112,7 @@ export class MongoWalletAddressAliasRepo implements IPalWalletAddressAliasReposi
     }catch (e) {
         console.error(e);
         throw new Error(
-            `Unable to get wallet address alias by prefix and sufix - error: ${(e as Error).message}`
+            `Unable to get wallet address alias by prefix and suffix - error: ${(e as Error).message}`
         );
     }
 
