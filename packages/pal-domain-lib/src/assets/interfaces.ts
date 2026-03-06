@@ -9,23 +9,11 @@
 
 'use strict';
 
-import { PalAsset } from './entity';
-
 export interface IPalAsset {
   code: string;
   scale: number;
   liquidityLowThreshold: bigint | null;
   liquidityHighThreshold: bigint | null;
-}
-
-export interface IAssetAggregate {
-  createAsset(
-    code: string,
-    scale: number,
-    liquidityLowThreshold?: bigint,
-    liquidityHighThreshold?: bigint
-  ): Promise<void>;
-  getAsset(code: string): Promise<PalAsset | null>;
 }
 
 export interface IPalAssetRepository {

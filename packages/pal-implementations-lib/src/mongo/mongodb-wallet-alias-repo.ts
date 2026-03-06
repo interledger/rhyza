@@ -9,10 +9,10 @@
 
 'use strict';
 
-import {Collection, CollectionInfo, Db, MongoClient} from 'mongodb';
+import { Collection, CollectionInfo, Db, MongoClient } from 'mongodb';
 import {
   IPalWalletAddressAlias,
-  IPalWalletAddressAliasRepository,
+  IPalWalletAddressAliasRepository
 } from 'pal-domain-lib';
 import * as console from 'node:console';
 
@@ -20,7 +20,9 @@ const DB_NAME = 'pal';
 const COLLECTION_NAME: string = 'walletAddressAliases';
 const TIMEOUT_MS: number = 5_000;
 
-export class MongoWalletAddressAliasRepo implements IPalWalletAddressAliasRepository {
+export class MongoWalletAddressAliasRepo
+  implements IPalWalletAddressAliasRepository
+{
   private readonly _connectionString: string;
   private _client!: MongoClient;
   private _collection!: Collection<IPalWalletAddressAlias>;
@@ -46,14 +48,18 @@ export class MongoWalletAddressAliasRepo implements IPalWalletAddressAliasReposi
       const db: Db = this._client.db(DB_NAME);
 
       // Check if the collection already exists.
-      const collections: (Pick<CollectionInfo, "name" | "type"> | CollectionInfo)[] = await db.listCollections().toArray();
+      const collections: (
+        | Pick<CollectionInfo, 'name' | 'type'>
+        | CollectionInfo
+      )[] = await db.listCollections().toArray();
       const collectionExists: boolean = collections.some((collection) => {
         return collection.name === COLLECTION_NAME;
       });
 
       // load or create the collection (and add its indexes) - should check version and perform migrations
       if (collectionExists) {
-        this._collection = db.collection<IPalWalletAddressAlias>(COLLECTION_NAME);
+        this._collection =
+          db.collection<IPalWalletAddressAlias>(COLLECTION_NAME);
       } else {
         this._collection =
           await db.createCollection<IPalWalletAddressAlias>(COLLECTION_NAME);
@@ -80,41 +86,46 @@ export class MongoWalletAddressAliasRepo implements IPalWalletAddressAliasReposi
     await this._client.close();
   }
 
-  async store(alias: IPalWalletAddressAlias): Promise<void>{
+  async store(alias: IPalWalletAddressAlias): Promise<void> {
     this._checkInitialisedOrThrow();
 
-    try{
-        await this._collection.insertOne(alias);
-        return;
-    }catch (e) {
-        console.error(e);
-        throw new Error(
-            `Unable to store wallet address alias - error: ${(e as Error).message}`
-        );
+    try {
+      await this._collection.insertOne(alias);
+      return;
+    } catch (e) {
+      console.error(e);
+      throw new Error(
+        `Unable to store wallet address alias - error: ${(e as Error).message}`
+      );
     }
   }
 
-  async fetch(prefix: string|null, suffix:string): Promise<IPalWalletAddressAlias | null>{
+  async fetch(
+    prefix: string | null,
+    suffix: string
+  ): Promise<IPalWalletAddressAlias | null> {
     this._checkInitialisedOrThrow();
 
-    try{
-        const doc = await this._collection.findOne({prefix: prefix, suffix: suffix});
+    try {
+      const doc = await this._collection.findOne({
+        prefix: prefix,
+        suffix: suffix
+      });
 
-        if (!doc) {
-            return null;
-        }
+      if (!doc) {
+        return null;
+      }
 
-        return {
-          prefix: doc.prefix,
-          suffix: doc.suffix,
-          walletId: doc.walletId
-        };
-    }catch (e) {
-        console.error(e);
-        throw new Error(
-            `Unable to get wallet address alias by prefix and suffix - error: ${(e as Error).message}`
-        );
+      return {
+        prefix: doc.prefix,
+        suffix: doc.suffix,
+        walletId: doc.walletId
+      };
+    } catch (e) {
+      console.error(e);
+      throw new Error(
+        `Unable to get wallet address alias by prefix and suffix - error: ${(e as Error).message}`
+      );
     }
-
   }
 }

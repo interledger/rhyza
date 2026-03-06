@@ -9,7 +9,7 @@
 
 'use strict';
 
-import {IPalWalletAddressAlias} from './interfaces';
+import { IPalWalletAddressAlias } from './interfaces';
 
 export class PalWalletAddressAlias implements IPalWalletAddressAlias {
   private readonly _prefix: string | null;
@@ -35,11 +35,7 @@ export class PalWalletAddressAlias implements IPalWalletAddressAlias {
   }
 
   static fromObject(json: IPalWalletAddressAlias): PalWalletAddressAlias {
-    return new PalWalletAddressAlias(
-      json.prefix,
-      json.suffix,
-      json.walletId
-    );
+    return new PalWalletAddressAlias(json.prefix, json.suffix, json.walletId);
   }
 
   toObject(): IPalWalletAddressAlias {
@@ -49,5 +45,4 @@ export class PalWalletAddressAlias implements IPalWalletAddressAlias {
       walletId: this._walletId
     };
   }
-
 }

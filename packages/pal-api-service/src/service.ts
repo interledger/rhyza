@@ -9,7 +9,12 @@
 
 'use strict';
 
-import { AssetAggregate, WalletAddressAggregate, WalletAddressAliasAggregate } from 'pal-domain-lib';
+import {
+  AssetAggregate,
+  WalletAddressAggregate,
+  WalletAddressAliasAggregate,
+  WalletDomainService
+} from 'pal-domain-lib';
 import { PalServiceServer } from './grpc/grpc-service';
 import process from 'process';
 import {
@@ -35,15 +40,22 @@ export class PalApiService {
 
     const assetAggregate = new AssetAggregate(assetRepo);
     const walletAggregate = new WalletAddressAggregate(walletRepo);
-    const walletAddressAliasAggregate = new WalletAddressAliasAggregate(walletAliasRepo);
+    const walletAddressAliasAggregate = new WalletAddressAliasAggregate(
+      walletAliasRepo
+    );
 
+    const walletDomainService = new WalletDomainService(
+      walletAggregate,
+      walletAddressAliasAggregate
+    );
 
     this.grpcService = new PalServiceServer(
       '1',
       '0.0.0.0:50051',
       assetAggregate,
       walletAggregate,
-      walletAddressAliasAggregate
+      walletAddressAliasAggregate,
+      walletDomainService
     );
 
     await this.grpcService.start();

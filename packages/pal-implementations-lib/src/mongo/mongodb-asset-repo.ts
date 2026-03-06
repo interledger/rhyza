@@ -9,7 +9,7 @@
 
 'use strict';
 
-import {Collection, CollectionInfo, Db, MongoClient} from 'mongodb';
+import { Collection, CollectionInfo, Db, MongoClient } from 'mongodb';
 import { IPalAsset, IPalAssetRepository } from 'pal-domain-lib';
 import * as console from 'node:console';
 
@@ -43,7 +43,10 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
       const db: Db = this._client.db(DB_NAME);
 
       // Check if the collection already exists.
-      const collections: (Pick<CollectionInfo, "name" | "type"> | CollectionInfo)[] = await db.listCollections().toArray();
+      const collections: (
+        | Pick<CollectionInfo, 'name' | 'type'>
+        | CollectionInfo
+      )[] = await db.listCollections().toArray();
       const collectionExists: boolean = collections.some((collection) => {
         return collection.name === COLLECTION_NAME;
       });
@@ -80,34 +83,34 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
   async store(asset: IPalAsset): Promise<void> {
     this._checkInitialisedOrThrow();
 
-    try{
-        await this._collection.insertOne(asset);
-        return;
-    }catch (e) {
-        console.error(e);
-        throw new Error(`Unable to store asset - error: ${(e as Error).message}`);
+    try {
+      await this._collection.insertOne(asset);
+      return;
+    } catch (e) {
+      console.error(e);
+      throw new Error(`Unable to store asset - error: ${(e as Error).message}`);
     }
   }
 
   async fetch(code: string): Promise<IPalAsset | null> {
     this._checkInitialisedOrThrow();
 
-    try{
-        const doc = await this._collection.findOne({ code: code });
-        if (!doc) {
-            return null;
-        }
-        return {
-            code: doc.code,
-            scale: doc.scale,
-            liquidityLowThreshold: doc.liquidityLowThreshold || null,
-            liquidityHighThreshold: doc.liquidityHighThreshold || null
-        };
-    }catch (e) {
-        console.error(e);
-        throw new Error(
-            `Unable to get asset by code - error: ${(e as Error).message}`
-        );
+    try {
+      const doc = await this._collection.findOne({ code: code });
+      if (!doc) {
+        return null;
+      }
+      return {
+        code: doc.code,
+        scale: doc.scale,
+        liquidityLowThreshold: doc.liquidityLowThreshold || null,
+        liquidityHighThreshold: doc.liquidityHighThreshold || null
+      };
+    } catch (e) {
+      console.error(e);
+      throw new Error(
+        `Unable to get asset by code - error: ${(e as Error).message}`
+      );
     }
   }
 }

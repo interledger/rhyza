@@ -15,17 +15,10 @@ export interface IPalWalletAddressAlias {
   walletId: string;
 }
 
-export interface IPalWalletAddressAliasAggregate {
-  resolveWalletAddressId(prefix: string | null, suffix: string): Promise<string|null>;
-
-  createWalletAddressAlias(
-    prefix: string | null,
-    suffix: string,
-    walletId: string
-  ): Promise<void>;
-}
-
 export interface IPalWalletAddressAliasRepository {
   store(alias: IPalWalletAddressAlias): Promise<void>;
-  fetch(prefix: string|null, suffix:string): Promise<IPalWalletAddressAlias | null>;
+  fetch(
+    prefix: string | null,
+    suffix: string
+  ): Promise<IPalWalletAddressAlias | null>;
 }

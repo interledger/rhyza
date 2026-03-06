@@ -10,10 +10,10 @@
 'use strict';
 
 import { CannotCreateDuplicateAssetError } from './errors';
-import { IAssetAggregate, IPalAssetRepository } from './interfaces';
+import { IPalAssetRepository } from './interfaces';
 import { PalAsset } from './entity';
 
-export class AssetAggregate implements IAssetAggregate {
+export class AssetAggregate {
   private _repo: IPalAssetRepository;
 
   constructor(repo: IPalAssetRepository) {

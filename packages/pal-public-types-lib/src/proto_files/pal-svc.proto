@@ -19,7 +19,7 @@ service PalGrpc {
   rpc CreateWalletAddress(CreateWalletAddressRequest) returns (CreateWalletAddressResponse);
   rpc GetWalletAddresses(GetWalletAddressesRequest) returns (GetWalletAddressesResponse);
 
-  rpc ResolveWalletAddressId(ResolveWalletAddressIdRequest) returns (ResolveWalletAddressIdResponse);
+  rpc ResolveWalletAddressAlias(ResolveWalletAddressAliasRequest) returns (ResolveWalletAddressAliasResponse);
   rpc CreateWalletAddressAlias(CreateWalletAddressAliasRequest) returns (google.protobuf.Empty);
 }
 
@@ -57,13 +57,13 @@ Wallet Address messages
 */
 
 message CreateWalletAddressRequest{
-  string id = 1;
+  string address = 1;
   string assetCode = 2;
   string publicName = 3;
   optional bool isActive = 4;
 }
 message CreateWalletAddressResponse{
-  string id = 1;
+  string address = 1;
   string publicName = 2;
   string assetCode = 3;
   uint32 assetScale = 4;
@@ -87,11 +87,11 @@ message SingleWalletAddressResponse{
 /*
 Wallet Address Aliases messages
 */
-message ResolveWalletAddressIdRequest{
+message ResolveWalletAddressAliasRequest{
   string suffix = 1;
   optional string prefix =2;
 }
-message ResolveWalletAddressIdResponse{
+message ResolveWalletAddressAliasResponse{
   optional ResolveWalletAddressNonEmptyResponse alias = 1;
 }
 message ResolveWalletAddressNonEmptyResponse{

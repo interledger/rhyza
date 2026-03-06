@@ -7,30 +7,41 @@
  - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
  ******/
 
-"use strict";
+'use strict';
 
+import {
+  IPalWalletAddressAlias,
+  IPalWalletAddressAliasRepository
+} from './interfaces';
+import { CannotCreateDuplicateWalletAddressAliasError } from './errors';
 
-import {IPalWalletAddressAlias, IPalWalletAddressAliasAggregate, IPalWalletAddressAliasRepository} from "./interfaces";
-import {CannotCreateDuplicateWalletAddressAliasError} from "./errors";
-
-export class WalletAddressAliasAggregate implements IPalWalletAddressAliasAggregate {
+export class WalletAddressAliasAggregate {
   private _repo: IPalWalletAddressAliasRepository;
 
   constructor(repo: IPalWalletAddressAliasRepository) {
     this._repo = repo;
   }
 
-  async resolveWalletAddressId(prefix: string | null, suffix: string): Promise<string | null> {
+  async resolveWalletAddressAlias(
+    prefix: string | null,
+    suffix: string
+  ): Promise<string | null> {
     const found = await this._repo.fetch(prefix || null, suffix);
 
-    if(!found) return null;
+    if (!found) return null;
     return found.walletId;
   }
 
-  async createWalletAddressAlias(prefix: string | null, suffix: string, walletId: string): Promise<void> {
+  async createWalletAddressAlias(
+    prefix: string | null,
+    suffix: string,
+    walletId: string
+  ): Promise<void> {
     const existing = await this._repo.fetch(prefix || null, suffix);
-    if(existing) {
-      throw new CannotCreateDuplicateWalletAddressAliasError("Wallet address already exists");
+    if (existing) {
+      throw new CannotCreateDuplicateWalletAddressAliasError(
+        'Wallet address alias already exists'
+      );
     }
 
     // TODO: validate inputs, especially prefix and suffix characters
@@ -38,9 +49,8 @@ export class WalletAddressAliasAggregate implements IPalWalletAddressAliasAggreg
     const alias: IPalWalletAddressAlias = {
       prefix: prefix || null,
       suffix,
-      walletId,
-    }
+      walletId
+    };
     await this._repo.store(alias);
   }
-
 }

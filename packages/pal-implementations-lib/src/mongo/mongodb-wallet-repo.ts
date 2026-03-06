@@ -9,7 +9,7 @@
 
 'use strict';
 
-import {Collection, CollectionInfo, Db, MongoClient} from 'mongodb';
+import { Collection, CollectionInfo, Db, MongoClient } from 'mongodb';
 import { IPalWalletAddress, IPalWalletAddressRepository } from 'pal-domain-lib';
 import * as console from 'node:console';
 
@@ -43,7 +43,10 @@ export class MongoDbWalletRepoRepo implements IPalWalletAddressRepository {
       const db: Db = this._client.db(DB_NAME);
 
       // Check if the collection already exists.
-      const collections: (Pick<CollectionInfo, "name" | "type"> | CollectionInfo)[] = await db.listCollections().toArray();
+      const collections: (
+        | Pick<CollectionInfo, 'name' | 'type'>
+        | CollectionInfo
+      )[] = await db.listCollections().toArray();
       const collectionExists: boolean = collections.some((collection) => {
         return collection.name === COLLECTION_NAME;
       });
@@ -80,40 +83,41 @@ export class MongoDbWalletRepoRepo implements IPalWalletAddressRepository {
   async store(walletAddress: IPalWalletAddress): Promise<void> {
     this._checkInitialisedOrThrow();
 
-    try{
-        await this._collection.insertOne(walletAddress);
-        return;
-    }catch (e) {
-        console.error(e);
-        throw new Error(
-            `Unable to store wallet address - error: ${(e as Error).message}`
-        );
+    try {
+      await this._collection.insertOne(walletAddress);
+      return;
+    } catch (e) {
+      console.error(e);
+      throw new Error(
+        `Unable to store wallet address - error: ${(e as Error).message}`
+      );
     }
   }
 
-  async fetch(ids: string[]): Promise<IPalWalletAddress[]>{
+  async fetch(ids: string[]): Promise<IPalWalletAddress[]> {
     this._checkInitialisedOrThrow();
 
-    try{
-        const docs = await this._collection.find({id: {$in: ids}}).toArray()
+    try {
+      const docs = await this._collection.find({ id: { $in: ids } }).toArray();
 
-        if (!docs || docs.length === 0) {
-            return [];
-        }
+      if (!docs || docs.length === 0) {
+        return [];
+      }
 
-        return docs.map(doc=>{return {
+      return docs.map((doc) => {
+        return {
           id: doc.id,
           publicName: doc.publicName,
           isActive: doc.isActive,
           assetCode: doc.assetCode,
           assetScale: doc.assetScale
-        };});
-    }catch (e) {
-        console.error(e);
-        throw new Error(
-            `Unable to get wallet by address - error: ${(e as Error).message}`
-        );
+        };
+      });
+    } catch (e) {
+      console.error(e);
+      throw new Error(
+        `Unable to get wallet by address - error: ${(e as Error).message}`
+      );
     }
-
   }
 }

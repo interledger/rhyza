@@ -23,8 +23,9 @@ export class MockWalletRepo implements IPalWalletAddressRepository {
   }
 
   fetch(ids: string[]): Promise<IPalWalletAddress[]> {
-    const ret = Array.from(this._data.values()).filter(item => ids.includes(item.id));
+    const ret = Array.from(this._data.values()).filter((item) =>
+      ids.includes(item.id)
+    );
     return Promise.resolve(ret);
   }
-
 }

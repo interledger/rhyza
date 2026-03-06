@@ -17,17 +17,6 @@ export interface IPalWalletAddress {
   isActive: boolean;
 }
 
-export interface IWalletAddressAggregate {
-  createWalletAddress(
-    id: string,
-    publicName: string,
-    assetCode: string,
-    assetScale: number,
-    isActive?: boolean
-  ): Promise<string>;
-  getWalletAddresses(ids: string[]): Promise<IPalWalletAddress[]>;
-}
-
 export interface IPalWalletAddressRepository {
   store(walletAddress: IPalWalletAddress): Promise<void>;
   fetch(ids: string[]): Promise<IPalWalletAddress[]>;

@@ -10,14 +10,10 @@
 'use strict';
 
 import { CannotCreateDuplicateWalletAddressError } from './errors';
-import {
-  IPalWalletAddress,
-  IPalWalletAddressRepository,
-  IWalletAddressAggregate
-} from './interfaces';
+import { IPalWalletAddress, IPalWalletAddressRepository } from './interfaces';
 import { PalWalletAddress } from './entity';
 
-export class WalletAddressAggregate implements IWalletAddressAggregate {
+export class WalletAddressAggregate {
   private _repo: IPalWalletAddressRepository;
 
   constructor(repo: IPalWalletAddressRepository) {
@@ -35,7 +31,7 @@ export class WalletAddressAggregate implements IWalletAddressAggregate {
 
     if (existing.length > 0) {
       throw new CannotCreateDuplicateWalletAddressError(
-        'Wallet with address: ' + publicName + ' already exists'
+        'Wallet with id: ' + id + ' already exists'
       );
     }
 
