@@ -29,14 +29,14 @@ Asset messages
 message CreateAssetRequest{
   string code = 1;
   uint32 scale = 2;
-  optional uint64 liquidityLowThreshold = 3;
-  optional uint64 liquidityHighThreshold = 4;
+  optional uint64 liquidity_low_threshold = 3;
+  optional uint64 liquidity_high_threshold = 4;
 }
 message CreateAssetResponse{
   string code = 1;
   uint32 scale = 2;
-  optional uint64 liquidityLowThreshold = 3;
-  optional uint64 liquidityHighThreshold = 4;
+  optional uint64 liquidity_low_threshold = 3;
+  optional uint64 liquidity_high_threshold = 4;
 }
 
 message GetAssetRequest{
@@ -48,60 +48,63 @@ message GetAssetResponse{
 message GetNonEmptyAssetResponse{
   string code = 1;
   uint32 scale = 2;
-  optional uint64 liquidityLowThreshold = 3;
-  optional uint64 liquidityHighThreshold = 4;
+  optional uint64 liquidity_low_threshold = 3;
+  optional uint64 liquidity_high_threshold = 4;
 }
 
 /*
 Wallet Address messages
 */
 
-message CreateWalletAddressRequest{
-  string address = 1;
-  string assetCode = 2;
-  string publicName = 3;
-  optional bool isActive = 4;
-}
-message CreateWalletAddressResponse{
-  string address = 1;
-  string publicName = 2;
-  string assetCode = 3;
-  uint32 assetScale = 4;
-  bool isActive = 5;
+message CreateWalletAddressRequest {
+  string path_name = 1;
+  string asset_code = 2;
+  string public_name = 3;
+  optional bool is_active = 4;
+  optional string domain = 5;
 }
 
-message GetWalletAddressesRequest{
+message CreateWalletAddressResponse {
+  string path_name = 1;
+  string public_name = 2;
+  string asset_code = 3;
+  uint32 asset_scale = 4;
+  bool is_active = 5;
+}
+
+message GetWalletAddressesRequest {
   repeated string ids = 1;
 }
-message GetWalletAddressesResponse{
-  repeated SingleWalletAddressResponse walletAddresses = 1;
+
+message GetWalletAddressesResponse {
+  repeated SingleWalletAddressResponse wallet_addresses = 1;
 }
-message SingleWalletAddressResponse{
+message SingleWalletAddressResponse {
   string id = 1;
-  string publicName = 2;
-  string assetCode = 3;
-  uint32 assetScale = 4;
-  bool isActive = 5;
+  string public_name = 2;
+  string asset_code = 3;
+  uint32 asset_scale = 4;
+  bool is_active = 5;
 }
 
 /*
 Wallet Address Aliases messages
 */
-message ResolveWalletAddressAliasRequest{
-  string suffix = 1;
-  optional string prefix =2;
+message ResolveWalletAddressAliasRequest {
+  string path_name = 1;
+  optional string domain =2;
 }
-message ResolveWalletAddressAliasResponse{
+message ResolveWalletAddressAliasResponse {
   optional ResolveWalletAddressNonEmptyResponse alias = 1;
 }
-message ResolveWalletAddressNonEmptyResponse{
-  string suffix = 1;
-  optional string prefix = 2;
-  string walletAddressId = 3;
+message ResolveWalletAddressNonEmptyResponse {
+  string path_name = 1;
+  optional string domain = 2;
+  string wallet_address_id = 3;
 }
 
-message CreateWalletAddressAliasRequest{
-  string suffix = 1;
-  optional string prefix = 2;
-  string walletAddressId = 3;
+message CreateWalletAddressAliasRequest {
+  string path_name = 1;
+  optional string domain = 2;
+  string wallet_address_id = 3;
 }
