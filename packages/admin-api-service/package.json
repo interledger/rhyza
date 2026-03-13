@@ -12,7 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "fastify": "~5.3.3",
-    "pal-client-lib": "workspace:*"
+    "pal-client-lib": "workspace:*",
+    "payments-client-lib": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.3"

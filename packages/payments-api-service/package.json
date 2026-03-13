@@ -1,0 +1,29 @@
+{
+  "name": "payments-api-service",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "start": "node dist/index.js",
+    "build": "tsc --build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@grpc/grpc-js": "~1.14.3",
+    "@grpc/proto-loader": "~0.8.0",
+    "@grpc/reflection": "~1.0.4",
+    "google-protobuf": "~4.0.1",
+    "protobufjs": "~8.0.0",
+    "common-types-lib": "workspace:*",
+    "implementations-lib": "workspace:*",
+    "payments-public-types-lib": "workspace:*",
+    "payments-domain-lib": "workspace:*",
+    "payments-implementations-lib": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/google-protobuf": "~3.15.12",
+    "tsx": "^4.19.3"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "payments-client-lib",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "build": "tsc --build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "payments-public-types-lib": "workspace:*",
+    "@grpc/grpc-js": "~1.14.3"
+  },
+  "devDependencies": {
+    "@types/google-protobuf": "~3.15.12",
+    "tsx": "^4.19.3",
+    "pal-client-lib": "workspace:*"
+  }
+}

@@ -38,6 +38,9 @@ importers:
       pal-client-lib:
         specifier: workspace:*
         version: link:../pal-client-lib
+      payments-client-lib:
+        specifier: workspace:*
+        version: link:../payments-client-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3
@@ -222,6 +225,65 @@ importers:
         specifier: ^4.19.3
         version: 4.19.3
 
+  packages/payments-api-service:
+    dependencies:
+      '@grpc/grpc-js':
+        specifier: ~1.14.3
+        version: 1.14.3
+      '@grpc/proto-loader':
+        specifier: ~0.8.0
+        version: 0.8.0
+      '@grpc/reflection':
+        specifier: ~1.0.4
+        version: 1.0.4(@grpc/grpc-js@1.14.3)
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
+      google-protobuf:
+        specifier: ~4.0.1
+        version: 4.0.1
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
+      payments-domain-lib:
+        specifier: workspace:*
+        version: link:../payments-domain-lib
+      payments-implementations-lib:
+        specifier: workspace:*
+        version: link:../payments-implementations-lib
+      payments-public-types-lib:
+        specifier: workspace:*
+        version: link:../payments-public-types-lib
+      protobufjs:
+        specifier: ~8.0.0
+        version: 8.0.0
+    devDependencies:
+      '@types/google-protobuf':
+        specifier: ~3.15.12
+        version: 3.15.12
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/payments-client-lib:
+    dependencies:
+      '@grpc/grpc-js':
+        specifier: ~1.14.3
+        version: 1.14.3
+      payments-public-types-lib:
+        specifier: workspace:*
+        version: link:../payments-public-types-lib
+    devDependencies:
+      '@types/google-protobuf':
+        specifier: ~3.15.12
+        version: 3.15.12
+      pal-client-lib:
+        specifier: workspace:*
+        version: link:../pal-client-lib
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
   packages/payments-command-handler-service:
     dependencies:
       common-types-lib:
@@ -230,6 +292,15 @@ importers:
       implementations-lib:
         specifier: workspace:*
         version: link:../implementations-lib
+      pal-client-lib:
+        specifier: workspace:*
+        version: link:../pal-client-lib
+      payments-domain-lib:
+        specifier: workspace:*
+        version: link:../payments-domain-lib
+      payments-implementations-lib:
+        specifier: workspace:*
+        version: link:../payments-implementations-lib
     devDependencies:
       '@types/pg':
         specifier: ^8.11.11
@@ -244,6 +315,53 @@ importers:
         specifier: workspace:*
         version: link:../common-types-lib
     devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/payments-event-handler-service:
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/payments-implementations-lib:
+    dependencies:
+      mongodb:
+        specifier: ~7.1.0
+        version: 7.1.0
+      pal-client-lib:
+        specifier: workspace:*
+        version: link:../pal-client-lib
+      payments-domain-lib:
+        specifier: workspace:*
+        version: link:../payments-domain-lib
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/payments-public-types-lib:
+    dependencies:
+      '@grpc/grpc-js':
+        specifier: ~1.14.3
+        version: 1.14.3
+      '@grpc/proto-loader':
+        specifier: ~0.8.0
+        version: 0.8.0
+      google-protobuf:
+        specifier: ~4.0.1
+        version: 4.0.1
+    devDependencies:
+      '@types/google-protobuf':
+        specifier: ~3.15.12
+        version: 3.15.12
+      grpc-tools:
+        specifier: ~1.13.1
+        version: 1.13.1
+      grpc_tools_node_protoc_ts:
+        specifier: ~5.3.3
+        version: 5.3.3
       tsx:
         specifier: ^4.19.3
         version: 4.19.3

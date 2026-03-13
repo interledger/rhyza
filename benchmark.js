@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable no-undef */
 
 import http from 'k6/http';
 import { check } from 'k6';
@@ -64,25 +65,27 @@ export function setup() {
   const sender = JSON.parse(senderRes.body);
 
   return {
-    receiverWalletAddressId: receiver.address || 'receiver',
-    senderWalletAddressId: sender.address || 'sender'
+    receiverWalletAddress: receiver.address || 'receiver',
+    senderWalletAddress: sender.address || 'sender'
   };
 }
 
 export default function (data) {
   const incomingPaymentId = uuidv4();
-  // const incomingPaymentRes = request(`${ADMIN_API_URL}/incoming-payments`, {
-  //   id: incomingPaymentId,
-  //   walletAddressId: data.receiverWalletAddressId
-  // });
-  //
-  // console.log(`incoming payment response: ${incomingPaymentRes.body}`);
-  //
-  // check(incomingPaymentRes, {
-  //   'incoming payment created': (r) => r.status === 201,
-  //   'incoming payment id matches': (r) =>
-  //     JSON.parse(r.body).id === incomingPaymentId
-  // });
+  const incomingPaymentRes = request(`${ADMIN_API_URL}/incoming-payments`, {
+    id: incomingPaymentId,
+    walletAddress: data.receiverWalletAddress
+  });
+
+  console.log(`incoming payment response: ${incomingPaymentRes.body}`);
+
+  check(incomingPaymentRes, {
+    'incoming payment created': (r) => r.status === 201,
+    'incoming payment id matches': (r) =>
+      JSON.parse(r.body).id === incomingPaymentId
+  });
+
+  // const incomingPaymentId = JSON.parse(incomingPaymentRes.body).id;
   //
   // const quoteRes = request(`${ADMIN_API_URL}/quotes`, {
   //   debitAmount: {
@@ -91,7 +94,7 @@ export default function (data) {
   //     value: 100
   //   },
   //   incomingPaymentId,
-  //   senderWalletAddressId: data.senderWalletAddressId
+  //   senderWalletAddress: data.senderWalletAddress
   // });
   //
   // check(quoteRes, {
@@ -103,7 +106,7 @@ export default function (data) {
   // const outgoingPaymentRes = request(`${ADMIN_API_URL}/outgoing-payments`, {
   //   quoteId,
   //   incomingPaymentId,
-  //   senderWalletAddressId: data.senderWalletAddressId
+  //   senderWalletAddress: data.senderWalletAddress
   // });
   // check(outgoingPaymentRes, {
   //   'outgoing payment created': (r) => r.status === 201

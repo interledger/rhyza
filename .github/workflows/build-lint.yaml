@@ -1,0 +1,26 @@
+name: Build & lint checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+      - uses: pnpm/action-setup@v4
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+      - name: Lint checks
+        run: |
+          pnpm checks
+      - name: Build
+        run: |
+          pnpm build

@@ -13,7 +13,9 @@ async function _handle_int_and_term_signals(
   console.info(`Service - ${signal} received - cleaning up...`);
   let cleanExit = false;
   setTimeout(() => {
-    cleanExit || process.exit(99);
+    if (!cleanExit) {
+      process.exit(99);
+    }
   }, 5000);
 
   await AdminApiService.stop();

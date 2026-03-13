@@ -1,0 +1,29 @@
+syntax = "proto3";
+package rafiki.payments.service;
+
+// Service for managing payment resources.
+service PaymentsGrpc {
+  // Creates a new incoming payment.
+  rpc CreateIncomingPayment(CreateIncomingPaymentRequest) returns (CreateIncomingPaymentResponse);
+  // Retrieves an incoming payment by ID.
+}
+
+/*
+ * Incoming Payment messages
+ */
+
+// Request to create a new incoming payment.
+message CreateIncomingPaymentRequest {
+  string id = 1;
+  string wallet_address_id = 2;
+  string wallet_address = 6;
+  optional uint64 incoming_amount = 3;
+  optional string expires_at = 4;
+  optional string metadata = 5;
+}
+
+// Response containing the ID of the created incoming payment.
+message CreateIncomingPaymentResponse {
+  string id = 1;
+}
+

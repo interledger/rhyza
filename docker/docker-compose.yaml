@@ -7,10 +7,13 @@ services:
     restart: always
     environment:
       PAL_GRPC_URL: pal-api-service:50051
+      PAYMENTS_GRPC_URL: payments-api-service:50052
     ports:
       - '3001:3001'
     depends_on:
       pal-api-service:
+        condition: service_started
+      payments-api-service:
         condition: service_started
     networks:
       - rafiki-poc
@@ -22,9 +25,46 @@ services:
     restart: always
     environment:
       MONGO_URL: mongodb://root:mongoPass@mongodb:27017/
+    ports:
+      - '50051:50051'
     depends_on:
       mongodb:
         condition: service_healthy
+    networks:
+      - rafiki-poc
+
+  payments-api-service:
+    build:
+      context: ../
+      dockerfile: ./packages/payments-api-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+    ports:
+      - '50052:50052'
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+    networks:
+      - rafiki-poc
+
+  payments-command-handler-service:
+    build:
+      context: ../
+      dockerfile: ./packages/payments-command-handler-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
+      PAL_GRPC_URL: pal-api-service:50051
+      UV_THREADPOOL_SIZE: 128
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      init-kafka:
+        condition: service_completed_successfully
+      pal-api-service:
+        condition: service_started
     networks:
       - rafiki-poc
 
@@ -102,6 +142,7 @@ services:
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic audits
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic logs
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic payment-commands
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic payment-events
       echo -e '\nSuccessfully created the following topics:'
       ./kafka-topics.sh --bootstrap-server kafka:19092 --list
       "

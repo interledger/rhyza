@@ -35,6 +35,7 @@ export async function assetRoutes(
           ? BigInt(liquidityHighThreshold)
           : undefined
       );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       // TODO: PAL service returns gRPC code 2 (UNKNOWN) for duplicates — should probably
       // be code 6 (ALREADY_EXISTS) so we can check err.code instead of string matching.
