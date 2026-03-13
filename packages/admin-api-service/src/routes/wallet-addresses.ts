@@ -23,7 +23,7 @@ export async function walletAddressRoutes(
   }>('/wallet-addresses', async (request, reply) => {
     const { address, publicName, assetCode, isActive } = request.body;
 
-    const { domain, pathName } = parserAddressToDomainAndPathName(address);
+    const { domain, pathName } = parseAddressToDomainAndPathName(address);
 
     let result;
     try {
@@ -51,21 +51,4 @@ export async function walletAddressRoutes(
       address: result.domain ?  `${result.domain}/${result.pathName}` : result.pathName
     });
   });
-}
-
-
-function parserAddressToDomainAndPathName(address: string): { domain: string | null, pathName: string} {
-  let toParseAddress = address.includes('://') ? address  : 'http://' + address;
-
-  try{
-    const url = new URL(toParseAddress);
-    return {
-      domain: url.hostname,
-      pathName: url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
-    }
-  }catch(err){
-    // not url, must be all pathname
-    return {domain: null, pathName: address};
-  }
-
 }
