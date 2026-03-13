@@ -29,7 +29,6 @@ import {
   ResolveWalletAddressAliasRequest,
   ResolveWalletAddressAliasResponse
 } from 'pal-public-types-lib';
-import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
 
 export class PalClient {
   private readonly _serverUrl: string;
@@ -84,10 +83,10 @@ export class PalClient {
     request.setScale(scale);
 
     if (liquidityLowThreshold !== undefined) {
-      request.setLiquiditylowthreshold(Number(liquidityLowThreshold));
+      request.setLiquidityLowThreshold(Number(liquidityLowThreshold));
     }
     if (liquidityHighThreshold !== undefined) {
-      request.setLiquidityhighthreshold(Number(liquidityHighThreshold));
+      request.setLiquidityHighThreshold(Number(liquidityHighThreshold));
     }
 
     return new Promise((resolve, reject) => {
@@ -126,11 +125,11 @@ export class PalClient {
           const respObj: IPalClientAsset = {
             code: respAsset.getCode(),
             scale: respAsset.getScale(),
-            liquidityLowThreshold: respAsset.hasLiquiditylowthreshold()
-              ? BigInt(respAsset.getLiquiditylowthreshold()!)
+            liquidityLowThreshold: respAsset.hasLiquidityLowThreshold()
+              ? BigInt(respAsset.getLiquidityLowThreshold()!)
               : null,
-            liquidityHighThreshold: respAsset.hasLiquidityhighthreshold()
-              ? BigInt(respAsset.getLiquidityhighthreshold()!)
+            liquidityHighThreshold: respAsset.hasLiquidityHighThreshold()
+              ? BigInt(respAsset.getLiquidityHighThreshold()!)
               : null
           };
 
@@ -145,17 +144,21 @@ export class PalClient {
    * */
 
   async createWalletAddress(
-    address: string,
+    domain: string | null,
+    pathName: string,
     publicName: string,
     assetCode: string,
     isActive?: boolean
   ): Promise<IPalClientWalletAddress> {
     const request = new CreateWalletAddressRequest();
-    request.setAddress(address);
-    request.setPublicname(publicName);
-    request.setAssetcode(assetCode);
+    if(domain) {
+      request.setDomain(domain)
+    }
+    request.setPathName(pathName);
+    request.setPublicName(publicName);
+    request.setAssetCode(assetCode);
     if (isActive !== undefined) {
-      request.setIsactive(isActive);
+      request.setIsActive(isActive);
     }
 
     return new Promise((resolve, reject) => {
@@ -168,11 +171,12 @@ export class PalClient {
           }
 
           return resolve({
-            address: response.getAddress(),
-            publicName: response.getPublicname(),
-            assetCode: response.getAssetcode(),
-            assetScale: response.getAssetscale(),
-            isActive: response.getIsactive()
+            domain: response.getDomain() ?? null,
+            pathName: response.getPathName(),
+            publicName: response.getPublicName(),
+            assetCode: response.getAssetCode(),
+            assetScale: response.getAssetScale(),
+            isActive: response.getIsActive()
           });
         }
       );
@@ -194,7 +198,7 @@ export class PalClient {
             return reject(error);
           }
 
-          const respWallets = response.getWalletaddressesList();
+          const respWallets = response.getWalletAddressesList();
           if (!respWallets || respWallets.length == 0) {
             return resolve([]);
           }
@@ -202,10 +206,10 @@ export class PalClient {
           const respObj = respWallets.map((item) => {
             return {
               id: item.getId(),
-              publicName: item.getPublicname(),
-              assetCode: item.getAssetcode(),
-              assetScale: item.getAssetscale(),
-              isActive: item.getIsactive()
+              publicName: item.getPublicName(),
+              assetCode: item.getAssetCode(),
+              assetScale: item.getAssetScale(),
+              isActive: item.getIsActive()
             };
           });
 
@@ -220,14 +224,14 @@ export class PalClient {
    * */
 
   async createWalletAddressAlias(
-    prefix: string | null,
-    suffix: string,
+    domain: string | null,
+    pathName: string,
     walletAddressId: string
   ): Promise<void> {
     const request = new CreateWalletAddressAliasRequest();
-    if (prefix) request.setPrefix(prefix);
-    request.setSuffix(suffix);
-    request.setWalletaddressid(walletAddressId);
+    if (domain) request.setDomain(domain);
+    request.setPathName(pathName);
+    request.setWalletAddressId(walletAddressId);
 
     return new Promise((resolve, reject) => {
       this._grpcClient.createWalletAddressAlias(
@@ -245,16 +249,16 @@ export class PalClient {
   }
 
   async ResolveWalletAddressAlias(
-    prefix: string | null,
-    suffix: string
+    domain: string | null,
+    pathName: string
   ): Promise<{
-    prefix: string | null;
-    suffix: string;
+    domain: string | null;
+    pathName: string;
     walletAddressId: string;
   } | null> {
     const request = new ResolveWalletAddressAliasRequest();
-    if (prefix) request.setPrefix(prefix);
-    request.setSuffix(suffix);
+    if (domain) request.setDomain(domain);
+    request.setPathName(pathName);
 
     return new Promise((resolve, reject) => {
       this._grpcClient.resolveWalletAddressAlias(
@@ -275,9 +279,9 @@ export class PalClient {
           }
 
           return resolve({
-            prefix: alias.hasPrefix() ? alias.getPrefix() || null : null,
-            suffix: alias.getSuffix(),
-            walletAddressId: alias.getWalletaddressid()
+            domain: alias.hasDomain() ? alias.getDomain() || null : null,
+            pathName: alias.getPathName(),
+            walletAddressId: alias.getWalletAddressId()
           });
         }
       );

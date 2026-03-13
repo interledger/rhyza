@@ -10,15 +10,15 @@
 'use strict';
 
 export interface IPalWalletAddressAlias {
-  prefix: string | null;
-  suffix: string;
+  domain: string | null;
+  pathName: string;
   walletId: string;
 }
 
 export interface IPalWalletAddressAliasRepository {
   store(alias: IPalWalletAddressAlias): Promise<void>;
   fetch(
-    prefix: string | null,
-    suffix: string
+    domain: string | null,
+    pathName: string
   ): Promise<IPalWalletAddressAlias | null>;
 }

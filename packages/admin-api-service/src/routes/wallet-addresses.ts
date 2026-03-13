@@ -23,10 +23,13 @@ export async function walletAddressRoutes(
   }>('/wallet-addresses', async (request, reply) => {
     const { address, publicName, assetCode, isActive } = request.body;
 
+    const { domain, pathName } = parserAddressToDomainAndPathName(address);
+
     let result;
     try {
       result = await palClient.createWalletAddress(
-        address,
+        domain,
+        pathName,
         publicName,
         assetCode,
         isActive
@@ -44,7 +47,24 @@ export async function walletAddressRoutes(
     }
 
     return reply.status(201).send({
-      address: result.address
+      address: result.domain ?  `${result.domain}/${result.pathName}` : result.pathName
     });
   });
+}
+
+
+function parserAddressToDomainAndPathName(address: string): { domain: string | null, pathName: string} {
+  let toParseAddress = address.includes('://') ? address  : 'http://' + address;
+
+  try{
+    const url = new URL(toParseAddress);
+    return {
+      domain: url.hostname,
+      pathName: url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
+    }
+  }catch(err){
+    // not url, must be all pathname
+    return {domain: null, pathName: address};
+  }
+
 }

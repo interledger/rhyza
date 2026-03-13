@@ -19,7 +19,8 @@ export interface IPalClientAsset {
 
 // for returned wallet address objects
 export interface IPalClientWalletAddress {
-  address: string;
+  domain: string | null;
+  pathName: string;
   publicName: string;
   assetCode: string;
   assetScale: number;

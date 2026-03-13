@@ -29,7 +29,7 @@ export class MockWalletAddressAliasRepo
     suffix: string
   ): Promise<IPalWalletAddressAlias | null> {
     const ret = this._data.find(
-      (item) => item.prefix === prefix && item.suffix === suffix
+      (item) => item.domain === prefix && item.pathName === suffix
     );
     return Promise.resolve(ret);
   }

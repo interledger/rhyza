@@ -70,6 +70,7 @@ message CreateWalletAddressResponse {
   string asset_code = 3;
   uint32 asset_scale = 4;
   bool is_active = 5;
+  optional string domain = 6;
 }
 
 message GetWalletAddressesRequest {

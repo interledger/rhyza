@@ -18,9 +18,8 @@ let client: PalClient;
 const ASSET_CODE = 'EUR';
 const ASSET_SCALE = 2;
 
-const ALIAS_PREFIX = 'domain.com';
-const ALIAS_SUFFIX = 'pedrobarreto';
-const WALLET_ADDRESS = `${ALIAS_PREFIX}/${ALIAS_SUFFIX}`;
+const ALIAS_DOMAIN = 'domain.com';
+const ALIAS_PATHNAME = 'pedrobarreto';
 const PUBLIC_NAME = 'Pedro Barreto';
 
 let createdWalletAddressId: string;
@@ -71,32 +70,34 @@ test('pal client - get non existing asset should fail', async () => {
 
 test('pal client - create wallet address', async () => {
   const createdWallet = await client.createWalletAddress(
-    WALLET_ADDRESS,
+    ALIAS_DOMAIN,
+    ALIAS_PATHNAME,
     PUBLIC_NAME,
     ASSET_CODE
   );
 
   assert.ok(createdWallet);
-  assert.equal(createdWallet.address, WALLET_ADDRESS);
+  assert.equal(createdWallet.domain, ALIAS_DOMAIN);
+  assert.equal(createdWallet.pathName, ALIAS_PATHNAME);
   assert.equal(createdWallet.publicName, PUBLIC_NAME);
   assert.equal(createdWallet.assetCode, ASSET_CODE);
   assert.equal(createdWallet.assetScale, ASSET_SCALE);
   assert.equal(createdWallet.isActive, true);
 });
 
-// must run this here to resove / get the internal wallet address id
+// must run this here to resolve / get the internal wallet address id
 test('pal client - resolve created wallet address', async () => {
   const alias = await client.ResolveWalletAddressAlias(
-    ALIAS_PREFIX,
-    ALIAS_SUFFIX
+    ALIAS_DOMAIN,
+    ALIAS_PATHNAME
   );
 
   createdWalletAddressId = alias.walletAddressId;
 
   assert.ok(alias);
   assert.ok(alias.walletAddressId);
-  assert.equal(alias.prefix, ALIAS_PREFIX);
-  assert.equal(alias.suffix, ALIAS_SUFFIX);
+  assert.equal(alias.domain, ALIAS_DOMAIN);
+  assert.equal(alias.pathName, ALIAS_PATHNAME);
 });
 
 test('pal client - get wallet', async () => {
@@ -115,7 +116,7 @@ test('pal client - get wallet', async () => {
 
 test('pal client - created duplicate wallet should fail', async () => {
   try {
-    await client.createWalletAddress(WALLET_ADDRESS, PUBLIC_NAME, ASSET_CODE);
+    await client.createWalletAddress(ALIAS_DOMAIN, ALIAS_PATHNAME, PUBLIC_NAME, ASSET_CODE);
 
     assert.fail();
   } catch (e) {
@@ -134,53 +135,53 @@ after(async () => {
   await client.disconnect();
 });
 
-test('pal client - create wallet address alias without prefix', async () => {
+test('pal client - create wallet address alias without domain', async () => {
   await client.createWalletAddressAlias(
     null,
-    ALIAS_SUFFIX,
+    ALIAS_PATHNAME,
     createdWalletAddressId
   );
 });
-test('pal client - create wallet address alias with prefix', async () => {
-  // Must use another prefix/domain as the create wallet address test
-  // above automatically creates the alias with prefix
+test('pal client - create wallet address alias with domain', async () => {
+  // Must use another domain as the create wallet address test
+  // above automatically creates the alias with domain
   await client.createWalletAddressAlias(
     'otherdomain.com',
-    ALIAS_SUFFIX,
+    ALIAS_PATHNAME,
     createdWalletAddressId
   );
 });
 
-test('pal client - resolve wallet address alias without prefix', async () => {
-  const alias = await client.ResolveWalletAddressAlias(null, ALIAS_SUFFIX);
+test('pal client - resolve wallet address alias without domain', async () => {
+  const alias = await client.ResolveWalletAddressAlias(null, ALIAS_PATHNAME);
 
   assert.ok(alias);
   assert.ok(alias.walletAddressId);
-  assert.equal(alias.prefix, null);
-  assert.equal(alias.suffix, ALIAS_SUFFIX);
+  assert.equal(alias.domain, null);
+  assert.equal(alias.pathName, ALIAS_PATHNAME);
 });
-test('pal client - resolve wallet address alias with prefix', async () => {
+test('pal client - resolve wallet address alias with domain', async () => {
   const address = await client.ResolveWalletAddressAlias(
-    ALIAS_PREFIX,
-    ALIAS_SUFFIX
+    ALIAS_DOMAIN,
+    ALIAS_PATHNAME
   );
 
   assert.ok(address);
-  assert.equal(address.prefix, ALIAS_PREFIX);
-  assert.equal(address.suffix, ALIAS_SUFFIX);
+  assert.equal(address.domain, ALIAS_DOMAIN);
+  assert.equal(address.pathName, ALIAS_PATHNAME);
   assert.equal(address.walletAddressId, createdWalletAddressId);
 });
 
-test('pal client - resolve non existing wallet address alias with prefix should fail', async () => {
+test('pal client - resolve non existing wallet address alias with domain should fail', async () => {
   const address = await client.ResolveWalletAddressAlias(
-    ALIAS_PREFIX,
+    ALIAS_DOMAIN,
     'NON_EXISTING'
   );
 
   assert.equal(address === null, true);
 });
 
-test('pal client - resolve non existing wallet address alias without prefix should fail', async () => {
+test('pal client - resolve non existing wallet address alias without domain should fail', async () => {
   const address = await client.ResolveWalletAddressAlias(null, 'NON_EXISTING');
 
   assert.equal(address === null, true);

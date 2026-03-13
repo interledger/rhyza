@@ -179,14 +179,9 @@ export class PalServiceServer {
   // endregion health check handlers
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async _handleUnary(
-    call: ServerUnaryCall<any, any>,
-    callback: sendUnaryData<any>
-  ): Promise<void> {
+  private async _handleUnary(call: ServerUnaryCall<any, any>, callback: sendUnaryData<any>): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let specificRequestHandler: (
-      call: ServerUnaryCall<any, any>
-    ) => Promise<any>;
+    let specificRequestHandler: (call: ServerUnaryCall<any, any> ) => Promise<any>;
 
     if (call.request instanceof CreateAssetRequest) {
       specificRequestHandler = this._handleAssetCreateRequest.bind(this);
@@ -232,8 +227,8 @@ export class PalServiceServer {
   private async _handleAssetCreateRequest(
     call: ServerUnaryCall<CreateAssetRequest, CreateAssetResponse>
   ): Promise<CreateAssetResponse> {
-    const lowThreshold = call.request.getLiquiditylowthreshold();
-    const highThreshold = call.request.getLiquidityhighthreshold();
+    const lowThreshold = call.request.getLiquidityLowThreshold();
+    const highThreshold = call.request.getLiquidityHighThreshold();
 
     await this._assetAggregate.createAsset(
       call.request.getCode(),
@@ -247,9 +242,9 @@ export class PalServiceServer {
     resp.setScale(call.request.getScale());
 
     if (lowThreshold !== null)
-      resp.setLiquiditylowthreshold(Number(lowThreshold));
+      resp.setLiquidityLowThreshold(Number(lowThreshold));
     if (highThreshold !== null)
-      resp.setLiquidityhighthreshold(Number(highThreshold));
+      resp.setLiquidityHighThreshold(Number(highThreshold));
     return resp;
   }
 
@@ -264,12 +259,10 @@ export class PalServiceServer {
       assetResp.setCode(asset.code);
       assetResp.setScale(asset.scale);
       if (asset.liquidityLowThreshold !== null) {
-        assetResp.setLiquiditylowthreshold(Number(asset.liquidityLowThreshold));
+        assetResp.setLiquidityLowThreshold(Number(asset.liquidityLowThreshold));
       }
       if (asset.liquidityHighThreshold !== null) {
-        assetResp.setLiquidityhighthreshold(
-          Number(asset.liquidityHighThreshold)
-        );
+        assetResp.setLiquidityHighThreshold(Number(asset.liquidityHighThreshold));
       }
       resp.setAsset(assetResp);
     }
@@ -288,32 +281,40 @@ export class PalServiceServer {
     >
   ): Promise<CreateWalletAddressResponse> {
     const asset = await this._assetAggregate.getAsset(
-      call.request.getAssetcode()
+      call.request.getAssetCode()
     );
 
     if (!asset) {
-      throw new Error(`Asset ${call.request.getAssetcode()} does not exist`);
+      throw new Error(`Asset ${call.request.getAssetCode()} does not exist`);
     }
 
     const isActive =
-      !call.request.hasIsactive() || call.request.getIsactive() == true;
+      !call.request.hasIsActive() || call.request.hasIsActive() == true;
+
+    const domain = call.request.hasDomain() ? call.request.getDomain() || null : null;
 
     // Use the wallet domain service to coordinate wallet address and wallet alias
     // aggregates, ie, will automatically create the alias for the address
     await this._walletDomainService.createWalletAddress(
-      call.request.getAddress(),
-      call.request.getPublicname(),
+      domain,
+      call.request.getPathName(),
+      call.request.getPublicName(),
       asset.code,
       asset.scale,
       isActive
     );
 
-    return new CreateWalletAddressResponse()
-      .setAddress(call.request.getAddress())
-      .setPublicname(call.request.getPublicname())
-      .setAssetcode(asset.code)
-      .setAssetscale(asset.scale)
-      .setIsactive(isActive);
+    const response = new CreateWalletAddressResponse()
+      .setPathName(call.request.getPathName())
+      .setPublicName(call.request.getPublicName())
+      .setAssetCode(asset.code)
+      .setAssetScale(asset.scale)
+      .setIsActive(isActive);
+
+    if(domain){
+      response.setDomain(domain)
+    }
+    return response;
   }
 
   private async _handleGetWalletAddressesRequest(
@@ -327,14 +328,14 @@ export class PalServiceServer {
     const walletList = wallets.map((item) => {
       const wallet = new SingleWalletAddressResponse();
       wallet.setId(item.id);
-      wallet.setPublicname(item.publicName);
-      wallet.setAssetcode(item.assetCode);
-      wallet.setAssetscale(item.assetScale);
-      wallet.setIsactive(item.isActive);
+      wallet.setPublicName(item.publicName);
+      wallet.setAssetCode(item.assetCode);
+      wallet.setAssetScale(item.assetScale);
+      wallet.setIsActive(item.isActive);
       return wallet;
     });
 
-    resp.setWalletaddressesList(walletList);
+    resp.setWalletAddressesList(walletList);
 
     return resp;
   }
@@ -349,14 +350,14 @@ export class PalServiceServer {
       ResolveWalletAddressAliasResponse
     >
   ): Promise<ResolveWalletAddressAliasResponse> {
-    const prefix = call.request.hasPrefix()
-      ? call.request.getPrefix() || null
+    const domain = call.request.hasDomain()
+      ? call.request.getDomain() || null
       : null;
-    const suffix = call.request.getSuffix();
+    const suffix = call.request.getPathName();
 
     const walletAddressId =
       await this._walletAliasAggregate.resolveWalletAddressAlias(
-        prefix,
+        domain,
         suffix
       );
 
@@ -367,9 +368,9 @@ export class PalServiceServer {
     }
 
     const aliasResp = new ResolveWalletAddressNonEmptyResponse();
-    if (prefix) aliasResp.setPrefix(prefix);
-    aliasResp.setSuffix(suffix);
-    aliasResp.setWalletaddressid(walletAddressId);
+    if (domain) aliasResp.setDomain(domain);
+    aliasResp.setPathName(suffix);
+    aliasResp.setWalletAddressId(walletAddressId);
 
     resp.setAlias(aliasResp);
     return resp;
@@ -378,15 +379,15 @@ export class PalServiceServer {
   private async _handleCreateWalletAddressAliasRequest(
     call: ServerUnaryCall<CreateWalletAddressAliasRequest, Empty>
   ): Promise<Empty> {
-    const prefix = call.request.hasPrefix()
-      ? call.request.getPrefix() || null
+    const prefix = call.request.hasDomain()
+      ? call.request.getDomain() || null
       : null;
 
     // Use the wallet domain service to coordinate wallet address and wallet alias aggregates
     await this._walletDomainService.createWalletAddressAlias(
       prefix,
-      call.request.getSuffix(),
-      call.request.getWalletaddressid()
+      call.request.getPathName(),
+      call.request.getWalletAddressId()
     );
 
     return new Empty();

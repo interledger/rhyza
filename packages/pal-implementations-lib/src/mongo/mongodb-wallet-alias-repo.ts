@@ -108,8 +108,8 @@ export class MongoWalletAddressAliasRepo
 
     try {
       const doc = await this._collection.findOne({
-        prefix: prefix,
-        suffix: suffix
+        domain: prefix,
+        pathName: suffix
       });
 
       if (!doc) {
@@ -117,8 +117,8 @@ export class MongoWalletAddressAliasRepo
       }
 
       return {
-        prefix: doc.prefix,
-        suffix: doc.suffix,
+        domain: doc.domain,
+        pathName: doc.pathName,
         walletId: doc.walletId
       };
     } catch (e) {

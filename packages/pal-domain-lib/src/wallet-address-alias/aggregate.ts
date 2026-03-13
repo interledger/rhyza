@@ -23,32 +23,32 @@ export class WalletAddressAliasAggregate {
   }
 
   async resolveWalletAddressAlias(
-    prefix: string | null,
-    suffix: string
+    domain: string | null,
+    pathName: string
   ): Promise<string | null> {
-    const found = await this._repo.fetch(prefix || null, suffix);
+    const found = await this._repo.fetch(domain || null, pathName);
 
     if (!found) return null;
     return found.walletId;
   }
 
   async createWalletAddressAlias(
-    prefix: string | null,
-    suffix: string,
+    domain: string | null,
+    pathName: string,
     walletId: string
   ): Promise<void> {
-    const existing = await this._repo.fetch(prefix || null, suffix);
+    const existing = await this._repo.fetch(domain || null, pathName);
     if (existing) {
       throw new CannotCreateDuplicateWalletAddressAliasError(
         'Wallet address alias already exists'
       );
     }
 
-    // TODO: validate inputs, especially prefix and suffix characters
+    // TODO: validate inputs, especially domain and pathName characters
 
     const alias: IPalWalletAddressAlias = {
-      prefix: prefix || null,
-      suffix,
+      domain: domain || null,
+      pathName,
       walletId
     };
     await this._repo.store(alias);

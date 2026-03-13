@@ -16,8 +16,6 @@ import {
 import { WalletAddressAliasAggregate } from '../wallet-address-alias';
 import * as crypto from 'node:crypto';
 
-const ADDRESS_SPLIT_CHAR = '/';
-
 export class WalletDomainService {
   private _addressAggregate: WalletAddressAggregate;
   private _aliasAggregate: WalletAddressAliasAggregate;
@@ -30,26 +28,11 @@ export class WalletDomainService {
     this._aliasAggregate = aliasAggregate;
   }
 
-  private _extractPrefixAndSuffixFromAddress(address: string): {
-    prefix: string | null;
-    suffix: string;
-  } {
-    let prefix = null;
-    let suffix = address;
-    const lastIndex = address.lastIndexOf(ADDRESS_SPLIT_CHAR);
-
-    if (lastIndex >= -1) {
-      prefix = address.substring(0, lastIndex);
-      suffix = address.substring(lastIndex + 1);
-    }
-
-    return { prefix, suffix };
-  }
-
   /**
    * Creates a wallet address, coordinating this request with the wallet address alias
    * aggregate, to automatically register the alias of the newly created address
-   * @param address Requested wallet address
+   * @param domain Optional domain part for wallet address
+   * @param pathName Mandatory pathName part for wallet address
    * @param publicName Wallet address public name
    * @param assetCode Asset code
    * @param assetScale Asset code
@@ -57,21 +40,21 @@ export class WalletDomainService {
    * @returns internal wallet address ID (should not be shared outside)
    */
   async createWalletAddress(
-    address: string,
+    domain: string | null,
+    pathName: string,
     publicName: string,
     assetCode: string,
     assetScale: number,
-    isActive?: boolean
+    isActive?: boolean,
   ): Promise<string> {
-    const prefixAndSuffix = this._extractPrefixAndSuffixFromAddress(address);
     const alias = await this._aliasAggregate.resolveWalletAddressAlias(
-      prefixAndSuffix.prefix,
-      prefixAndSuffix.suffix
+      domain,
+      pathName
     );
 
     if (alias) {
       throw new CannotCreateDuplicateWalletAddressError(
-        `Wallet Address with address ${address} already exists`
+        `Wallet Address with that domain and pathName ${domain}/${pathName} already exists`
       );
     }
 
@@ -84,8 +67,8 @@ export class WalletDomainService {
       isActive
     );
     await this.createWalletAddressAlias(
-      prefixAndSuffix.prefix,
-      prefixAndSuffix.suffix,
+      domain,
+      pathName,
       newAddressId
     );
 
@@ -95,14 +78,14 @@ export class WalletDomainService {
   /**
    * Creates a wallet address alias, coordinating this request with the wallet address
    * aggregate by validating the existence of the proposed wallet address id.
-   * @param prefix optional alias prefix
-   * @param suffix alias suffix
+   * @param domain optional alias domain
+   * @param pathName alias pathName
    * @param walletId target wallet address id for the alias to point to
    */
 
   async createWalletAddressAlias(
-    prefix: string | null,
-    suffix: string,
+    domain: string | null,
+    pathName: string,
     walletId: string
   ): Promise<void> {
     const [walletAddress] = await this._addressAggregate.getWalletAddresses([
@@ -113,10 +96,10 @@ export class WalletDomainService {
       throw new Error(`Wallet Address with id ${walletId} does not exist`);
     }
 
-    // note: the alias aggregate already checks for duplicates
+    // Note: the alias aggregate already checks for duplicates
     await this._aliasAggregate.createWalletAddressAlias(
-      prefix,
-      suffix,
+      domain,
+      pathName,
       walletId
     );
   }

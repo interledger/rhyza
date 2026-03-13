@@ -38,9 +38,8 @@ let walletDomainService: WalletDomainService;
 const ASSET_CODE = 'EUR';
 const ASSET_SCALE = 2;
 
-const ALIAS_PREFIX = 'domain.com';
-const ALIAS_SUFFIX = 'pedrobarreto';
-const WALLET_ADDRESS = `${ALIAS_PREFIX}/${ALIAS_SUFFIX}`;
+const ALIAS_DOMAIN = 'domain.com';
+const ALIAS_PATHNAME = 'pedrobarreto';
 const PUBLIC_NAME = 'Pedro Barreto';
 
 let createdWalletAddressInternalId: string;
@@ -110,7 +109,8 @@ test('pal domain - get non existing asset should fail', async () => {
 test('pal domain - create wallet address', async () => {
   createdWalletAddressInternalId =
     await walletDomainService.createWalletAddress(
-      WALLET_ADDRESS,
+      ALIAS_DOMAIN,
+      ALIAS_PATHNAME,
       PUBLIC_NAME,
       ASSET_CODE,
       ASSET_SCALE
@@ -136,7 +136,8 @@ test('pal domain - get wallet address', async () => {
 test('pal domain - created duplicate wallet address should fail', async () => {
   try {
     await walletDomainService.createWalletAddress(
-      WALLET_ADDRESS,
+      ALIAS_DOMAIN,
+      ALIAS_PATHNAME,
       PUBLIC_NAME,
       ASSET_CODE,
       ASSET_SCALE
@@ -159,29 +160,29 @@ test('pal domain - get non existing wallet address should fail', async () => {
 //region wallet address alias
 test('pal domain - alias should exist for created wallet address', async () => {
   const walletId = await walletAddressAliasAggregate.resolveWalletAddressAlias(
-    ALIAS_PREFIX,
-    ALIAS_SUFFIX
+    ALIAS_DOMAIN,
+    ALIAS_PATHNAME
   );
 
   assert.ok(walletId);
   assert.equal(walletId, createdWalletAddressInternalId);
 });
 
-test('pal domain - create wallet address alias without prefix', async () => {
+test('pal domain - create wallet address alias without domain', async () => {
   await walletDomainService.createWalletAddressAlias(
     null,
-    ALIAS_SUFFIX,
+    ALIAS_PATHNAME,
     createdWalletAddressInternalId
   );
   assert.ok(true);
 });
 
-test('pal domain - create wallet address alias with prefix', async () => {
-  // Must use another prefix/domain as the create wallet address test
-  // above automatically creates the alias with prefix
+test('pal domain - create wallet address alias with domain', async () => {
+  // Must use another domain as the create wallet address test
+  // above automatically creates the alias with domain
   await walletDomainService.createWalletAddressAlias(
     'otherdomain.com',
-    ALIAS_SUFFIX,
+    ALIAS_PATHNAME,
     createdWalletAddressInternalId
   );
   assert.ok(true);
@@ -190,8 +191,8 @@ test('pal domain - create wallet address alias with prefix', async () => {
 test('pal domain - create wallet address with invalid wallet id should fail', async () => {
   try {
     await walletDomainService.createWalletAddressAlias(
-      ALIAS_PREFIX,
-      ALIAS_SUFFIX,
+      ALIAS_DOMAIN,
+      ALIAS_PATHNAME,
       'invalid wallet id'
     );
     assert.fail();
@@ -201,36 +202,36 @@ test('pal domain - create wallet address with invalid wallet id should fail', as
   }
 });
 
-test('pal domain - resolve wallet address alias without prefix', async () => {
+test('pal domain - resolve wallet address alias without domain', async () => {
   const walletId = await walletAddressAliasAggregate.resolveWalletAddressAlias(
     null,
-    ALIAS_SUFFIX
+    ALIAS_PATHNAME
   );
 
   assert.ok(walletId);
   assert.equal(walletId, createdWalletAddressInternalId);
 });
 
-test('pal domain - resolve wallet address alias with prefix', async () => {
+test('pal domain - resolve wallet address alias with domain', async () => {
   const walletId = await walletAddressAliasAggregate.resolveWalletAddressAlias(
-    ALIAS_PREFIX,
-    ALIAS_SUFFIX
+    ALIAS_DOMAIN,
+    ALIAS_PATHNAME
   );
 
   assert.ok(walletId);
   assert.equal(walletId, createdWalletAddressInternalId);
 });
 
-test('pal domain - resolve non existing wallet address alias with prefix should fail', async () => {
+test('pal domain - resolve non existing wallet address alias with domain should fail', async () => {
   const walletId = await walletAddressAliasAggregate.resolveWalletAddressAlias(
-    ALIAS_PREFIX,
+    ALIAS_DOMAIN,
     'NON_EXISTING'
   );
 
   assert.equal(walletId === null, true);
 });
 
-test('pal domain - resolve non existing wallet address alias without prefix should fail', async () => {
+test('pal domain - resolve non existing wallet address alias without domain should fail', async () => {
   const walletId = await walletAddressAliasAggregate.resolveWalletAddressAlias(
     null,
     'NON_EXISTING'

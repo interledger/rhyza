@@ -12,22 +12,22 @@
 import { IPalWalletAddressAlias } from './interfaces';
 
 export class PalWalletAddressAlias implements IPalWalletAddressAlias {
-  private readonly _prefix: string | null;
-  private readonly _suffix: string;
+  private readonly _domain: string | null;
+  private readonly _pathName: string;
   private readonly _walletId: string;
 
   constructor(prefix: string | null, suffix: string, walletId: string) {
-    this._prefix = prefix;
-    this._suffix = suffix;
+    this._domain = prefix;
+    this._pathName = suffix;
     this._walletId = walletId;
   }
 
-  get prefix(): string | null {
-    return this._prefix;
+  get domain(): string | null {
+    return this._domain;
   }
 
-  get suffix(): string {
-    return this._suffix;
+  get pathName(): string {
+    return this._pathName;
   }
 
   get walletId(): string {
@@ -35,13 +35,13 @@ export class PalWalletAddressAlias implements IPalWalletAddressAlias {
   }
 
   static fromObject(json: IPalWalletAddressAlias): PalWalletAddressAlias {
-    return new PalWalletAddressAlias(json.prefix, json.suffix, json.walletId);
+    return new PalWalletAddressAlias(json.domain, json.pathName, json.walletId);
   }
 
   toObject(): IPalWalletAddressAlias {
     return {
-      prefix: this._prefix,
-      suffix: this._suffix,
+      domain: this._domain,
+      pathName: this._pathName,
       walletId: this._walletId
     };
   }
