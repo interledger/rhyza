@@ -63,7 +63,7 @@ export class MongoWalletAddressAliasRepo
       } else {
         this._collection =
           await db.createCollection<IPalWalletAddressAlias>(COLLECTION_NAME);
-        await this._collection.createIndex({ suffix: 1 }, { unique: false });
+        await this._collection.createIndex({ pathName: 1 }, { unique: false });
       }
     } catch (e: unknown) {
       if (e instanceof Error) {
@@ -101,15 +101,15 @@ export class MongoWalletAddressAliasRepo
   }
 
   async fetch(
-    prefix: string | null,
-    suffix: string
+    domain: string | null,
+    pathName: string
   ): Promise<IPalWalletAddressAlias | null> {
     this._checkInitialisedOrThrow();
 
     try {
       const doc = await this._collection.findOne({
-        domain: prefix,
-        pathName: suffix
+        domain: domain,
+        pathName: pathName
       });
 
       if (!doc) {
@@ -124,7 +124,7 @@ export class MongoWalletAddressAliasRepo
     } catch (e) {
       console.error(e);
       throw new Error(
-        `Unable to get wallet address alias by prefix and suffix - error: ${(e as Error).message}`
+        `Unable to get wallet address alias by domain and pathName - error: ${(e as Error).message}`
       );
     }
   }

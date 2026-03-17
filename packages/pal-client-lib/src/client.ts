@@ -151,8 +151,8 @@ export class PalClient {
     isActive?: boolean
   ): Promise<IPalClientWalletAddress> {
     const request = new CreateWalletAddressRequest();
-    if(domain) {
-      request.setDomain(domain)
+    if (domain) {
+      request.setDomain(domain);
     }
     request.setPathName(pathName);
     request.setPublicName(publicName);

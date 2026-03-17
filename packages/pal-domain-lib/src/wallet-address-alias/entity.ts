@@ -16,9 +16,9 @@ export class PalWalletAddressAlias implements IPalWalletAddressAlias {
   private readonly _pathName: string;
   private readonly _walletId: string;
 
-  constructor(prefix: string | null, suffix: string, walletId: string) {
-    this._domain = prefix;
-    this._pathName = suffix;
+  constructor(domain: string | null, pathName: string, walletId: string) {
+    this._domain = domain;
+    this._pathName = pathName;
     this._walletId = walletId;
   }
 

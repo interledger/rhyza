@@ -45,7 +45,7 @@ export class WalletDomainService {
     publicName: string,
     assetCode: string,
     assetScale: number,
-    isActive?: boolean,
+    isActive?: boolean
   ): Promise<string> {
     const alias = await this._aliasAggregate.resolveWalletAddressAlias(
       domain,
@@ -66,11 +66,7 @@ export class WalletDomainService {
       assetScale,
       isActive
     );
-    await this.createWalletAddressAlias(
-      domain,
-      pathName,
-      newAddressId
-    );
+    await this.createWalletAddressAlias(domain, pathName, newAddressId);
 
     return newAddressId;
   }

@@ -25,11 +25,11 @@ export class MockWalletAddressAliasRepo
   }
 
   fetch(
-    prefix: string | null,
-    suffix: string
+    domain: string | null,
+    pathName: string
   ): Promise<IPalWalletAddressAlias | null> {
     const ret = this._data.find(
-      (item) => item.domain === prefix && item.pathName === suffix
+      (item) => item.domain === domain && item.pathName === pathName
     );
     return Promise.resolve(ret);
   }

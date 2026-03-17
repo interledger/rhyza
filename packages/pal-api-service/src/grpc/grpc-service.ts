@@ -179,9 +179,14 @@ export class PalServiceServer {
   // endregion health check handlers
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async _handleUnary(call: ServerUnaryCall<any, any>, callback: sendUnaryData<any>): Promise<void> {
+  private async _handleUnary(
+    call: ServerUnaryCall<any, any>,
+    callback: sendUnaryData<any>
+  ): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let specificRequestHandler: (call: ServerUnaryCall<any, any> ) => Promise<any>;
+    let specificRequestHandler: (
+      call: ServerUnaryCall<any, any>
+    ) => Promise<any>;
 
     if (call.request instanceof CreateAssetRequest) {
       specificRequestHandler = this._handleAssetCreateRequest.bind(this);
@@ -262,7 +267,9 @@ export class PalServiceServer {
         assetResp.setLiquidityLowThreshold(Number(asset.liquidityLowThreshold));
       }
       if (asset.liquidityHighThreshold !== null) {
-        assetResp.setLiquidityHighThreshold(Number(asset.liquidityHighThreshold));
+        assetResp.setLiquidityHighThreshold(
+          Number(asset.liquidityHighThreshold)
+        );
       }
       resp.setAsset(assetResp);
     }
@@ -289,9 +296,11 @@ export class PalServiceServer {
     }
 
     const isActive =
-      !call.request.hasIsActive() || call.request.hasIsActive() == true;
+      !call.request.hasIsActive() || call.request.getIsActive() == true;
 
-    const domain = call.request.hasDomain() ? call.request.getDomain() || null : null;
+    const domain = call.request.hasDomain()
+      ? call.request.getDomain() || null
+      : null;
 
     // Use the wallet domain service to coordinate wallet address and wallet alias
     // aggregates, ie, will automatically create the alias for the address
@@ -311,8 +320,8 @@ export class PalServiceServer {
       .setAssetScale(asset.scale)
       .setIsActive(isActive);
 
-    if(domain){
-      response.setDomain(domain)
+    if (domain) {
+      response.setDomain(domain);
     }
     return response;
   }
@@ -353,12 +362,12 @@ export class PalServiceServer {
     const domain = call.request.hasDomain()
       ? call.request.getDomain() || null
       : null;
-    const suffix = call.request.getPathName();
+    const pathName = call.request.getPathName();
 
     const walletAddressId =
       await this._walletAliasAggregate.resolveWalletAddressAlias(
         domain,
-        suffix
+        pathName
       );
 
     const resp = new ResolveWalletAddressAliasResponse();
@@ -369,7 +378,7 @@ export class PalServiceServer {
 
     const aliasResp = new ResolveWalletAddressNonEmptyResponse();
     if (domain) aliasResp.setDomain(domain);
-    aliasResp.setPathName(suffix);
+    aliasResp.setPathName(pathName);
     aliasResp.setWalletAddressId(walletAddressId);
 
     resp.setAlias(aliasResp);
@@ -379,13 +388,13 @@ export class PalServiceServer {
   private async _handleCreateWalletAddressAliasRequest(
     call: ServerUnaryCall<CreateWalletAddressAliasRequest, Empty>
   ): Promise<Empty> {
-    const prefix = call.request.hasDomain()
+    const domain = call.request.hasDomain()
       ? call.request.getDomain() || null
       : null;
 
     // Use the wallet domain service to coordinate wallet address and wallet alias aggregates
     await this._walletDomainService.createWalletAddressAlias(
-      prefix,
+      domain,
       call.request.getPathName(),
       call.request.getWalletAddressId()
     );
