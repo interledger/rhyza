@@ -119,6 +119,15 @@ importers:
         specifier: ^4.19.3
         version: 4.19.3
 
+  packages/notifications-domain-lib:
+    devDependencies:
+      tslib:
+        specifier: ~2.8.1
+        version: 2.8.1
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
   packages/pal-api-service:
     dependencies:
       '@grpc/grpc-js':
