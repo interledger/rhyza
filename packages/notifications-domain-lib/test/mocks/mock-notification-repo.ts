@@ -1,7 +1,6 @@
 'use strict';
 
-import { INotificationRepository } from '../../src';
-import { Notification } from '../../src';
+import { INotificationRepository, Notification } from '../../src';
 
 export class MockNotificationRepo implements INotificationRepository {
   private notifications: Map<string, Notification> = new Map();

@@ -2,6 +2,7 @@
 
 export interface INotification {
   id: string;
+  data: Record<string, unknown>;
   attempts: number;
   status: NotificationStatus;
   maxAttempts: number;
