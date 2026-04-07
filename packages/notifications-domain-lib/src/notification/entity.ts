@@ -9,17 +9,23 @@ export class Notification implements INotification {
   readonly maxAttempts = 3;
   attempts: number;
   status: NotificationStatus;
+  createdAt: Date;
+  sentAt?: Date;
 
   constructor(
     id: string,
     eventId: string,
     attempts: number = 0,
-    status: NotificationStatus = NotificationStatus.PENDING
+    status: NotificationStatus = NotificationStatus.CREATED,
+    createdAt: Date = new Date(),
+    sentAt?: Date
   ) {
     this._id = id;
     this._eventId = eventId;
     this.attempts = attempts;
     this.status = status;
+    this.createdAt = createdAt;
+    this.sentAt = sentAt;
   }
 
   get id(): string {
@@ -36,11 +42,20 @@ export class Notification implements INotification {
       eventId: this._eventId,
       attempts: this.attempts,
       status: this.status,
-      maxAttempts: this.maxAttempts
+      maxAttempts: this.maxAttempts,
+      createdAt: this.createdAt,
+      sentAt: this.sentAt
     };
   }
 
   static fromObject(obj: INotification): Notification {
-    return new Notification(obj.id, obj.eventId, obj.attempts, obj.status);
+    return new Notification(
+      obj.id,
+      obj.eventId,
+      obj.attempts,
+      obj.status,
+      obj.createdAt,
+      obj.sentAt
+    );
   }
 }

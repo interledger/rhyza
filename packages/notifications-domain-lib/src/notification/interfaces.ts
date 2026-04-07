@@ -6,12 +6,13 @@ export interface INotification {
   attempts: number;
   status: NotificationStatus;
   maxAttempts: number;
+  createdAt: Date;
+  sentAt?: Date;
 }
 
 export enum NotificationStatus {
-  PENDING = 'PENDING',
-  PROCESSING = 'PROCESSING',
-  SUCCESS = 'SUCCESS',
+  CREATED = 'CREATED',
+  SENT = 'SENT',
   FAILED = 'FAILED'
 }
 
@@ -21,5 +22,5 @@ export interface INotificationRepository {
 }
 
 export interface INotificationSenderService {
-  send(notification: INotification): Promise<NotificationStatus>;
+  send(notification: INotification): Promise<void>;
 }

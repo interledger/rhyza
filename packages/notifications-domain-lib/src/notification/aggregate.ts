@@ -19,35 +19,30 @@ export class NotificationAggregate {
     this._notificationSenderService = notificationSenderService;
   }
 
-  // TODO: add a type so that we can create different types of notifications (e.g webhook, email, etc)
-  // NOT SURE!
-  async createNotification(id: string, eventId: string, type: string) {
-    let notification;
-    switch (type) {
-      case 'webhook':
-        notification = new Notification(id, eventId);
-        break;
-      default:
-        throw new Error(`Unknown notification type: ${type}`);
-    }
-    await this._repo.store(notification.toObject());
-  }
-
-  async createWebhook(id: string, eventId: string): Promise<void> {
+  async createNotification(id: string, eventId: string): Promise<void> {
     const notification = new Notification(id, eventId);
     await this._repo.store(notification.toObject());
   }
 
-  async getWebhook(id: string): Promise<Notification | null> {
+  async getNotification(id: string): Promise<Notification | null> {
     const found = await this._repo.fetch(id);
     return found ? Notification.fromObject(found) : null;
   }
 
-  async send(id: string): Promise<NotificationStatus> {
-    const notification = await this.getWebhook(id);
+  async send(id: string): Promise<void> {
+    const notification = await this.getNotification(id);
     if (!notification) {
       throw new Error(`Notification with id ${id} not found`);
     }
-    return await this._notificationSenderService.send(notification);
+    try {
+      await this._notificationSenderService.send(notification);
+      notification.status = NotificationStatus.SENT;
+      notification.sentAt = new Date();
+    } catch (error) {
+      notification.status = NotificationStatus.FAILED;
+      throw error;
+    } finally {
+      await this._repo.store(notification.toObject());
+    }
   }
 }

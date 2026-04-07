@@ -3,7 +3,7 @@
 import { EventAggregate } from './event/aggregate';
 import { IEvent } from './event';
 import { NotificationAggregate } from './notification/aggregate';
-import { INotification, NotificationStatus } from './notification/interfaces';
+import { INotification } from './notification/interfaces';
 
 export class NotificationDomainService {
   private _eventAggregate: EventAggregate;
@@ -24,12 +24,15 @@ export class NotificationDomainService {
     }
 
     const notificationId = crypto.randomUUID();
-    await this._notificationAggregate.createWebhook(notificationId, eventId);
+    await this._notificationAggregate.createNotification(
+      notificationId,
+      eventId
+    );
     return notificationId;
   }
 
   async getNotification(id: string): Promise<INotification | null> {
-    return this._notificationAggregate.getWebhook(id);
+    return this._notificationAggregate.getNotification(id);
   }
 
   async createEvent(
@@ -45,7 +48,7 @@ export class NotificationDomainService {
     return this._eventAggregate.getEvent(id);
   }
 
-  async sendNotification(id: string): Promise<NotificationStatus> {
-    return this._notificationAggregate.send(id);
+  async sendNotification(id: string): Promise<void> {
+    await this._notificationAggregate.send(id);
   }
 }

@@ -1,6 +1,6 @@
 'use strict';
 
-import { before, describe, test } from 'node:test';
+import { before, describe, mock, test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import {
   EventAggregate,
@@ -58,7 +58,7 @@ describe('notifications domain', async () => {
 
       assert.ok(notification);
       assert.equal(notification.eventId, eventId);
-      assert.equal(notification.status, NotificationStatus.PENDING);
+      assert.equal(notification.status, NotificationStatus.CREATED);
       assert.equal(notification.attempts, 0);
       assert.ok(notification.id);
     });
@@ -120,10 +120,37 @@ describe('notifications domain', async () => {
       const notificationId =
         await notificationDomainService.createNotification(eventId);
 
-      const status =
-        await notificationDomainService.sendNotification(notificationId);
+      await notificationDomainService.sendNotification(notificationId);
+      const sentNotification =
+        await notificationDomainService.getNotification(notificationId);
 
-      assert.equal(status, NotificationStatus.SUCCESS);
+      assert.ok(sentNotification);
+      assert.equal(sentNotification.status, NotificationStatus.SENT);
+    });
+
+    test('fails when notification does not exist', async () => {
+      await assert.rejects(
+        notificationDomainService.sendNotification('invalid-id')
+      );
+    });
+
+    test('fails when notification sender fails', async () => {
+      const eventId = await notificationDomainService.createEvent('test', {});
+      const notificationId =
+        await notificationDomainService.createNotification(eventId);
+      const error = new Error('SMTP Timeout');
+      mock.method(notificationSenderService, 'send', async () => {
+        throw error;
+      });
+      await assert.rejects(
+        notificationDomainService.sendNotification(notificationId),
+        error
+      );
+
+      const sentNotification =
+        await notificationDomainService.getNotification(notificationId);
+      assert.ok(sentNotification);
+      assert.equal(sentNotification.status, NotificationStatus.FAILED);
     });
   });
 });

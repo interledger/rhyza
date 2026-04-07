@@ -1,9 +1,9 @@
-import { INotificationSenderService, NotificationStatus } from '../../src';
+import { INotificationSenderService } from '../../src';
 
 export class MockNotificationSenderService
   implements INotificationSenderService
 {
-  send(): Promise<NotificationStatus> {
-    return Promise.resolve(NotificationStatus.SUCCESS);
+  send(): Promise<void> {
+    return Promise.resolve();
   }
 }
