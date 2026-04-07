@@ -2,10 +2,9 @@
 
 import { INotification, NotificationStatus } from './interfaces';
 
-// rename notif.
 export class Notification implements INotification {
   private _id: string;
-  private _eventId: string;
+  private readonly _data: Record<string, unknown>;
   readonly maxAttempts = 3;
   attempts: number;
   status: NotificationStatus;
@@ -14,14 +13,14 @@ export class Notification implements INotification {
 
   constructor(
     id: string,
-    eventId: string,
+    data: Record<string, unknown> = {},
     attempts: number = 0,
     status: NotificationStatus = NotificationStatus.CREATED,
     createdAt: Date = new Date(),
     sentAt?: Date
   ) {
     this._id = id;
-    this._eventId = eventId;
+    this._data = data;
     this.attempts = attempts;
     this.status = status;
     this.createdAt = createdAt;
@@ -32,14 +31,14 @@ export class Notification implements INotification {
     return this._id;
   }
 
-  get eventId(): string {
-    return this._eventId;
+  get data(): Record<string, unknown> {
+    return this._data;
   }
 
   toObject(): INotification {
     return {
       id: this._id,
-      eventId: this._eventId,
+      data: this._data,
       attempts: this.attempts,
       status: this.status,
       maxAttempts: this.maxAttempts,
@@ -51,7 +50,7 @@ export class Notification implements INotification {
   static fromObject(obj: INotification): Notification {
     return new Notification(
       obj.id,
-      obj.eventId,
+      obj.data,
       obj.attempts,
       obj.status,
       obj.createdAt,

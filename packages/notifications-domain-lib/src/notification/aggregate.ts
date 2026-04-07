@@ -19,8 +19,8 @@ export class NotificationAggregate {
     this._notificationSenderService = notificationSenderService;
   }
 
-  async createNotification(id: string, eventId: string): Promise<void> {
-    const notification = new Notification(id, eventId);
+  async createNotification(id: string): Promise<void> {
+    const notification = new Notification(id);
     await this._repo.store(notification.toObject());
   }
 

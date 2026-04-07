@@ -2,7 +2,6 @@
 
 export interface INotification {
   id: string;
-  eventId: string;
   attempts: number;
   status: NotificationStatus;
   maxAttempts: number;
