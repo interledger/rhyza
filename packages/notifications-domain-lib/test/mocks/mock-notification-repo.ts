@@ -13,4 +13,7 @@ export class MockNotificationRepo implements INotificationRepository {
     const notification = this.notifications.get(id);
     return Promise.resolve(notification ?? null);
   }
+  async fetchAll(): Promise<Notification[]> {
+    return Promise.resolve(Array.from(this.notifications.values()));
+  }
 }

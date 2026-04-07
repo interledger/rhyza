@@ -19,21 +19,9 @@ export class NotificationAggregate {
     this._notificationSenderService = notificationSenderService;
   }
 
-  async createNotification(id: string): Promise<void> {
+  async createAndSendNotification(id: string): Promise<void> {
     const notification = new Notification(id);
     await this._repo.store(notification.toObject());
-  }
-
-  async getNotification(id: string): Promise<Notification | null> {
-    const found = await this._repo.fetch(id);
-    return found ? Notification.fromObject(found) : null;
-  }
-
-  async send(id: string): Promise<void> {
-    const notification = await this.getNotification(id);
-    if (!notification) {
-      throw new Error(`Notification with id ${id} not found`);
-    }
     try {
       await this._notificationSenderService.send(notification);
       notification.status = NotificationStatus.SENT;
@@ -44,5 +32,10 @@ export class NotificationAggregate {
     } finally {
       await this._repo.store(notification.toObject());
     }
+  }
+
+  async getNotification(id: string): Promise<Notification | null> {
+    const found = await this._repo.fetch(id);
+    return found ? Notification.fromObject(found) : null;
   }
 }

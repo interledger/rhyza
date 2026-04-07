@@ -34,20 +34,16 @@ before(async () => {
 });
 
 describe('notifications domain', async () => {
-  test('create notification', async () => {
-    await notificationDomainService.createNotification();
-  });
-
   describe('get notification', async () => {
     test('returns notification when exists', async () => {
       const notificationId =
-        await notificationDomainService.createNotification();
+        await notificationDomainService.createAndSendNotification();
 
       const notification =
         await notificationDomainService.getNotification(notificationId);
 
       assert.ok(notification);
-      assert.equal(notification.status, NotificationStatus.CREATED);
+      assert.equal(notification.status, NotificationStatus.SENT);
       assert.equal(notification.attempts, 0);
       assert.ok(notification.id);
     });
@@ -61,12 +57,11 @@ describe('notifications domain', async () => {
     });
   });
 
-  describe('send notification', async () => {
+  describe('create and send notification', async () => {
     test('sends notification', async () => {
       const notificationId =
-        await notificationDomainService.createNotification();
+        await notificationDomainService.createAndSendNotification();
 
-      await notificationDomainService.sendNotification(notificationId);
       const sentNotification =
         await notificationDomainService.getNotification(notificationId);
 
@@ -74,26 +69,23 @@ describe('notifications domain', async () => {
       assert.equal(sentNotification.status, NotificationStatus.SENT);
     });
 
-    test('fails when notification does not exist', async () => {
-      await assert.rejects(
-        notificationDomainService.sendNotification('invalid-id')
-      );
-    });
-
     test('fails when notification sender fails', async () => {
-      const notificationId =
-        await notificationDomainService.createNotification();
       const error = new Error('SMTP Timeout');
       mock.method(notificationSenderService, 'send', async () => {
         throw error;
       });
       await assert.rejects(
-        notificationDomainService.sendNotification(notificationId),
+        notificationDomainService.createAndSendNotification(),
         error
       );
 
-      const sentNotification =
-        await notificationDomainService.getNotification(notificationId);
+      const notifications = await notificationRepository.fetchAll();
+      assert.ok(notifications);
+      assert.equal(notifications.length, 3);
+
+      const sentNotification = await notificationDomainService.getNotification(
+        notifications[notifications.length - 1].id
+      );
       assert.ok(sentNotification);
       assert.equal(sentNotification.status, NotificationStatus.FAILED);
     });

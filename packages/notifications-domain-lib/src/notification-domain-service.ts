@@ -10,17 +10,13 @@ export class NotificationDomainService {
     this._notificationAggregate = notificationAggregate;
   }
 
-  async createNotification(): Promise<string> {
+  async createAndSendNotification(): Promise<string> {
     const notificationId = crypto.randomUUID();
-    await this._notificationAggregate.createNotification(notificationId);
+    await this._notificationAggregate.createAndSendNotification(notificationId);
     return notificationId;
   }
 
   async getNotification(id: string): Promise<INotification | null> {
     return this._notificationAggregate.getNotification(id);
-  }
-
-  async sendNotification(id: string): Promise<void> {
-    await this._notificationAggregate.send(id);
   }
 }
