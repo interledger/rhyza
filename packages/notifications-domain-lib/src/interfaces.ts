@@ -7,7 +7,7 @@ export interface INotification {
   status: NotificationStatus;
   maxAttempts: number;
   createdAt: Date;
-  sentAt?: Date;
+  sentAt: Date | null;
 }
 
 export enum NotificationStatus {

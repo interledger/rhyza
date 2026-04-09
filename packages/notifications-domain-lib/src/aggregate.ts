@@ -19,15 +19,15 @@ export class NotificationAggregate {
     this._notificationSenderService = notificationSenderService;
   }
 
-  async createAndSendNotification(id: string): Promise<void> {
+  async createAndSendNotification(): Promise<string> {
+    const id = crypto.randomUUID();
     const notification = new Notification(id);
-    await this._repo.store(notification.toObject());
     try {
       await this._notificationSenderService.send(notification);
-      notification.status = NotificationStatus.SENT;
-      notification.sentAt = new Date();
-    } catch (error) {
-      notification.status = NotificationStatus.FAILED;
+      notification.markAsSent();
+      return id;
+    } catch (error: any) {
+      notification.markAsFailed();
       throw error;
     } finally {
       await this._repo.store(notification.toObject());

@@ -1,4 +1,5 @@
 'use strict';
 
-export * from './notification';
-export * from './notification-domain-service';
+export * from './aggregate';
+export * from './entity';
+export * from './interfaces';

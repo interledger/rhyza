@@ -6,10 +6,10 @@ export class Notification implements INotification {
   private _id: string;
   private readonly _data: Record<string, unknown>;
   readonly maxAttempts = 3;
-  attempts: number;
-  status: NotificationStatus;
-  createdAt: Date;
-  sentAt?: Date;
+  private _attempts: number;
+  private _status: NotificationStatus;
+  private _createdAt: Date;
+  private _sentAt: Date | null;
 
   constructor(
     id: string,
@@ -17,14 +17,14 @@ export class Notification implements INotification {
     attempts: number = 0,
     status: NotificationStatus = NotificationStatus.CREATED,
     createdAt: Date = new Date(),
-    sentAt?: Date
+    sentAt: Date | null = null
   ) {
     this._id = id;
     this._data = data;
-    this.attempts = attempts;
-    this.status = status;
-    this.createdAt = createdAt;
-    this.sentAt = sentAt;
+    this._attempts = attempts;
+    this._status = status;
+    this._createdAt = createdAt;
+    this._sentAt = sentAt;
   }
 
   get id(): string {
@@ -35,15 +35,31 @@ export class Notification implements INotification {
     return this._data;
   }
 
+  get attempts(): number {
+    return this._attempts;
+  }
+
+  get status(): NotificationStatus {
+    return this._status;
+  }
+
+  get createdAt(): Date {
+    return this._createdAt;
+  }
+
+  get sentAt(): Date | null {
+    return this._sentAt;
+  }
+
   toObject(): INotification {
     return {
       id: this._id,
       data: this._data,
-      attempts: this.attempts,
-      status: this.status,
+      attempts: this._attempts,
+      status: this._status,
       maxAttempts: this.maxAttempts,
-      createdAt: this.createdAt,
-      sentAt: this.sentAt
+      createdAt: this._createdAt,
+      sentAt: this._sentAt
     };
   }
 
@@ -56,5 +72,18 @@ export class Notification implements INotification {
       obj.createdAt,
       obj.sentAt
     );
+  }
+
+  markAsSent(): void {
+    this._status = NotificationStatus.SENT;
+    this._sentAt = new Date();
+  }
+
+  markAsFailed(): void {
+    this._status = NotificationStatus.FAILED;
+  }
+
+  incrementAttempts(): void {
+    this._attempts++;
   }
 }

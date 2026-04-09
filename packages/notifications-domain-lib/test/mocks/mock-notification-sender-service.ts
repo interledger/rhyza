@@ -3,7 +3,7 @@ import { INotificationSenderService } from '../../src';
 export class MockNotificationSenderService
   implements INotificationSenderService
 {
-  send(): Promise<void> {
+  async send(): Promise<void> {
     return Promise.resolve();
   }
 }
