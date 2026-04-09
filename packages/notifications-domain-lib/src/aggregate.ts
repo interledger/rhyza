@@ -3,8 +3,7 @@
 import { Notification } from './entity';
 import {
   INotificationRepository,
-  INotificationSenderService,
-  NotificationStatus
+  INotificationSenderService
 } from './interfaces';
 
 export class NotificationAggregate {
@@ -26,7 +25,7 @@ export class NotificationAggregate {
       await this._notificationSenderService.send(notification);
       notification.markAsSent();
       return id;
-    } catch (error: any) {
+    } catch (error) {
       notification.markAsFailed();
       throw error;
     } finally {
