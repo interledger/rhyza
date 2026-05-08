@@ -4,6 +4,7 @@ export enum DomainEventTopics {
   'AuthEvents' = 'auth-domain-events',
   'LedgerEvents' = 'ledger-domain-events',
   'AssetEvents' = 'asset-domain-events',
+  'PeerEvents' = 'peer-domain-events',
   'WalletAddressEvents' = 'wallet-address-domain-events'
 }
 

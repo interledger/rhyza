@@ -1,19 +1,20 @@
-export interface ILedgerDTO {
+export interface ILedgerDto {
   id: string;
   version: string;
   assetScale: number;
 }
 
-export interface ILedgerAccountDTO {
+export interface ILedgerAccountDto {
   id: string;
   name: string;
   assetCode: string;
   assetDisplayScale: number;
   debitedAmount: string;
   creditedAmount: string;
+  externalId?: string;
 }
 
-export interface ILedgerTransactionDTO {
+export interface ILedgerTransactionDto {
   id: string;
   debitedAccountId: string;
   creditedAccountId: string;

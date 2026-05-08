@@ -1,45 +1,45 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
 import {
   PinoLogger,
-  MessageSerializationFactory, KafkaProducerOptions, KafkaProducerCompressionCodecs,
+  MessageSerializationFactory,
+  KafkaProducerOptions,
+  KafkaProducerCompressionCodecs,
   KafkaBuilder,
-  IKafkaBuilder, KafkaConsumerOptions, KafkaLowLevelConsumerOptions,
+  IKafkaBuilder,
+  KafkaConsumerOptions,
+  KafkaLowLevelConsumerOptions
 } from 'implementations-lib';
-import {ILedgerEventSourcingRepository, LedgerAggregate} from 'pal-domain-lib';
 import {
-  CreateLedgerAccountCmdSerde, CreateLedgerCmdSerde,
+  ILedgerEventSourcingRepository,
+  LedgerAggregate
+} from 'pal-domain-lib';
+import {
+  CreateLedgerAccountCmdSerde,
+  CreateLedgerAccountForPeerCmdSerde,
+  CreateLedgerAccountForAssetCmdSerde,
+  CreateLedgerCmdSerde,
   KafkaLedgerEventSourcingRepository,
   LedgerAccountCreatedStateEventSerde,
   LedgerCreatedStateEventSerde,
-  LedgerSnapshotSerde, PostTransactionCmdSerde
+  LedgerSnapshotSerde
 } from 'pal-implementations-lib';
-import {
-  LedgerTransactionRecordedStateEventSerde,
-} from 'pal-implementations-lib';
+import { LedgerTransactionRecordedStateEventSerde } from 'pal-implementations-lib';
 import crypto from 'crypto';
 import process from 'process';
 import {
   CommandMsg,
-  CommandTopics, DomainEventTopics,
-  ILogger, IMessage, IMessageConsumer,
-  IMessageProducer, IRawMessageSerializerFactory,
-  MessageTypes, StateEventTopics
-} from "common-types-lib";
-
-
+  CommandTopics,
+  DomainEventTopics,
+  ILogger,
+  IMessage,
+  IMessageConsumer,
+  IMessageProducer,
+  IRawMessageSerializerFactory,
+  MessageTypes,
+  StateEventTopics
+} from 'common-types-lib';
 
 const INSTANCE_ID = `ES_LEDGER_POC_SVC__${crypto.randomUUID()}`;
-const REDIS_URL = process.env["REDIS_URL"] || "redis://localhost:6379";
+const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379';
 
 // Message Consumer/Publisher
 const KAFKA_URL =
@@ -62,7 +62,6 @@ const kafkaConsumerCommonOptions: KafkaConsumerOptions = {
   batchSize: 50_000
 };
 
-
 export class PalLedgerCommandHandlerService {
   private static _logger: ILogger;
   private static _msgSerializationFactory: IRawMessageSerializerFactory;
@@ -80,14 +79,14 @@ export class PalLedgerCommandHandlerService {
     producer?: IMessageProducer,
     consumer?: IMessageConsumer
   ): Promise<void> {
-    if(!logger){
+    if (!logger) {
       logger = new PinoLogger();
     }
     this._logger = logger;
 
     this._logger.info(`Starting ${this.constructor.name}...`);
 
-    if(!msgSerializationFactory){
+    if (!msgSerializationFactory) {
       MessageSerializationFactory.instance()
         // snapshots
         .register(new LedgerSnapshotSerde())
@@ -98,22 +97,23 @@ export class PalLedgerCommandHandlerService {
         // commands
         .register(new CreateLedgerCmdSerde())
         .register(new CreateLedgerAccountCmdSerde())
-        .register(new PostTransactionCmdSerde());
+        .register(new CreateLedgerAccountForAssetCmdSerde())
+        .register(new CreateLedgerAccountForPeerCmdSerde());
 
       msgSerializationFactory = MessageSerializationFactory.instance();
     }
     this._msgSerializationFactory = msgSerializationFactory;
 
-    if(!kafkaBuilder){
+    if (!kafkaBuilder) {
       kafkaBuilder = new KafkaBuilder()
         .withLogger(this._logger)
         .withBrokerList(KAFKA_URL)
         .withClientId(INSTANCE_ID)
-        .withSerializerFactory(this._msgSerializationFactory)
+        .withSerializerFactory(this._msgSerializationFactory);
     }
     this._kafkaBuilder = kafkaBuilder;
 
-    if(!esRepo){
+    if (!esRepo) {
       // TODO remove
       // const admin = this._kafkaBuilder.buildAdmin();
       // await admin.createTopics([
@@ -134,7 +134,7 @@ export class PalLedgerCommandHandlerService {
     }
     this._esRepo = esRepo;
 
-    if(!producer){
+    if (!producer) {
       producer = this._kafkaBuilder.buildProducer(kafkaProducerCommonOptions);
       await producer.connect();
     }
@@ -142,33 +142,39 @@ export class PalLedgerCommandHandlerService {
 
     // before continuing, we need to ensure that the topics exist
     const requiredTopics = [
-      CommandTopics.LedgerCommands, StateEventTopics.LedgerStateEvents,
+      CommandTopics.LedgerCommands,
+      StateEventTopics.LedgerStateEvents,
       DomainEventTopics.LedgerEvents
     ];
     const admin = this._kafkaBuilder.buildAdmin();
     await admin.connect();
-    if(!await admin.hasAllTopics(requiredTopics)){
-      throw new Error("Kafka topics do not exist. Please create them before starting the service.");
+    if (!(await admin.hasAllTopics(requiredTopics))) {
+      throw new Error(
+        'Kafka topics do not exist. Please create them before starting the service.'
+      );
     }
     await admin.disconnect();
 
-
-    this._ledgerAggregate = new LedgerAggregate(this._esRepo, this._producer, this._logger);
+    this._ledgerAggregate = new LedgerAggregate(
+      this._esRepo,
+      this._producer,
+      this._logger
+    );
 
     this._ledgerAggregate.printStats();
-    this._logger.info("Ledger initialized");
+    this._logger.info('Ledger initialized');
 
     // TODO confirm topics exist using admin client?
 
-    if(!consumer){
+    if (!consumer) {
       // consumer = this._kafkaBuilder.buildConsumer(kafkaConsumerCommonOptions);
 
-      const consumerOpts:KafkaLowLevelConsumerOptions ={
+      const consumerOpts: KafkaLowLevelConsumerOptions = {
         consumerGroupId: kafkaConsumerCommonOptions.consumerGroupId,
         batchSize: kafkaConsumerCommonOptions.batchSize,
         batchTimeoutMs: kafkaConsumerCommonOptions.batchTimeoutMs,
         autoOffsetReset: kafkaConsumerCommonOptions.autoOffsetReset
-      }
+      };
 
       consumer = this._kafkaBuilder.buildLowLevelConsumer(consumerOpts);
 
@@ -184,10 +190,10 @@ export class PalLedgerCommandHandlerService {
     this._consumer = consumer;
 
     this._consumer.setTopics([CommandTopics.LedgerCommands]);
-    this._consumer.setBatchCallbackFn(async (messages:IMessage[]) => {
+    this._consumer.setBatchCallbackFn(async (messages: IMessage[]) => {
       // filter out only commands (sort of redundant but good practice)
-      const cmds = messages.filter(m => m.msgType === MessageTypes.COMMAND);
-      if(cmds.length === 0) return;
+      const cmds = messages.filter((m) => m.msgType === MessageTypes.COMMAND);
+      if (cmds.length === 0) return;
       // TODO hook telemetry here
       await this._ledgerAggregate.processCommands(cmds as CommandMsg[]);
     });
@@ -195,21 +201,21 @@ export class PalLedgerCommandHandlerService {
     await this._consumer.connect();
     await this._consumer.startAndWaitForRebalance();
 
-    this._logger.info(`${PalLedgerCommandHandlerService.name} ready to receive commands`);
+    this._logger.info(
+      `${PalLedgerCommandHandlerService.name} ready to receive commands`
+    );
   }
 
   static async stop(): Promise<void> {
     // first stop consuming
-    if(this._consumer){
+    if (this._consumer) {
       await this._consumer.stop();
       await this._consumer.disconnect(false);
     }
 
     // now stop the publisher, disconnect with flush any pending messages
-    if(this._producer){
+    if (this._producer) {
       await this._producer.disconnect();
     }
-
-
   }
 }

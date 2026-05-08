@@ -13,7 +13,7 @@ package rafiki.pal.svc;
 import "google/protobuf/empty.proto";
 
 service PalGrpc {
-  rpc CreateAsset(PbCreateAssetRequest) returns (PbCreateAssetResponse);
+  rpc CreateAsset(PbCreateAssetRequest) returns (google.protobuf.Empty);
   rpc GetAsset(PbGetAssetRequest) returns (PbGetAssetResponse);
 
   rpc CreateWalletAddress(PbCreateWalletAddressRequest) returns (PbCreateWalletAddressResponse);
@@ -22,8 +22,12 @@ service PalGrpc {
   rpc ResolveWalletAddressAlias(PbResolveWalletAddressAliasRequest) returns (PbResolveWalletAddressAliasResponse);
   rpc CreateWalletAddressAlias(PbCreateWalletAddressAliasRequest) returns (google.protobuf.Empty);
 
-  // high-level liquidity API uses event driven, not client called, so we only implement low-level
-  // rpc LedgerProcessHighLevelRequests(PbLedgerHighLevelRequestList) returns (PbLedgerHighLevelResponseList);
+  rpc CreatePeer(PbCreatePeerRequest) returns (google.protobuf.Empty);
+  rpc GetPeer(PbGetPeerRequest) returns (PbGetPeerResponse);
+  rpc GetPeerByIlpAddress(PbGetPeerByIlpAddressRequest) returns (PbGetPeerResponse);
+  rpc SetPeerCommunicationMethod(PbSetPeerCommunicationMethodRequest) returns (google.protobuf.Empty);
+  rpc ActivatePeer(PbActivatePeerRequest) returns (google.protobuf.Empty);
+  rpc DeactivatePeer(PbDeactivatePeerRequest) returns (google.protobuf.Empty);
 
   // low level liquidity API
   rpc CreateLedger(PbCreateLedgerRequest) returns (google.protobuf.Empty);
@@ -31,7 +35,6 @@ service PalGrpc {
 
   // ledger queries
   rpc GetLedgerAccounts(PbGetLedgerAccountsRequest) returns (PbGetLedgerAccountsResponse);
-  rpc GetLedgerTransactions(PbGetLedgerTransactionsRequest) returns (PbGetLedgerTransactionsResponse);
 
 }
 
@@ -44,24 +47,19 @@ message PbCreateAssetRequest{
   optional uint64 liquidity_low_threshold = 3;
   optional uint64 liquidity_high_threshold = 4;
 }
-message PbCreateAssetResponse{
-  string code = 1;
-  uint32 scale = 2;
-  optional uint64 liquidity_low_threshold = 3;
-  optional uint64 liquidity_high_threshold = 4;
-}
 
 message PbGetAssetRequest{
   string code = 1;
 }
 message PbGetAssetResponse{
-  optional PbGetNonEmptyAssetResponse asset = 1;
+  optional PbAsset asset = 1;
 }
-message PbGetNonEmptyAssetResponse{
+message PbAsset{
   string code = 1;
   uint32 scale = 2;
-  optional uint64 liquidity_low_threshold = 3;
-  optional uint64 liquidity_high_threshold = 4;
+  optional string ledger_account_id = 3;
+  optional uint64 liquidity_low_threshold = 4;
+  optional uint64 liquidity_high_threshold = 5;
 }
 
 /*
@@ -123,6 +121,53 @@ message PbCreateWalletAddressAliasRequest {
 }
 
 /*
+Peer messages
+*/
+message PbCreatePeerRequest{
+  string id = 1;
+  string name = 2;
+  string asset_code = 3;
+  uint32 asset_scale = 4;
+}
+
+message PbGetPeerRequest{
+  string id = 1;
+}
+message PbGetPeerResponse{
+  optional PbPeer peer = 1;
+}
+message PbPeer{
+  string id = 1;
+  string name = 2;
+  string asset_code = 3;
+  uint32 asset_scale = 4;
+  bool active = 5;
+  optional string ledger_account_id = 6;
+  optional PbPeerCommsMethod comms_method = 7;
+}
+
+message PbPeerCommsMethod{
+  string comms_type = 1; // for now can only be ILP
+  string static_address = 2;
+}
+
+message PbGetPeerByIlpAddressRequest{
+  string address = 1;
+}
+message PbSetPeerCommunicationMethodRequest{
+  string peer_id = 1;
+  PbPeerCommsMethod comms_method = 2;
+}
+message PbActivatePeerRequest{
+  string peer_id = 1;
+}
+message PbDeactivatePeerRequest{
+  string peer_id = 1;
+}
+
+
+
+/*
 Liquidity messages
 */
 
@@ -145,78 +190,16 @@ message PbGetLedgerAccountsRequest{
   repeated string account_ids = 1;
 }
 
+message PbLedgerAccount {
+  string id = 1;
+  string asset_code = 2;
+  uint32 asset_display_scale = 3;
+  string name = 4;
+  string debited_amount = 5;
+  string credited_amount = 6;
+  optional string external_id = 7;
+}
+
 message PbGetLedgerAccountsResponse{
-  message PbLedgerAccountRead {
-    string id = 1;
-    string asset_code = 2;
-    uint32 asset_display_scale = 3;
-    string name = 4;
-    string debited_amount = 5;
-    string credited_amount = 6;
-  }
-  repeated PbLedgerAccountRead accounts = 1;
+  repeated PbLedgerAccount accounts = 1;
 }
-
-message PbGetLedgerTransactionsRequest{
-
-}
-
-message PbGetLedgerTransactionsResponse{
-
-}
-
-
-/*
-// High level requests - NOT HERE,  THESE ARE COMMANDS
-
-message PbLedgerHighLevelRequestList{
-  repeated PbLedgerHighLevelRequest requests = 1;
-}
-
-message PbLedgerHighLevelRequest{
-  oneof high_level_request_type{
-    PbLedgerTransferCheckAndReserveRequest check_and_reserve_request = 1;
-    PbLedgerCommitTransferRequest commit_request = 2;
-    PbLedgerCancelTransferRequest reject_request = 3;
-  }
-}
-message PbLedgerTransferCheckAndReserveRequest{
-  string request_id = 1;
-  string transfer_id = 2;
-  string payer_clearing_accountId = 3;
-  string payer_liquidity_accountId = 4;
-  string suspense_accountId = 5;
-  string amount = 6;
-  uint32 amount_scale = 7;
-}
-
-message PbLedgerCommitTransferRequest{
-  string request_id = 1;
-  string transfer_id = 2;
-  string payer_clearing_accountId = 3;
-  string suspense_accountId = 4;
-  string payee_clearing_accountId = 5;
-  string amount = 6;
-  uint32 amount_scale = 7;
-}
-
-message PbLedgerCancelTransferRequest{
-  string request_id = 1;
-  string transfer_id = 2;
-  string payer_clearing_accountId = 3;
-  string suspense_accountId = 4;
-  string amount = 5;
-  uint32 amount_scale = 6;
-}
-
-message PbLedgerHighLevelResponseList{
-  repeated PbLedgerHighLevelResponse responses = 1;
-}
-
-message PbLedgerHighLevelResponse {
-  string request_id = 1;
-  uint32 request_type = 2;
-  bool success = 3;
-  optional string error_message = 4;
-}
-*/

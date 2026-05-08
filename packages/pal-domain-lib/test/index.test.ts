@@ -1,32 +1,25 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
 import { before, test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import {
-  AssetAggregate, CannotCreateDuplicateWalletAddressAliasError, CannotCreateDuplicateWalletAddressError,
+  AssetAggregate,
+  CannotCreateDuplicateWalletAddressAliasError,
+  CannotCreateDuplicateWalletAddressError,
   IPalAssetRepository,
   IPalWalletAddressRepository,
-  WalletAddressAggregate,
+  WalletAddressAggregate
 } from '../src';
+import { MockAssetRepo, MockWalletRepo } from './mocks';
+import { MockMessageProducer } from './mocks/mock-msg-publisher';
+import { ConsoleLogger, DomainEvent } from 'common-types-lib';
 import {
-  MockAssetRepo,
-  MockWalletRepo
-} from './mocks';
-import {MockMessageProducer} from "./mocks/mock-msg-publisher";
-import {ConsoleLogger, DomainEvent} from "common-types-lib";
-import {AssetCreatedEvent, WalletAddressAliasCreatedEvent, WalletAddressCreatedEvent} from "pal-public-types-lib";
+  AssetCreatedEvent,
+  WalletAddressAliasCreatedEvent,
+  WalletAddressCreatedEvent
+} from 'pal-public-types-lib';
 
 const logger = new ConsoleLogger();
 
-let mockProducer = new MockMessageProducer();
+const mockProducer = new MockMessageProducer();
 
 let assetAggregate: AssetAggregate;
 let assetRepository: IPalAssetRepository;
@@ -48,7 +41,11 @@ before(async () => {
   assetAggregate = new AssetAggregate(assetRepository, mockProducer, logger);
 
   walletRepository = new MockWalletRepo();
-  walletAggregate = new WalletAddressAggregate(walletRepository, mockProducer, logger);
+  walletAggregate = new WalletAddressAggregate(
+    walletRepository,
+    mockProducer,
+    logger
+  );
 });
 
 //region assets
@@ -60,7 +57,9 @@ test('PAL Asset Domain - create asset', async () => {
     undefined
   );
 
-  const lastEvent = mockProducer.messages[mockProducer.messages.length - 1] as DomainEvent;
+  const lastEvent = mockProducer.messages[
+    mockProducer.messages.length - 1
+  ] as DomainEvent;
   assert.ok(lastEvent);
   assert.equal(lastEvent.msgName, AssetCreatedEvent.name);
   assert.equal(lastEvent.aggregateId, ASSET_CODE);
@@ -106,18 +105,19 @@ test('PAL Asset Domain - get non existing asset should fail', async () => {
 
 //region wallet address
 test('PAL WalletAddress Domain - create wallet address', async () => {
-  createdWalletAddressInternalId =
-    await walletAggregate.createWalletAddress(
-      ALIAS_DOMAIN,
-      ALIAS_PATHNAME,
-      PUBLIC_NAME,
-      ASSET_CODE,
-      ASSET_SCALE
-    );
+  createdWalletAddressInternalId = await walletAggregate.createWalletAddress(
+    ALIAS_DOMAIN,
+    ALIAS_PATHNAME,
+    PUBLIC_NAME,
+    ASSET_CODE,
+    ASSET_SCALE
+  );
 
   assert.ok(createdWalletAddressInternalId);
 
-  const lastEvent = mockProducer.messages[mockProducer.messages.length - 1] as DomainEvent;
+  const lastEvent = mockProducer.messages[
+    mockProducer.messages.length - 1
+  ] as DomainEvent;
   assert.ok(lastEvent);
   assert.equal(lastEvent.msgName, WalletAddressCreatedEvent.name);
   assert.equal(lastEvent.aggregateId, createdWalletAddressInternalId);
@@ -184,8 +184,9 @@ test('PAL WalletAddress Domain - create wallet address alias without domain', as
     createdWalletAddressInternalId
   );
 
-
-  const lastEvent = mockProducer.messages[mockProducer.messages.length - 1] as DomainEvent;
+  const lastEvent = mockProducer.messages[
+    mockProducer.messages.length - 1
+  ] as DomainEvent;
   assert.ok(lastEvent);
   assert.equal(lastEvent.msgName, WalletAddressAliasCreatedEvent.name);
   assert.equal(lastEvent.aggregateId, createdWalletAddressInternalId);
@@ -193,7 +194,6 @@ test('PAL WalletAddress Domain - create wallet address alias without domain', as
   assert.equal(lastEvent.payload.walletId, createdWalletAddressInternalId);
   assert.equal(lastEvent.payload.domain, null);
   assert.equal(lastEvent.payload.pathName, ALIAS_PATHNAME);
-
 });
 
 test('PAL WalletAddress Domain - create wallet address alias with domain', async () => {
@@ -205,7 +205,9 @@ test('PAL WalletAddress Domain - create wallet address alias with domain', async
     createdWalletAddressInternalId
   );
 
-  const lastEvent = mockProducer.messages[mockProducer.messages.length - 1] as DomainEvent;
+  const lastEvent = mockProducer.messages[
+    mockProducer.messages.length - 1
+  ] as DomainEvent;
   assert.ok(lastEvent);
   assert.equal(lastEvent.msgName, WalletAddressAliasCreatedEvent.name);
   assert.equal(lastEvent.aggregateId, createdWalletAddressInternalId);
@@ -231,12 +233,12 @@ test('PAL WalletAddress Domain - create wallet address with invalid wallet id sh
 test('PAL WalletAddress Domain - create alias that exists in another wallet address should fail', async () => {
   try {
     const newWalletId = await walletAggregate.createWalletAddress(
-        ALIAS_DOMAIN,
-        ALIAS_PATHNAME+"_other",
-        PUBLIC_NAME+"_other",
-        ASSET_CODE,
-        ASSET_SCALE
-      );
+      ALIAS_DOMAIN,
+      ALIAS_PATHNAME + '_other',
+      PUBLIC_NAME + '_other',
+      ASSET_CODE,
+      ASSET_SCALE
+    );
 
     await walletAggregate.createWalletAddressAlias(
       ALIAS_DOMAIN,

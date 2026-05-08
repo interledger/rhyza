@@ -1,19 +1,8 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
+import { IPalWalletAddressDto } from 'pal-public-types-lib';
+import { PalWalletAddressAlias } from './wallet-address-alias';
+import { CannotCreateDuplicateWalletAddressAliasError } from '../errors';
 
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
-import {IPalWalletAddress} from "../interfaces";
-import {PalWalletAddressAlias} from "./wallet-address-alias";
-import {CannotCreateDuplicateWalletAddressAliasError} from "../errors";
-
-export class PalWalletAddress implements IPalWalletAddress {
+export class PalWalletAddress implements IPalWalletAddressDto {
   private readonly _id: string;
   private readonly _publicName: string;
   private readonly _assetCode: string;
@@ -37,7 +26,7 @@ export class PalWalletAddress implements IPalWalletAddress {
     this._aliases = [];
   }
 
-  static fromObject(json: IPalWalletAddress): PalWalletAddress {
+  static fromDto(json: IPalWalletAddressDto): PalWalletAddress {
     const newObj = new PalWalletAddress(
       json.id,
       json.publicName,
@@ -45,20 +34,20 @@ export class PalWalletAddress implements IPalWalletAddress {
       json.assetScale,
       json.isActive
     );
-    newObj._aliases .push(...json.aliases.map(
-      alias => PalWalletAddressAlias.fromObject(alias)
-    ));
+    newObj._aliases.push(
+      ...json.aliases.map((alias) => PalWalletAddressAlias.fromObject(alias))
+    );
     return newObj;
   }
 
-  toObject(): IPalWalletAddress {
+  toDto(): IPalWalletAddressDto {
     return {
       id: this._id,
       publicName: this._publicName,
       assetCode: this._assetCode,
       assetScale: this._assetScale,
       isActive: this._isActive,
-      aliases: this._aliases.map(a => a.toObject())
+      aliases: this._aliases.map((a) => a.toObject())
     };
   }
 
@@ -86,13 +75,15 @@ export class PalWalletAddress implements IPalWalletAddress {
     return this._aliases;
   }
 
-  addAlias(domain:string|null, pathName:string): void {
+  addAlias(domain: string | null, pathName: string): void {
     const existing = this._aliases.find(
-      alias => alias.pathName === pathName && alias.domain === domain
+      (alias) => alias.pathName === pathName && alias.domain === domain
     );
 
-    if(existing){
-      throw new CannotCreateDuplicateWalletAddressAliasError("Alias already exists");
+    if (existing) {
+      throw new CannotCreateDuplicateWalletAddressAliasError(
+        'Alias already exists'
+      );
     }
 
     this._aliases.push(new PalWalletAddressAlias(domain, pathName, this._id));

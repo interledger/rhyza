@@ -1,49 +1,50 @@
-/*****
- Contributors
-
- * Interledger Foundation
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
-
- --------------
- ******/
-
-"use strict";
-
-import {StateEvent, SnapshotEvent, SnapshotEventTopics, StateEventTopics, MessageDataFormats} from 'common-types-lib';
+import {
+  StateEvent,
+  SnapshotEvent,
+  SnapshotEventTopics,
+  StateEventTopics,
+  MessageDataFormats
+} from 'common-types-lib';
 
 export abstract class LedgerStateEvent extends StateEvent {
-  msgDataFormat:MessageDataFormats = MessageDataFormats.PROTOBUF;
+  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   msgTopic: string = StateEventTopics.LedgerStateEvents;
   protected constructor(aggId: string) {
     super(aggId);
   }
 
-  static isLedgerCreatedStateEvent(evt:StateEvent):evt is LedgerCreatedStateEvent {
+  static isLedgerCreatedStateEvent(
+    evt: StateEvent
+  ): evt is LedgerCreatedStateEvent {
     return evt.msgName === LedgerCreatedStateEvent.name;
   }
-  static isLedgerAccountCreatedStateEvent(evt:StateEvent):evt is LedgerAccountCreatedStateEvent {
+  static isLedgerAccountCreatedStateEvent(
+    evt: StateEvent
+  ): evt is LedgerAccountCreatedStateEvent {
     return evt.msgName === LedgerAccountCreatedStateEvent.name;
   }
-  static isLedgerTransactionRecordedStateEvent(evt:StateEvent):evt is LedgerTransactionRecordedStateEvent {
+  static isLedgerTransactionRecordedStateEvent(
+    evt: StateEvent
+  ): evt is LedgerTransactionRecordedStateEvent {
     return evt.msgName === LedgerTransactionRecordedStateEvent.name;
   }
 }
-export abstract class BaseLedgerSnapshotEvent extends SnapshotEvent{
-  msgDataFormat:MessageDataFormats = MessageDataFormats.PROTOBUF;
-  msgTopic:string = SnapshotEventTopics.LedgerSnapshotEvents;
-    protected constructor(aggId:string, aggVersion:string) {
-        super(aggId, aggVersion);
-    }
+export abstract class BaseLedgerSnapshotEvent extends SnapshotEvent {
+  msgDataFormat: MessageDataFormats = MessageDataFormats.PROTOBUF;
+  msgTopic: string = SnapshotEventTopics.LedgerSnapshotEvents;
+  protected constructor(aggId: string, aggVersion: string) {
+    super(aggId, aggVersion);
+  }
 }
 
 /*
-* State Events
-* */
+ * State Events
+ * */
 
 export type LedgerCreatedStatePayload = {
-    id: string;
-    assetScale: number;
-}
+  id: string;
+  assetScale: number;
+};
 export class LedgerCreatedStateEvent extends LedgerStateEvent {
   payload: LedgerCreatedStatePayload;
 
@@ -57,70 +58,71 @@ export class LedgerCreatedStateEvent extends LedgerStateEvent {
   }
 }
 
-
 export type LedgerAccountCreatedStatePayload = {
-    account:{
-      id: string;
-      name: string;
-      assetCode: string;
-      assetDisplayScale: number;
-      debitedAmount: string;
-      creditedAmount: string;
-    };
-}
+  account: {
+    id: string;
+    name: string;
+    assetCode: string;
+    assetDisplayScale: number;
+    debitedAmount: string;
+    creditedAmount: string;
+    externalId?: string;
+  };
+};
 export class LedgerAccountCreatedStateEvent extends LedgerStateEvent {
   payload: LedgerAccountCreatedStatePayload;
 
-  constructor(
-    aggId: string,
-    payload: LedgerAccountCreatedStatePayload
-  ) {
+  constructor(aggId: string, payload: LedgerAccountCreatedStatePayload) {
     super(aggId);
     this.payload = payload;
   }
 }
 
 export type LedgerTransactionRecordedStatePayload = {
-    transaction: {
-      id: string;
-      debitedAccountId: string;
-      creditedAccountId: string;
-      amount: string;
-      amountScale: number;
-      timestamp: number;
-      externalId?: string;
-    };
-}
-export class LedgerTransactionRecordedStateEvent extends LedgerStateEvent{
-    payload: LedgerTransactionRecordedStatePayload;
+  transaction: {
+    id: string;
+    debitedAccountId: string;
+    creditedAccountId: string;
+    amount: string;
+    amountScale: number;
+    timestamp: number;
+    externalId?: string;
+  };
+};
+export class LedgerTransactionRecordedStateEvent extends LedgerStateEvent {
+  payload: LedgerTransactionRecordedStatePayload;
 
-    constructor(aggId:string, payload: LedgerTransactionRecordedStatePayload){
-        super(aggId);
-        this.payload = payload;
-    };
+  constructor(aggId: string, payload: LedgerTransactionRecordedStatePayload) {
+    super(aggId);
+    this.payload = payload;
+  }
 }
 
 /*
-* Snapshot Events
-* */
+ * Snapshot Events
+ * */
 export type LedgerSnapshotPayload = {
-    accounts: {
-      id: string;
-      name: string;
-      assetCode: string;
-      assetDisplayScale: number;
-      debitedAmount: string;
-      creditedAmount: string;
-    }[];
-    transactionCount: string;
-    assetScale: number;
-}
+  accounts: {
+    id: string;
+    name: string;
+    assetCode: string;
+    assetDisplayScale: number;
+    debitedAmount: string;
+    creditedAmount: string;
+  }[];
+  transactionCount: string;
+  assetScale: number;
+};
 // export class LedgerSnapshotEvent extends BaseLedgerSnapshotEvent implements IProtobuffMessage<LedgerSnapshotEvent>{
-export class LedgerSnapshotEvent extends BaseLedgerSnapshotEvent{
-    payload: LedgerSnapshotPayload;
+export class LedgerSnapshotEvent extends BaseLedgerSnapshotEvent {
+  payload: LedgerSnapshotPayload;
 
-    constructor(aggId:string, aggVersion:string, payload:LedgerSnapshotPayload){
-        super(aggId, aggVersion);
-        this.payload = payload;
-    };
+  constructor(
+    aggId: string,
+    aggVersion: string,
+    payload: LedgerSnapshotPayload
+  ) {
+    super(aggId, aggVersion);
+    this.payload = payload;
+  }
 }

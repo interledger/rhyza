@@ -1,37 +1,44 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
 import {
-  AssetAggregate, IPalAssetRepository, IPalWalletAddressRepository,
-  WalletAddressAggregate
+  AssetAggregate,
+  IPalAssetRepository,
+  IPalWalletAddressRepository,
+  WalletAddressAggregate,
+  ILedgerReadSideRepository,
+  PeerAggregate,
+  IPalPeerRepository
 } from 'pal-domain-lib';
 import { PalGrpcServer } from './grpc/grpc-service';
 import process from 'process';
 import {
   CreateLedgerAccountCmdSerde,
-  CreateLedgerCmdSerde, ILedgerReadSideRepository,
-  MongoDbAssetRepo, MongoDbLedgerReadSideRepo,
-  MongoDbWalletRepoRepo
+  CreateLedgerAccountForAssetCmdSerde,
+  CreateLedgerAccountForPeerCmdSerde,
+  CreateLedgerCmdSerde,
+  MongoDbAssetRepo,
+  MongoDbLedgerReadSideRepo,
+  MongoDbPeerRepo,
+  MongoDbWalletRepo
 } from 'pal-implementations-lib';
-import {ILogger, IMessageConsumer, IMessageProducer, IRawMessageSerializerFactory} from "common-types-lib";
+import {
+  ILogger,
+  IMessageConsumer,
+  IMessageProducer,
+  IRawMessageSerializerFactory
+} from 'common-types-lib';
 import {
   IKafkaBuilder,
-  KafkaBuilder, KafkaConsumerOptions, KafkaProducerCompressionCodecs,
+  KafkaBuilder,
+  KafkaConsumerOptions,
+  KafkaProducerCompressionCodecs,
   KafkaProducerOptions,
   MessageSerializationFactory,
   PinoLogger
-} from "implementations-lib";
-import crypto from "crypto";
+} from 'implementations-lib';
+import crypto from 'crypto';
 
-const SVC_PORT = process.env["SVC_PORT"] ? parseInt(process.env["SVC_PORT"]) : 50051;
+const SVC_PORT = process.env['SVC_PORT']
+  ? parseInt(process.env['SVC_PORT'])
+  : 50051;
 const INSTANCE_ID = `ES_LEDGER_POC_SVC__${crypto.randomUUID()}`;
 
 // Message Consumer/Publisher
@@ -63,6 +70,7 @@ export class PalApiService {
   private static _kafkaBuilder: IKafkaBuilder;
   private static _assetRepo: IPalAssetRepository;
   private static _walletRepo: IPalWalletAddressRepository;
+  private static _peerRepo: IPalPeerRepository;
   private static _ledgerReadSideRepo: ILedgerReadSideRepository;
   private static _producer: IMessageProducer;
   private static _consumer: IMessageConsumer;
@@ -74,70 +82,90 @@ export class PalApiService {
     kafkaBuilder?: IKafkaBuilder,
     assetRepo?: IPalAssetRepository,
     walletRepo?: IPalWalletAddressRepository,
-    ledgerReadSideRepo?: ILedgerReadSideRepository,
+    peerRepo?: IPalPeerRepository,
+    ledgerReadSideRepo?: ILedgerReadSideRepository
   ): Promise<void> {
-    if(!logger){
+    if (!logger) {
       logger = new PinoLogger();
     }
     this._logger = logger;
 
     this._logger.info(`Starting ${this.constructor.name}...`);
 
-    if(!msgSerializationFactory){
+    if (!msgSerializationFactory) {
       MessageSerializationFactory.instance()
         // we only need the commands
         .register(new CreateLedgerCmdSerde())
-        .register(new CreateLedgerAccountCmdSerde());
+        .register(new CreateLedgerAccountCmdSerde())
+        .register(new CreateLedgerAccountForAssetCmdSerde())
+        .register(new CreateLedgerAccountForPeerCmdSerde());
 
       msgSerializationFactory = MessageSerializationFactory.instance();
     }
     this._msgSerializationFactory = msgSerializationFactory;
 
-    if(!kafkaBuilder){
+    if (!kafkaBuilder) {
       kafkaBuilder = new KafkaBuilder()
         .withLogger(this._logger)
         .withBrokerList(KAFKA_URL)
         .withClientId(INSTANCE_ID)
-        .withSerializerFactory(this._msgSerializationFactory)
+        .withSerializerFactory(this._msgSerializationFactory);
     }
     this._kafkaBuilder = kafkaBuilder;
 
-    if(!assetRepo){
-      assetRepo = new MongoDbAssetRepo(MONGO_URL);
+    if (!assetRepo) {
+      assetRepo = new MongoDbAssetRepo(MONGO_URL, logger);
       await (assetRepo as MongoDbAssetRepo).init();
     }
     this._assetRepo = assetRepo;
 
-    if(!walletRepo){
-      walletRepo = new MongoDbWalletRepoRepo(MONGO_URL);
-      await (walletRepo as MongoDbWalletRepoRepo).init();
+    if (!walletRepo) {
+      walletRepo = new MongoDbWalletRepo(MONGO_URL, logger);
+      await (walletRepo as MongoDbWalletRepo).init();
     }
     this._walletRepo = walletRepo;
 
-    if(!ledgerReadSideRepo){
-      const repo = new MongoDbLedgerReadSideRepo(MONGO_URL);
-      await repo.init()
+    if (!peerRepo) {
+      peerRepo = new MongoDbPeerRepo(MONGO_URL, logger);
+      await (peerRepo as MongoDbPeerRepo).init();
+    }
+    this._peerRepo = peerRepo;
+
+    if (!ledgerReadSideRepo) {
+      const repo = new MongoDbLedgerReadSideRepo(MONGO_URL, logger);
+      await repo.init();
       ledgerReadSideRepo = repo;
     }
     this._ledgerReadSideRepo = ledgerReadSideRepo;
 
     // create producer from kafka builder
-    this._producer = this._kafkaBuilder.buildProducer(kafkaProducerCommonOptions);
-    this._consumer = this._kafkaBuilder.buildConsumer(kafkaConsumerCommonOptions);
+    this._producer = this._kafkaBuilder.buildProducer(
+      kafkaProducerCommonOptions
+    );
+    this._consumer = this._kafkaBuilder.buildConsumer(
+      kafkaConsumerCommonOptions
+    );
 
     // create aggregates driven by this gRPC port
     const assetAggregate = new AssetAggregate(
-      this._assetRepo, this._producer, this._logger
+      this._assetRepo,
+      this._producer,
+      this._logger
     );
     const walletAggregate = new WalletAddressAggregate(
-      this._walletRepo, this._producer, this._logger
+      this._walletRepo,
+      this._producer,
+      this._logger
     );
+
+    const peerAggregate = new PeerAggregate(this._peerRepo, this._logger);
 
     this.grpcService = new PalGrpcServer(
       INSTANCE_ID,
       `0.0.0.0:${SVC_PORT}`,
       assetAggregate,
       walletAggregate,
+      peerAggregate,
       this._producer,
       this._consumer,
       this._ledgerReadSideRepo,
@@ -150,7 +178,7 @@ export class PalApiService {
   static async stop(): Promise<void> {
     await this.grpcService.stop();
 
-    if(this._producer){
+    if (this._producer) {
       await this._producer.disconnect();
     }
   }

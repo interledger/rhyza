@@ -1,24 +1,24 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
-import {after, before, test} from 'node:test';
+import { after, before, test } from 'node:test';
+import { randomBytes } from 'node:crypto';
 import * as assert from 'node:assert/strict';
-import {PalClient, parseAddressToDomainAndPathName} from '../src';
+import {
+  PalClientLedgerNotFoundError,
+  PalClient,
+  PalClientLedgerAccountAlreadyExistsError,
+  PalClientLedgerAlreadyExistsError,
+  parseAddressToDomainAndPathName
+} from '../src';
 
 let client: PalClient;
+const testPrefix = `TEST-${randomBytes(3).toString('hex')}`;
 
-const ASSET_CODE = 'EUR';
+// const assetCode = `USD`;
+const ASSET_CODE = `${testPrefix}_EUR`;
 const ASSET_SCALE = 2;
+const accOneId = `${testPrefix}_acc1`;
+const accTwoId = `${testPrefix}_acc2`;
 
-const ALIAS_DOMAIN = 'domain.com';
+const ALIAS_DOMAIN = `${testPrefix}_domain.com`;
 const ALIAS_PATHNAME = 'pedrobarreto';
 const PUBLIC_NAME = 'Pedro Barreto';
 
@@ -33,11 +33,87 @@ after(async () => {
 });
 
 /*
+ * pal client ledger low-level tests
+ * */
+
+test('pal client - ledger low-level - create ledger', async () => {
+  await client.createLedger(ASSET_CODE);
+
+  assert.ok(true);
+});
+
+test('pal client - ledger low-level - create ledger for same asset should fail', async () => {
+  try {
+    await client.createLedger(ASSET_CODE);
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof PalClientLedgerAlreadyExistsError);
+  }
+});
+
+test('pal client - ledger low-level - create ledger accounts', async () => {
+  await client.createLedgerAccount(
+    accOneId,
+    ASSET_CODE,
+    ASSET_SCALE,
+    accOneId.toString()
+  );
+  await client.createLedgerAccount(
+    accTwoId,
+    ASSET_CODE,
+    ASSET_SCALE,
+    accTwoId.toString()
+  );
+
+  assert.ok(true);
+});
+
+test('pal client - ledger low-level - create duplicate ledger account should fail', async () => {
+  try {
+    await client.createLedgerAccount(
+      accOneId,
+      ASSET_CODE,
+      ASSET_SCALE,
+      accOneId.toString()
+    );
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof PalClientLedgerAccountAlreadyExistsError);
+  }
+});
+
+test('pal client - ledger low-level - create ledger account for non-existent asset code should fail', async () => {
+  try {
+    await client.createLedgerAccount(
+      accOneId + '_other',
+      'non-existent_asset_code',
+      ASSET_SCALE,
+      accOneId.toString()
+    );
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof PalClientLedgerNotFoundError);
+  }
+});
+
+test('pal client - ledger low-level - created ledger accounts should exist and be successfully retrieved', async () => {
+  // we have to wait for the ledger to be created and the accounts to be created in the read side
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  const [accOne, accTwo] = await client.getLedgerAccounts([accOneId, accTwoId]);
+
+  assert.ok(accOne);
+  assert.ok(accTwo);
+  assert.equal(accOne.id, accOneId);
+  assert.equal(accTwo.id, accTwoId);
+});
+
+/*
  * Asset tests
  * */
 
 test('pal client - create asset', async () => {
   await client.createAsset(ASSET_CODE, ASSET_SCALE, undefined, undefined);
+  assert.ok(true);
 });
 
 test('pal client - get asset', async () => {
@@ -48,6 +124,7 @@ test('pal client - get asset', async () => {
   assert.equal(asset.scale, ASSET_SCALE);
   assert.equal(asset.liquidityLowThreshold, null);
   assert.equal(asset.liquidityHighThreshold, null);
+  assert.ok(asset.ledgerAccountId);
 });
 
 test('pal client - created duplicate asset should fail', async () => {
@@ -66,7 +143,6 @@ test('pal client - get non existing asset should fail', async () => {
 
   assert.ok(asset === null);
 });
-
 
 /*
  * Wallet address tests

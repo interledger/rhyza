@@ -1,100 +1,131 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
+import {
+  CommandMsg,
+  CommandTopics,
+  MessageDataFormats
+} from 'common-types-lib';
 
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
+export abstract class LedgerCommand extends CommandMsg {
+  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
+  msgTopic: string = CommandTopics.LedgerCommands;
+  protected constructor(aggId: string) {
+    super(aggId);
+    this.msgKey = aggId;
+  }
 
-"use strict";
+  // Low level commands
+  static isCreateLedgerCmd(cmd: CommandMsg): cmd is CreateLedgerCmd {
+    return cmd.msgName === CreateLedgerCmd.name;
+  }
+  static isCreateLedgerAccountCmd(
+    cmd: CommandMsg
+  ): cmd is CreateLedgerAccountCmd {
+    return cmd.msgName === CreateLedgerAccountCmd.name;
+  }
+  static isCreateLedgerAccountForAssetCmd(
+    cmd: CommandMsg
+  ): cmd is CreateLedgerAccountForAssetCmd {
+    return cmd.msgName === CreateLedgerAccountForAssetCmd.name;
+  }
+  static isCreateLedgerAccountForPeerCmd(
+    cmd: CommandMsg
+  ): cmd is CreateLedgerAccountForPeerCmd {
+    return cmd.msgName === CreateLedgerAccountForPeerCmd.name;
+  }
 
-import {CommandMsg, CommandTopics, MessageDataFormats} from 'common-types-lib';
+  static isPostTransactionCmd(cmd: CommandMsg): cmd is PostTransactionCmd {
+    return cmd.msgName === PostTransactionCmd.name;
+  }
 
-export abstract class LedgerCommand extends CommandMsg{
-  msgDataFormat:MessageDataFormats = MessageDataFormats.PROTOBUF;
-  msgTopic:string = CommandTopics.LedgerCommands;
-    protected constructor(aggId:string) {
-        super(aggId);
-        this.msgKey = aggId;
-    }
-
-    // Low level commands
-    static isCreateLedgerCmd(cmd:CommandMsg):cmd is CreateLedgerCmd {
-        return cmd.msgName === CreateLedgerCmd.name;
-    }
-    static isCreateLedgerAccountCmd(cmd:CommandMsg):cmd is CreateLedgerAccountCmd {
-        return cmd.msgName === CreateLedgerAccountCmd.name;
-    }
-    static isPostTransactionCmd(cmd:CommandMsg):cmd is PostTransactionCmd {
-        return cmd.msgName === PostTransactionCmd.name;
-    }
-
-    // High level commands
-    static isReserveTransferCmd(cmd:CommandMsg):cmd is ReserveTransferCmd {
-        return cmd.msgName === ReserveTransferCmd.name;
-    }
-    static isCheckBalanceAndReserveTransferCmd(cmd:CommandMsg):cmd is CheckBalanceAndReserveTransferCmd {
-        return cmd.msgName === CheckBalanceAndReserveTransferCmd.name;
-    }
-    static isCommitTransferCmd(cmd:CommandMsg):cmd is CommitTransferCmd {
-        return cmd.msgName === CommitTransferCmd.name;
-    }
-    static isRejectTransferCmd(cmd:CommandMsg):cmd is RejectTransferCmd {
-        return cmd.msgName === RejectTransferCmd.name;
-    }
+  // High level commands
+  static isReserveTransferCmd(cmd: CommandMsg): cmd is ReserveTransferCmd {
+    return cmd.msgName === ReserveTransferCmd.name;
+  }
+  static isCheckBalanceAndReserveTransferCmd(
+    cmd: CommandMsg
+  ): cmd is CheckBalanceAndReserveTransferCmd {
+    return cmd.msgName === CheckBalanceAndReserveTransferCmd.name;
+  }
+  static isCommitTransferCmd(cmd: CommandMsg): cmd is CommitTransferCmd {
+    return cmd.msgName === CommitTransferCmd.name;
+  }
+  static isRejectTransferCmd(cmd: CommandMsg): cmd is RejectTransferCmd {
+    return cmd.msgName === RejectTransferCmd.name;
+  }
 }
 
 /*
-* Lowlevel commands
-* */
+ * Lowlevel commands
+ * */
 
 export type CreateLedgerCmdPayload = {
-    id: string;
+  id: string;
+};
+export class CreateLedgerCmd extends LedgerCommand {
+  payload: CreateLedgerCmdPayload;
+  constructor(payload: CreateLedgerCmdPayload) {
+    super(payload.id);
+    this.payload = payload;
+  }
 }
-export class CreateLedgerCmd extends LedgerCommand{
-    payload: CreateLedgerCmdPayload;
-    constructor( payload: CreateLedgerCmdPayload) {
-        super(payload.id);
-        this.payload = payload;
-    }
-}
-
 
 export type CreateLedgerAccountCmdPayload = {
-    id: string;
-    assetCode: string;
-    assetDisplayScale: number;
-    name: string;
-}
-export class CreateLedgerAccountCmd extends LedgerCommand{
-    payload: CreateLedgerAccountCmdPayload;
-    constructor(aggId:string, payload: CreateLedgerAccountCmdPayload) {
-        super(aggId);
-        this.payload = payload;
-    }
+  id: string;
+  assetCode: string;
+  name: string;
+  assetDisplayScale?: number; // optional
+  externalId?: string; // optional
+};
+export class CreateLedgerAccountCmd extends LedgerCommand {
+  payload: CreateLedgerAccountCmdPayload;
+  constructor(aggId: string, payload: CreateLedgerAccountCmdPayload) {
+    super(aggId);
+    this.payload = payload;
+  }
 }
 
+export type CreateLedgerAccountForAssetCmdPayload = {
+  id: string;
+  assetCode: string; // assetCode is used as the acc externalId (being the account for an asset)
+};
+export class CreateLedgerAccountForAssetCmd extends LedgerCommand {
+  payload: CreateLedgerAccountForAssetCmdPayload;
+  constructor(aggId: string, payload: CreateLedgerAccountForAssetCmdPayload) {
+    super(aggId);
+    this.payload = payload;
+  }
+}
+
+export type CreateLedgerAccountForPeerCmdPayload = {
+  id: string;
+  assetCode: string;
+  peerId: string; // peerId is used as the acc externalId
+};
+export class CreateLedgerAccountForPeerCmd extends LedgerCommand {
+  payload: CreateLedgerAccountForPeerCmdPayload;
+  constructor(aggId: string, payload: CreateLedgerAccountForPeerCmdPayload) {
+    super(aggId);
+    this.payload = payload;
+  }
+}
 
 export type PostTransactionCmdPayload = {
-    id: string;
-    debitedAccountId: string;
-    creditedAccountId: string;
-    amount: string;
-    amountScale: number;
+  id: string;
+  debitedAccountId: string;
+  creditedAccountId: string;
+  amount: string;
+  amountScale: number;
+};
+export class PostTransactionCmd extends LedgerCommand {
+  payload: PostTransactionCmdPayload;
+  constructor(aggId: string, payload: PostTransactionCmdPayload) {
+    super(aggId);
+    this.payload = payload;
+  }
 }
-export class PostTransactionCmd extends LedgerCommand{
-    payload: PostTransactionCmdPayload;
-    constructor(aggId:string, payload: PostTransactionCmdPayload) {
-        super(aggId);
-        this.payload = payload;
-    }
-}
-
 
 /*
-* High level commands
-* */
+ * High level commands
+ * */
 
 export type CheckBalanceAndReserveTransferCmdPayload = {
   requestId: string;
@@ -104,11 +135,14 @@ export type CheckBalanceAndReserveTransferCmdPayload = {
   suspenseAccountId: string;
   amount: string;
   amountScale: number;
-}
-export class CheckBalanceAndReserveTransferCmd extends LedgerCommand{
-  msgDataFormat:MessageDataFormats = MessageDataFormats.JSON;
+};
+export class CheckBalanceAndReserveTransferCmd extends LedgerCommand {
+  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   payload: CheckBalanceAndReserveTransferCmdPayload;
-  constructor(aggId:string, payload: CheckBalanceAndReserveTransferCmdPayload) {
+  constructor(
+    aggId: string,
+    payload: CheckBalanceAndReserveTransferCmdPayload
+  ) {
     super(aggId);
     this.payload = payload;
   }
@@ -121,16 +155,15 @@ export type ReserveTransferCmdPayload = {
   suspenseAccountId: string;
   amount: string;
   amountScale: number;
-}
-export class ReserveTransferCmd extends LedgerCommand{
-  msgDataFormat:MessageDataFormats = MessageDataFormats.JSON;
+};
+export class ReserveTransferCmd extends LedgerCommand {
+  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   payload: ReserveTransferCmdPayload;
-  constructor(aggId:string, payload: ReserveTransferCmdPayload) {
+  constructor(aggId: string, payload: ReserveTransferCmdPayload) {
     super(aggId);
     this.payload = payload;
   }
 }
-
 
 export type CommitTransferCmdPayload = {
   requestId: string;
@@ -140,11 +173,11 @@ export type CommitTransferCmdPayload = {
   payeeClearingAccountId: string;
   amount: string;
   amountScale: number;
-}
-export class CommitTransferCmd extends LedgerCommand{
-  msgDataFormat:MessageDataFormats = MessageDataFormats.JSON;
+};
+export class CommitTransferCmd extends LedgerCommand {
+  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   payload: CommitTransferCmdPayload;
-  constructor(aggId:string, payload: CommitTransferCmdPayload) {
+  constructor(aggId: string, payload: CommitTransferCmdPayload) {
     super(aggId);
     this.payload = payload;
   }
@@ -157,11 +190,11 @@ export type RejectTransferCmdPayload = {
   suspenseAccountId: string;
   amount: string;
   amountScale: number;
-}
-export class RejectTransferCmd extends LedgerCommand{
-  msgDataFormat:MessageDataFormats = MessageDataFormats.JSON;
+};
+export class RejectTransferCmd extends LedgerCommand {
+  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   payload: RejectTransferCmdPayload;
-  constructor(aggId:string, payload: RejectTransferCmdPayload) {
+  constructor(aggId: string, payload: RejectTransferCmdPayload) {
     super(aggId);
     this.payload = payload;
   }

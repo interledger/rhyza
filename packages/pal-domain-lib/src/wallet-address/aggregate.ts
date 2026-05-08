@@ -1,27 +1,28 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
-import {CannotCreateDuplicateWalletAddressAliasError, CannotCreateDuplicateWalletAddressError} from './errors';
-import { IPalWalletAddress, IPalWalletAddressRepository } from './interfaces';
+import {
+  CannotCreateDuplicateWalletAddressAliasError,
+  CannotCreateDuplicateWalletAddressError,
+  WalletAddressAliasNotFoundError
+} from './errors';
+import { IPalWalletAddressRepository } from './interfaces';
 import { PalWalletAddress } from './entities/wallet-address';
-import crypto from "node:crypto";
-import {ILogger, IMessageProducer} from "common-types-lib";
-import {WalletAddressAliasCreatedEvent, WalletAddressCreatedEvent} from "pal-public-types-lib";
+import crypto from 'node:crypto';
+import { ILogger, IMessageProducer } from 'common-types-lib';
+import {
+  IPalWalletAddressDto,
+  WalletAddressAliasCreatedEvent,
+  WalletAddressCreatedEvent
+} from 'pal-public-types-lib';
 
 export class WalletAddressAggregate {
   private readonly _logger: ILogger;
   private _repo: IPalWalletAddressRepository;
   private readonly _msgProducer: IMessageProducer;
 
-  constructor(repo: IPalWalletAddressRepository, msgProducer: IMessageProducer, logger:ILogger) {
+  constructor(
+    repo: IPalWalletAddressRepository,
+    msgProducer: IMessageProducer,
+    logger: ILogger
+  ) {
     this._logger = logger;
     this._repo = repo;
     this._msgProducer = msgProducer;
@@ -35,10 +36,7 @@ export class WalletAddressAggregate {
     assetScale: number,
     isActive?: boolean
   ): Promise<string> {
-    const alias = await this.resolveWalletAddressAlias(
-      domain,
-      pathName
-    );
+    const alias = await this.resolveWalletAddressAlias(domain, pathName);
 
     if (alias) {
       throw new CannotCreateDuplicateWalletAddressError(
@@ -58,7 +56,7 @@ export class WalletAddressAggregate {
 
     newWallet.addAlias(domain, pathName);
 
-    await this._repo.store(newWallet.toObject());
+    await this._repo.store(newWallet.toDto());
 
     await this._msgProducer.send(
       new WalletAddressCreatedEvent({
@@ -75,12 +73,12 @@ export class WalletAddressAggregate {
     return newWallet.id;
   }
 
-  async getWalletAddresses(ids: string[]): Promise<IPalWalletAddress[]> {
+  async getWalletAddresses(ids: string[]): Promise<IPalWalletAddressDto[]> {
     const found = await this._repo.fetch(ids);
 
     if (!found || found.length == 0) return [];
 
-    return found.map(PalWalletAddress.fromObject);
+    return found.map(PalWalletAddress.fromDto);
   }
 
   async resolveWalletAddressAlias(
@@ -100,21 +98,25 @@ export class WalletAddressAggregate {
   ): Promise<void> {
     // ensure the requested alias does not already exist
     const existingAlias = await this._repo.getByAlias(domain, pathName);
-    if(existingAlias) {
-      throw new CannotCreateDuplicateWalletAddressAliasError("Alias already exists");
+    if (existingAlias) {
+      throw new CannotCreateDuplicateWalletAddressAliasError(
+        'Alias already exists'
+      );
     }
 
     const [walletDto] = await this._repo.fetch([walletId]);
     if (!walletDto) {
-      throw new Error(`Wallet Address with id ${walletId} does not exist`);
+      throw new WalletAddressAliasNotFoundError(
+        `Wallet Address with id ${walletId} does not exist`
+      );
     }
 
-    const wallet = PalWalletAddress.fromObject(walletDto);
+    const wallet = PalWalletAddress.fromDto(walletDto);
     // TODO: validate inputs, especially domain and pathName characters
 
     wallet.addAlias(domain, pathName);
 
-    await this._repo.store(wallet.toObject());
+    await this._repo.store(wallet.toDto());
 
     await this._msgProducer.send(
       new WalletAddressAliasCreatedEvent({

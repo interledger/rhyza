@@ -1,17 +1,7 @@
-/*****
- Contributors
-
- * Interledger Foundation
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
-
- --------------
- ******/
-
-'use strict';
-
-import {
-  LedgerSnapshotEvent, LedgerStateEvent,
-} from './messages/events';
+import { LedgerSnapshotEvent, LedgerStateEvent } from './messages/events';
+import { ILedger } from './entities/ledger';
+import { ILedgerAccount } from './entities/ledger-account';
+import { ILedgerTransaction } from './entities/transaction';
 
 /*
 repositories
@@ -29,4 +19,14 @@ export interface ILedgerEventSourcingRepository {
     aggId: string,
     partitionAndOffset?: { partition: number; offset: number }
   ): Promise<LedgerStateEvent[]>;
+}
+
+export interface ILedgerReadSideRepository {
+  storeLedgers(ledgers: ILedger[]): Promise<void>;
+  fetchLedgers(ids: string[]): Promise<ILedger[]>;
+
+  storeLedgerAccounts(accounts: ILedgerAccount[]): Promise<void>;
+  fetchLedgerAccounts(ids: string[]): Promise<ILedgerAccount[]>;
+
+  storeLedgerTransactions(transactions: ILedgerTransaction[]): Promise<void>;
 }

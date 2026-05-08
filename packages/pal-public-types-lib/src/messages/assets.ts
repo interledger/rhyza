@@ -1,7 +1,11 @@
-import {DomainEvent, DomainEventTopics, MessageDataFormats} from "common-types-lib";
+import {
+  DomainEvent,
+  DomainEventTopics,
+  MessageDataFormats
+} from 'common-types-lib';
 
 export abstract class AssetDomainEvent extends DomainEvent {
-  msgDataFormat:MessageDataFormats = MessageDataFormats.JSON;
+  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   msgTopic: string = DomainEventTopics.AssetEvents;
   // set to true by exception in then implementing class
   isErrorEvent = false;
@@ -10,23 +14,21 @@ export abstract class AssetDomainEvent extends DomainEvent {
     super(aggId);
   }
 
-  static isAssetCreatedEvent(evt:DomainEvent):evt is AssetCreatedEvent {
+  static isAssetCreatedEvent(evt: DomainEvent): evt is AssetCreatedEvent {
     return evt.msgName === AssetCreatedEvent.name;
   }
-
 }
 
-
 /*
-* Domain Events (for now sort of integration events as well)
-* */
+ * Domain Events (for now sort of integration events as well)
+ * */
 
 export type AssetCreatedEventPayload = {
   code: string;
   scale: number;
   liquidityLowThreshold: bigint | null;
   liquidityHighThreshold: bigint | null;
-}
+};
 export class AssetCreatedEvent extends AssetDomainEvent {
   payload: AssetCreatedEventPayload;
 

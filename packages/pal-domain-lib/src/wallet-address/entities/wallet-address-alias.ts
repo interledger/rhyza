@@ -1,17 +1,6 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
+import { IPalWalletAddressAliasDto } from 'pal-public-types-lib';
 
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
-import { IPalWalletAddressAlias } from '../interfaces';
-
-export class PalWalletAddressAlias implements IPalWalletAddressAlias {
+export class PalWalletAddressAlias {
   private readonly _domain: string | null;
   private readonly _pathName: string;
   private readonly _walletId: string;
@@ -34,11 +23,11 @@ export class PalWalletAddressAlias implements IPalWalletAddressAlias {
     return this._walletId;
   }
 
-  static fromObject(json: IPalWalletAddressAlias): PalWalletAddressAlias {
+  static fromObject(json: IPalWalletAddressAliasDto): PalWalletAddressAlias {
     return new PalWalletAddressAlias(json.domain, json.pathName, json.walletId);
   }
 
-  toObject(): IPalWalletAddressAlias {
+  toObject(): IPalWalletAddressAliasDto {
     return {
       domain: this._domain,
       pathName: this._pathName,

@@ -1,22 +1,12 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
 import * as grpc from '@grpc/grpc-js';
 import { ServiceError } from '@grpc/grpc-js';
 import {
   IGetWalletAddressResponse,
-  IPalClientAsset,
-  IPalClientWalletAddress, PalClientLedgerAccountAlreadyExistsError,
-  PalClientLedgerAccountCreationFailedError, PalClientLedgerAlreadyExistsError,
-  PalClientLedgerNotFoundError, PalClientLedgerUnknownError,
+  IPalClientWalletAddress,
+  PalClientLedgerAccountAlreadyExistsError,
+  PalClientLedgerAlreadyExistsError,
+  PalClientLedgerNotFoundError,
+  PalClientLedgerUnknownError,
   PalClientUnknownError
 } from './local-types';
 import {
@@ -30,9 +20,24 @@ import {
   PbGetWalletAddressesResponse,
   PalGrpcClient,
   PbResolveWalletAddressAliasRequest,
-  PbResolveWalletAddressAliasResponse, PbCreateLedgerRequest, PbCreateLedgerAccountRequest, PbGetLedgerAccountsRequest,
-  ILedgerAccountDTO, PbGetLedgerAccountsResponse
+  PbResolveWalletAddressAliasResponse,
+  PbCreateLedgerRequest,
+  PbCreateLedgerAccountRequest,
+  PbGetLedgerAccountsRequest,
+  ILedgerAccountDto,
+  PbGetLedgerAccountsResponse,
+  IPalAssetDto
 } from 'pal-public-types-lib';
+import process from 'process';
+
+const DEFAULT_GRPC_KEEPALIVE_TIME_MS =
+  (process.env['DEFAULT_GRPC_KEEPALIVE_TIME_MS'] &&
+    parseInt(process.env['DEFAULT_GRPC_KEEPALIVE_TIME_MS'])) ||
+  10_000;
+const DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS =
+  (process.env['DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS'] &&
+    parseInt(process.env['DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS'])) ||
+  5_000;
 
 export class PalClient {
   private readonly _serverUrl: string;
@@ -49,8 +54,8 @@ export class PalClient {
       {
         'grpc.max_receive_message_length': 100 * 1024 * 1024,
         'grpc.max_send_message_length': 100 * 1024 * 1024,
-        'grpc.keepalive_time_ms': 10000,
-        'grpc.keepalive_timeout_ms': 5000,
+        'grpc.keepalive_time_ms': DEFAULT_GRPC_KEEPALIVE_TIME_MS,
+        'grpc.keepalive_timeout_ms': DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS,
         'grpc.keepalive_permit_without_calls': 1
       }
     );
@@ -105,7 +110,7 @@ export class PalClient {
     });
   }
 
-  async getAsset(code: string): Promise<IPalClientAsset | null> {
+  async getAsset(code: string): Promise<IPalAssetDto | null> {
     const request = new PbGetAssetRequest();
     request.setCode(code);
 
@@ -126,7 +131,7 @@ export class PalClient {
             return resolve(null);
           }
 
-          const respObj: IPalClientAsset = {
+          const respObj: IPalAssetDto = {
             code: respAsset.getCode(),
             scale: respAsset.getScale(),
             liquidityLowThreshold: respAsset.hasLiquidityLowThreshold()
@@ -134,6 +139,9 @@ export class PalClient {
               : null,
             liquidityHighThreshold: respAsset.hasLiquidityHighThreshold()
               ? BigInt(respAsset.getLiquidityHighThreshold()!)
+              : null,
+            ledgerAccountId: respAsset.hasLedgerAccountId()
+              ? respAsset.getLedgerAccountId()!
               : null
           };
 
@@ -144,7 +152,7 @@ export class PalClient {
   }
 
   /*
-   * Wallet Address related functions
+   * Wallet pAddress related functions
    * */
 
   async createWalletAddress(
@@ -168,7 +176,10 @@ export class PalClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.createWalletAddress(
         request,
-        (error: ServiceError | null, response: PbCreateWalletAddressResponse) => {
+        (
+          error: ServiceError | null,
+          response: PbCreateWalletAddressResponse
+        ) => {
           if (error) {
             console.error(error);
             return reject(new PalClientUnknownError(error.message));
@@ -196,7 +207,10 @@ export class PalClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.getWalletAddresses(
         request,
-        (error: ServiceError | null, response: PbGetWalletAddressesResponse) => {
+        (
+          error: ServiceError | null,
+          response: PbGetWalletAddressesResponse
+        ) => {
           if (error) {
             console.error(error);
             return reject(new PalClientUnknownError(error.message));
@@ -295,14 +309,14 @@ export class PalClient {
    * ledger related functions
    * */
 
-  createLedger(assetCode:string):Promise<void>{
+  createLedger(assetCode: string): Promise<void> {
     const request = new PbCreateLedgerRequest();
     request.setLedgerAssetCode(assetCode);
 
     return new Promise((resolve, reject) => {
       this._grpcClient.createLedger(request, (error: ServiceError | null) => {
         if (error) {
-          if(error.code == grpc.status.ALREADY_EXISTS){
+          if (error.code == grpc.status.ALREADY_EXISTS) {
             return reject(new PalClientLedgerAlreadyExistsError(error.message));
           }
           return reject(new PalClientLedgerUnknownError(error.message));
@@ -312,7 +326,12 @@ export class PalClient {
     });
   }
 
-  createLedgerAccount(accId:string, assetCode:string, assetDisplayScale: number, name:string):Promise<void>{
+  createLedgerAccount(
+    accId: string,
+    assetCode: string,
+    assetDisplayScale: number,
+    name: string
+  ): Promise<void> {
     const request = new PbCreateLedgerAccountRequest();
     request.setId(accId);
     request.setAssetCode(assetCode);
@@ -320,42 +339,50 @@ export class PalClient {
     request.setName(name);
 
     return new Promise((resolve, reject) => {
-      this._grpcClient.createLedgerAccount(request, (error: ServiceError | null) => {
-        if (error) {
-          if(error.code == grpc.status.ALREADY_EXISTS){
-            return reject(new PalClientLedgerAccountAlreadyExistsError(error.message));
-          }else if(error.code == grpc.status.NOT_FOUND){
-            return reject(new PalClientLedgerNotFoundError(error.message));
+      this._grpcClient.createLedgerAccount(
+        request,
+        (error: ServiceError | null) => {
+          if (error) {
+            if (error.code == grpc.status.ALREADY_EXISTS) {
+              return reject(
+                new PalClientLedgerAccountAlreadyExistsError(error.message)
+              );
+            } else if (error.code == grpc.status.NOT_FOUND) {
+              return reject(new PalClientLedgerNotFoundError(error.message));
+            }
+            return reject(new PalClientLedgerUnknownError(error.message));
           }
-          return reject(new PalClientLedgerUnknownError(error.message));
+          return resolve();
         }
-        return resolve();
-      });
+      );
     });
   }
 
-  getLedgerAccounts(ids:string[]): Promise<ILedgerAccountDTO[]>{
+  getLedgerAccounts(ids: string[]): Promise<ILedgerAccountDto[]> {
     const request = new PbGetLedgerAccountsRequest();
     request.setAccountIdsList(ids);
 
     return new Promise((resolve, reject) => {
-      this._grpcClient.getLedgerAccounts(request, (error: ServiceError | null, response: PbGetLedgerAccountsResponse) => {
-        if (error) {
-          return reject(error);
-        }
+      this._grpcClient.getLedgerAccounts(
+        request,
+        (error: ServiceError | null, response: PbGetLedgerAccountsResponse) => {
+          if (error) {
+            return reject(error);
+          }
 
-        const respAccounts = response.getAccountsList().map((item) => {
-          return {
-            id: item.getId(),
-            name: item.getName(),
-            assetCode: item.getAssetCode(),
-            assetDisplayScale: item.getAssetDisplayScale(),
-            debitedAmount: item.getDebitedAmount(),
-            creditedAmount: item.getCreditedAmount(),
-          };
-        });
-        return resolve(respAccounts);
-      });
+          const respAccounts = response.getAccountsList().map((item) => {
+            return {
+              id: item.getId(),
+              name: item.getName(),
+              assetCode: item.getAssetCode(),
+              assetDisplayScale: item.getAssetDisplayScale(),
+              debitedAmount: item.getDebitedAmount(),
+              creditedAmount: item.getCreditedAmount()
+            };
+          });
+          return resolve(respAccounts);
+        }
+      );
     });
   }
 }

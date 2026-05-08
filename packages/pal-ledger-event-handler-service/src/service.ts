@@ -2,32 +2,46 @@ import crypto from 'crypto';
 import process from 'process';
 import {
   PinoLogger,
-  MessageSerializationFactory, KafkaProducerOptions, IKafkaBuilder, KafkaBuilder, KafkaConsumerOptions,
-   KafkaLowLevelConsumerOptions
+  MessageSerializationFactory,
+  KafkaProducerOptions,
+  IKafkaBuilder,
+  KafkaBuilder,
+  KafkaConsumerOptions,
+  KafkaLowLevelConsumerOptions
 } from 'implementations-lib';
 import {
   ILedgerEventSourcingRepository,
   LedgerAggregate,
+  ILedgerReadSideRepository
 } from 'pal-domain-lib';
 import {
   CreateLedgerAccountCmdSerde,
-  CreateLedgerCmdSerde, ILedgerReadSideRepository,
+  CreateLedgerAccountForAssetCmdSerde,
+  CreateLedgerAccountForPeerCmdSerde,
+  CreateLedgerCmdSerde,
   KafkaLedgerEventSourcingRepository,
   LedgerAccountCreatedStateEventSerde,
   LedgerCreatedStateEventSerde,
-  LedgerSnapshotSerde, LedgerTransactionRecordedStateEventSerde, MongoDbLedgerReadSideRepo, PostTransactionCmdSerde
+  LedgerSnapshotSerde,
+  LedgerTransactionRecordedStateEventSerde,
+  MongoDbLedgerReadSideRepo,
+  PostTransactionCmdSerde
 } from 'pal-implementations-lib';
 
 import {
   ILogger,
   IMessageConsumer,
-  IMessageProducer, IRawMessageSerializerFactory,
-} from "common-types-lib";
-import {LedgerStateEventHandler, LedgerStateEventHandlerConfigs} from "./handlers/ledger-state-event-handler";
-import {IntegrationEventHandler} from "./handlers/integration-event-handler";
+  IMessageProducer,
+  IRawMessageSerializerFactory
+} from 'common-types-lib';
+import {
+  LedgerStateEventHandler,
+  LedgerStateEventHandlerConfigs
+} from './handlers/ledger-state-event-handler';
+import { IntegrationEventHandler } from './handlers/integration-event-handler';
 
 const INSTANCE_ID = `ES_LEDGER_POC_SVC__${crypto.randomUUID()}`;
-const REDIS_URL = process.env["REDIS_URL"] || "redis://localhost:6379";
+const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379';
 
 const MAX_EVENTS_PER_SNAPSHOT = 10;
 const MAX_SECS_SINCE_LAST_SNAPSHOT = 600;
@@ -82,16 +96,16 @@ export class PalLedgerEventHandlerService {
     readSideRepo?: ILedgerReadSideRepository,
     stateEventsConsumer?: IMessageConsumer,
     domainEventsConsumer?: IMessageConsumer,
-    producer?: IMessageProducer,
+    producer?: IMessageProducer
   ): Promise<void> {
-    if(!logger){
+    if (!logger) {
       logger = new PinoLogger();
     }
     this._logger = logger;
 
     this._logger.info(`Starting ${PalLedgerEventHandlerService.name}...`);
 
-    if(!msgSerializationFactory){
+    if (!msgSerializationFactory) {
       MessageSerializationFactory.instance()
         // snapshots
         .register(new LedgerSnapshotSerde())
@@ -102,22 +116,24 @@ export class PalLedgerEventHandlerService {
         // commands
         .register(new CreateLedgerCmdSerde())
         .register(new CreateLedgerAccountCmdSerde())
-        .register(new PostTransactionCmdSerde());
+        .register(new PostTransactionCmdSerde())
+        .register(new CreateLedgerAccountForAssetCmdSerde())
+        .register(new CreateLedgerAccountForPeerCmdSerde());
 
       msgSerializationFactory = MessageSerializationFactory.instance();
     }
     this._msgSerializationFactory = msgSerializationFactory;
 
-    if(!kafkaBuilder){
+    if (!kafkaBuilder) {
       kafkaBuilder = new KafkaBuilder()
         .withLogger(this._logger)
         .withBrokerList(KAFKA_URL)
         .withClientId(INSTANCE_ID)
-        .withSerializerFactory(MessageSerializationFactory.instance())
+        .withSerializerFactory(MessageSerializationFactory.instance());
     }
     this._kafkaBuilder = kafkaBuilder;
 
-    if(!esRepo){
+    if (!esRepo) {
       // TODO remove
       // const admin = this._kafkaBuilder.buildAdmin();
       // await admin.createTopics([
@@ -138,116 +154,116 @@ export class PalLedgerEventHandlerService {
     }
     this._esRepo = esRepo;
 
-    if(!readSideRepo){
-      const repo = new MongoDbLedgerReadSideRepo(MONGO_URL);
-      await repo.init()
+    if (!readSideRepo) {
+      const repo = new MongoDbLedgerReadSideRepo(MONGO_URL, logger);
+      await repo.init();
       readSideRepo = repo;
     }
     this._readSideRepo = readSideRepo;
 
-
-    if(!producer){
+    if (!producer) {
       producer = this._kafkaBuilder.buildProducer(kafkaProducerCommonOptions);
       await producer.connect();
     }
     this._producer = producer;
 
-
-    if(!stateEventsConsumer){
+    if (!stateEventsConsumer) {
       // stateEventsConsumer = this._kafkaBuilder.buildConsumer(kafkaConsumerCommonOptions);
 
-      const consumerOpts:KafkaLowLevelConsumerOptions ={
+      const consumerOpts: KafkaLowLevelConsumerOptions = {
         consumerGroupId: kafkaConsumerCommonOptions.consumerGroupId,
         batchSize: kafkaConsumerCommonOptions.batchSize,
         batchTimeoutMs: kafkaConsumerCommonOptions.batchTimeoutMs,
         autoOffsetReset: kafkaConsumerCommonOptions.autoOffsetReset
-      }
+      };
 
-      stateEventsConsumer = this._kafkaBuilder.buildLowLevelConsumer(consumerOpts);
+      stateEventsConsumer =
+        this._kafkaBuilder.buildLowLevelConsumer(consumerOpts);
     }
     this._stateEventsConsumer = stateEventsConsumer;
 
-
     /*
-    * Instantiate the aggregate to be used by the snapshotter and read side projections
-    */
+     * Instantiate the aggregate to be used by the snapshotter and read side projections
+     */
     const aggregate = new LedgerAggregate(this._esRepo, this._producer, logger);
 
     /*
-    * Instantiate the snapshotter
-    */
-    const configs:LedgerStateEventHandlerConfigs = {
+     * Instantiate the snapshotter
+     */
+    const configs: LedgerStateEventHandlerConfigs = {
       maxStateEventsBetweenSnapshots: MAX_EVENTS_PER_SNAPSHOT,
       maxTimeBetweenSnapshotsMs: MAX_SECS_SINCE_LAST_SNAPSHOT * 1000,
       minTimeBetweenSnapshotsMs: MIN_SECS_SINCE_LAST_SNAPSHOT * 1000
-    }
+    };
 
     this._stateEventHandler = new LedgerStateEventHandler(
       configs,
       aggregate,
       this._esRepo,
-      this._msgSerializationFactory,
       this._stateEventsConsumer,
       this._readSideRepo,
-      this._producer,
       this._logger
     );
 
     await this._stateEventHandler.init();
-    this._logger.info(`${this._stateEventHandler.constructor.name} ready to receive state events`);
+    this._logger.info(
+      `${this._stateEventHandler.constructor.name} ready to receive state events`
+    );
 
     /*
-    * Instantiate the read side projector svc
-    */
+     * Instantiate the read side projector svc
+     */
 
-
-    if(!domainEventsConsumer){
+    if (!domainEventsConsumer) {
       //domainEventsConsumer = this._kafkaBuilder.buildConsumer(kafkaConsumerCommonOptions);
 
-      const consumerOpts:KafkaLowLevelConsumerOptions ={
+      const consumerOpts: KafkaLowLevelConsumerOptions = {
         consumerGroupId: kafkaConsumerCommonOptions.consumerGroupId,
         batchSize: kafkaConsumerCommonOptions.batchSize,
         batchTimeoutMs: kafkaConsumerCommonOptions.batchTimeoutMs,
         autoOffsetReset: kafkaConsumerCommonOptions.autoOffsetReset
-      }
+      };
 
-      domainEventsConsumer = this._kafkaBuilder.buildLowLevelConsumer(consumerOpts);
+      domainEventsConsumer =
+        this._kafkaBuilder.buildLowLevelConsumer(consumerOpts);
     }
     this._domainEventsConsumer = domainEventsConsumer;
 
     /*
-    * Instantiate the integration event handler
-    */
+     * Instantiate the integration event handler
+     */
     this._integrationEventHandler = new IntegrationEventHandler(
       this._domainEventsConsumer,
       this._producer,
       this._logger
     );
     await this._integrationEventHandler.init();
-    this._logger.info(`${this._integrationEventHandler.constructor.name} ready to receive integration events`);
+    this._logger.info(
+      `${this._integrationEventHandler.constructor.name} ready to receive integration events`
+    );
 
-    this._logger.info(`${PalLedgerEventHandlerService.name} started successfully`);
+    this._logger.info(
+      `${PalLedgerEventHandlerService.name} started successfully`
+    );
   }
 
   static async stop(): Promise<void> {
-    if(this._stateEventHandler){
-      await this._stateEventHandler.destroy() ;
+    if (this._stateEventHandler) {
+      await this._stateEventHandler.destroy();
     }
 
-    if(this._stateEventsConsumer){
+    if (this._stateEventsConsumer) {
       await this._stateEventsConsumer.stop();
       await this._stateEventsConsumer.disconnect(false);
     }
 
-    if(this._domainEventsConsumer){
+    if (this._domainEventsConsumer) {
       await this._domainEventsConsumer.stop();
       await this._domainEventsConsumer.disconnect(false);
     }
 
-    if(this._producer){
+    if (this._producer) {
       await this._producer.disconnect();
     }
-
-
   }
 }

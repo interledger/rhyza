@@ -1,7 +1,11 @@
-import {DomainEvent, DomainEventTopics, MessageDataFormats} from "common-types-lib";
+import {
+  DomainEvent,
+  DomainEventTopics,
+  MessageDataFormats
+} from 'common-types-lib';
 
 export abstract class WalletAddressDomainEvent extends DomainEvent {
-  msgDataFormat:MessageDataFormats = MessageDataFormats.JSON;
+  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   msgTopic: string = DomainEventTopics.WalletAddressEvents;
   // set to true by exception in then implementing class
   isErrorEvent = false;
@@ -10,15 +14,16 @@ export abstract class WalletAddressDomainEvent extends DomainEvent {
     super(aggId);
   }
 
-  static isWalletAddressCreatedEvent(evt:DomainEvent):evt is WalletAddressCreatedEvent {
+  static isWalletAddressCreatedEvent(
+    evt: DomainEvent
+  ): evt is WalletAddressCreatedEvent {
     return evt.msgName === WalletAddressCreatedEvent.name;
   }
 }
 
-
 /*
-* Domain Events (for now sort of integration events as well)
-* */
+ * Domain Events (for now sort of integration events as well)
+ * */
 
 export type WalletAddressCreatedEventPayload = {
   id: string;
@@ -27,8 +32,8 @@ export type WalletAddressCreatedEventPayload = {
   publicName: string;
   assetCode: string;
   assetScale: number;
-  isActive: boolean
-}
+  isActive: boolean;
+};
 export class WalletAddressCreatedEvent extends WalletAddressDomainEvent {
   payload: WalletAddressCreatedEventPayload;
 
@@ -42,7 +47,7 @@ export type WalletAddressAliasCreatedEventPayload = {
   walletId: string;
   domain: string | null;
   pathName: string;
-}
+};
 export class WalletAddressAliasCreatedEvent extends WalletAddressDomainEvent {
   payload: WalletAddressAliasCreatedEventPayload;
 

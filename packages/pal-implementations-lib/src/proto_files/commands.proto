@@ -6,10 +6,21 @@ message PbCreateLedgerCmdPayload{
 }
 
 message PbCreateLedgerAccountCmdPayload{
-  string ledger_id = 1;
-  string name = 2;
-  string asset_code = 3;
-  uint32 asset_display_scale = 4;
+  string account_id = 1;
+  string asset_code = 2;
+  string name = 3;
+  optional uint32 asset_display_scale = 4;
+}
+
+message PbCreateLedgerAccountForAssetCmdPayload{
+  string account_id = 1;
+  string asset_code = 2;
+}
+
+message PbCreateLedgerAccountForPeerCmdPayload{
+  string account_id = 1;
+  string asset_code = 2;
+  string peer_id = 3;
 }
 
 message PbPostTransactionCmdPayload{

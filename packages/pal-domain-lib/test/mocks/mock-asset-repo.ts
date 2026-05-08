@@ -1,25 +1,15 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
-import { IPalAsset, IPalAssetRepository } from '../../src';
+import { IPalAssetDto } from 'pal-public-types-lib';
+import { IPalAssetRepository } from '../../src';
 
 export class MockAssetRepo implements IPalAssetRepository {
-  private _data: Map<string, IPalAsset> = new Map<string, IPalAsset>();
+  private _data: Map<string, IPalAssetDto> = new Map<string, IPalAssetDto>();
 
-  store(asset: IPalAsset): Promise<void> {
+  store(asset: IPalAssetDto): Promise<void> {
     this._data.set(asset.code, asset);
     return Promise.resolve();
   }
 
-  fetch(code: string): Promise<IPalAsset | null> {
+  fetch(code: string): Promise<IPalAssetDto | null> {
     return Promise.resolve(this._data.get(code) ?? null);
   }
 }

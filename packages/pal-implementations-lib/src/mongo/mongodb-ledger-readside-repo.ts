@@ -1,42 +1,58 @@
-import {BulkWriteResult, Collection, CollectionInfo, Db, InsertManyResult, MongoClient} from 'mongodb';
+import {
+  Collection,
+  CollectionInfo,
+  Db,
+  InsertManyResult,
+  MongoClient
+} from 'mongodb';
 import {
   ILedger,
   LedgerDtoSerializer,
   ILedgerAccount,
   LedgerAccountDtoSerializer,
   ILedgerTransaction,
-  LedgerTransactionDtoSerializer
+  LedgerTransactionDtoSerializer,
+  ILedgerReadSideRepository
 } from 'pal-domain-lib';
-import * as console from 'node:console';
-import {ILedgerReadSideRepository} from "./readside-interfaces";
-import {ILedgerDTO, ILedgerAccountDTO, ILedgerTransactionDTO} from 'pal-public-types-lib';
+import {
+  ILedgerDto,
+  ILedgerAccountDto,
+  ILedgerTransactionDto
+} from 'pal-public-types-lib';
+import { ILogger } from 'common-types-lib';
 const DB_NAME = 'pal';
 const TIMEOUT_MS: number = 5_000;
 const LEDGERS_COLLECTION_NAME: string = 'ledgers';
 const LEDGER_ACCOUNTS_COLLECTION_NAME: string = 'ledgerAccounts';
 const LEDGER_TRANSACTIONS_COLLECTION_NAME: string = 'ledgerTransactions';
 
-
 export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
+  private _logger: ILogger;
   private readonly _connectionString: string;
   private _client!: MongoClient;
-  private _ledgersCol!: Collection<ILedgerDTO>;
-  private _accountsCol!: Collection<ILedgerAccountDTO>;
-  private _transactionsCol!: Collection<ILedgerTransactionDTO>;
+  private _ledgersCol!: Collection<ILedgerDto>;
+  private _accountsCol!: Collection<ILedgerAccountDto>;
+  private _transactionsCol!: Collection<ILedgerTransactionDto>;
 
-  constructor(connectionString: string) {
+  constructor(connectionString: string, logger: ILogger) {
     this._connectionString = connectionString;
+    this._logger = logger;
   }
 
   private _checkInitialisedOrThrow(): boolean {
-    if (!this._client || !this._ledgersCol || !this._accountsCol || !this._transactionsCol) {
+    if (
+      !this._client ||
+      !this._ledgersCol ||
+      !this._accountsCol ||
+      !this._transactionsCol
+    ) {
       throw new Error('MongoClient not initialised');
     }
     return true;
   }
 
   async init(): Promise<void> {
-    console.info(`Initializing ${this.constructor.name}...`);
+    this._logger.info(`Initializing ${this.constructor.name}...`);
     try {
       this._client = new MongoClient(this._connectionString, {
         timeoutMS: TIMEOUT_MS
@@ -45,42 +61,60 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
       const db: Db = this._client.db(DB_NAME);
 
       // Check if the collection already exists.
-      const collections: (Pick<CollectionInfo, 'name' | 'type'>)[] = await db.listCollections().toArray();
+      const collections: Pick<CollectionInfo, 'name' | 'type'>[] = await db
+        .listCollections()
+        .toArray();
 
-      if (collections.some(col => col.name === LEDGERS_COLLECTION_NAME)) {
-        this._ledgersCol = db.collection<ILedgerDTO>(LEDGERS_COLLECTION_NAME);
+      if (collections.some((col) => col.name === LEDGERS_COLLECTION_NAME)) {
+        this._ledgersCol = db.collection<ILedgerDto>(LEDGERS_COLLECTION_NAME);
       } else {
-        this._ledgersCol = await db.createCollection<ILedgerDTO>(LEDGERS_COLLECTION_NAME);
+        this._ledgersCol = await db.createCollection<ILedgerDto>(
+          LEDGERS_COLLECTION_NAME
+        );
         await this._ledgersCol.createIndex({ id: 1 }, { unique: true });
       }
 
-      if (collections.some(col => col.name === LEDGER_ACCOUNTS_COLLECTION_NAME)) {
-        this._accountsCol = db.collection<ILedgerAccountDTO>(LEDGER_ACCOUNTS_COLLECTION_NAME);
+      if (
+        collections.some((col) => col.name === LEDGER_ACCOUNTS_COLLECTION_NAME)
+      ) {
+        this._accountsCol = db.collection<ILedgerAccountDto>(
+          LEDGER_ACCOUNTS_COLLECTION_NAME
+        );
       } else {
-        this._accountsCol = await db.createCollection<ILedgerAccountDTO>(LEDGER_ACCOUNTS_COLLECTION_NAME);
+        this._accountsCol = await db.createCollection<ILedgerAccountDto>(
+          LEDGER_ACCOUNTS_COLLECTION_NAME
+        );
         await this._accountsCol.createIndex({ id: 1 }, { unique: true });
       }
 
-      if (collections.some(col => col.name === LEDGER_TRANSACTIONS_COLLECTION_NAME)) {
-        this._transactionsCol = db.collection<ILedgerTransactionDTO>(LEDGER_TRANSACTIONS_COLLECTION_NAME);
+      if (
+        collections.some(
+          (col) => col.name === LEDGER_TRANSACTIONS_COLLECTION_NAME
+        )
+      ) {
+        this._transactionsCol = db.collection<ILedgerTransactionDto>(
+          LEDGER_TRANSACTIONS_COLLECTION_NAME
+        );
       } else {
-        this._transactionsCol = await db.createCollection<ILedgerTransactionDTO>(LEDGER_TRANSACTIONS_COLLECTION_NAME);
+        this._transactionsCol =
+          await db.createCollection<ILedgerTransactionDto>(
+            LEDGER_TRANSACTIONS_COLLECTION_NAME
+          );
         await this._transactionsCol.createIndex({ id: 1 }, { unique: true });
       }
-
     } catch (e: unknown) {
       if (e instanceof Error) {
-        console.error(e);
+        this._logger.error(e);
         throw e;
       }
       const error = new Error(
         "Unable to connect to the database: 'unknown error'"
       );
-      console.error(error);
+      this._logger.error(error);
       throw error;
     }
 
-    console.info(`${this.constructor.name} initialized`);
+    this._logger.info(`${this.constructor.name} initialized`);
   }
 
   async destroy(): Promise<void> {
@@ -89,33 +123,27 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
     await this._client.close();
   }
 
-
   /*
-  * Ledger Methods
-  * */
+   * Ledger Methods
+   * */
   async storeLedgers(ledgers: ILedger[]): Promise<void> {
     this._checkInitialisedOrThrow();
 
-    let result: BulkWriteResult;
     try {
-      const operations = ledgers.map(l => ({
+      const operations = ledgers.map((l) => ({
         updateOne: {
-          filter: {id: l.id},
-          update: {$set: LedgerDtoSerializer.toDTO(l)},
+          filter: { id: l.id },
+          update: { $set: LedgerDtoSerializer.toDTO(l) },
           upsert: true
         }
       }));
-      result = await this._ledgersCol.bulkWrite(operations);
+      await this._ledgersCol.bulkWrite(operations);
     } catch (e) {
-      console.error(e);
+      this._logger.error(e);
       throw new Error(
         `Unable to update ledger - error: ${(e as Error).message}`
       );
     }
-
-    // if (result.matchedCount !== ledgers.length && result.upsertedCount !== ledgers.length) {
-    //   throw new Error(`Failed to upsert ${ledgers.length} ledgers - only ${result.upsertedCount} upserted out of ${ledgers.length} requested`);
-    // }
 
     return;
   }
@@ -124,7 +152,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
     this._checkInitialisedOrThrow();
 
     try {
-      const docs = await this._ledgersCol.find({id: {$in: ids}}).toArray();
+      const docs = await this._ledgersCol.find({ id: { $in: ids } }).toArray();
 
       if (!docs || docs.length === 0) {
         return [];
@@ -132,40 +160,33 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
 
       return docs.map((doc) => LedgerDtoSerializer.fromDTO(doc));
     } catch (e) {
-      console.error(e);
-      throw new Error(
-        `Unable to get ledgers - error: ${(e as Error).message}`
-      );
+      this._logger.error(e);
+      throw new Error(`Unable to get ledgers - error: ${(e as Error).message}`);
     }
   }
 
   /*
-  * Ledger accounts Methods
-  * */
+   * Ledger accounts Methods
+   * */
   async storeLedgerAccounts(accounts: ILedgerAccount[]): Promise<void> {
     this._checkInitialisedOrThrow();
 
-    let result: BulkWriteResult;
     try {
       // Map your data to the bulkWrite structure
-      const operations = accounts.map(a => ({
+      const operations = accounts.map((a) => ({
         updateOne: {
-          filter: {id: a.id}, // Unique identifier
-          update: {$set: LedgerAccountDtoSerializer.toDTO(a)},
+          filter: { id: a.id }, // Unique identifier
+          update: { $set: LedgerAccountDtoSerializer.toDTO(a) },
           upsert: true
         }
       }));
-      result = await this._accountsCol.bulkWrite(operations, {ordered: false});
+      await this._accountsCol.bulkWrite(operations, { ordered: false });
     } catch (e) {
-      console.error(e);
+      this._logger.error(e);
       throw new Error(
         `Unable to update ledger - error: ${(e as Error).message}`
       );
     }
-
-    // if (result.upsertedCount !== accounts.length && result.matchedCount !== accounts.length) {
-    //   throw new Error(`Failed to upsert ${accounts.length} ledger accounts - only ${result.upsertedCount}/${result.matchedCount} upserted/matched out of ${accounts.length} requested`);
-    // }
 
     return;
   }
@@ -174,7 +195,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
     this._checkInitialisedOrThrow();
 
     try {
-      const docs = await this._accountsCol.find({id: {$in: ids}}).toArray();
+      const docs = await this._accountsCol.find({ id: { $in: ids } }).toArray();
 
       if (!docs || docs.length === 0) {
         return [];
@@ -182,7 +203,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
 
       return docs.map((doc) => LedgerAccountDtoSerializer.fromDTO(doc));
     } catch (e) {
-      console.error(e);
+      this._logger.error(e);
       throw new Error(
         `Unable to get ledger accounts - error: ${(e as Error).message}`
       );
@@ -190,47 +211,34 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
   }
 
   /*
-  * Ledger transaction Methods
-  * */
-  async storeLedgerTransactions(transactions: ILedgerTransaction[]): Promise<void> {
+   * Ledger transaction Methods
+   * */
+  async storeLedgerTransactions(
+    transactions: ILedgerTransaction[]
+  ): Promise<void> {
     this._checkInitialisedOrThrow();
 
     // transactions cannot be modified, so we can just insert them all
 
     let result: InsertManyResult;
     try {
-      const dtos = transactions.map(t => LedgerTransactionDtoSerializer.toDTO(t));
+      const dtos = transactions.map((t) =>
+        LedgerTransactionDtoSerializer.toDTO(t)
+      );
       result = await this._transactionsCol.insertMany(dtos);
     } catch (e) {
-      console.error(e);
+      this._logger.error(e);
       throw new Error(
         `Unable to update ledger - error: ${(e as Error).message}`
       );
     }
 
     if (result.insertedCount !== transactions.length) {
-      throw new Error(`Failed to upsert ${transactions.length} ledger transactions - only ${result.insertedCount} inserted out of ${transactions.length} requested`);
+      throw new Error(
+        `Failed to upsert ${transactions.length} ledger transactions - only ${result.insertedCount} inserted out of ${transactions.length} requested`
+      );
     }
 
     return;
-  }
-
-  async fetchLedgerTransactions(ids: string[]): Promise<ILedgerTransaction[]> {
-    this._checkInitialisedOrThrow();
-
-    try {
-      const docs = await this._transactionsCol.find({id: {$in: ids}}).toArray();
-
-      if (!docs || docs.length === 0) {
-        return [];
-      }
-
-      return docs.map((doc) => LedgerTransactionDtoSerializer.fromDTO(doc));
-    } catch (e) {
-      console.error(e);
-      throw new Error(
-        `Unable to get ledger transactions - error: ${(e as Error).message}`
-      );
-    }
   }
 }

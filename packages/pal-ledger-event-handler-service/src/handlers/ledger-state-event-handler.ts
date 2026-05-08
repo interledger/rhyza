@@ -1,27 +1,31 @@
 import {
-  ILogger, IMessage, IMessageConsumer,
-  IMessageProducer,
-  IRawMessage, IRawMessageConsumer, IRawMessageSerializerFactory,
+  ILogger,
+  IMessage,
+  IMessageConsumer,
   MessageTypes,
-  StateEvent, StateEventTopics
-} from "common-types-lib";
+  StateEvent,
+  StateEventTopics
+} from 'common-types-lib';
 import {
   ILedger,
   ILedgerAccount,
-  ILedgerEventSourcingRepository, ILedgerTransaction,
-  Ledger, LedgerAccountCreatedStateEvent, LedgerAccountCreatedStatePayload,
-  LedgerAggregate, LedgerCreatedStateEvent,
+  ILedgerEventSourcingRepository,
+  ILedgerTransaction,
+  Ledger,
+  LedgerAccountCreatedStateEvent,
+  LedgerAggregate,
   LedgerSnapshotEvent,
   LedgerStateEvent,
-  LedgerTransactionDtoSerializer, LedgerTransactionRecordedStateEvent, LedgerTransactionRecordedStatePayload
-} from "pal-domain-lib";
-import {ILedgerReadSideRepository} from "pal-implementations-lib";
+  LedgerTransactionDtoSerializer,
+  LedgerTransactionRecordedStateEvent,
+  ILedgerReadSideRepository
+} from 'pal-domain-lib';
 
 export type LedgerStateEventHandlerConfigs = {
-    maxStateEventsBetweenSnapshots: number;
-    maxTimeBetweenSnapshotsMs: number;
-    minTimeBetweenSnapshotsMs: number;
-}
+  maxStateEventsBetweenSnapshots: number;
+  maxTimeBetweenSnapshotsMs: number;
+  minTimeBetweenSnapshotsMs: number;
+};
 
 /**
  * This handler has two tasks for now:
@@ -30,166 +34,199 @@ export type LedgerStateEventHandlerConfigs = {
  */
 
 export class LedgerStateEventHandler {
-    private readonly _logger: ILogger;
-    private readonly _configs:LedgerStateEventHandlerConfigs;
-    private readonly _esRepo: ILedgerEventSourcingRepository;
-    private readonly _aggregate: LedgerAggregate;
-    private readonly _uncommittedSnapshots: LedgerSnapshotEvent[];
-    private readonly _msgSerializationFactory: IRawMessageSerializerFactory;
-    private readonly _messageConsumer: IMessageConsumer;
-    private readonly _msgProducer: IMessageProducer;
-    private readonly _readsideRepo:ILedgerReadSideRepository;
+  private readonly _logger: ILogger;
+  private readonly _configs: LedgerStateEventHandlerConfigs;
+  private readonly _esRepo: ILedgerEventSourcingRepository;
+  private readonly _aggregate: LedgerAggregate;
+  private readonly _uncommittedSnapshots: LedgerSnapshotEvent[];
+  private readonly _messageConsumer: IMessageConsumer;
+  private readonly _readSideRepo: ILedgerReadSideRepository;
 
-    private readonly _createdLedgers:ILedger[] = [];
-    private readonly _changedAccounts:Map<string,ILedgerAccount> = new Map<string, ILedgerAccount>();
-    private readonly _createdTransactions:ILedgerTransaction[] = [];
+  private readonly _createdLedgers: ILedger[] = [];
+  private readonly _changedAccounts: Map<string, ILedgerAccount> = new Map<
+    string,
+    ILedgerAccount
+  >();
+  private readonly _createdTransactions: ILedgerTransaction[] = [];
 
-    constructor(
-      configs:LedgerStateEventHandlerConfigs, aggregate: LedgerAggregate, esRepo: ILedgerEventSourcingRepository,
-      msgSerializationFactory: IRawMessageSerializerFactory, rawMessageConsumer: IMessageConsumer,
-      readSideRepo:ILedgerReadSideRepository,
-      msgProducer: IMessageProducer, logger: ILogger
-    ){
-        this._logger = logger;
-        this._configs = configs;
-        this._esRepo = esRepo;
-        this._msgSerializationFactory = msgSerializationFactory;
-        this._messageConsumer = rawMessageConsumer;
-        this._readsideRepo = readSideRepo;
-        this._msgProducer = msgProducer;
-        this._aggregate = aggregate;
-        this._uncommittedSnapshots = [];
+  constructor(
+    configs: LedgerStateEventHandlerConfigs,
+    aggregate: LedgerAggregate,
+    esRepo: ILedgerEventSourcingRepository,
+    rawMessageConsumer: IMessageConsumer,
+    readSideRepo: ILedgerReadSideRepository,
+    logger: ILogger
+  ) {
+    this._logger = logger;
+    this._configs = configs;
+    this._esRepo = esRepo;
+    this._messageConsumer = rawMessageConsumer;
+    this._readSideRepo = readSideRepo;
+    this._aggregate = aggregate;
+    this._uncommittedSnapshots = [];
+  }
+
+  private async _loadLedgerAndApplyEvents(
+    ledgerId: string,
+    stateEvents: LedgerStateEvent[]
+  ): Promise<Ledger> {
+    const ledger = await this._aggregate.getOrLoadLedger(ledgerId, true);
+    if (!ledger) {
+      throw new Error('Ledger with aggregateId not found');
     }
 
-    private async _loadLedgerAndApplyEvents(ledgerId:string, stateEvents: LedgerStateEvent[]): Promise<Ledger>{
-        const ledger = await this._aggregate.getOrLoadLedger(ledgerId, true);
-        if(!ledger) {
-            throw new Error("Ledger with aggregateId not found");
-        }
+    // load state events, already loaded evts/versions will be ignored
+    await ledger.applyEvents(stateEvents, true);
+    return ledger;
+  }
 
-        // load state events, already loaded evts/versions will be ignored
-        await ledger.applyEvents(stateEvents, true);
-        return ledger;
+  private async _snapshotIfNeeded(
+    ledger: Ledger,
+    stateEvents: LedgerStateEvent[]
+  ) {
+    // do we need to take a snapshot now?
+    if (
+      ledger.version <=
+      ledger.lastSnapshotVersion +
+        BigInt(this._configs.maxStateEventsBetweenSnapshots)
+    ) {
+      return;
     }
 
-    private async _snapshotIfNeeded(ledger:Ledger, stateEvents: LedgerStateEvent[]){
-      // do we need to take a snapshot now?
-      if (ledger.version <= ledger.lastSnapshotVersion + BigInt(this._configs.maxStateEventsBetweenSnapshots)) {
-        return;
-      }
-
-      const lastEvent = stateEvents[stateEvents.length - 1];
-      let lastEventIndex: {partition:number, offset:number} | undefined = undefined;
-      if(lastEvent.msgPartition != null && lastEvent.msgOffset != null) {
-        lastEventIndex = {
-          partition: lastEvent.msgPartition,
-          offset: lastEvent.msgOffset
-        };
-      }
-
-      const snapshot = ledger.executeSnapshot();
-      if (lastEventIndex) {
-        snapshot.lastEventIndexPartition = lastEventIndex.partition;
-        snapshot.lastEventIndexOffset = lastEventIndex.offset;
-      }
-      this._uncommittedSnapshots.push(snapshot);
+    const lastEvent = stateEvents[stateEvents.length - 1];
+    let lastEventIndex: { partition: number; offset: number } | undefined =
+      undefined;
+    if (lastEvent.msgPartition != null && lastEvent.msgOffset != null) {
+      lastEventIndex = {
+        partition: lastEvent.msgPartition,
+        offset: lastEvent.msgOffset
+      };
     }
 
-    private async _updateReadSideProjections(ledger:Ledger, stateEvents: LedgerStateEvent[]){
-      if(!this._createdLedgers.find(l => l.id === ledger.id)) {
-        this._createdLedgers.push(ledger);
-      }
+    const snapshot = ledger.executeSnapshot();
+    if (lastEventIndex) {
+      snapshot.lastEventIndexPartition = lastEventIndex.partition;
+      snapshot.lastEventIndexOffset = lastEventIndex.offset;
+    }
+    this._uncommittedSnapshots.push(snapshot);
+  }
 
-      const transactions: ILedgerTransaction[] = stateEvents
-        .filter(e => e.msgName === LedgerTransactionRecordedStateEvent.name)
-        .map((e:LedgerTransactionRecordedStateEvent) => {
-          return LedgerTransactionDtoSerializer.fromDTO(e.payload.transaction);
-        });
-      this._createdTransactions.push(...transactions);
+  private async _updateReadSideProjections(
+    ledger: Ledger,
+    stateEvents: LedgerStateEvent[]
+  ) {
+    if (!this._createdLedgers.find((l) => l.id === ledger.id)) {
+      this._createdLedgers.push(ledger);
+    }
 
-      // find affected accounts and add them to the list of changed accounts
-      // starting with created accounts
-      const changedAccountIds:string[] = stateEvents
-        .filter(e => e.msgName === LedgerAccountCreatedStateEvent.name)
-        .map((e:LedgerAccountCreatedStateEvent) => e.payload.account.id);
-      transactions.forEach(tx => {
-        changedAccountIds.push(...[tx.debitedAccountId, tx.creditedAccountId] );
+    const transactions: ILedgerTransaction[] = stateEvents
+      .filter((e) => e.msgName === LedgerTransactionRecordedStateEvent.name)
+      .map((e: LedgerTransactionRecordedStateEvent) => {
+        return LedgerTransactionDtoSerializer.fromDTO(e.payload.transaction);
       });
+    this._createdTransactions.push(...transactions);
 
-      const changedAccounts = ledger.getAccounts(changedAccountIds);
-      changedAccounts.forEach(account => {
-        this._changedAccounts.set(account.id, account);
-      });
+    // find affected accounts and add them to the list of changed accounts
+    // starting with created accounts
+    const changedAccountIds: string[] = stateEvents
+      .filter((e) => e.msgName === LedgerAccountCreatedStateEvent.name)
+      .map((e: LedgerAccountCreatedStateEvent) => e.payload.account.id);
+    transactions.forEach((tx) => {
+      changedAccountIds.push(...[tx.debitedAccountId, tx.creditedAccountId]);
+    });
+
+    const changedAccounts = ledger.getAccounts(changedAccountIds);
+    changedAccounts.forEach((account) => {
+      this._changedAccounts.set(account.id, account);
+    });
+  }
+
+  private async _handleStateMessages(messages: IMessage[]): Promise<void> {
+    const startTs = Date.now();
+    const stateEventMap = new Map<string, LedgerStateEvent[]>();
+
+    // filter out unwanted msgs and sort by ledger id
+    for (const msg of messages) {
+      if (msg.msgType !== MessageTypes.STATE_EVENT) {
+        this._logger.warn('Invalid message type is not StateEvent');
+        continue;
+      }
+      const aggregateId = (msg as StateEvent).aggregateId;
+      if (!aggregateId) {
+        this._logger.warn('Invalid aggregateId in StateEvent');
+        continue;
+      }
+
+      const aggEvents = stateEventMap.get(aggregateId) || [];
+      aggEvents.push(msg as LedgerStateEvent);
+      stateEventMap.set(aggregateId, aggEvents);
     }
 
-    private async _handleStateMessages(messages: IMessage[]): Promise<void> {
-        const startTs = Date.now();
-        const stateEventMap = new Map<string, LedgerStateEvent[]>();
-
-        // filter out unwanted msgs and sort by ledger id
-        for (const msg of messages) {
-            if(msg.msgType !== MessageTypes.STATE_EVENT) {
-                this._logger.warn("Invalid message type is not StateEvent");
-                continue;
-            }
-            const aggregateId = (msg as StateEvent).aggregateId;
-            if(!aggregateId) {
-                this._logger.warn("Invalid aggregateId in StateEvent");
-                continue;
-            }
-
-            const aggEvents = stateEventMap.get(aggregateId) || [];
-            aggEvents.push(msg as LedgerStateEvent);
-            stateEventMap.set(aggregateId, aggEvents);
-        }
-
-        // go through ledger and apply events
-        for (const [aggregateId, stateEvents] of stateEventMap) {
-              const ledger = await this._loadLedgerAndApplyEvents(aggregateId, stateEvents);
-              await this._snapshotIfNeeded(ledger, stateEvents);
-              await this._updateReadSideProjections(ledger, stateEvents);
-        }
-
-        // publish snapshots if available
-        if(this._uncommittedSnapshots.length > 0){
-            await this._esRepo.publishSnapshotEvent(this._uncommittedSnapshots);
-            this._logger.debug(`Received ${messages.length} state events, created ${this._uncommittedSnapshots.length} snapshots - in ${Date.now() - startTs}ms`);
-            this._uncommittedSnapshots.length = 0; //reset state
-        }
-
-        // persist the read side projections if changed
-        if(this._createdLedgers.length > 0) {
-          await this._readsideRepo.storeLedgers(this._createdLedgers);
-          this._logger.debug(`Updated read side projections for ${this._createdLedgers.length} ledgers`);
-          this._createdLedgers.length = 0;
-        }
-
-        if(this._changedAccounts.size){
-          await this._readsideRepo.storeLedgerAccounts(Array.from(this._changedAccounts.values()));
-          this._logger.debug(`Updated read side projections for ${this._changedAccounts.size} accounts`);
-          this._changedAccounts.clear();
-        }
-        if(this._createdTransactions.length > 0) {
-          await this._readsideRepo.storeLedgerTransactions(this._createdTransactions);
-          this._logger.debug(`Updated read side projections for ${this._createdTransactions.length} transactions`);
-          this._createdTransactions.length = 0;
-        }
-
-        this._logger.debug(`State event handler completed processing ${messages.length} messages in ${Date.now() - startTs}ms`);
+    // go through ledger and apply events
+    for (const [aggregateId, stateEvents] of stateEventMap) {
+      const ledger = await this._loadLedgerAndApplyEvents(
+        aggregateId,
+        stateEvents
+      );
+      await this._snapshotIfNeeded(ledger, stateEvents);
+      await this._updateReadSideProjections(ledger, stateEvents);
     }
 
-    async init():Promise<void>{
-        this._messageConsumer.setTopics([StateEventTopics.LedgerStateEvents]);
-        this._messageConsumer.setBatchCallbackFn(this._handleStateMessages.bind(this));
-        await this._messageConsumer.connect();
-        await this._messageConsumer.startAndWaitForRebalance();
-
-        this._logger.info(`${this.constructor.name} initialized`);
+    // publish snapshots if available
+    if (this._uncommittedSnapshots.length > 0) {
+      await this._esRepo.publishSnapshotEvent(this._uncommittedSnapshots);
+      this._logger.debug(
+        `Received ${messages.length} state events, created ${this._uncommittedSnapshots.length} snapshots - in ${Date.now() - startTs}ms`
+      );
+      this._uncommittedSnapshots.length = 0; //reset state
     }
 
-    async destroy():Promise<void>{
-        await this._messageConsumer.stop();
-        return;
+    // persist the read side projections if changed
+    if (this._createdLedgers.length > 0) {
+      await this._readSideRepo.storeLedgers(this._createdLedgers);
+      this._logger.debug(
+        `Updated read side projections for ${this._createdLedgers.length} ledgers`
+      );
+      this._createdLedgers.length = 0;
     }
 
+    if (this._changedAccounts.size) {
+      await this._readSideRepo.storeLedgerAccounts(
+        Array.from(this._changedAccounts.values())
+      );
+      this._logger.debug(
+        `Updated read side projections for ${this._changedAccounts.size} accounts`
+      );
+      this._changedAccounts.clear();
+    }
+    if (this._createdTransactions.length > 0) {
+      await this._readSideRepo.storeLedgerTransactions(
+        this._createdTransactions
+      );
+      this._logger.debug(
+        `Updated read side projections for ${this._createdTransactions.length} transactions`
+      );
+      this._createdTransactions.length = 0;
+    }
+
+    this._logger.debug(
+      `State event handler completed processing ${messages.length} messages in ${Date.now() - startTs}ms`
+    );
+  }
+
+  async init(): Promise<void> {
+    this._messageConsumer.setTopics([StateEventTopics.LedgerStateEvents]);
+    this._messageConsumer.setBatchCallbackFn(
+      this._handleStateMessages.bind(this)
+    );
+    await this._messageConsumer.connect();
+    await this._messageConsumer.startAndWaitForRebalance();
+
+    this._logger.info(`${this.constructor.name} initialized`);
+  }
+
+  async destroy(): Promise<void> {
+    await this._messageConsumer.stop();
+    return;
+  }
 }
