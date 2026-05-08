@@ -2,9 +2,7 @@ import { IMessage, MessageDataFormats } from 'common-types-lib';
 import { IRawMessageSerializer } from '../types';
 import { Any as PbAny } from 'google-protobuf/google/protobuf/any_pb';
 
-export abstract class ProtoBufBaseMessageSerializer
-  implements IRawMessageSerializer
-{
+export abstract class ProtoBufBaseMessageSerializer implements IRawMessageSerializer {
   readonly dataFormat: MessageDataFormats = MessageDataFormats.PROTOBUF;
 
   protected abstract readonly _payloadPbClassName: string;

@@ -23,8 +23,7 @@ export type KafkaSnapshotCacheData = {
 export class KafkaEventSourcingRepo<
   S extends StateEvent,
   T extends SnapshotEvent
-> implements IKafkaSourcingRepository<S, T>
-{
+> implements IKafkaSourcingRepository<S, T> {
   protected readonly _logger: ILogger;
   protected readonly _kafkaBuilder: IKafkaBuilder;
   protected readonly _producer: IMessageProducer;
