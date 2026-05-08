@@ -10,7 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "common-types-lib": "workspace:*"
+    "common-types-lib": "workspace:*",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "tsx": "^4.19.3"

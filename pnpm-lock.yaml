@@ -51,12 +51,25 @@ importers:
       common-types-lib:
         specifier: workspace:*
         version: link:../common-types-lib
+      uuid:
+        specifier: ^14.0.0
+        version: 14.0.0
     devDependencies:
       tsx:
         specifier: ^4.19.3
         version: 4.21.0
 
   packages/common-types-lib:
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.21.0
+
+  packages/ilp-domain-lib:
+    dependencies:
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3
@@ -2044,6 +2057,10 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
+  uuid@14.0.0:
+    resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
+    hasBin: true
+
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
@@ -3669,6 +3686,8 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
+
+  uuid@14.0.0: {}
 
   webidl-conversions@3.0.1: {}
 

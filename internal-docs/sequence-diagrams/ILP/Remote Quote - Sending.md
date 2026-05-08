@@ -5,15 +5,18 @@ sequenceDiagram
 	autonumber
 
     box Payments BC
-
 	participant PEH as Payment Event Handler
     participant PCH as Payment Command Handler
     participant PET as Payment Events Topic
     end
 
+    box PAL BC
+    participant PALEH as PAL Event Handler
+    participant PAL as PAL Command Handler
+    participant PALET as PAL Events Topic
+    end
+
     box ILP BC
-    participant ILPC as ILP BC Client
-    participant ILPAPI as ILP BC API
     participant ILPET as ILP Events Topic
     participant ILPEH as ILP Event Handler
 	participant ILP as ILP Command Handler
@@ -24,13 +27,16 @@ sequenceDiagram
 
     PCH ->> PCH: Quote requested command
 	PCH ->> PCH: Determine whether payment is local or <br> remote
-    PCH ->> PCH: Get sending wallet address <br> via PAL client
-    PCH ->> ILPC: Determine peer based on destination address
-    ILPC ->> ILPAPI: Determine peer based on destination address
-    PCH ->> PCH: Determine FX using FX client <br> (or PAL client that knows about FX)
-    PCH -->> PET: Quote requested event <br> (with ILP destination details <br> on incoming payment)
+    PCH -->> PET: Remote quote requested event <br> (with destination ILP address)
 
-    ILPEH -->> PET: Read peer for quote determined event
+    PALEH -->> PET: Read remote quote requested event
+    PALEH -->> PAL: Resolve peer command
+    PAL ->> PAL: Resolve peer from ILP address
+    PAL ->> PAL: Check if peer is active
+    PAL ->> PAL: Determine FX if necessary
+    PAL -->> PALET: Peer resolved for remote quote event
+
+    ILPEH -->> PALET: Read peer resolved for remote quote event
     ILPEH -->> ILP: Start quote command
     ILP ->> ILP: Fetch peer connector details
     ILP ->> ILP: Store packet & its expiry (put it on a worker and handle expiries separately)
@@ -43,11 +49,13 @@ sequenceDiagram
     ILPCAPI -->> ILP: Process quote response (reject packet) command
     ILP ->> ILP: Fetch peer based on original outgoing packet
     ILP -->> ILPET: ILP Quote determined event
-    PET -->> ILPET : Read ILP quote determined event
-    PET -->> PCH: Finalize remote quote command
-    PCH ->> PCH: Check the destination amount. If 0, throw error + include minimumSendAmount + FX
+
+    PEH -->> ILPET: Read ILP quote determined event
+    PEH -->> PCH: Finalize remote quote command
+    PCH ->> PCH: Check the destination amount. If 0, throw error + include minimumSendAmount
     PCH ->> PCH: Store quote
     PCH -->> PET: (Remote) Quote completed event
+    PALEH -->> PET: Read quote completed event (if needed to finalize liquidity)
 
     else No packets received, error
     end

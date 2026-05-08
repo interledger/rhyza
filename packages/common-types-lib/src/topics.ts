@@ -5,7 +5,8 @@ export enum DomainEventTopics {
   'LedgerEvents' = 'ledger-domain-events',
   'AssetEvents' = 'asset-domain-events',
   'PeerEvents' = 'peer-domain-events',
-  'WalletAddressEvents' = 'wallet-address-domain-events'
+  'WalletAddressEvents' = 'wallet-address-domain-events',
+  'IlpEvents' = 'ilp-domain-events'
 }
 
 // TODO pedro: not sure we should keep commands, state events and snapshots in the common types lib,
@@ -14,7 +15,8 @@ export enum CommandTopics {
   'PaymentCommands' = 'payment-commands',
   'AuthCommands' = 'auth-commands',
   'LedgerCommands' = 'ledger-commands',
-  'AssetCommands' = 'asset-commands'
+  'AssetCommands' = 'asset-commands',
+  'IlpCommands' = 'ilp-commands'
 }
 
 // for private event-sourcing events

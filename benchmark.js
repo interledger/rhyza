@@ -23,6 +23,8 @@ export const options = {
 };
 
 const ADMIN_API_URL = 'http://localhost:3001';
+const RECEIVER_WALLET_ADDRESS = 'test.com/receiver';
+const SENDER_WALLET_ADDRESS = 'test.com/sender';
 
 function request(url, data) {
   return http.post(url, JSON.stringify(data), {
@@ -43,7 +45,7 @@ export function setup() {
   });
 
   const receiverRes = request(`${ADMIN_API_URL}/wallet-addresses`, {
-    address: 'receiver',
+    address: RECEIVER_WALLET_ADDRESS,
     publicName: 'Receiver',
     assetCode: 'USD'
   });
@@ -54,7 +56,7 @@ export function setup() {
   const receiver = JSON.parse(receiverRes.body);
 
   const senderRes = request(`${ADMIN_API_URL}/wallet-addresses`, {
-    address: 'sender',
+    address: SENDER_WALLET_ADDRESS,
     publicName: 'Sender',
     assetCode: 'USD'
   });
@@ -65,8 +67,8 @@ export function setup() {
   const sender = JSON.parse(senderRes.body);
 
   return {
-    receiverWalletAddress: receiver.address || 'receiver',
-    senderWalletAddress: sender.address || 'sender'
+    receiverWalletAddress: receiver.address || RECEIVER_WALLET_ADDRESS,
+    senderWalletAddress: sender.address || SENDER_WALLET_ADDRESS
   };
 }
 
@@ -85,32 +87,28 @@ export default function (data) {
       JSON.parse(r.body).id === incomingPaymentId
   });
 
-  // const incomingPaymentId = JSON.parse(incomingPaymentRes.body).id;
-  //
-  // const quoteRes = request(`${ADMIN_API_URL}/quotes`, {
-  //   debitAmount: {
-  //     assetScale: 2,
-  //     assetCode: 'USD',
-  //     value: 100
-  //   },
-  //   incomingPaymentId,
-  //   senderWalletAddress: data.senderWalletAddress
-  // });
-  //
-  // check(quoteRes, {
-  //   'quote created': (r) => r.status === 201
-  // });
-  //
-  // const quoteId = JSON.parse(quoteRes.body).id;
-  //
-  // const outgoingPaymentRes = request(`${ADMIN_API_URL}/outgoing-payments`, {
-  //   quoteId,
-  //   incomingPaymentId,
-  //   senderWalletAddress: data.senderWalletAddress
-  // });
-  // check(outgoingPaymentRes, {
-  //   'outgoing payment created': (r) => r.status === 201
-  // });
+  const quoteRes = request(`${ADMIN_API_URL}/quotes`, {
+    walletAddress: data.senderWalletAddress,
+    incomingPaymentId,
+    debitAmount: '100'
+  });
 
-  // sleep(0.01);
+  console.log(`quote response: ${quoteRes.body}`);
+
+  check(quoteRes, {
+    'quote created': (r) => r.status === 201
+  });
+
+  const quoteId = JSON.parse(quoteRes.body).id;
+
+  const outgoingPaymentRes = request(`${ADMIN_API_URL}/outgoing-payments`, {
+    walletAddress: data.senderWalletAddress,
+    quoteId
+  });
+
+  console.log(`outgoing payment response: ${outgoingPaymentRes.body}`);
+
+  check(outgoingPaymentRes, {
+    'outgoing payment created': (r) => r.status === 201
+  });
 }

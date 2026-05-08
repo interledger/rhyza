@@ -165,6 +165,7 @@ export class PaymentIntentAggregate {
     } catch (err) {
       const event = new PaymentIntentCreateFailedEvent(
         {
+          paymentIntentId: cmd.payload.id,
           errorName: (err as Error).constructor.name,
           message: (err as Error).message
         },
@@ -251,6 +252,7 @@ export class PaymentIntentAggregate {
     } catch (err) {
       const event = new QuoteCreateFailedEvent(
         {
+          paymentIntentId: cmd.payload.paymentIntentId,
           errorName: (err as Error).constructor.name,
           message: (err as Error).message
         },
@@ -328,6 +330,7 @@ export class PaymentIntentAggregate {
     } catch (err) {
       const event = new PaymentCreateFailedEvent(
         {
+          paymentIntentId: cmd.payload.paymentIntentId,
           errorName: (err as Error).constructor.name,
           message: (err as Error).message
         },
@@ -369,6 +372,7 @@ export class PaymentIntentAggregate {
     } catch (err) {
       return new LocalPaymentCompleteFailedEvent(
         {
+          paymentIntentId: cmd.payload.paymentIntentId,
           errorName: (err as Error).constructor.name,
           message: (err as Error).message
         },

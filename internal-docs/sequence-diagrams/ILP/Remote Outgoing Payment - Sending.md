@@ -4,7 +4,7 @@
 sequenceDiagram
 	autonumber
 
-    participant AGW as Admin Gateway
+    participant AGW as Admin API
 
     box Payments BC
 	participant PC as Payments Client
@@ -34,18 +34,23 @@ sequenceDiagram
 
     AGW ->> PC: Approve outgoing payment
     PC ->> PAPI: Approve outgoing payment
+    PAPI -->> PCH: Approve outgoing payment command
 	PCH ->> PCH: Determine whether payment is local or <br> remote
-    PCH ->> ILPC: Determine peer based on destination address
-    ILPC ->> ILPAPI: Determine peer based on destination address
-    PCH -->> PET: Remote outgoing payment approved <br> (with ILP destination details <br> on incoming payment + any additional <br>quote information)
+    PCH -->> PET: Remote outgoing payment approved <br> (with destination ILP address <br> + any additional quote information)
+
     PALEH -->> PET: Read remote outgoing payment approved event
-    PALEH -->> PALCH: Process reserve funds command
-    PALCH ->>PALCH: Reserve amount for peer account
-    PALCH -->>PALET: peer transfer reserved event
-    PEH -->> PALET: Read peer transfer reserved event
-	PEH -->> PCH: Prepare outgoing payment command
-    PCH ->> PET: Outgoing payment prepared event
-    ILPEH -->> PET: Read Outgoing payment prepared event
+    par
+    PAPI -->> PET: Read remote outgoing payment approved event
+    PAPI ->> PC: success
+    PC ->> AGW: success
+    end
+    PALEH -->> PALCH: Reserve funds command
+    PALCH ->> PALCH: Resolve peer from ILP address (if quote not present)
+    PALCH ->> PALCH: Check if peer is active
+    PALCH ->> PALCH: Reserve amount for peer account
+    PALCH -->> PALET: Peer transfer reserved event
+
+    ILPEH -->> PALET: Read peer transfer reserved event
     ILPEH -->> ILP: Start payment command
     ILP ->> ILP: Fetch peer connector details
     ILP ->> ILP: Store packet & its expiry (put it on a worker and handle expiries separately)
@@ -57,34 +62,39 @@ sequenceDiagram
     ILPAPI -->> ILP: Process fulfill packet received command
     ILP ->>ILP: Retrieve stored packet & mark fulfilled
     %% ILP -->> ILP: Finalize liquidity transfer
-    ILP -->> ILPET: Fulfill packet received event
+    ILP -->> ILPET: ILP payment confirmation received event
 
     else Reject packet received
     ILPAPI ->> ILPAPI: Receive reject packet
     ILPAPI -->> ILP: Process reject packet command
     ILP ->>ILP: Retrieve stored packet & mark rejected
-    ILP -->> ILPET: Reject packet received event
+    ILP -->> ILPET: ILP payment confirmation failed event
     else No packets received, error
     ILPEH ->> ILPET: set interval for <br>publishing packet expiry check events
     ILPEH ->> ILPET: read publishing packet expiry check event (at certain interval)
     ILPEH ->> ILPEH: Check redis for any expired packets
     ILPEH -->> ILP: Expire packet command <br>(by outgoing payment id)
     ILP ->>ILP: Expire packet
-    ILP -->> ILPET: Packet expired event
+    ILP -->> ILPET: ILP payment confirmation expired event
     end
     alt Fulfill packet received
-    PALEH -->> ILPET: Read fulfill packet received event
+    PEH -->> ILPET: Read ILP payment confirmation received event
+    PEH -->> PCH: Complete outgoing payment command
+    PCH ->> PCH: Mark payment as complete
+    PCH -->> PET: Outgoing payment completed event
+
+    PALEH -->> PET: Read outgoing payment completed event
     PALEH -->> PALCH: Finalize peer liquidity transfer command
-    PALCH ->>PALCH: Finalize transfer:  <br> wallet address > (asset >) peer account
-    PALCH -->> PALET: Wallet address to peer transfer finalized event
-    PEH -->> PALET: Read wallet address to peer transfer finalized event
-    PEH -->> PCH: Complete outoing payment command
+    PALCH ->>PALCH: Finalize peer liquidity transfer
+
     else Reject/expired packet received
-    PALEH -->> ILPET: Read reject packet received event / packet expired event
-    PALEH -->> PALCH: Void wallet address to peer liquidity transfer command
-    PALCH ->>PALCH: Void transfer:  <br> wallet address > (asset >) peer account
-    PALCH -->> PALET: wallet address to peer transfer voided event
-    PEH -->> PALET: Read wallet address to peer transfer voided event
+    PEH -->> ILPET: Read ILP payment confirmation failed/expired event
     PEH -->> PCH: Cancel outgoing payment command
+    PCH ->> PCH: Mark payment as failed
+    PCH -->> PET: Outgoing payment failed event
+
+    PALEH -->> PET: Read outgoing payment failed event
+    PALEH -->> PALCH: Void peer liquidity transfer command
+    PALCH ->>PALCH: Void peer liquidity transfer
     end
 ```
