@@ -152,7 +152,7 @@ export class PalClient {
   }
 
   /*
-   * Wallet pAddress related functions
+   * Wallet Address related functions
    * */
 
   async createWalletAddress(
