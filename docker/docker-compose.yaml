@@ -25,10 +25,48 @@ services:
     restart: always
     environment:
       MONGO_URL: mongodb://root:mongoPass@mongodb:27017/
+      KAFKA_URL: kafka:19092
     ports:
       - '50051:50051'
     depends_on:
+      init-kafka:
+        condition: service_completed_successfully
       mongodb:
+        condition: service_healthy
+    networks:
+      - rafiki-v2
+  pal-ledger-command-handler-service:
+    build:
+      context: ../
+      dockerfile: ./packages/pal-ledger-command-handler-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+      REDIS_URL: redis:6379
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rafiki-v2
+  pal-ledger-event-handler-service:
+    build:
+      context: ../
+      dockerfile: ./packages/pal-ledger-event-handler-service/Dockerfile
+    restart: always
+    environment:
+      MONGO_URL: mongodb://root:mongoPass@mongodb:27017/
+      KAFKA_URL: kafka:19092
+      REDIS_URL: redis:6379
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - rafiki-v2
@@ -143,6 +181,12 @@ services:
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic logs
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic payment-commands
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic payment-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic asset-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-commands
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-snapshot-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-state-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic wallet-address-domain-events
       echo -e '\nSuccessfully created the following topics:'
       ./kafka-topics.sh --bootstrap-server kafka:19092 --list
       "
