@@ -301,7 +301,7 @@ export class Ledger implements ILedger {
       | LedgerAccountCreatedForPeerEvent;
 
     let displayScale = DEFAULT_DISPLAY_ASSET_SCALE;
-    let accountName!: string;
+    let accountName: string;
     let externalId: string | undefined = undefined;
 
     if (LedgerCommand.isCreateLedgerAccountCmd(cmd)) {
@@ -753,7 +753,7 @@ export class Ledger implements ILedger {
     output += `Accounts:              ${this._accounts.length}\n`;
     output += `Transactions:          ${this._transactionCount}`;
 
-    console.log(`${header}\n${output}\n${footer}\n`);
+    this._logger.info(`${header}\n${output}\n${footer}\n`);
   }
 
   verify(): boolean {
