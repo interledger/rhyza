@@ -12,7 +12,6 @@ import { MockAssetRepo, MockWalletRepo } from './mocks';
 import { MockMessageProducer } from './mocks/mock-msg-publisher';
 import { ConsoleLogger, DomainEvent } from 'common-types-lib';
 import {
-  AssetCreatedEvent,
   WalletAddressAliasCreatedEvent,
   WalletAddressCreatedEvent
 } from 'pal-public-types-lib';
@@ -56,18 +55,6 @@ test('PAL Asset Domain - create asset', async () => {
     undefined,
     undefined
   );
-
-  const lastEvent = mockProducer.messages[
-    mockProducer.messages.length - 1
-  ] as DomainEvent;
-  assert.ok(lastEvent);
-  assert.equal(lastEvent.msgName, AssetCreatedEvent.name);
-  assert.equal(lastEvent.aggregateId, ASSET_CODE);
-  assert.ok(lastEvent.payload);
-  assert.equal(lastEvent.payload.code, ASSET_CODE);
-  assert.equal(lastEvent.payload.scale, ASSET_SCALE);
-  assert.equal(lastEvent.payload.liquidityLowThreshold, null);
-  assert.equal(lastEvent.payload.liquidityHighThreshold, null);
 });
 
 test('PAL Asset Domain - get asset', async () => {

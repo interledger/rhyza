@@ -1,7 +1,7 @@
 import { AssetNotFoundError, CannotCreateDuplicateAssetError } from './errors';
 import { IPalAssetRepository } from './interfaces';
 import { PalAsset } from './entity';
-import { IPalAssetDto, AssetCreatedEvent } from 'pal-public-types-lib';
+import { IPalAssetDto } from 'pal-public-types-lib';
 import { ILogger, IMessageProducer } from 'common-types-lib';
 
 export class AssetAggregate {
@@ -43,16 +43,6 @@ export class AssetAggregate {
     );
 
     await this._repo.store(newAsset.toDto());
-
-    // send domain event
-    await this._msgProducer.send(
-      new AssetCreatedEvent({
-        code: code,
-        scale: scale,
-        liquidityLowThreshold: liquidityLowThreshold,
-        liquidityHighThreshold: liquidityHighThreshold
-      })
-    );
   }
 
   async associateLedgerAccount(
