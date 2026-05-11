@@ -17,7 +17,6 @@ import {
   RejectTransferCmd,
   ReserveTransferCmd
 } from './messages/commands';
-import * as console from 'node:console';
 import { ILogger, MessageTypes } from 'common-types-lib';
 import {
   LedgerDomainEvent,
