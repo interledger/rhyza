@@ -43,6 +43,5 @@ tmp
 dist
 /packages/pal-public-types-lib/src/proto_generated/
 /packages/payments-public-types-lib/src/proto_generated/
-/packages/ilp-public-types-lib/src/proto_generated/
 
 .agents
