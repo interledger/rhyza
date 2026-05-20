@@ -1,11 +1,8 @@
 import { before, test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { MockLedgerEventSourcingRepository } from './mocks/mock-ledger-es-repo';
-
 import {
   CheckBalanceAndReserveTransferCmd,
   CommitTransferCmd,
-  CreateLedgerAccountCmd,
   CreateLedgerCmd,
   LedgerAggregate,
   LedgerCreatedStateEvent,
@@ -15,9 +12,8 @@ import {
   ReserveTransferCmd
 } from '../src';
 import { ConsoleLogger, DomainEvent } from 'common-types-lib';
-import { MockMessageProducer } from './mocks/mock-msg-publisher';
+import { MockMessageProducer, MockLedgerEventSourcingRepository } from './mocks';
 import {
-  LedgerAccountCreatedEvent,
   LedgerCreatedEvent,
   LedgerTransactionPostedEvent,
   LedgerTransferCommitedEvent,
@@ -68,93 +64,6 @@ test('PAL Ledger Domain HighLevel API - Create ledger', async () => {
   assert.ok(lastDomainEvent);
   assert.equal(lastDomainEvent.msgName, LedgerCreatedEvent.name);
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
-});
-
-test('PAL Ledger Domain HighLevel API - Create accounts', async () => {
-  const cmds: CreateLedgerAccountCmd[] = [];
-  cmds.push(
-    new CreateLedgerAccountCmd(EUR_LEDGER_ID, {
-      id: EUR_PAYER_CLEARING_ACCOUNT_ID,
-      name: EUR_PAYER_CLEARING_ACCOUNT_ID,
-      assetCode: EUR_LEDGER_ID,
-      assetDisplayScale: 2
-    })
-  );
-  cmds.push(
-    new CreateLedgerAccountCmd(EUR_LEDGER_ID, {
-      id: EUR_PAYER_LIQUIDITY_ACCOUNT_ID,
-      name: EUR_PAYER_LIQUIDITY_ACCOUNT_ID,
-      assetCode: EUR_LEDGER_ID,
-      assetDisplayScale: 2
-    })
-  );
-  cmds.push(
-    new CreateLedgerAccountCmd(EUR_LEDGER_ID, {
-      id: EUR_PAYEE_CLEARING_ACCOUNT_ID,
-      name: EUR_PAYEE_CLEARING_ACCOUNT_ID,
-      assetCode: EUR_LEDGER_ID,
-      assetDisplayScale: 2
-    })
-  );
-  cmds.push(
-    new CreateLedgerAccountCmd(EUR_LEDGER_ID, {
-      id: EUR_SUSPENSE_ACCOUNT_ID,
-      name: EUR_SUSPENSE_ACCOUNT_ID,
-      assetCode: EUR_LEDGER_ID,
-      assetDisplayScale: 2
-    })
-  );
-  cmds.push(
-    new CreateLedgerAccountCmd(EUR_LEDGER_ID, {
-      id: EUR_CASH_ACCOUNT_ID,
-      name: EUR_CASH_ACCOUNT_ID,
-      assetCode: EUR_LEDGER_ID,
-      assetDisplayScale: 2
-    })
-  );
-
-  await aggregate.processCommands(cmds);
-
-  const accounts = aggregate.getAccounts([
-    EUR_PAYER_CLEARING_ACCOUNT_ID,
-    EUR_PAYER_LIQUIDITY_ACCOUNT_ID,
-    EUR_PAYEE_CLEARING_ACCOUNT_ID,
-    EUR_SUSPENSE_ACCOUNT_ID,
-    EUR_CASH_ACCOUNT_ID
-  ]);
-
-  assert.ok(accounts);
-  assert.equal(accounts.length, 5);
-  assert.equal(accounts[0].id, EUR_PAYER_CLEARING_ACCOUNT_ID);
-  assert.equal(accounts[1].id, EUR_PAYER_LIQUIDITY_ACCOUNT_ID);
-  assert.equal(accounts[2].id, EUR_PAYEE_CLEARING_ACCOUNT_ID);
-  assert.equal(accounts[3].id, EUR_SUSPENSE_ACCOUNT_ID);
-  assert.equal(accounts[4].id, EUR_CASH_ACCOUNT_ID);
-
-  assert.ok(aggregate.verify());
-
-  // check domain/integration events
-  assert.ok(mockProducer.messages.length == 6);
-
-  assert.ok(mockProducer.messages[1].msgName == LedgerAccountCreatedEvent.name);
-  assert.equal(
-    mockProducer.messages[1].payload.id,
-    EUR_PAYER_CLEARING_ACCOUNT_ID
-  );
-  assert.ok(mockProducer.messages[2].msgName == LedgerAccountCreatedEvent.name);
-  assert.equal(
-    mockProducer.messages[2].payload.id,
-    EUR_PAYER_LIQUIDITY_ACCOUNT_ID
-  );
-  assert.ok(mockProducer.messages[3].msgName == LedgerAccountCreatedEvent.name);
-  assert.equal(
-    mockProducer.messages[3].payload.id,
-    EUR_PAYEE_CLEARING_ACCOUNT_ID
-  );
-  assert.ok(mockProducer.messages[4].msgName == LedgerAccountCreatedEvent.name);
-  assert.equal(mockProducer.messages[4].payload.id, EUR_SUSPENSE_ACCOUNT_ID);
-  assert.ok(mockProducer.messages[5].msgName == LedgerAccountCreatedEvent.name);
-  assert.equal(mockProducer.messages[5].payload.id, EUR_CASH_ACCOUNT_ID);
 });
 
 test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer cmd should fail before deposit', async () => {

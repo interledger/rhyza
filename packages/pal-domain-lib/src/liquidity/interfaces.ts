@@ -1,7 +1,5 @@
 import { LedgerSnapshotEvent, LedgerStateEvent } from './messages/events';
-import { ILedger } from './entities/ledger';
-import { ILedgerAccount } from './entities/ledger-account';
-import { ILedgerTransaction } from './entities/transaction';
+import {ILedgerAccountDto, ILedgerDto, ILedgerTransactionDto } from "pal-public-types-lib";
 
 /*
 repositories
@@ -22,11 +20,11 @@ export interface ILedgerEventSourcingRepository {
 }
 
 export interface ILedgerReadSideRepository {
-  storeLedgers(ledgers: ILedger[]): Promise<void>;
-  fetchLedgers(ids: string[]): Promise<ILedger[]>;
+  storeLedgers(ledgers: ILedgerDto[]): Promise<void>;
+  fetchLedgers(ids: string[]): Promise<ILedgerDto[]>;
 
-  storeLedgerAccounts(accounts: ILedgerAccount[]): Promise<void>;
-  fetchLedgerAccounts(ids: string[]): Promise<ILedgerAccount[]>;
+  storeLedgerAccounts(accounts: ILedgerAccountDto[]): Promise<void>;
+  fetchLedgerAccounts(ids: string[]): Promise<ILedgerAccountDto[]>;
 
-  storeLedgerTransactions(transactions: ILedgerTransaction[]): Promise<void>;
+  storeLedgerTransactions(transactions: ILedgerTransactionDto[]): Promise<void>;
 }

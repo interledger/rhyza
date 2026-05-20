@@ -6,16 +6,17 @@ import {
 } from 'implementations-lib';
 import { CommandMsg, ConsoleLogger, IMessageProducer } from 'common-types-lib';
 import {
-  CreateLedgerAccountCmd,
+  CreateLedgerAccountForAssetCmd,
+  CreateLedgerAccountsForPeerCmd,
   CreateLedgerCmd,
+  LedgerCommand,
   PostTransactionCmd
 } from 'pal-domain-lib';
 import {
-  CreateLedgerAccountCmdSerde,
   CreateLedgerAccountForAssetCmdSerde,
-  CreateLedgerAccountForPeerCmdSerde,
+  CreateLedgerAccountsForPeerCmdSerde,
   CreateLedgerCmdSerde,
-  LedgerAccountCreatedStateEventSerde,
+  LedgerAccountsCreatedStateEventSerde,
   LedgerCreatedStateEventSerde,
   LedgerSnapshotSerde,
   LedgerTransactionRecordedStateEventSerde,
@@ -36,9 +37,14 @@ const kafkaProducerCommonOptions: KafkaProducerOptions = {
 };
 // const kafkaConsumerCommonOptions:KafkaConsumerOptions = {};
 
-const assetCode = 'EUR';
-const pedroAccId = 'pedro';
-const elsaAccId = 'elsa';
+const ASSET_CODE = 'EUR';
+const ASSET_SYSTEM_ACC_ID = 'system';
+const PEDRO_PEER_ID = 'pedro';
+const PEDRO_CLEARING_ACC_ID = 'pedro_clearing'
+const PEDRO_LIQUIDITY_ACC_ID = 'pedro_liquidity';
+const ELSA_PEER_ID = 'elsa';
+const ELSA_CLEARING_ASS_ID = 'elsa_clearing';
+const ELSA_LIQUIDITY_ACC_ID = 'elsa_liquidity';
 
 let producer: IMessageProducer;
 
@@ -49,6 +55,10 @@ const CREATE_LEDGER_AND_ACCOUNTS =
 const TRANSACTION_COUNT = process.env['TRANSACTION_COUNT']
   ? parseInt(process.env['TRANSACTION_COUNT'])
   : 10;
+
+const TEST_TYPE_LOW_LEVEL = 'lowlevel';
+const TEST_TYPE_HIGH_LEVEL = 'highlevel';
+const TEST_TYPE = process.env['TEST_TYPE'] && process.env['TEST_TYPE'].toUpperCase() === TEST_TYPE_HIGH_LEVEL ? TEST_TYPE_HIGH_LEVEL : TEST_TYPE_LOW_LEVEL;
 
 const logger = new ConsoleLogger();
 
@@ -66,42 +76,22 @@ function getRandomPair(array: string[]): [string, string] | undefined {
   while (secondIndex === firstIndex) {
     secondIndex = Math.floor(Math.random() * array.length);
   }
-
   return [array[firstIndex], array[secondIndex]];
 }
 
-function createLedgerAndAccounts(): CommandMsg[] {
-  const cmd1 = new CreateLedgerCmd({ id: 'EUR' });
-  const cmd2 = new CreateLedgerAccountCmd(assetCode, {
-    id: pedroAccId,
-    assetCode: assetCode,
-    assetDisplayScale: 2,
-    name: 'EUR acc pedro'
-  });
-  const cmd3 = new CreateLedgerAccountCmd(assetCode, {
-    id: elsaAccId,
-    assetCode: assetCode,
-    assetDisplayScale: 2,
-    name: 'EUR acc elsa'
-  });
-  return [cmd1, cmd2, cmd3];
-}
-
-async function main() {
+async function setup() {
   MessageSerializationFactory.instance()
     // snapshots
     .register(new LedgerSnapshotSerde())
     // state events
     .register(new LedgerCreatedStateEventSerde())
-    .register(new LedgerAccountCreatedStateEventSerde())
+    .register(new LedgerAccountsCreatedStateEventSerde())
     .register(new LedgerTransactionRecordedStateEventSerde())
     // commands
     .register(new CreateLedgerCmdSerde())
-    .register(new CreateLedgerAccountCmdSerde())
     .register(new PostTransactionCmdSerde())
-    .register(new CreateLedgerAccountCmdSerde())
     .register(new CreateLedgerAccountForAssetCmdSerde())
-    .register(new CreateLedgerAccountForPeerCmdSerde());
+    .register(new CreateLedgerAccountsForPeerCmdSerde());
 
   const kafkaBuilder = new KafkaBuilder()
     // .withLogger(logger)
@@ -110,27 +100,56 @@ async function main() {
     .withClientId(`${INSTANCE_ID}`);
 
   producer = kafkaBuilder.buildProducer(kafkaProducerCommonOptions);
-
   await producer.connect();
 
   const cmds: CommandMsg[] = [];
 
-  if (CREATE_LEDGER_AND_ACCOUNTS) {
-    cmds.push(...createLedgerAndAccounts());
-  }
 
-  const transactionIdPrefix = `txn_${randomBytes(3).toString('hex')}_`;
+  if (CREATE_LEDGER_AND_ACCOUNTS) {
+    const startTs = Date.now();
+    cmds.push(...createLedgerAssetAndPeerAccounts());
+    await producer.send(cmds);
+    const endTs = Date.now();
+    logger.debug(`Setup - Created ledger and accounts in ${endTs - startTs}ms`);
+  }else{
+    logger.debug(`Setup - Skipping ledger and accounts creation`);
+  }
+}
+
+function createLedgerAssetAndPeerAccounts(): CommandMsg[] {
+  const cmd1 = new CreateLedgerCmd({ id: ASSET_CODE });
+  const cmd2 = new CreateLedgerAccountForAssetCmd(ASSET_CODE, {
+    id: ASSET_SYSTEM_ACC_ID,
+    assetCode: ASSET_CODE
+  });
+  const cmd3 = new CreateLedgerAccountsForPeerCmd(ASSET_CODE, {
+    liquidityAccountId: PEDRO_LIQUIDITY_ACC_ID,
+    clearingAccountId: PEDRO_CLEARING_ACC_ID,
+    assetCode: ASSET_CODE,
+    peerId: PEDRO_PEER_ID
+  });
+  const cmd4 = new CreateLedgerAccountsForPeerCmd(ASSET_CODE, {
+    liquidityAccountId: ELSA_LIQUIDITY_ACC_ID,
+    clearingAccountId: ELSA_CLEARING_ASS_ID,
+    assetCode: ASSET_CODE,
+    peerId: ELSA_PEER_ID
+  });
+  return [cmd1, cmd2, cmd3, cmd4];
+}
+
+function getSimpleTransactionTestCommands(transactionIdPrefix:string):LedgerCommand[] {
+  const cmds: CommandMsg[] = [];
 
   for (let i = 0; i < TRANSACTION_COUNT; i++) {
     //let amount = "1"; //BigInt(Math.round(Math.random() * 1000));
     const amount = BigInt(Math.round(Math.random() * 1000)).toString();
-    const [sender, receiver] = getRandomPair([pedroAccId, elsaAccId]) || [
-      pedroAccId,
-      elsaAccId
+    const [sender, receiver] = getRandomPair([PEDRO_CLEARING_ACC_ID, ELSA_CLEARING_ASS_ID]) || [
+      PEDRO_CLEARING_ACC_ID,
+      ELSA_CLEARING_ASS_ID
     ];
 
     cmds.push(
-      new PostTransactionCmd(assetCode, {
+      new PostTransactionCmd(ASSET_CODE, {
         id: transactionIdPrefix + i.toString(),
         amount: amount,
         amountScale: 2,
@@ -140,12 +159,49 @@ async function main() {
     );
   }
 
-  const startTs = Date.now();
+  return cmds;
+}
 
+function getHighLevelTransactionTestCommands(transactionIdPrefix:string):LedgerCommand[] {
+  const cmds: CommandMsg[] = [];
+
+  for (let i = 0; i < TRANSACTION_COUNT; i++) {
+    const amount = BigInt(Math.round(Math.random() * 1000)).toString();
+    const [sender, receiver] = getRandomPair([PEDRO_PEER_ID, ELSA_PEER_ID]);
+
+  // TODO
+
+  }
+
+  return cmds;
+}
+
+
+async function main() {
+  await setup();
+
+  const cmds: CommandMsg[] = [];
+
+  if (CREATE_LEDGER_AND_ACCOUNTS) {
+    cmds.push(...createLedgerAssetAndPeerAccounts());
+  }
+
+  const transactionIdPrefix = `txn_${randomBytes(3).toString('hex')}_`;
+
+
+  if(TEST_TYPE === TEST_TYPE_HIGH_LEVEL){
+    cmds.push(...getHighLevelTransactionTestCommands(transactionIdPrefix));
+  }else if(TEST_TYPE === TEST_TYPE_LOW_LEVEL){
+    cmds.push(...getSimpleTransactionTestCommands(transactionIdPrefix));
+  }else{
+    throw new Error(`Invalid test type: ${TEST_TYPE}`);
+  }
+
+  const startTs = Date.now();
   await producer.send(cmds);
 
   logger.debug(
-    `Transactions posted, publishing took: ${Date.now() - startTs} ms`
+    `${cmds.length} transactions posted, publishing took: ${Date.now() - startTs} ms`
   );
 }
 

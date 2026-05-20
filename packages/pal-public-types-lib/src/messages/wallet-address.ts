@@ -12,6 +12,7 @@ export abstract class WalletAddressDomainEvent extends DomainEvent {
 
   protected constructor(aggId: string) {
     super(aggId);
+    this.requestId = crypto.randomUUID();
   }
 
   static isWalletAddressCreatedEvent(

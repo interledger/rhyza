@@ -1,12 +1,3 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
 syntax = "proto3";
 package rafiki.pal.svc;
 
@@ -29,13 +20,8 @@ service PalGrpc {
   rpc ActivatePeer(PbActivatePeerRequest) returns (google.protobuf.Empty);
   rpc DeactivatePeer(PbDeactivatePeerRequest) returns (google.protobuf.Empty);
 
-  // low level liquidity API
-  rpc CreateLedger(PbCreateLedgerRequest) returns (google.protobuf.Empty);
-  rpc CreateLedgerAccount(PbCreateLedgerAccountRequest) returns (google.protobuf.Empty);
-
   // ledger queries
   rpc GetLedgerAccounts(PbGetLedgerAccountsRequest) returns (PbGetLedgerAccountsResponse);
-
 }
 
 /*
@@ -128,6 +114,7 @@ message PbCreatePeerRequest{
   string name = 2;
   string asset_code = 3;
   uint32 asset_scale = 4;
+  PbPeerCommsMethodDefinition comms_method_definition = 5;
 }
 
 message PbGetPeerRequest{
@@ -142,13 +129,20 @@ message PbPeer{
   string asset_code = 3;
   uint32 asset_scale = 4;
   bool active = 5;
-  optional string ledger_account_id = 6;
-  optional PbPeerCommsMethod comms_method = 7;
+  optional PbPeerLedgerAccounts ledger_accounts = 6;
+  optional PbPeerCommsMethodDefinition comms_method_definition = 7;
 }
 
-message PbPeerCommsMethod{
+message PbPeerCommsMethodDefinition{
   string comms_type = 1; // for now can only be ILP
   string static_address = 2;
+}
+message PbPeerLedgerAccounts{
+  string peer_liquidity_account_id = 1;
+  string peer_clearing_account_id = 2;
+  string ase_liquidity_account_id = 3;
+  string ase_clearing_account_id = 4;
+  string suspense_account_id = 5;
 }
 
 message PbGetPeerByIlpAddressRequest{
@@ -156,7 +150,7 @@ message PbGetPeerByIlpAddressRequest{
 }
 message PbSetPeerCommunicationMethodRequest{
   string peer_id = 1;
-  PbPeerCommsMethod comms_method = 2;
+  PbPeerCommsMethodDefinition comms_method = 2;
 }
 message PbActivatePeerRequest{
   string peer_id = 1;
@@ -170,20 +164,6 @@ message PbDeactivatePeerRequest{
 /*
 Liquidity messages
 */
-
-
-// Low level requests
-
-message PbCreateLedgerRequest{
-  string ledger_asset_code = 1;
-}
-
-message PbCreateLedgerAccountRequest{
-  string id = 1;
-  string asset_code = 2;
-  uint32 asset_display_scale = 3;
-  string name = 4;
-}
 
 // query messages
 message PbGetLedgerAccountsRequest{

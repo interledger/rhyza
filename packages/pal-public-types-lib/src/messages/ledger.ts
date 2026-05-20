@@ -12,6 +12,7 @@ export abstract class LedgerDomainEvent extends DomainEvent {
 
   protected constructor(aggId: string) {
     super(aggId);
+    this.requestId = crypto.randomUUID();
   }
 
   static isLedgerCreatedEvent(evt: DomainEvent): evt is LedgerCreatedEvent {
@@ -26,30 +27,26 @@ export abstract class LedgerDomainEvent extends DomainEvent {
     return evt.msgName === LedgerNotFoundEvent.name;
   }
 
-  static isLedgerAccountCreatedEvent(
-    evt: DomainEvent
-  ): evt is LedgerAccountCreatedEvent {
-    return evt.msgName === LedgerAccountCreatedEvent.name;
-  }
-  static isLedgerAccountCreatedForPeerEvent(
-    evt: DomainEvent
-  ): evt is LedgerAccountCreatedForPeerEvent {
-    return evt.msgName === LedgerAccountCreatedForPeerEvent.name;
-  }
   static isLedgerAccountCreatedForAssetEvent(
     evt: DomainEvent
   ): evt is LedgerAccountCreatedForAssetEvent {
     return evt.msgName === LedgerAccountCreatedForAssetEvent.name;
   }
-  static isLedgerAccountCreationFailedEvent(
-    evt: DomainEvent
-  ): evt is LedgerAccountCreationFailedEvent {
-    return evt.msgName === LedgerAccountCreationFailedEvent.name;
-  }
   static isLedgerAccountNotFoundEvent(
     evt: DomainEvent
-  ): evt is LedgerAccountCreationFailedEvent {
-    return evt.msgName === LedgerAccountCreationFailedEvent.name;
+  ): evt is LedgerAccountCreationForAssetFailedEvent {
+    return evt.msgName === LedgerAccountCreationForAssetFailedEvent.name;
+  }
+
+  static isLedgerAccountsCreatedForPeerEvent(
+    evt: DomainEvent
+  ): evt is LedgerAccountsCreatedForPeerEvent {
+    return evt.msgName === LedgerAccountsCreatedForPeerEvent.name;
+  }
+  static isLedgerAccountCreationFailedEvent(
+    evt: DomainEvent
+  ): evt is LedgerAccountCreationForPeerFailedEvent {
+    return evt.msgName === LedgerAccountCreationForPeerFailedEvent.name;
   }
 
   static isLedgerTransactionPostedEvent(
@@ -92,6 +89,7 @@ export class LedgerCreatedEvent extends LedgerDomainEvent {
 
   constructor(payload: LedgerCreatedEventPayload) {
     super(payload.assetCode);
+    this.msgKey = payload.assetCode;
     this.payload = payload;
   }
 }
@@ -106,6 +104,7 @@ export class LedgerCreationFailedEvent extends LedgerDomainEvent {
 
   constructor(payload: LedgerCreationFailedEventPayload) {
     super(payload.assetCode);
+    this.msgKey = payload.assetCode;
     this.payload = payload;
   }
 }
@@ -118,20 +117,7 @@ export class LedgerNotFoundEvent extends LedgerDomainEvent {
   isErrorEvent = true;
   constructor(payload: LedgerNotFoundEventPayload) {
     super(payload.assetCode);
-    this.payload = payload;
-  }
-}
-
-export type LedgerAccountCreatedEventPayload = {
-  id: string;
-  assetCode: string;
-  externalId?: string;
-};
-export class LedgerAccountCreatedEvent extends LedgerDomainEvent {
-  payload: LedgerAccountCreatedEventPayload;
-
-  constructor(aggId: string, payload: LedgerAccountCreatedEventPayload) {
-    super(aggId);
+    this.msgKey = payload.assetCode;
     this.payload = payload;
   }
 }
@@ -148,35 +134,60 @@ export class LedgerAccountCreatedForAssetEvent extends LedgerDomainEvent {
     payload: LedgerAccountCreatedForAssetEventPayload
   ) {
     super(aggId);
+    this.msgKey = payload.assetCode;
     this.payload = payload;
   }
 }
 
-export type LedgerAccountCreatedForPeerEventPayload = {
-  id: string;
-  assetCode: string;
+export type LedgerAccountsCreatedForPeerEventPayload = {
   peerId: string;
+  assetCode: string;
+  peerLiquidityAccId: string;
+  peerClearingAccId: string;
+  aseLiquidityAccId: string;
+  aseClearingAccId: string;
+  suspenseAccId: string;
 };
-export class LedgerAccountCreatedForPeerEvent extends LedgerDomainEvent {
-  payload: LedgerAccountCreatedForPeerEventPayload;
+export class LedgerAccountsCreatedForPeerEvent extends LedgerDomainEvent {
+  payload: LedgerAccountsCreatedForPeerEventPayload;
 
-  constructor(aggId: string, payload: LedgerAccountCreatedForPeerEventPayload) {
+  constructor(
+    aggId: string,
+    payload: LedgerAccountsCreatedForPeerEventPayload
+  ) {
     super(aggId);
+    this.msgKey = payload.assetCode;
     this.payload = payload;
   }
 }
 
-export type LedgerAccountCreationFailedEventPayload = {
+export type LedgerAccountCreationForAssetFailedEventPayload = {
   assetCode: string;
-  accountId: string;
   reason: 'DUPLICATE_ACCOUNT_ID' | 'ASSET_CODE_MISMATCH' | 'UNKNOWN';
 };
-export class LedgerAccountCreationFailedEvent extends LedgerDomainEvent {
-  payload: LedgerAccountCreationFailedEventPayload;
+export class LedgerAccountCreationForAssetFailedEvent extends LedgerDomainEvent {
+  payload: LedgerAccountCreationForAssetFailedEventPayload;
   isErrorEvent = true;
 
-  constructor(payload: LedgerAccountCreationFailedEventPayload) {
+  constructor(payload: LedgerAccountCreationForAssetFailedEventPayload) {
     super(payload.assetCode);
+    this.msgKey = payload.assetCode;
+    this.payload = payload;
+  }
+}
+
+export type LedgerAccountCreationForPeerFailedEventPayload = {
+  assetCode: string;
+  peerId: string;
+  reason: 'DUPLICATE_ACCOUNT_ID' | 'ASSET_CODE_MISMATCH' | 'UNKNOWN';
+};
+export class LedgerAccountCreationForPeerFailedEvent extends LedgerDomainEvent {
+  payload: LedgerAccountCreationForPeerFailedEventPayload;
+  isErrorEvent = true;
+
+  constructor(payload: LedgerAccountCreationForPeerFailedEventPayload) {
+    super(payload.assetCode);
+    this.msgKey = payload.assetCode;
     this.payload = payload;
   }
 }
@@ -190,6 +201,7 @@ export class LedgerAccountNotFoundEvent extends LedgerDomainEvent {
   isErrorEvent = true;
   constructor(payload: LedgerAccountNotFoundEventPayload) {
     super(payload.assetCode);
+    this.msgKey = payload.assetCode;
     this.payload = payload;
   }
 }
@@ -207,6 +219,7 @@ export class LedgerTransactionPostedEvent extends LedgerDomainEvent {
 
   constructor(aggId: string, payload: LedgerTransactionPostedEventPayload) {
     super(aggId);
+    this.msgKey = aggId;
     this.payload = payload;
   }
 }
@@ -225,6 +238,7 @@ export class LedgerTransferReservedEvent extends LedgerDomainEvent {
 
   constructor(aggId: string, payload: LedgerTransferResponseEventPayload) {
     super(aggId);
+    this.msgKey = aggId;
     this.payload = payload;
     this.requestId = payload.requestId;
   }
@@ -235,6 +249,7 @@ export class LedgerTransferInsufficientFundsErrorEvent extends LedgerDomainEvent
 
   constructor(aggId: string, requestId: string, transactionId: string) {
     super(aggId);
+    this.msgKey = aggId;
     this.payload = {
       requestId: requestId,
       transactionId: transactionId,
@@ -250,6 +265,7 @@ export class LedgerTransferCommitedEvent extends LedgerDomainEvent {
 
   constructor(aggId: string, payload: LedgerTransferResponseEventPayload) {
     super(aggId);
+    this.msgKey = aggId;
     this.payload = payload;
     this.requestId = payload.requestId;
   }
@@ -261,6 +277,7 @@ export class LedgerTransferRejectedEvent extends LedgerDomainEvent {
 
   constructor(aggId: string, payload: LedgerTransferResponseEventPayload) {
     super(aggId);
+    this.msgKey = aggId;
     this.payload = payload;
     this.requestId = payload.requestId;
   }

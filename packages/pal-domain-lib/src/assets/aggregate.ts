@@ -1,22 +1,34 @@
 import { AssetNotFoundError, CannotCreateDuplicateAssetError } from './errors';
 import { IPalAssetRepository } from './interfaces';
 import { PalAsset } from './entity';
-import { IPalAssetDto } from 'pal-public-types-lib';
-import { ILogger, IMessageProducer } from 'common-types-lib';
+import {
+  AssetActivatedEvent,
+  AssetCreatedEvent,
+  IPalAssetDto,
+  LedgerDomainEvent
+} from 'pal-public-types-lib';
+import { ILogger } from 'common-types-lib';
 
 export class AssetAggregate {
   private readonly _logger: ILogger;
   private readonly _repo: IPalAssetRepository;
-  private readonly _msgProducer: IMessageProducer;
+  private readonly _uncommittedDomainEvents: LedgerDomainEvent[];
 
   constructor(
     repo: IPalAssetRepository,
-    msgProducer: IMessageProducer,
     logger: ILogger
   ) {
     this._logger = logger;
     this._repo = repo;
-    this._msgProducer = msgProducer;
+    this._uncommittedDomainEvents = [];
+  }
+
+  get uncommittedDomainEvents(): LedgerDomainEvent[] {
+    return this._uncommittedDomainEvents;
+  }
+
+  clearUncommittedDomainEvents(): void {
+    this._uncommittedDomainEvents.length = 0;
   }
 
   async createAsset(
@@ -28,6 +40,7 @@ export class AssetAggregate {
     const existing = await this._repo.fetch(code);
 
     if (existing) {
+      this._logger.warn(`Asset with code: ${code} already exists`);
       throw new CannotCreateDuplicateAssetError(
         'Asset with code: ' + code + ' already exists'
       );
@@ -43,9 +56,13 @@ export class AssetAggregate {
     );
 
     await this._repo.store(newAsset.toDto());
+    this._uncommittedDomainEvents.push(
+      new AssetCreatedEvent({assetCode: code})
+    );
+    this._logger.debug(`Asset with code: ${code} created`);
   }
 
-  async associateLedgerAccount(
+  async associateLedgerAccountAndActivate(
     assetCode: string,
     ledgerAccountId: string
   ): Promise<void> {
@@ -58,6 +75,10 @@ export class AssetAggregate {
     const asset = PalAsset.fromDto(found);
     asset.associateLedgerAccount(ledgerAccountId);
     await this._repo.store(asset.toDto());
+
+    this._uncommittedDomainEvents.push(
+      new AssetActivatedEvent({assetCode: assetCode})
+    );
   }
 
   async getAsset(code: string): Promise<IPalAssetDto | null> {

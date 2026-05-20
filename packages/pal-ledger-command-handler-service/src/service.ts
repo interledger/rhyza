@@ -13,14 +13,13 @@ import {
   LedgerAggregate
 } from 'pal-domain-lib';
 import {
-  CreateLedgerAccountCmdSerde,
-  CreateLedgerAccountForPeerCmdSerde,
+  CreateLedgerAccountsForPeerCmdSerde,
   CreateLedgerAccountForAssetCmdSerde,
   CreateLedgerCmdSerde,
   KafkaLedgerEventSourcingRepository,
-  LedgerAccountCreatedStateEventSerde,
   LedgerCreatedStateEventSerde,
-  LedgerSnapshotSerde
+  LedgerSnapshotSerde,
+  LedgerAccountsCreatedStateEventSerde
 } from 'pal-implementations-lib';
 import { LedgerTransactionRecordedStateEventSerde } from 'pal-implementations-lib';
 import crypto from 'crypto';
@@ -35,11 +34,28 @@ import {
   IMessageProducer,
   IRawMessageSerializerFactory,
   MessageTypes,
+  SnapshotEventTopics,
   StateEventTopics
 } from 'common-types-lib';
 
 const INSTANCE_ID = `ES_LEDGER_POC_SVC__${crypto.randomUUID()}`;
 const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379';
+
+// these params are for non-productive environments, by default we don't create topics
+const CREATE_TOPICS =
+  (process.env['CREATE_TOPICS'] &&
+    process.env['CREATE_TOPICS'].toUpperCase() === 'TRUE') ||
+  false;
+const DEFAULT_PARTITION_COUNT = 3;
+const DEFAULT_ISR = 2;
+const REQUIRED_TOPICS = [
+  SnapshotEventTopics.LedgerSnapshotEvents,
+  StateEventTopics.LedgerStateEvents,
+  DomainEventTopics.LedgerEvents,
+  DomainEventTopics.AssetEvents,
+  DomainEventTopics.PeerEvents,
+  CommandTopics.LedgerCommands
+];
 
 // Message Consumer/Publisher
 const KAFKA_URL =
@@ -92,13 +108,12 @@ export class PalLedgerCommandHandlerService {
         .register(new LedgerSnapshotSerde())
         // state events
         .register(new LedgerCreatedStateEventSerde())
-        .register(new LedgerAccountCreatedStateEventSerde())
+        .register(new LedgerAccountsCreatedStateEventSerde())
         .register(new LedgerTransactionRecordedStateEventSerde())
         // commands
         .register(new CreateLedgerCmdSerde())
-        .register(new CreateLedgerAccountCmdSerde())
         .register(new CreateLedgerAccountForAssetCmdSerde())
-        .register(new CreateLedgerAccountForPeerCmdSerde());
+        .register(new CreateLedgerAccountsForPeerCmdSerde());
 
       msgSerializationFactory = MessageSerializationFactory.instance();
     }
@@ -113,16 +128,21 @@ export class PalLedgerCommandHandlerService {
     }
     this._kafkaBuilder = kafkaBuilder;
 
-    if (!esRepo) {
-      // TODO remove
-      // const admin = this._kafkaBuilder.buildAdmin();
-      // await admin.createTopics([
-      //   SnapshotEventTopics.LedgerSnapshotEvents,
-      //   StateEventTopics.LedgerStateEvents,
-      //   DomainEventTopics.LedgerEvents,
-      //   CommandTopics.LedgerCommands
-      // ]);
+    if (CREATE_TOPICS) {
+      const topicsToCreate = REQUIRED_TOPICS.map((topicName) => {
+        return {
+          topic: topicName,
+          numPartitions: DEFAULT_PARTITION_COUNT,
+          replicationFactor: DEFAULT_ISR
+        };
+      });
+      const admin = this._kafkaBuilder.buildAdmin();
+      await admin.connect();
+      // if the topics already exist, this won't have an effect
+      await admin.createTopics(topicsToCreate);
+    }
 
+    if (!esRepo) {
       const kafkaEsRepo = new KafkaLedgerEventSourcingRepository(
         this._kafkaBuilder,
         kafkaProducerCommonOptions,

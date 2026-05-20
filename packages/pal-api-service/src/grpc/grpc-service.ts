@@ -19,15 +19,14 @@ import {
   WalletAddressAliasNotFoundError
 } from 'pal-domain-lib';
 import {
+  AssetActivatedEvent,
   HealthCheckRequest,
   HealthCheckResponse,
   HealthService,
-  LedgerAccountCreatedEvent,
   LedgerAccountCreatedForAssetEvent,
-  LedgerAccountCreatedForPeerEvent,
-  LedgerAccountCreationFailedEvent,
+  LedgerAccountsCreatedForPeerEvent,
   LedgerCreationFailedEvent,
-  PalGrpcService
+  PalGrpcService, PeerActivatedEvent
 } from 'pal-public-types-lib';
 import {
   DomainEvent,
@@ -145,8 +144,6 @@ export class PalGrpcServer {
 
     this._ledgerGrpcHandler = new LedgerGrpcHandler(
       this._ledgerReadSideRepo,
-      this._responseRegistry,
-      this._msgProducer,
       this._logger
     );
 
@@ -164,7 +161,7 @@ export class PalGrpcServer {
       'grpc.max_connection_age_grace_ms': 60_000,
       // Ping the client every 10 seconds to ensure the connection is still active
       'grpc.keepalive_time_ms': DEFAULT_GRPC_KEEPALIVE_TIME_MS,
-      // Wait 5 second for the ping ack before assuming the connection is dead
+      // Wait 5 seconds for the ping ack before assuming the connection is dead
       'grpc.keepalive_timeout_ms': DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS,
       // send pings even without active streams
       'grpc.keepalive_permit_without_calls': 1
@@ -332,7 +329,7 @@ export class PalGrpcServer {
     );
 
     // ledger requests
-    this._requestHandlerRegistry.register(
+    /* this._requestHandlerRegistry.register(
       PalGrpcService.createLedger,
       this._ledgerGrpcHandler.handleCreateLedgerRequest.bind(
         this._ledgerGrpcHandler
@@ -345,7 +342,7 @@ export class PalGrpcServer {
         this._ledgerGrpcHandler
       ),
       true
-    );
+    );*/
     this._requestHandlerRegistry.register(
       PalGrpcService.getLedgerAccounts,
       this._ledgerGrpcHandler.handleGetLedgerAccountsRequest.bind(
@@ -356,29 +353,15 @@ export class PalGrpcServer {
 
   private _registerEventHandlers() {
     this._eventHandlerRegistry.register(
-      [LedgerCreatedEvent.name, LedgerCreationFailedEvent.name],
-      this._ledgerGrpcHandler.handleCreateLedgerResponseEvent.bind(
-        this._ledgerGrpcHandler
-      )
-    );
-
-    this._eventHandlerRegistry.register(
-      [LedgerAccountCreatedEvent.name, LedgerAccountCreationFailedEvent.name],
-      this._ledgerGrpcHandler.handleCreateLedgerAccountResponseEvent.bind(
-        this._ledgerGrpcHandler
-      )
-    );
-
-    this._eventHandlerRegistry.register(
-      [LedgerAccountCreatedForAssetEvent.name],
-      this._assetGrpcHandler.handleLedgerAccountCreatedForAssetEvent.bind(
+      [AssetActivatedEvent.name],
+      this._assetGrpcHandler.handleAssetActivatedEvent.bind(
         this._assetGrpcHandler
       )
     );
 
     this._eventHandlerRegistry.register(
-      [LedgerAccountCreatedForPeerEvent.name],
-      this._peerGrpcHandler.handleLedgerAccountCreatedForPeerEvent.bind(
+      [PeerActivatedEvent.name],
+      this._peerGrpcHandler.handlePeerActivatedEvent.bind(
         this._peerGrpcHandler
       )
     );
@@ -407,14 +390,12 @@ export class PalGrpcServer {
       return;
     }
     const domainEvent = message as DomainEvent;
-
-    const requestId = domainEvent.requestId;
-    if (!requestId) {
+    if (!domainEvent.requestId) {
       return;
     }
 
     // Not ours — a different API instance holds the pending callback
-    const pending = this._responseRegistry.get(requestId);
+    const pending = this._responseRegistry.get(domainEvent.requestId);
     if (!pending) {
       return;
     }
@@ -423,18 +404,18 @@ export class PalGrpcServer {
       domainEvent.msgName
     );
 
-    if (handlerFunc) {
-      await handlerFunc(pending, domainEvent);
+    if (!handlerFunc) {
+      this._logger.warn(
+        `Unhandled response event with pending waiting — msgName: ${message.msgName}, requestId: ${domainEvent.requestId}`
+      );
+      this._responseRegistry.resolve(pending, {
+        code: grpc.status.UNIMPLEMENTED,
+        message: 'Method not implemented'
+      });
       return;
     }
 
-    this._logger.warn(
-      `Unknown response event — msgName: ${message.msgName}, requestId: ${requestId}`
-    );
-    this._responseRegistry.resolve(pending, {
-      code: grpc.status.UNIMPLEMENTED,
-      message: 'Method not implemented'
-    });
+    await handlerFunc(pending, domainEvent);
   }
 
   // region health check handlers
@@ -494,7 +475,7 @@ export class PalGrpcServer {
       ) {
         callback({
           code: grpc.status.NOT_FOUND,
-          message: err.message
+          message: (err as Error).message
         });
       } else if (err instanceof Error) {
         callback({

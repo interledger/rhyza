@@ -10,9 +10,8 @@ import {
 import { PalGrpcServer } from './grpc/grpc-service';
 import process from 'process';
 import {
-  CreateLedgerAccountCmdSerde,
   CreateLedgerAccountForAssetCmdSerde,
-  CreateLedgerAccountForPeerCmdSerde,
+  CreateLedgerAccountsForPeerCmdSerde,
   CreateLedgerCmdSerde,
   MongoDbAssetRepo,
   MongoDbLedgerReadSideRepo,
@@ -20,10 +19,14 @@ import {
   MongoDbWalletRepo
 } from 'pal-implementations-lib';
 import {
+  CommandTopics,
+  DomainEventTopics,
   ILogger,
   IMessageConsumer,
   IMessageProducer,
-  IRawMessageSerializerFactory
+  IRawMessageSerializerFactory,
+  SnapshotEventTopics,
+  StateEventTopics
 } from 'common-types-lib';
 import {
   IKafkaBuilder,
@@ -64,6 +67,22 @@ const kafkaConsumerCommonOptions: KafkaConsumerOptions = {
 
 const MONGO_URL = process.env['MONGO_URL'] || 'mongodb://localhost:27017/';
 
+// these params are for non-productive environments, by default we don't create topics
+const CREATE_TOPICS =
+  (process.env['CREATE_TOPICS'] &&
+    process.env['CREATE_TOPICS'].toUpperCase() === 'TRUE') ||
+  false;
+const DEFAULT_PARTITION_COUNT = 3;
+const DEFAULT_ISR = 2;
+const REQUIRED_TOPICS = [
+  SnapshotEventTopics.LedgerSnapshotEvents,
+  StateEventTopics.LedgerStateEvents,
+  DomainEventTopics.LedgerEvents,
+  DomainEventTopics.AssetEvents,
+  DomainEventTopics.PeerEvents,
+  CommandTopics.LedgerCommands
+];
+
 export class PalApiService {
   private static _logger: ILogger;
   private static _msgSerializationFactory: IRawMessageSerializerFactory;
@@ -96,9 +115,8 @@ export class PalApiService {
       MessageSerializationFactory.instance()
         // we only need the commands
         .register(new CreateLedgerCmdSerde())
-        .register(new CreateLedgerAccountCmdSerde())
         .register(new CreateLedgerAccountForAssetCmdSerde())
-        .register(new CreateLedgerAccountForPeerCmdSerde());
+        .register(new CreateLedgerAccountsForPeerCmdSerde());
 
       msgSerializationFactory = MessageSerializationFactory.instance();
     }
@@ -112,6 +130,20 @@ export class PalApiService {
         .withSerializerFactory(this._msgSerializationFactory);
     }
     this._kafkaBuilder = kafkaBuilder;
+
+    if (CREATE_TOPICS) {
+      const topicsToCreate = REQUIRED_TOPICS.map((topicName) => {
+        return {
+          topic: topicName,
+          numPartitions: DEFAULT_PARTITION_COUNT,
+          replicationFactor: DEFAULT_ISR
+        };
+      });
+      const admin = this._kafkaBuilder.buildAdmin();
+      await admin.connect();
+      // if the topics already exist, this won't have an effect
+      await admin.createTopics(topicsToCreate);
+    }
 
     if (!assetRepo) {
       assetRepo = new MongoDbAssetRepo(MONGO_URL, logger);
@@ -148,17 +180,16 @@ export class PalApiService {
 
     // create aggregates driven by this gRPC port
     const assetAggregate = new AssetAggregate(
-      this._assetRepo,
-      this._producer,
-      this._logger
-    );
-    const walletAggregate = new WalletAddressAggregate(
-      this._walletRepo,
-      this._producer,
-      this._logger
+      this._assetRepo, this._logger
     );
 
-    const peerAggregate = new PeerAggregate(this._peerRepo, this._logger);
+    const walletAggregate = new WalletAddressAggregate(
+      this._walletRepo, this._logger
+    );
+
+    const peerAggregate = new PeerAggregate(
+      this._peerRepo, this._logger
+    );
 
     this.grpcService = new PalGrpcServer(
       INSTANCE_ID,

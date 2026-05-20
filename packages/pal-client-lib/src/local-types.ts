@@ -31,3 +31,7 @@ export class PalClientLedgerNotFoundError extends Error {}
 export class PalClientLedgerAlreadyExistsError extends Error {}
 export class PalClientLedgerAccountAlreadyExistsError extends Error {}
 export class PalClientLedgerAccountCreationFailedError extends Error {}
+
+// peer errors
+export class PalClientPeerAlreadyExistsError extends Error {}
+export class PalClientPeerNotFoundError extends Error {}

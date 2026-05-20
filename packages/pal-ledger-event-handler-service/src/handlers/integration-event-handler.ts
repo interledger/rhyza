@@ -4,15 +4,17 @@ import {
   IMessageConsumer,
   IMessage,
   DomainEventTopics,
-  DomainEvent
+  DomainEvent, MessageTypes
 } from 'common-types-lib';
 
+/**
+ * External event handler for processing integration events from other bounded contexts
+ */
 export class IntegrationEventHandler {
   private readonly _logger: ILogger;
   private readonly _msgConsumer: IMessageConsumer;
   private readonly _msgProducer: IMessageProducer;
   private readonly _pendingMessages: IMessage[] = [];
-  private readonly _internalEventTopics: string[] = [];
 
   constructor(
     messageConsumer: IMessageConsumer,
@@ -22,26 +24,18 @@ export class IntegrationEventHandler {
     this._logger = logger;
     this._msgConsumer = messageConsumer;
     this._msgProducer = msgProducer;
-
-    this._internalEventTopics.push(
-      ...[
-        DomainEventTopics.PeerEvents,
-        DomainEventTopics.AssetEvents,
-        DomainEventTopics.WalletAddressEvents,
-        DomainEventTopics.LedgerEvents
-      ]
-    );
   }
 
-  private async _handleIntegrationMessages(messages: IMessage[]) {
-    this._logger.info(`Received ${messages.length} messages`);
+  private async _handleMessageBatch(messages: IMessage[]) {
+    this._logger.info(`Received batch of ${messages.length} messages`);
+    // NOTE: we shouldn't log ignored events, they can be the majority
 
     for (const msg of messages) {
-      if (this._internalEventTopics.includes(msg.msgTopic)) {
-        await this._handleInternalBcEvents(msg as DomainEvent);
-      } else {
-        await this._handleExternalEvents(msg as DomainEvent);
+      if(msg.msgType !== MessageTypes.DOMAIN_EVENT){
+        continue;
       }
+
+      await this._handleEvent(msg as DomainEvent);
     }
 
     if (this._pendingMessages.length > 0) {
@@ -53,12 +47,7 @@ export class IntegrationEventHandler {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async _handleInternalBcEvents(evt: DomainEvent): Promise<void> {
-    // nothing yet
-  }
-
-  private async _handleExternalEvents(evt: DomainEvent): Promise<void> {
+  private async _handleEvent(evt: DomainEvent): Promise<void> {
     // TODO use correct event class names from the payments public types lib
     //  (right now they are in the payments domain lib)
 
@@ -69,17 +58,22 @@ export class IntegrationEventHandler {
       // create a CommitTransferCmd
     } else if (evt.msgName === 'PaymentCreateFailedEvent') {
       // create a RejectTransferCmd
+    } else if (evt.msgName === 'RemoteQuoteRequestedEvent') {
+      // from payments - to ILP
+      /*
+      * 1. resolve peer and determine FX (fx for now is 1)
+      * 2. publish a PeerResolvedForRemoteQuoteEvent
+      * */
     }
-    // NOTE: we shouldn't log ignored events, they can be the majority
   }
 
   async init(): Promise<void> {
     this._msgConsumer.setTopics([
       DomainEventTopics.PaymentEvents,
-      DomainEventTopics.AssetEvents
+      DomainEventTopics.IlpEvents
     ]);
     this._msgConsumer.setBatchCallbackFn(
-      this._handleIntegrationMessages.bind(this)
+      this._handleMessageBatch.bind(this)
     );
     await this._msgConsumer.connect();
     await this._msgConsumer.startAndWaitForRebalance();

@@ -1,5 +1,5 @@
-export * from './ledger';
-export * from './ledger-aggregate';
+export * from './entities/ledger';
+export * from './aggregate';
 export * from './interfaces';
 export * from './entities/transaction';
 export * from './entities/ledger-account';

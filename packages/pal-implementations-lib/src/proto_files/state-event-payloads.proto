@@ -19,8 +19,8 @@ message PbLedgerSnapshotPayload{
     uint32 asset_scale = 3;
 }
 
-message PbLedgerAccountCreatedStatePayload{
-    PbLedgerAccountState account = 1;
+message PbLedgerAccountsCreatedStatePayload{
+    repeated PbLedgerAccountState accounts = 1;
 }
 
 message PbLedgerCreatedStatePayload{

@@ -1,4 +1,4 @@
-import { ILogger } from 'common-types-lib';
+import {ILogger} from 'common-types-lib';
 import { IPalPeerRepository } from './interfaces';
 import {
   CannotCreateDuplicatePeerError,
@@ -6,22 +6,34 @@ import {
   PeerAlreadyInactiveError,
   PeerNotFoundError
 } from './errors';
-import { IPalPeerCommunicationMethod, PalPeer } from './entity';
+import { IPalPeerCommunicationMethodDefinition, PalPeer } from './entity';
+import {LedgerDomainEvent, PeerActivatedEvent, PeerCreatedEvent} from "pal-public-types-lib";
 
 export class PeerAggregate {
   private readonly _logger: ILogger;
   private readonly _repo: IPalPeerRepository;
+  private readonly _uncommittedDomainEvents: LedgerDomainEvent[];
 
   constructor(repo: IPalPeerRepository, logger: ILogger) {
     this._logger = logger;
     this._repo = repo;
+    this._uncommittedDomainEvents = [];
+  }
+
+  get uncommittedDomainEvents(): LedgerDomainEvent[] {
+    return this._uncommittedDomainEvents;
+  }
+
+  clearUncommittedDomainEvents(): void {
+    this._uncommittedDomainEvents.length = 0;
   }
 
   async createPeer(
     peerId: string,
     name: string,
     assetCode: string,
-    assetScale: number
+    assetScale: number,
+    commMethod: IPalPeerCommunicationMethodDefinition
   ): Promise<void> {
     const existing = await this._repo.fetch([peerId]);
 
@@ -30,11 +42,15 @@ export class PeerAggregate {
         'Peer with id: ' + peerId + ' already exists'
       );
     }
-    // TODO: check duplicate peer name?
 
     const peer = new PalPeer(peerId, name, assetCode, assetScale);
+    peer.setCommunicationMethodDefinition(commMethod);
 
-    return this._repo.store(peer.toDto());
+    await this._repo.store(peer.toDto());
+    this._uncommittedDomainEvents.push(
+      new PeerCreatedEvent({peerId: peerId, assetCode: assetCode})
+    );
+    this._logger.debug(`Peer ${peerId} and assetCode: ${assetCode} created`);
   }
 
   async getPeer(peerId: string): Promise<PalPeer | null> {
@@ -60,18 +76,19 @@ export class PeerAggregate {
     return PalPeer.fromDto(found);
   }
 
-  async setCommunicationMethod(
+  async setCommunicationMethodDefinition(
     peerId: string,
-    commMethod: IPalPeerCommunicationMethod
+    commMethod: IPalPeerCommunicationMethodDefinition
   ) {
     const found = await this._repo.fetch([peerId]);
 
     if (found.length == 0) {
+      this._logger.warn(`Peer with id: ${peerId} not found in setCommunicationMethodDefinition()`);
       throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
     }
 
     const peer = PalPeer.fromDto(found[0]);
-    peer.setCommunicationMethod(commMethod);
+    peer.setCommunicationMethodDefinition(commMethod);
 
     this._logger.info(
       `Peer ${peerId} communication method updated to ${commMethod}`
@@ -79,25 +96,42 @@ export class PeerAggregate {
     await this._repo.store(peer.toDto());
   }
 
-  async associateLedgerAccount(
+  async associateLedgerAccountsAndActivate(
     peerId: string,
-    ledgerAccountId: string
+    peerLiquidityAccId: string,
+    peerClearingAccId: string,
+    aseLiquidityAccId: string,
+    aseClearingAccId: string,
+    suspenseAccId: string
   ): Promise<void> {
     const found = await this._repo.fetch([peerId]);
 
     if (found.length == 0) {
+      this._logger.warn(`Peer with id: ${peerId} not found in associateLedgerAccountsAndActivate()`);
       throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
     }
 
     const peer = PalPeer.fromDto(found[0]);
-    peer.associateLedgerAccount(ledgerAccountId);
+    peer.associateLedgerAccounts(
+      peerLiquidityAccId, peerClearingAccId, aseLiquidityAccId,
+      aseClearingAccId, suspenseAccId
+    );
+    peer.activate();
+
     await this._repo.store(peer.toDto());
+
+    this._uncommittedDomainEvents.push(
+      new PeerActivatedEvent({peerId: peerId})
+    );
+
+    this._logger.debug(`Peer ${peerId} and assetCode: ${peer.assetCode} now has ledger accounts associated and has been activated`);
   }
 
   async activate(peerId: string): Promise<void> {
     const found = await this._repo.fetch([peerId]);
 
     if (found.length == 0) {
+      this._logger.warn(`Peer with id: ${peerId} not found in activate()`);
       throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
     }
 
@@ -116,6 +150,7 @@ export class PeerAggregate {
     const found = await this._repo.fetch([peerId]);
 
     if (found.length == 0) {
+      this._logger.warn(`Peer with id: ${peerId} not found in deactivate()`);
       throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
     }
 

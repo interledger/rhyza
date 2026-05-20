@@ -1,4 +1,4 @@
-import { Ledger } from './ledger';
+import { Ledger } from './entities/ledger';
 import { CreateLedgerCmd, LedgerCommand } from './messages/commands';
 import { LedgerCreatedStateEvent, LedgerStateEvent } from './messages/events';
 import console from 'node:console';

@@ -17,10 +17,14 @@ message PbCreateLedgerAccountForAssetCmdPayload{
   string asset_code = 2;
 }
 
-message PbCreateLedgerAccountForPeerCmdPayload{
-  string account_id = 1;
+message PbCreateLedgerAccountsForPeerCmdPayload{
+  string peer_id = 1;
   string asset_code = 2;
-  string peer_id = 3;
+  string peer_liquidity_account_id = 3;
+  string peer_clearing_account_id = 4;
+  string ase_liquidity_account_id = 5;
+  string ase_clearing_account_id = 6;
+  string suspense_account_id = 7;
 }
 
 message PbPostTransactionCmdPayload{

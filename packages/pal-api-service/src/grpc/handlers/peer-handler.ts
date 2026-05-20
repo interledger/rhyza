@@ -1,9 +1,9 @@
-import { ILogger, IMessageProducer } from 'common-types-lib';
+import {ILogger, IMessage, IMessageProducer} from 'common-types-lib';
 import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js';
 import { Status } from '@grpc/grpc-js/build/src/constants';
 import { PendingResponseRegistry } from '../registries/pending-response-registry';
 import {
-  CreateLedgerAccountForPeerCmd,
+  CreateLedgerAccountsForPeerCmd,
   PalPeer,
   PeerAggregate,
   PeerAlreadyActiveError,
@@ -15,12 +15,12 @@ import crypto from 'crypto';
 
 import { PendingResponse, UnaryResponse } from '../types';
 import {
-  LedgerAccountCreatedForPeerEvent,
+  LedgerAccountsCreatedForPeerEvent,
   PbDeactivatePeerRequest,
   PbPeer,
   PbGetPeerResponse,
-  PbPeerCommsMethod,
-  PbGetPeerRequest
+  PbGetPeerRequest,
+  PbPeerCommsMethodDefinition, PbPeerLedgerAccounts, AssetActivatedEvent, PeerActivatedEvent
 } from 'pal-public-types-lib';
 import {
   PbActivatePeerRequest,
@@ -68,14 +68,19 @@ export class PeerGrpcHandler {
     pbPeer.setAssetScale(peer.assetScale);
     pbPeer.setActive(peer.active);
 
-    if (peer.ledgerAccountId !== null) {
-      pbPeer.setLedgerAccountId(peer.ledgerAccountId);
+    if (peer.ledgerAccounts !== null) {
+      const pbAccounts = new PbPeerLedgerAccounts();
+      pbAccounts.setPeerLiquidityAccountId(peer.ledgerAccounts.peerLiquidityAccId);
+      pbAccounts.setPeerClearingAccountId(peer.ledgerAccounts.peerClearingAccId);
+      pbAccounts.setAseLiquidityAccountId(peer.ledgerAccounts.aseLiquidityAccId)
+
+      pbPeer.setLedgerAccounts(pbAccounts);
     }
     if (peer.communicationMethod !== null) {
-      const pbCommsMethod = new PbPeerCommsMethod();
+      const pbCommsMethod = new PbPeerCommsMethodDefinition();
       pbCommsMethod.setCommsType(peer.communicationMethod.type);
       pbCommsMethod.setStaticAddress(peer.communicationMethod.staticAddress);
-      pbPeer.setCommsMethod(pbCommsMethod);
+      pbPeer.setCommsMethodDefinition(pbCommsMethod);
     }
 
     resp.setPeer(pbPeer);
@@ -89,41 +94,50 @@ export class PeerGrpcHandler {
   ): Promise<UnaryResponse<void>> {
     const peerId = call.request.getId();
     const assetCode = call.request.getAssetCode();
+    const commsMethod = call.request.getCommsMethodDefinition();
+    if (!commsMethod) {
+      callback({
+        code: Status.INVALID_ARGUMENT,
+        message: `Communication method definition is required - trying to create peer id: ${peerId}`
+      });
+      return;
+    }
 
     await this._peerAggregate.createPeer(
       peerId,
       call.request.getName(),
       assetCode,
-      call.request.getAssetScale()
+      call.request.getAssetScale(),
+      {
+        type: commsMethod.getCommsType() as 'ILP',
+        staticAddress: commsMethod.getStaticAddress()
+      }
     );
 
-    const accountId = crypto.randomUUID();
-    const cmd = new CreateLedgerAccountForPeerCmd(assetCode, {
-      id: accountId,
-      assetCode: assetCode,
-      peerId: peerId
-    });
-    cmd.requestId = crypto.randomUUID();
-    await this._msgProducer.send(cmd);
-
-    this._responseRegistry.store(cmd.requestId, call, callback);
-  }
-
-  async handleLedgerAccountCreatedForPeerEvent(
-    pendingResp: PendingResponse,
-    event: LedgerAccountCreatedForPeerEvent
-  ): Promise<void> {
-    const peer = await this._peerAggregate.getPeer(event.payload.peerId);
-    if (!peer) {
-      this._responseRegistry.resolve(pendingResp, {
-        code: Status.INTERNAL,
-        message: 'Could not get peer after creating ledger account'
+    if(this._peerAggregate.uncommittedDomainEvents.length == 0){
+      this._logger.warn('No uncommitted domain events after peer creation request');
+      callback({
+        code: Status.UNKNOWN,
+        message: `Error processing peer creation request - trying to create peer id: ${peerId}`
       });
       return;
     }
 
-    // update the asset with the ledger account id
-    await this._peerAggregate.associateLedgerAccount(peer.id, event.payload.id);
+    // make sure the request id is passed on to any outgoing events
+    const requestId = crypto.randomUUID();
+    this._responseRegistry.store(requestId, call, callback);
+
+    this._peerAggregate.uncommittedDomainEvents.every(
+      evt =>{evt.requestId = requestId}
+    );
+    await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
+    this._peerAggregate.clearUncommittedDomainEvents();
+  }
+
+  async handlePeerActivatedEvent(
+    pendingResp: PendingResponse,
+    event: PeerActivatedEvent
+  ): Promise<void> {
 
     // respond to the client
     this._responseRegistry.resolve(pendingResp, null, new Empty());
@@ -162,13 +176,18 @@ export class PeerGrpcHandler {
     }
 
     try {
-      await this._peerAggregate.setCommunicationMethod(
+      await this._peerAggregate.setCommunicationMethodDefinition(
         call.request.getPeerId(),
         {
           type: commsMethod.getCommsType() as 'ILP',
           staticAddress: commsMethod.getStaticAddress()
         }
       );
+
+      if(this._peerAggregate.uncommittedDomainEvents.length > 0){
+        await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
+        this._peerAggregate.clearUncommittedDomainEvents();
+      }
 
       return { resp: new Empty() };
     } catch (e) {
@@ -191,6 +210,12 @@ export class PeerGrpcHandler {
 
     try {
       await this._peerAggregate.activate(peerId);
+
+      if(this._peerAggregate.uncommittedDomainEvents.length > 0){
+        await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
+        this._peerAggregate.clearUncommittedDomainEvents();
+      }
+
       return { resp: new Empty() };
     } catch (e) {
       if (e instanceof PeerNotFoundError) {
@@ -220,6 +245,12 @@ export class PeerGrpcHandler {
 
     try {
       await this._peerAggregate.deactivate(peerId);
+
+      if(this._peerAggregate.uncommittedDomainEvents.length > 0){
+        await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
+        this._peerAggregate.clearUncommittedDomainEvents();
+      }
+
       return { resp: new Empty() };
     } catch (e) {
       if (e instanceof PeerNotFoundError) {

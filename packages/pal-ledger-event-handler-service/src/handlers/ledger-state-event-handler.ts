@@ -7,19 +7,19 @@ import {
   StateEventTopics
 } from 'common-types-lib';
 import {
-  ILedger,
   ILedgerAccount,
   ILedgerEventSourcingRepository,
   ILedgerTransaction,
   Ledger,
-  LedgerAccountCreatedStateEvent,
   LedgerAggregate,
   LedgerSnapshotEvent,
   LedgerStateEvent,
   LedgerTransactionDtoSerializer,
   LedgerTransactionRecordedStateEvent,
-  ILedgerReadSideRepository
+  ILedgerReadSideRepository,
+  LedgerAccountsCreatedStateEvent, LedgerAccountDtoSerializer
 } from 'pal-domain-lib';
+import {ILedgerDto} from "pal-public-types-lib";
 
 export type LedgerStateEventHandlerConfigs = {
   maxStateEventsBetweenSnapshots: number;
@@ -42,7 +42,7 @@ export class LedgerStateEventHandler {
   private readonly _messageConsumer: IMessageConsumer;
   private readonly _readSideRepo: ILedgerReadSideRepository;
 
-  private readonly _createdLedgers: ILedger[] = [];
+  private readonly _createdLedgers: ILedgerDto[] = [];
   private readonly _changedAccounts: Map<string, ILedgerAccount> = new Map<
     string,
     ILedgerAccount
@@ -116,7 +116,7 @@ export class LedgerStateEventHandler {
     stateEvents: LedgerStateEvent[]
   ) {
     if (!this._createdLedgers.find((l) => l.id === ledger.id)) {
-      this._createdLedgers.push(ledger);
+      this._createdLedgers.push(ledger.toDTO());
     }
 
     const transactions: ILedgerTransaction[] = stateEvents
@@ -128,9 +128,14 @@ export class LedgerStateEventHandler {
 
     // find affected accounts and add them to the list of changed accounts
     // starting with created accounts
-    const changedAccountIds: string[] = stateEvents
-      .filter((e) => e.msgName === LedgerAccountCreatedStateEvent.name)
-      .map((e: LedgerAccountCreatedStateEvent) => e.payload.account.id);
+    const createAccsEvents = stateEvents.filter(
+      (e) => e.msgName === LedgerAccountsCreatedStateEvent.name
+    );
+    const changedAccountIds: string[] = createAccsEvents.flatMap(
+      (stateEvt: LedgerAccountsCreatedStateEvent) =>
+        stateEvt.payload.accounts.map((item) => item.id)
+    );
+
     transactions.forEach((tx) => {
       changedAccountIds.push(...[tx.debitedAccountId, tx.creditedAccountId]);
     });
@@ -181,7 +186,7 @@ export class LedgerStateEventHandler {
       this._uncommittedSnapshots.length = 0; //reset state
     }
 
-    // persist the read side projections if changed
+    // persist the read side projections for anything that has changed
     if (this._createdLedgers.length > 0) {
       await this._readSideRepo.storeLedgers(this._createdLedgers);
       this._logger.debug(
@@ -191,17 +196,18 @@ export class LedgerStateEventHandler {
     }
 
     if (this._changedAccounts.size) {
-      await this._readSideRepo.storeLedgerAccounts(
-        Array.from(this._changedAccounts.values())
-      );
+      await this._readSideRepo.storeLedgerAccounts(Array.from(this._changedAccounts.values()).map(
+        LedgerAccountDtoSerializer.toDTO
+      ));
       this._logger.debug(
         `Updated read side projections for ${this._changedAccounts.size} accounts`
       );
       this._changedAccounts.clear();
     }
     if (this._createdTransactions.length > 0) {
+
       await this._readSideRepo.storeLedgerTransactions(
-        this._createdTransactions
+        this._createdTransactions.map(LedgerTransactionDtoSerializer.toDTO)
       );
       this._logger.debug(
         `Updated read side projections for ${this._createdTransactions.length} transactions`

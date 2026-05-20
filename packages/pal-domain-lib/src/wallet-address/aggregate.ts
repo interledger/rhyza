@@ -6,9 +6,9 @@ import {
 import { IPalWalletAddressRepository } from './interfaces';
 import { PalWalletAddress } from './entities/wallet-address';
 import crypto from 'node:crypto';
-import { ILogger, IMessageProducer } from 'common-types-lib';
+import { ILogger } from 'common-types-lib';
 import {
-  IPalWalletAddressDto,
+  IPalWalletAddressDto, LedgerDomainEvent,
   WalletAddressAliasCreatedEvent,
   WalletAddressCreatedEvent
 } from 'pal-public-types-lib';
@@ -16,16 +16,23 @@ import {
 export class WalletAddressAggregate {
   private readonly _logger: ILogger;
   private _repo: IPalWalletAddressRepository;
-  private readonly _msgProducer: IMessageProducer;
+  private readonly _uncommittedDomainEvents: LedgerDomainEvent[];
 
   constructor(
     repo: IPalWalletAddressRepository,
-    msgProducer: IMessageProducer,
     logger: ILogger
   ) {
     this._logger = logger;
     this._repo = repo;
-    this._msgProducer = msgProducer;
+    this._uncommittedDomainEvents = [];
+  }
+
+  get uncommittedDomainEvents(): LedgerDomainEvent[] {
+    return this._uncommittedDomainEvents;
+  }
+
+  clearUncommittedDomainEvents(): void {
+    this._uncommittedDomainEvents.length = 0;
   }
 
   async createWalletAddress(
@@ -39,6 +46,7 @@ export class WalletAddressAggregate {
     const alias = await this.resolveWalletAddressAlias(domain, pathName);
 
     if (alias) {
+      this._logger.warn(`Wallet Address with that domain and pathName ${domain}/${pathName} already exists`)
       throw new CannotCreateDuplicateWalletAddressError(
         `Wallet Address with that domain and pathName ${domain}/${pathName} already exists`
       );
@@ -58,7 +66,7 @@ export class WalletAddressAggregate {
 
     await this._repo.store(newWallet.toDto());
 
-    await this._msgProducer.send(
+    this._uncommittedDomainEvents.push(
       new WalletAddressCreatedEvent({
         id: newWallet.id,
         domain: domain,
@@ -118,7 +126,7 @@ export class WalletAddressAggregate {
 
     await this._repo.store(wallet.toDto());
 
-    await this._msgProducer.send(
+    this._uncommittedDomainEvents.push(
       new WalletAddressAliasCreatedEvent({
         walletId: wallet.id,
         domain: domain,

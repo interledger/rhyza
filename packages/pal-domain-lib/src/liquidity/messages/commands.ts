@@ -16,20 +16,15 @@ export abstract class LedgerCommand extends CommandMsg {
   static isCreateLedgerCmd(cmd: CommandMsg): cmd is CreateLedgerCmd {
     return cmd.msgName === CreateLedgerCmd.name;
   }
-  static isCreateLedgerAccountCmd(
-    cmd: CommandMsg
-  ): cmd is CreateLedgerAccountCmd {
-    return cmd.msgName === CreateLedgerAccountCmd.name;
-  }
   static isCreateLedgerAccountForAssetCmd(
     cmd: CommandMsg
   ): cmd is CreateLedgerAccountForAssetCmd {
     return cmd.msgName === CreateLedgerAccountForAssetCmd.name;
   }
-  static isCreateLedgerAccountForPeerCmd(
+  static isCreateLedgerAccountsForPeerCmd(
     cmd: CommandMsg
-  ): cmd is CreateLedgerAccountForPeerCmd {
-    return cmd.msgName === CreateLedgerAccountForPeerCmd.name;
+  ): cmd is CreateLedgerAccountsForPeerCmd {
+    return cmd.msgName === CreateLedgerAccountsForPeerCmd.name;
   }
 
   static isPostTransactionCmd(cmd: CommandMsg): cmd is PostTransactionCmd {
@@ -68,21 +63,6 @@ export class CreateLedgerCmd extends LedgerCommand {
   }
 }
 
-export type CreateLedgerAccountCmdPayload = {
-  id: string;
-  assetCode: string;
-  name: string;
-  assetDisplayScale?: number; // optional
-  externalId?: string; // optional
-};
-export class CreateLedgerAccountCmd extends LedgerCommand {
-  payload: CreateLedgerAccountCmdPayload;
-  constructor(aggId: string, payload: CreateLedgerAccountCmdPayload) {
-    super(aggId);
-    this.payload = payload;
-  }
-}
-
 export type CreateLedgerAccountForAssetCmdPayload = {
   id: string;
   assetCode: string; // assetCode is used as the acc externalId (being the account for an asset)
@@ -95,14 +75,18 @@ export class CreateLedgerAccountForAssetCmd extends LedgerCommand {
   }
 }
 
-export type CreateLedgerAccountForPeerCmdPayload = {
-  id: string;
-  assetCode: string;
+export type CreateLedgerAccountsForPeerCmdPayload = {
   peerId: string; // peerId is used as the acc externalId
+  assetCode: string;
+  peerLiquidityAccId: string;
+  peerClearingAccId: string;
+  aseLiquidityAccId: string;
+  aseClearingAccId: string;
+  suspenseAccId: string;
 };
-export class CreateLedgerAccountForPeerCmd extends LedgerCommand {
-  payload: CreateLedgerAccountForPeerCmdPayload;
-  constructor(aggId: string, payload: CreateLedgerAccountForPeerCmdPayload) {
+export class CreateLedgerAccountsForPeerCmd extends LedgerCommand {
+  payload: CreateLedgerAccountsForPeerCmdPayload;
+  constructor(aggId: string, payload: CreateLedgerAccountsForPeerCmdPayload) {
     super(aggId);
     this.payload = payload;
   }

@@ -3,12 +3,18 @@ export interface IPalPeerDto {
   name: string;
   assetCode: string;
   assetScale: number;
-
-  ledgerAccountId: string | null;
-
   active: boolean;
-  communicationMethod: null | {
+
+  communicationMethodDefinition: null | {
     type: 'ILP';
     staticAddress: string;
+  };
+
+  ledgerAccounts: null | {
+    peerLiquidityAccId: string;
+    peerClearingAccId: string;
+    aseLiquidityAccId: string;
+    aseClearingAccId: string;
+    suspenseAccId: string;
   };
 }

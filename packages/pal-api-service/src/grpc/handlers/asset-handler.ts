@@ -1,9 +1,15 @@
 import { ILogger, IMessageProducer } from 'common-types-lib';
-import { AssetAggregate, CreateLedgerAccountForAssetCmd } from 'pal-domain-lib';
+import {
+  AssetAggregate,
+  CreateLedgerAccountForAssetCmd,
+  CreateLedgerCmd
+} from 'pal-domain-lib';
 import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js';
 import { Status } from '@grpc/grpc-js/build/src/constants';
 import {
+  AssetActivatedEvent,
   LedgerAccountCreatedForAssetEvent,
+  LedgerCreatedEvent,
   PbCreateAssetRequest
 } from 'pal-public-types-lib';
 import { PendingResponseRegistry } from '../registries/pending-response-registry';
@@ -15,6 +21,7 @@ import {
   PbGetAssetResponse
 } from 'pal-public-types-lib';
 import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
+import crypto from "crypto";
 
 /**
  * Asset related request and event handlers
@@ -44,14 +51,19 @@ export class AssetGrpcHandler {
     pbAssetResp.setCode(asset.code);
     pbAssetResp.setScale(asset.scale);
 
-    if (asset.ledgerAccountId !== null)
+    if (asset.ledgerAccountId !== null) {
       pbAssetResp.setLedgerAccountId(asset.ledgerAccountId);
-    if (asset.liquidityLowThreshold !== null)
+    }
+
+    if (asset.liquidityLowThreshold !== null) {
       pbAssetResp.setLiquidityLowThreshold(Number(asset.liquidityLowThreshold));
-    if (asset.liquidityHighThreshold !== null)
+    }
+
+    if (asset.liquidityHighThreshold !== null) {
       pbAssetResp.setLiquidityHighThreshold(
         Number(asset.liquidityHighThreshold)
       );
+    }
 
     return pbAssetResp;
   }
@@ -73,39 +85,26 @@ export class AssetGrpcHandler {
       highThreshold ? BigInt(highThreshold) : undefined
     );
 
-    const accountId = crypto.randomUUID();
-    const cmd = new CreateLedgerAccountForAssetCmd(assetCode, {
-      id: accountId,
-      assetCode: assetCode
-    });
-    cmd.requestId = crypto.randomUUID();
-    await this._msgProducer.send(cmd);
+    const requestId = crypto.randomUUID();
+    // make sure the request id is passed on to any outgoing events
+    this._responseRegistry.store(requestId, call, callback);
 
-    this._responseRegistry.store(cmd.requestId, call, callback);
+    this._assetAggregate.uncommittedDomainEvents.every(
+      evt =>{evt.requestId = requestId}
+    );
+    await this._msgProducer.send(this._assetAggregate.uncommittedDomainEvents);
+    this._assetAggregate.clearUncommittedDomainEvents();
   }
 
-  async handleLedgerAccountCreatedForAssetEvent(
+  async handleAssetActivatedEvent(
     pendingResp: PendingResponse,
-    event: LedgerAccountCreatedForAssetEvent
+    event: AssetActivatedEvent
   ): Promise<void> {
-    const asset = await this._assetAggregate.getAsset(event.payload.assetCode);
-    if (!asset) {
-      this._responseRegistry.resolve(pendingResp, {
-        code: Status.INTERNAL,
-        message: 'Could not get asset after creating ledger account'
-      });
-      return;
-    }
-
-    // update the asset with the ledger account id
-    await this._assetAggregate.associateLedgerAccount(
-      asset.code,
-      event.payload.id
-    );
 
     // respond to the client
     this._responseRegistry.resolve(pendingResp, null, new Empty());
   }
+
 
   async handleGetAssetRequest(
     call: ServerUnaryCall<PbGetAssetRequest, PbGetAssetResponse>

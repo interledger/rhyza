@@ -32,8 +32,8 @@ export class MongoDbPeerRepo implements IPalPeerRepository {
       active: doc.active,
       assetCode: doc.assetCode,
       assetScale: doc.assetScale,
-      communicationMethod: doc.communicationMethod,
-      ledgerAccountId: doc.ledgerAccountId
+      communicationMethodDefinition: doc.communicationMethodDefinition,
+      ledgerAccounts: doc.ledgerAccounts
     };
   }
 
@@ -89,13 +89,13 @@ export class MongoDbPeerRepo implements IPalPeerRepository {
     await this._client.close();
   }
 
-  async store(walletAddress: IPalPeerDto): Promise<void> {
+  async store(peerDto: IPalPeerDto): Promise<void> {
     this._checkInitialisedOrThrow();
 
     try {
       await this._collection.updateOne(
-        { id: walletAddress.id },
-        { $set: walletAddress },
+        { id: peerDto.id },
+        { $set: peerDto },
         { upsert: true }
       );
       return;
@@ -132,7 +132,7 @@ export class MongoDbPeerRepo implements IPalPeerRepository {
 
     try {
       const doc = await this._collection.findOne({
-        communicationMethod: {
+        communicationMethodDefinition: {
           $elemMatch: { type: commType, staticAddress: staticAddress }
         }
       });

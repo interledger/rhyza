@@ -3,10 +3,8 @@ import { ServiceError } from '@grpc/grpc-js';
 import {
   IGetWalletAddressResponse,
   IPalClientWalletAddress,
-  PalClientLedgerAccountAlreadyExistsError,
-  PalClientLedgerAlreadyExistsError,
-  PalClientLedgerNotFoundError,
-  PalClientLedgerUnknownError,
+  PalClientPeerAlreadyExistsError,
+  PalClientPeerNotFoundError,
   PalClientUnknownError
 } from './local-types';
 import {
@@ -21,12 +19,19 @@ import {
   PalGrpcClient,
   PbResolveWalletAddressAliasRequest,
   PbResolveWalletAddressAliasResponse,
-  PbCreateLedgerRequest,
-  PbCreateLedgerAccountRequest,
   PbGetLedgerAccountsRequest,
   ILedgerAccountDto,
   PbGetLedgerAccountsResponse,
-  IPalAssetDto
+  IPalAssetDto,
+  PbCreatePeerRequest,
+  PbPeerCommsMethodDefinition,
+  IPalPeerDto,
+  PbGetPeerRequest,
+  PbGetPeerResponse,
+  PbGetPeerByIlpAddressRequest,
+  PbSetPeerCommunicationMethodRequest,
+  PbActivatePeerRequest,
+  PbPeer
 } from 'pal-public-types-lib';
 import process from 'process';
 
@@ -38,6 +43,9 @@ const DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS =
   (process.env['DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS'] &&
     parseInt(process.env['DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS'])) ||
   5_000;
+
+// fixed until we have more comms types, then we need an enum on public-types-lib
+const ILP_COMMS_TYPE = 'ILP';
 
 export class PalClient {
   private readonly _serverUrl: string;
@@ -309,55 +317,6 @@ export class PalClient {
    * ledger related functions
    * */
 
-  createLedger(assetCode: string): Promise<void> {
-    const request = new PbCreateLedgerRequest();
-    request.setLedgerAssetCode(assetCode);
-
-    return new Promise((resolve, reject) => {
-      this._grpcClient.createLedger(request, (error: ServiceError | null) => {
-        if (error) {
-          if (error.code == grpc.status.ALREADY_EXISTS) {
-            return reject(new PalClientLedgerAlreadyExistsError(error.message));
-          }
-          return reject(new PalClientLedgerUnknownError(error.message));
-        }
-        return resolve();
-      });
-    });
-  }
-
-  createLedgerAccount(
-    accId: string,
-    assetCode: string,
-    assetDisplayScale: number,
-    name: string
-  ): Promise<void> {
-    const request = new PbCreateLedgerAccountRequest();
-    request.setId(accId);
-    request.setAssetCode(assetCode);
-    request.setAssetDisplayScale(assetDisplayScale);
-    request.setName(name);
-
-    return new Promise((resolve, reject) => {
-      this._grpcClient.createLedgerAccount(
-        request,
-        (error: ServiceError | null) => {
-          if (error) {
-            if (error.code == grpc.status.ALREADY_EXISTS) {
-              return reject(
-                new PalClientLedgerAccountAlreadyExistsError(error.message)
-              );
-            } else if (error.code == grpc.status.NOT_FOUND) {
-              return reject(new PalClientLedgerNotFoundError(error.message));
-            }
-            return reject(new PalClientLedgerUnknownError(error.message));
-          }
-          return resolve();
-        }
-      );
-    });
-  }
-
   getLedgerAccounts(ids: string[]): Promise<ILedgerAccountDto[]> {
     const request = new PbGetLedgerAccountsRequest();
     request.setAccountIdsList(ids);
@@ -377,12 +336,185 @@ export class PalClient {
               assetCode: item.getAssetCode(),
               assetDisplayScale: item.getAssetDisplayScale(),
               debitedAmount: item.getDebitedAmount(),
-              creditedAmount: item.getCreditedAmount()
+              creditedAmount: item.getCreditedAmount(),
+              externalId: item.getExternalId()
             };
           });
           return resolve(respAccounts);
         }
       );
+    });
+  }
+
+  /*
+   * Peer related functions
+   * */
+
+  createPeer(
+    peerId: string,
+    name: string,
+    assetCode: string,
+    assetScale: number,
+    ilpStaticAddress: string // for now the only comms type, no need to complicate
+  ): Promise<void> {
+    const request = new PbCreatePeerRequest();
+    request.setId(peerId);
+    request.setName(name);
+    request.setAssetCode(assetCode);
+    request.setAssetScale(assetScale);
+
+    const commsMethod = new PbPeerCommsMethodDefinition();
+    commsMethod.setCommsType(ILP_COMMS_TYPE);
+    commsMethod.setStaticAddress(ilpStaticAddress);
+    request.setCommsMethodDefinition(commsMethod);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.createPeer(request, (error: ServiceError | null) => {
+        if (error) {
+          if (error.code == grpc.status.ALREADY_EXISTS) {
+            return reject(new PalClientPeerAlreadyExistsError(error.message));
+          }
+          return reject(new PalClientUnknownError(error.message));
+        }
+        return resolve();
+      });
+    });
+  }
+
+  private _peerDtoFromPbPeer(pbPeer: PbPeer): IPalPeerDto {
+    const retPeerDto: IPalPeerDto = {
+      id: pbPeer.getId(),
+      name: pbPeer.getName(),
+      assetCode: pbPeer.getAssetCode(),
+      assetScale: pbPeer.getAssetScale(),
+      active: pbPeer.getActive(),
+      ledgerLiquidityAccountId: pbPeer.getLedgerLiquidityAccountId() || null,
+      ledgerClearingAccountId: pbPeer.getLedgerClearingAccountId() || null,
+      communicationMethodDefinition: null
+    };
+    const commsMethod = pbPeer.getCommsMethodDefinition();
+    if (commsMethod) {
+      retPeerDto.communicationMethodDefinition = {
+        type: ILP_COMMS_TYPE, // only type for now
+        staticAddress: commsMethod.getStaticAddress()
+      };
+    }
+    return retPeerDto;
+  }
+
+  getPeer(peerId: string): Promise<IPalPeerDto | null> {
+    const request = new PbGetPeerRequest();
+    request.setId(peerId);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.getPeer(
+        request,
+        (error: ServiceError | null, response: PbGetPeerResponse) => {
+          if (error) {
+            if (error.code == grpc.status.NOT_FOUND) {
+              return resolve(null);
+            }
+            return reject(new PalClientUnknownError(error.message));
+          }
+          const pbPeer = response.getPeer();
+          if (!response.hasPeer() || !pbPeer) {
+            // this shouldn't happen, should return NOT_FOUND, but better to handle it
+            return resolve(null);
+          }
+
+          return resolve(this._peerDtoFromPbPeer(pbPeer));
+        }
+      );
+    });
+  }
+
+  getPeerByIlpAddress(ilpAddress: string): Promise<IPalPeerDto | null> {
+    const request = new PbGetPeerByIlpAddressRequest();
+    request.setAddress(ilpAddress);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.getPeerByIlpAddress(
+        request,
+        (error: ServiceError | null, response: PbGetPeerResponse) => {
+          if (error) {
+            if (error.code == grpc.status.NOT_FOUND) {
+              return resolve(null);
+            }
+            return reject(new PalClientUnknownError(error.message));
+          }
+          const pbPeer = response.getPeer();
+          if (!response.hasPeer() || !pbPeer) {
+            // this shouldn't happen, should return NOT_FOUND, but better to handle it
+            return resolve(null);
+          }
+
+          return resolve(this._peerDtoFromPbPeer(pbPeer));
+        }
+      );
+    });
+  }
+
+  setPeerCommunicationMethod(
+    peerId: string,
+    ilpStaticAddress: string
+  ): Promise<void> {
+    const request = new PbSetPeerCommunicationMethodRequest();
+    request.setPeerId(peerId);
+    const pbCommsMethod = new PbPeerCommsMethodDefinition();
+    pbCommsMethod.setCommsType(ILP_COMMS_TYPE);
+    pbCommsMethod.setStaticAddress(ilpStaticAddress);
+    request.setCommsMethod(pbCommsMethod);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.setPeerCommunicationMethod(
+        request,
+        (error: ServiceError | null) => {
+          if (error) {
+            if (error.code == grpc.status.NOT_FOUND) {
+              return reject(new PalClientPeerNotFoundError(error.message));
+            }
+            return reject(new PalClientUnknownError(error.message));
+          }
+
+          return resolve();
+        }
+      );
+    });
+  }
+
+  activatePeer(peerId: string): Promise<void> {
+    const request = new PbActivatePeerRequest();
+    request.setPeerId(peerId);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.activatePeer(request, (error: ServiceError | null) => {
+        if (error) {
+          if (error.code == grpc.status.NOT_FOUND) {
+            return reject(new PalClientPeerNotFoundError(error.message));
+          }
+          return reject(new PalClientUnknownError(error.message));
+        }
+
+        return resolve();
+      });
+    });
+  }
+
+  deactivatePeer(peerId: string): Promise<void> {
+    const request = new PbActivatePeerRequest();
+    request.setPeerId(peerId);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.deactivatePeer(request, (error: ServiceError | null) => {
+        if (error) {
+          if (error.code == grpc.status.NOT_FOUND) {
+            return reject(new PalClientPeerNotFoundError(error.message));
+          }
+          return reject(new PalClientUnknownError(error.message));
+        }
+
+        return resolve();
+      });
     });
   }
 }

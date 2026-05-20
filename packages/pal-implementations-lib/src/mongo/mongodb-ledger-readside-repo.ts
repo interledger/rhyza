@@ -6,12 +6,6 @@ import {
   MongoClient
 } from 'mongodb';
 import {
-  ILedger,
-  LedgerDtoSerializer,
-  ILedgerAccount,
-  LedgerAccountDtoSerializer,
-  ILedgerTransaction,
-  LedgerTransactionDtoSerializer,
   ILedgerReadSideRepository
 } from 'pal-domain-lib';
 import {
@@ -126,14 +120,14 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
   /*
    * Ledger Methods
    * */
-  async storeLedgers(ledgers: ILedger[]): Promise<void> {
+  async storeLedgers(ledgers: ILedgerDto[]): Promise<void> {
     this._checkInitialisedOrThrow();
 
     try {
       const operations = ledgers.map((l) => ({
         updateOne: {
           filter: { id: l.id },
-          update: { $set: LedgerDtoSerializer.toDTO(l) },
+          update: { $set: l },
           upsert: true
         }
       }));
@@ -148,7 +142,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
     return;
   }
 
-  async fetchLedgers(ids: string[]): Promise<ILedger[]> {
+  async fetchLedgers(ids: string[]): Promise<ILedgerDto[]> {
     this._checkInitialisedOrThrow();
 
     try {
@@ -158,7 +152,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
         return [];
       }
 
-      return docs.map((doc) => LedgerDtoSerializer.fromDTO(doc));
+      return docs;
     } catch (e) {
       this._logger.error(e);
       throw new Error(`Unable to get ledgers - error: ${(e as Error).message}`);
@@ -168,7 +162,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
   /*
    * Ledger accounts Methods
    * */
-  async storeLedgerAccounts(accounts: ILedgerAccount[]): Promise<void> {
+  async storeLedgerAccounts(accounts: ILedgerAccountDto[]): Promise<void> {
     this._checkInitialisedOrThrow();
 
     try {
@@ -176,7 +170,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
       const operations = accounts.map((a) => ({
         updateOne: {
           filter: { id: a.id }, // Unique identifier
-          update: { $set: LedgerAccountDtoSerializer.toDTO(a) },
+          update: { $set: a },
           upsert: true
         }
       }));
@@ -191,7 +185,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
     return;
   }
 
-  async fetchLedgerAccounts(ids: string[]): Promise<ILedgerAccount[]> {
+  async fetchLedgerAccounts(ids: string[]): Promise<ILedgerAccountDto[]> {
     this._checkInitialisedOrThrow();
 
     try {
@@ -201,7 +195,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
         return [];
       }
 
-      return docs.map((doc) => LedgerAccountDtoSerializer.fromDTO(doc));
+      return docs;
     } catch (e) {
       this._logger.error(e);
       throw new Error(
@@ -214,7 +208,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
    * Ledger transaction Methods
    * */
   async storeLedgerTransactions(
-    transactions: ILedgerTransaction[]
+    transactions: ILedgerTransactionDto[]
   ): Promise<void> {
     this._checkInitialisedOrThrow();
 
@@ -222,9 +216,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
 
     let result: InsertManyResult;
     try {
-      const dtos = transactions.map((t) =>
-        LedgerTransactionDtoSerializer.toDTO(t)
-      );
+      const dtos = transactions.map((t) => t);
       result = await this._transactionsCol.insertMany(dtos);
     } catch (e) {
       this._logger.error(e);

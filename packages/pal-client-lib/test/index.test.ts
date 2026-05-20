@@ -1,13 +1,7 @@
 import { after, before, test } from 'node:test';
 import { randomBytes } from 'node:crypto';
 import * as assert from 'node:assert/strict';
-import {
-  PalClientLedgerNotFoundError,
-  PalClient,
-  PalClientLedgerAccountAlreadyExistsError,
-  PalClientLedgerAlreadyExistsError,
-  parseAddressToDomainAndPathName
-} from '../src';
+import { PalClient, parseAddressToDomainAndPathName } from '../src';
 
 let client: PalClient;
 const testPrefix = `TEST-${randomBytes(3).toString('hex')}`;
@@ -15,14 +9,20 @@ const testPrefix = `TEST-${randomBytes(3).toString('hex')}`;
 // const assetCode = `USD`;
 const ASSET_CODE = `${testPrefix}_EUR`;
 const ASSET_SCALE = 2;
-const accOneId = `${testPrefix}_acc1`;
-const accTwoId = `${testPrefix}_acc2`;
+
+const PEER_ONE_ID = `${testPrefix}_peer1`;
+const PEER_ONE_NAME = `${testPrefix} Peer One`;
+const PEER_ONE_ILP_STATIC_ADDRESS = `${testPrefix}_peer1.static.address`;
 
 const ALIAS_DOMAIN = `${testPrefix}_domain.com`;
-const ALIAS_PATHNAME = 'pedrobarreto';
+const ALIAS_PATHNAME = `${testPrefix}_pedrobarreto`;
 const PUBLIC_NAME = 'Pedro Barreto';
 
 let createdWalletAddressId: string;
+let createdAssetLedgerAccountId: string;
+
+let createdPeerLiquidityAccountId: string;
+let createdPeerClearingAccountId: string;
 
 before(async () => {
   client = new PalClient('0.0.0.0:50051');
@@ -30,81 +30,6 @@ before(async () => {
 });
 after(async () => {
   await client.disconnect();
-});
-
-/*
- * pal client ledger low-level tests
- * */
-
-test('pal client - ledger low-level - create ledger', async () => {
-  await client.createLedger(ASSET_CODE);
-
-  assert.ok(true);
-});
-
-test('pal client - ledger low-level - create ledger for same asset should fail', async () => {
-  try {
-    await client.createLedger(ASSET_CODE);
-    assert.fail();
-  } catch (e) {
-    assert.ok(e instanceof PalClientLedgerAlreadyExistsError);
-  }
-});
-
-test('pal client - ledger low-level - create ledger accounts', async () => {
-  await client.createLedgerAccount(
-    accOneId,
-    ASSET_CODE,
-    ASSET_SCALE,
-    accOneId.toString()
-  );
-  await client.createLedgerAccount(
-    accTwoId,
-    ASSET_CODE,
-    ASSET_SCALE,
-    accTwoId.toString()
-  );
-
-  assert.ok(true);
-});
-
-test('pal client - ledger low-level - create duplicate ledger account should fail', async () => {
-  try {
-    await client.createLedgerAccount(
-      accOneId,
-      ASSET_CODE,
-      ASSET_SCALE,
-      accOneId.toString()
-    );
-    assert.fail();
-  } catch (e) {
-    assert.ok(e instanceof PalClientLedgerAccountAlreadyExistsError);
-  }
-});
-
-test('pal client - ledger low-level - create ledger account for non-existent asset code should fail', async () => {
-  try {
-    await client.createLedgerAccount(
-      accOneId + '_other',
-      'non-existent_asset_code',
-      ASSET_SCALE,
-      accOneId.toString()
-    );
-    assert.fail();
-  } catch (e) {
-    assert.ok(e instanceof PalClientLedgerNotFoundError);
-  }
-});
-
-test('pal client - ledger low-level - created ledger accounts should exist and be successfully retrieved', async () => {
-  // we have to wait for the ledger to be created and the accounts to be created in the read side
-  await new Promise((resolve) => setTimeout(resolve, 5000));
-  const [accOne, accTwo] = await client.getLedgerAccounts([accOneId, accTwoId]);
-
-  assert.ok(accOne);
-  assert.ok(accTwo);
-  assert.equal(accOne.id, accOneId);
-  assert.equal(accTwo.id, accTwoId);
 });
 
 /*
@@ -116,7 +41,7 @@ test('pal client - create asset', async () => {
   assert.ok(true);
 });
 
-test('pal client - get asset', async () => {
+test('pal client - created asset must exist', async () => {
   const asset = await client.getAsset(ASSET_CODE);
 
   assert.ok(asset);
@@ -125,6 +50,24 @@ test('pal client - get asset', async () => {
   assert.equal(asset.liquidityLowThreshold, null);
   assert.equal(asset.liquidityHighThreshold, null);
   assert.ok(asset.ledgerAccountId);
+  createdAssetLedgerAccountId = asset.ledgerAccountId;
+});
+
+test('pal client - created asset must have an new ledger in the liquidity system', async () => {
+  // we have to wait for the ledger acount to be created in the read side of the ledger
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const [assetAccount] = await client.getLedgerAccounts([
+    createdAssetLedgerAccountId
+  ]);
+
+  assert.ok(assetAccount);
+  assert.ok(assetAccount.id, createdAssetLedgerAccountId);
+  assert.equal(assetAccount.assetCode, ASSET_CODE);
+  // asset id is the code (and that's the ext id for the ledger account
+  assert.ok(assetAccount.externalId);
+  assert.equal(assetAccount.externalId, ASSET_CODE);
+  assert.equal(assetAccount.creditedAmount, '0');
+  assert.equal(assetAccount.debitedAmount, '0');
 });
 
 test('pal client - created duplicate asset should fail', async () => {
@@ -142,6 +85,70 @@ test('pal client - get non existing asset should fail', async () => {
   const asset = await client.getAsset('NON EXISTING');
 
   assert.ok(asset === null);
+});
+
+/*
+ * Peer tests
+ * */
+
+test('pal client - create peer', async () => {
+  await client.createPeer(
+    PEER_ONE_ID,
+    PEER_ONE_NAME,
+    ASSET_CODE,
+    ASSET_SCALE,
+    PEER_ONE_ILP_STATIC_ADDRESS
+  );
+  assert.ok(true);
+});
+
+test('pal client - created peer must exist', async () => {
+  const peer = await client.getPeer(PEER_ONE_ID);
+
+  assert.ok(peer);
+  assert.equal(peer.id, PEER_ONE_ID);
+  assert.equal(peer.name, PEER_ONE_NAME);
+  assert.equal(peer.assetCode, ASSET_CODE);
+  assert.equal(peer.assetScale, ASSET_SCALE);
+  assert.ok(peer.ledgerLiquidityAccountId);
+  assert.ok(peer.ledgerClearingAccountId);
+
+  assert.ok(peer.communicationMethodDefinition);
+  assert.equal(peer.communicationMethodDefinition.type, 'ILP');
+  assert.equal(
+    peer.communicationMethodDefinition.staticAddress,
+    PEER_ONE_ILP_STATIC_ADDRESS
+  );
+
+  createdPeerLiquidityAccountId = peer.ledgerLiquidityAccountId;
+  createdPeerClearingAccountId = peer.ledgerClearingAccountId;
+});
+
+test('pal client - created peer must have an new set of ledger accounts', async () => {
+  // we have to wait for the ledger acount to be created in the read side of the ledger
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const [liqAcc, cleAcc] = await client.getLedgerAccounts([
+    createdPeerLiquidityAccountId,
+    createdPeerClearingAccountId
+  ]);
+
+  assert.ok(liqAcc);
+  assert.ok(liqAcc.id, createdPeerLiquidityAccountId);
+  assert.equal(liqAcc.assetCode, ASSET_CODE);
+  assert.ok(liqAcc.externalId);
+  // asset id is the code (and that's the ext id for the ledger account
+  assert.equal(liqAcc.externalId, PEER_ONE_ID);
+  assert.equal(liqAcc.creditedAmount, '0');
+  assert.equal(liqAcc.debitedAmount, '0');
+
+  assert.ok(cleAcc);
+  assert.ok(cleAcc.id, createdPeerClearingAccountId);
+  assert.equal(cleAcc.assetCode, ASSET_CODE);
+  assert.ok(cleAcc.externalId);
+  // asset id is the code (and that's the ext id for the ledger account
+  assert.equal(cleAcc.externalId, PEER_ONE_ID);
+  assert.equal(cleAcc.creditedAmount, '0');
+  assert.equal(cleAcc.debitedAmount, '0');
 });
 
 /*
@@ -326,3 +333,7 @@ test('pal client - parseAddressToDomainAndPathName should work with an odd FQDN 
   assert.equal(domain, null);
   assert.equal(pathName, '.path/name');
 });
+
+/*
+ * pal client ledger low-level tests
+ * */

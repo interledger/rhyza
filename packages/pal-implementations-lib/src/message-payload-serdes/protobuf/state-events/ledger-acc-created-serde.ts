@@ -1,30 +1,34 @@
 import { Any as PbAny } from 'google-protobuf/google/protobuf/any_pb';
-import { LedgerAccountCreatedStatePayload } from 'pal-domain-lib';
+import { LedgerAccountsCreatedStatePayload } from 'pal-domain-lib';
 import {
-  PbLedgerAccountCreatedStatePayload,
+  PbLedgerAccountsCreatedStatePayload,
   PbLedgerAccountState
 } from '../../../proto_generated';
 import { ProtoBufBaseStateEventSerializer } from 'implementations-lib';
 
-export class LedgerAccountCreatedStateEventSerde extends ProtoBufBaseStateEventSerializer<LedgerAccountCreatedStatePayload> {
-  protected _payloadPbClassName = 'PbLedgerAccountCreatedStatePayload';
-  msgName = 'LedgerAccountCreatedStateEvent';
+export class LedgerAccountsCreatedStateEventSerde extends ProtoBufBaseStateEventSerializer<LedgerAccountsCreatedStatePayload> {
+  protected _payloadPbClassName = 'PbLedgerAccountsCreatedStatePayload';
+  msgName = 'LedgerAccountsCreatedStateEvent';
 
   protected _serializePayload(
-    payload: LedgerAccountCreatedStatePayload
+    payload: LedgerAccountsCreatedStatePayload
   ): Uint8Array {
-    const typedPayload = payload as LedgerAccountCreatedStatePayload;
+    const typedPayload = payload as LedgerAccountsCreatedStatePayload;
 
-    const pbAccount = new PbLedgerAccountState();
-    pbAccount.setId(typedPayload.account.id);
-    pbAccount.setName(typedPayload.account.name);
-    pbAccount.setAssetCode(typedPayload.account.assetCode);
-    pbAccount.setAssetDisplayScale(typedPayload.account.assetDisplayScale);
-    pbAccount.setDebitedAmount(typedPayload.account.debitedAmount);
-    pbAccount.setCreditedAmount(typedPayload.account.creditedAmount);
+    const pbPayload = new PbLedgerAccountsCreatedStatePayload();
 
-    const pbPayload = new PbLedgerAccountCreatedStatePayload();
-    pbPayload.setAccount(pbAccount);
+    const pbAccountsList: PbLedgerAccountState[] = [];
+    typedPayload.accounts.forEach((acc) => {
+      const pbAccount = new PbLedgerAccountState();
+      pbAccount.setId(acc.id);
+      pbAccount.setName(acc.name);
+      pbAccount.setAssetCode(acc.assetCode);
+      pbAccount.setAssetDisplayScale(acc.assetDisplayScale);
+      pbAccount.setDebitedAmount(acc.debitedAmount);
+      pbAccount.setCreditedAmount(acc.creditedAmount);
+      pbAccountsList.push(pbAccount);
+    });
+    pbPayload.setAccountsList(pbAccountsList);
 
     return pbPayload.serializeBinary();
   }
@@ -32,25 +36,28 @@ export class LedgerAccountCreatedStateEventSerde extends ProtoBufBaseStateEventS
   protected _deserializePayload(
     pbAny: PbAny,
     msgName: string
-  ): LedgerAccountCreatedStatePayload {
-    const pbPayload = pbAny.unpack<PbLedgerAccountCreatedStatePayload>(
-      PbLedgerAccountCreatedStatePayload.deserializeBinary,
+  ): LedgerAccountsCreatedStatePayload {
+    const pbPayload = pbAny.unpack<PbLedgerAccountsCreatedStatePayload>(
+      PbLedgerAccountsCreatedStatePayload.deserializeBinary,
       msgName
     );
     if (!pbPayload) throw new Error('No payload found in message');
 
-    const account = pbPayload.getAccount();
-    if (!account) throw new Error('No account found in payload');
+    const pbAccounts = pbPayload.getAccountsList();
+    if (!pbAccounts || pbAccounts.length == 0)
+      throw new Error('No account found in payload');
 
-    const payload: LedgerAccountCreatedStatePayload = {
-      account: {
-        id: account.getId(),
-        assetCode: account.getAssetCode(),
-        assetDisplayScale: account.getAssetDisplayScale(),
-        name: account.getName(),
-        creditedAmount: account.getCreditedAmount(),
-        debitedAmount: account.getDebitedAmount()
-      }
+    const payload: LedgerAccountsCreatedStatePayload = {
+      accounts: pbAccounts.map((account) => {
+        return {
+          id: account.getId(),
+          assetCode: account.getAssetCode(),
+          assetDisplayScale: account.getAssetDisplayScale(),
+          name: account.getName(),
+          creditedAmount: account.getCreditedAmount(),
+          debitedAmount: account.getDebitedAmount()
+        };
+      })
     };
 
     return payload;

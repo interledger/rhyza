@@ -18,10 +18,10 @@ export abstract class LedgerStateEvent extends StateEvent {
   ): evt is LedgerCreatedStateEvent {
     return evt.msgName === LedgerCreatedStateEvent.name;
   }
-  static isLedgerAccountCreatedStateEvent(
+  static isLedgerAccountsCreatedStateEvent(
     evt: StateEvent
-  ): evt is LedgerAccountCreatedStateEvent {
-    return evt.msgName === LedgerAccountCreatedStateEvent.name;
+  ): evt is LedgerAccountsCreatedStateEvent {
+    return evt.msgName === LedgerAccountsCreatedStateEvent.name;
   }
   static isLedgerTransactionRecordedStateEvent(
     evt: StateEvent
@@ -58,8 +58,8 @@ export class LedgerCreatedStateEvent extends LedgerStateEvent {
   }
 }
 
-export type LedgerAccountCreatedStatePayload = {
-  account: {
+export type LedgerAccountsCreatedStatePayload = {
+  accounts: {
     id: string;
     name: string;
     assetCode: string;
@@ -67,12 +67,12 @@ export type LedgerAccountCreatedStatePayload = {
     debitedAmount: string;
     creditedAmount: string;
     externalId?: string;
-  };
+  }[];
 };
-export class LedgerAccountCreatedStateEvent extends LedgerStateEvent {
-  payload: LedgerAccountCreatedStatePayload;
+export class LedgerAccountsCreatedStateEvent extends LedgerStateEvent {
+  payload: LedgerAccountsCreatedStatePayload;
 
-  constructor(aggId: string, payload: LedgerAccountCreatedStatePayload) {
+  constructor(aggId: string, payload: LedgerAccountsCreatedStatePayload) {
     super(aggId);
     this.payload = payload;
   }

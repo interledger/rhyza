@@ -8,8 +8,7 @@ import {
   IPalWalletAddressRepository,
   WalletAddressAggregate
 } from '../src';
-import { MockAssetRepo, MockWalletRepo } from './mocks';
-import { MockMessageProducer } from './mocks/mock-msg-publisher';
+import { MockMessageProducer, MockAssetRepo, MockWalletRepo } from './mocks';
 import { ConsoleLogger, DomainEvent } from 'common-types-lib';
 import {
   WalletAddressAliasCreatedEvent,
@@ -37,12 +36,11 @@ let createdWalletAddressInternalId: string;
 
 before(async () => {
   assetRepository = new MockAssetRepo();
-  assetAggregate = new AssetAggregate(assetRepository, mockProducer, logger);
+  assetAggregate = new AssetAggregate(assetRepository, logger);
 
   walletRepository = new MockWalletRepo();
   walletAggregate = new WalletAddressAggregate(
     walletRepository,
-    mockProducer,
     logger
   );
 });
