@@ -12,7 +12,13 @@ import {
   LedgerAccountsCreatedForPeerEvent,
   PeerCreatedEvent
 } from "pal-public-types-lib";
-import {AssetAggregate, CreateLedgerAccountForAssetCmd, CreateLedgerAccountsForPeerCmd, PeerAggregate} from "pal-domain-lib";
+import {
+  AssetAggregate,
+  CreateLedgerAccountForAssetCmd,
+  CreateLedgerAccountsForPeerCmd,
+  CreateLedgerCmd,
+  PeerAggregate
+} from "pal-domain-lib";
 
 
 /**
@@ -72,6 +78,8 @@ export class InternalEventHandler {
        await this._handleAssetCreatedEvent(evt as AssetCreatedEvent);
      }else if(evt.msgName === LedgerAccountCreatedForAssetEvent.name){
       await this._handleLedgerAccountCreatedForAssetEvent(evt as LedgerAccountCreatedForAssetEvent);
+     }else{
+       this._logger.debug(`Internal event handler - unhandled event type: ${evt.msgName}`);
      }
   }
 
@@ -91,6 +99,7 @@ export class InternalEventHandler {
       cmd.requestId = evt.requestId;
     }
     this._pendingMessages.push(cmd);
+    this._logger.debug(`_handlePeerCreatedEvent: peerId: ${evt.payload.peerId} - requestId: ${evt.requestId}`);
   }
 
   private async _handleLedgerAccountsCreatedForPeerEvent(evt:LedgerAccountsCreatedForPeerEvent): Promise<void>{
@@ -114,23 +123,33 @@ export class InternalEventHandler {
       outEvt.requestId = evt.requestId
       this._pendingMessages.push(outEvt);
     });
+    this._logger.debug(`_handleLedgerAccountsCreatedForPeerEvent: peerId: ${evt.payload.peerId} - requestId: ${evt.requestId}`);
   }
   // endregion peer events saga
 
   // region asset events saga
   private async _handleAssetCreatedEvent(evt:AssetCreatedEvent): Promise<void>{
     // request the ledger to create the system account for the asset
-    const cmd = new CreateLedgerAccountForAssetCmd(
+    const cmd1 = new CreateLedgerCmd(
+      {id:evt.payload.assetCode}
+    );
+
+    const cmd2 = new CreateLedgerAccountForAssetCmd(
       evt.payload.assetCode,
       {
         id: crypto.randomUUID(),
         assetCode: evt.payload.assetCode,
       }
     );
-    if(evt.requestId) {
-      cmd.requestId = evt.requestId;
-    }
-    this._pendingMessages.push(cmd);
+
+    // propagate the source requestid and push the pending cmd msg
+    [cmd1, cmd2].forEach(cmd => {
+      if(evt.requestId) {
+        cmd.requestId = evt.requestId;
+      }
+      this._pendingMessages.push(cmd);
+    });
+    this._logger.debug(`_handleAssetCreatedEvent: ${evt.payload.assetCode} - requestId: ${evt.requestId}`);
   }
 
   private async _handleLedgerAccountCreatedForAssetEvent(evt:LedgerAccountCreatedForAssetEvent):Promise<void>{
@@ -148,6 +167,7 @@ export class InternalEventHandler {
       outEvt.requestId = evt.requestId
       this._pendingMessages.push(outEvt);
     });
+    this._logger.debug(`_handleLedgerAccountCreatedForAssetEvent: ${evt.payload.assetCode} - ledger accountId: ${evt.payload.id} - requestId: ${evt.requestId}`);
   }
 
   // endregion asset events saga

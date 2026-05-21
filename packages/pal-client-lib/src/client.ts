@@ -388,10 +388,21 @@ export class PalClient {
       assetCode: pbPeer.getAssetCode(),
       assetScale: pbPeer.getAssetScale(),
       active: pbPeer.getActive(),
-      ledgerLiquidityAccountId: pbPeer.getLedgerLiquidityAccountId() || null,
-      ledgerClearingAccountId: pbPeer.getLedgerClearingAccountId() || null,
+      ledgerAccounts: null,
       communicationMethodDefinition: null
     };
+
+    const pbAccounts = pbPeer.getLedgerAccounts();
+    if (pbAccounts) {
+      retPeerDto.ledgerAccounts = {
+        peerLiquidityAccId: pbAccounts.getPeerLiquidityAccountId(),
+        peerClearingAccId: pbAccounts.getPeerClearingAccountId(),
+        aseLiquidityAccId: pbAccounts.getAseLiquidityAccountId(),
+        aseClearingAccId: pbAccounts.getAseClearingAccountId(),
+        suspenseAccId: pbAccounts.getSuspenseAccountId()
+      };
+    }
+
     const commsMethod = pbPeer.getCommsMethodDefinition();
     if (commsMethod) {
       retPeerDto.communicationMethodDefinition = {

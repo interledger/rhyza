@@ -23,9 +23,6 @@ import {
   HealthCheckRequest,
   HealthCheckResponse,
   HealthService,
-  LedgerAccountCreatedForAssetEvent,
-  LedgerAccountsCreatedForPeerEvent,
-  LedgerCreationFailedEvent,
   PalGrpcService, PeerActivatedEvent
 } from 'pal-public-types-lib';
 import {
@@ -39,7 +36,7 @@ import {
 } from 'common-types-lib';
 
 import process from 'process';
-import { LedgerCreatedEvent, LedgerNotFoundEvent } from 'pal-public-types-lib';
+import { LedgerNotFoundEvent } from 'pal-public-types-lib';
 import { PendingResponseRegistry } from './registries/pending-response-registry';
 import { AssetGrpcHandler } from './handlers/asset-handler';
 import { PeerGrpcHandler } from './handlers/peer-handler';
@@ -150,7 +147,11 @@ export class PalGrpcServer {
     this._registerRequestHandlers();
     this._registerEventHandlers();
 
-    this._msgConsumer.setTopics([DomainEventTopics.LedgerEvents]);
+    this._msgConsumer.setTopics([
+      DomainEventTopics.LedgerEvents,
+      DomainEventTopics.AssetEvents,
+      DomainEventTopics.PeerEvents
+    ]);
     this._msgConsumer.setBatchCallbackFn(
       this._handleResponseEventBatch.bind(this)
     );
@@ -329,20 +330,6 @@ export class PalGrpcServer {
     );
 
     // ledger requests
-    /* this._requestHandlerRegistry.register(
-      PalGrpcService.createLedger,
-      this._ledgerGrpcHandler.handleCreateLedgerRequest.bind(
-        this._ledgerGrpcHandler
-      ),
-      true
-    );
-    this._requestHandlerRegistry.register(
-      PalGrpcService.createLedgerAccount,
-      this._ledgerGrpcHandler.handleCreateLedgerAccountRequest.bind(
-        this._ledgerGrpcHandler
-      ),
-      true
-    );*/
     this._requestHandlerRegistry.register(
       PalGrpcService.getLedgerAccounts,
       this._ledgerGrpcHandler.handleGetLedgerAccountsRequest.bind(
@@ -405,13 +392,7 @@ export class PalGrpcServer {
     );
 
     if (!handlerFunc) {
-      this._logger.warn(
-        `Unhandled response event with pending waiting — msgName: ${message.msgName}, requestId: ${domainEvent.requestId}`
-      );
-      this._responseRegistry.resolve(pending, {
-        code: grpc.status.UNIMPLEMENTED,
-        message: 'Method not implemented'
-      });
+      // we ignore events unhandled event
       return;
     }
 

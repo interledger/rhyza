@@ -85,6 +85,15 @@ export class AssetGrpcHandler {
       highThreshold ? BigInt(highThreshold) : undefined
     );
 
+    if(this._assetAggregate.uncommittedDomainEvents.length == 0){
+      this._logger.warn('No uncommitted domain events after successful asset creation request');
+      callback({
+        code: Status.UNKNOWN,
+        message: `Error processing asset creation request - trying to create asset: ${assetCode}`
+      });
+      return;
+    }
+
     const requestId = crypto.randomUUID();
     // make sure the request id is passed on to any outgoing events
     this._responseRegistry.store(requestId, call, callback);

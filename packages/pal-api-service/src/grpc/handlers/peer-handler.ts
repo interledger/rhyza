@@ -72,8 +72,9 @@ export class PeerGrpcHandler {
       const pbAccounts = new PbPeerLedgerAccounts();
       pbAccounts.setPeerLiquidityAccountId(peer.ledgerAccounts.peerLiquidityAccId);
       pbAccounts.setPeerClearingAccountId(peer.ledgerAccounts.peerClearingAccId);
-      pbAccounts.setAseLiquidityAccountId(peer.ledgerAccounts.aseLiquidityAccId)
-
+      pbAccounts.setAseLiquidityAccountId(peer.ledgerAccounts.aseLiquidityAccId);
+      pbAccounts.setAseClearingAccountId(peer.ledgerAccounts.aseClearingAccId);
+      pbAccounts.setSuspenseAccountId(peer.ledgerAccounts.suspenseAccId);
       pbPeer.setLedgerAccounts(pbAccounts);
     }
     if (peer.communicationMethod !== null) {
@@ -115,7 +116,7 @@ export class PeerGrpcHandler {
     );
 
     if(this._peerAggregate.uncommittedDomainEvents.length == 0){
-      this._logger.warn('No uncommitted domain events after peer creation request');
+      this._logger.warn('No uncommitted domain events after successful peer creation request');
       callback({
         code: Status.UNKNOWN,
         message: `Error processing peer creation request - trying to create peer id: ${peerId}`
@@ -123,10 +124,10 @@ export class PeerGrpcHandler {
       return;
     }
 
-    // make sure the request id is passed on to any outgoing events
     const requestId = crypto.randomUUID();
     this._responseRegistry.store(requestId, call, callback);
 
+    // make sure the request id is passed on to any outgoing events
     this._peerAggregate.uncommittedDomainEvents.every(
       evt =>{evt.requestId = requestId}
     );
