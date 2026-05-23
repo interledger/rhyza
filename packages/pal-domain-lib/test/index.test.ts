@@ -100,20 +100,24 @@ test('PAL WalletAddress Domain - create wallet address', async () => {
 
   assert.ok(createdWalletAddressInternalId);
 
-  const lastEvent = mockProducer.messages[
-    mockProducer.messages.length - 1
-  ] as DomainEvent;
-  assert.ok(lastEvent);
-  assert.equal(lastEvent.msgName, WalletAddressCreatedEvent.name);
-  assert.equal(lastEvent.aggregateId, createdWalletAddressInternalId);
-  assert.ok(lastEvent.payload);
-  assert.equal(lastEvent.payload.id, createdWalletAddressInternalId);
-  assert.equal(lastEvent.payload.domain, ALIAS_DOMAIN);
-  assert.equal(lastEvent.payload.pathName, ALIAS_PATHNAME);
-  assert.equal(lastEvent.payload.publicName, PUBLIC_NAME);
-  assert.equal(lastEvent.payload.assetCode, ASSET_CODE);
-  assert.equal(lastEvent.payload.assetScale, ASSET_SCALE);
-  assert.equal(lastEvent.payload.isActive, true);
+  // get the last event and clear the uncommitted events
+  const lastEvents = structuredClone(walletAggregate.uncommittedDomainEvents);
+  walletAggregate.clearUncommittedDomainEvents();
+
+  const walletCreatedEvt = lastEvents.find(
+    (evt) => evt.msgName === WalletAddressCreatedEvent.name
+  );
+
+  assert.ok(walletCreatedEvt);
+  assert.equal(walletCreatedEvt.aggregateId, createdWalletAddressInternalId);
+  assert.ok(walletCreatedEvt.payload);
+  assert.equal(walletCreatedEvt.payload.id, createdWalletAddressInternalId);
+  assert.equal(walletCreatedEvt.payload.domain, ALIAS_DOMAIN);
+  assert.equal(walletCreatedEvt.payload.pathName, ALIAS_PATHNAME);
+  assert.equal(walletCreatedEvt.payload.publicName, PUBLIC_NAME);
+  assert.equal(walletCreatedEvt.payload.assetCode, ASSET_CODE);
+  assert.equal(walletCreatedEvt.payload.assetScale, ASSET_SCALE);
+  assert.equal(walletCreatedEvt.payload.isActive, true);
 });
 
 test('PAL WalletAddress Domain - get wallet address', async () => {
@@ -169,16 +173,20 @@ test('PAL WalletAddress Domain - create wallet address alias without domain', as
     createdWalletAddressInternalId
   );
 
-  const lastEvent = mockProducer.messages[
-    mockProducer.messages.length - 1
-  ] as DomainEvent;
-  assert.ok(lastEvent);
-  assert.equal(lastEvent.msgName, WalletAddressAliasCreatedEvent.name);
-  assert.equal(lastEvent.aggregateId, createdWalletAddressInternalId);
-  assert.ok(lastEvent.payload);
-  assert.equal(lastEvent.payload.walletId, createdWalletAddressInternalId);
-  assert.equal(lastEvent.payload.domain, null);
-  assert.equal(lastEvent.payload.pathName, ALIAS_PATHNAME);
+  // get the last event and clear the uncommitted events
+  const lastEvents = structuredClone(walletAggregate.uncommittedDomainEvents);
+  walletAggregate.clearUncommittedDomainEvents();
+
+  const event = lastEvents.find(
+    (evt) => evt.msgName === WalletAddressAliasCreatedEvent.name
+  );
+
+  assert.ok(event);
+  assert.equal(event.aggregateId, createdWalletAddressInternalId);
+  assert.ok(event.payload);
+  assert.equal(event.payload.walletId, createdWalletAddressInternalId);
+  assert.equal(event.payload.domain, null);
+  assert.equal(event.payload.pathName, ALIAS_PATHNAME);
 });
 
 test('PAL WalletAddress Domain - create wallet address alias with domain', async () => {
@@ -190,16 +198,20 @@ test('PAL WalletAddress Domain - create wallet address alias with domain', async
     createdWalletAddressInternalId
   );
 
-  const lastEvent = mockProducer.messages[
-    mockProducer.messages.length - 1
-  ] as DomainEvent;
-  assert.ok(lastEvent);
-  assert.equal(lastEvent.msgName, WalletAddressAliasCreatedEvent.name);
-  assert.equal(lastEvent.aggregateId, createdWalletAddressInternalId);
-  assert.ok(lastEvent.payload);
-  assert.equal(lastEvent.payload.walletId, createdWalletAddressInternalId);
-  assert.equal(lastEvent.payload.domain, 'otherdomain.com');
-  assert.equal(lastEvent.payload.pathName, ALIAS_PATHNAME);
+  // get the last event and clear the uncommitted events
+  const lastEvents = structuredClone(walletAggregate.uncommittedDomainEvents);
+  walletAggregate.clearUncommittedDomainEvents();
+
+  const event = lastEvents.find(
+    (evt) => evt.msgName === WalletAddressAliasCreatedEvent.name
+  );
+
+  assert.ok(event);
+  assert.equal(event.aggregateId, createdWalletAddressInternalId);
+  assert.ok(event.payload);
+  assert.equal(event.payload.walletId, createdWalletAddressInternalId);
+  assert.equal(event.payload.domain, 'otherdomain.com');
+  assert.equal(event.payload.pathName, ALIAS_PATHNAME);
 });
 
 test('PAL WalletAddress Domain - create wallet address with invalid wallet id should fail', async () => {

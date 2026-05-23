@@ -79,7 +79,7 @@ test('PAL Ledger Domain LowLevel API - create ledger account for peer one', asyn
   const payload = lastStateEvent.payload as LedgerAccountsCreatedStatePayload;
 
   assert.ok(payload.accounts);
-  assert.ok(payload.accounts.length == 2);
+  assert.ok(payload.accounts.length == 5);
 
   // order is guaranteed
   const [liqAcc, cleAcc] = payload.accounts;

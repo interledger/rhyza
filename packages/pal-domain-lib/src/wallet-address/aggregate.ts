@@ -8,15 +8,15 @@ import { PalWalletAddress } from './entities/wallet-address';
 import crypto from 'node:crypto';
 import { ILogger } from 'common-types-lib';
 import {
-  IPalWalletAddressDto, LedgerDomainEvent,
+  IPalWalletAddressDto,
   WalletAddressAliasCreatedEvent,
-  WalletAddressCreatedEvent
+  WalletAddressCreatedEvent, WalletAddressDomainEvent
 } from 'pal-public-types-lib';
 
 export class WalletAddressAggregate {
   private readonly _logger: ILogger;
   private _repo: IPalWalletAddressRepository;
-  private readonly _uncommittedDomainEvents: LedgerDomainEvent[];
+  private readonly _uncommittedDomainEvents: WalletAddressDomainEvent[];
 
   constructor(
     repo: IPalWalletAddressRepository,
@@ -27,7 +27,7 @@ export class WalletAddressAggregate {
     this._uncommittedDomainEvents = [];
   }
 
-  get uncommittedDomainEvents(): LedgerDomainEvent[] {
+  get uncommittedDomainEvents(): WalletAddressDomainEvent[] {
     return this._uncommittedDomainEvents;
   }
 

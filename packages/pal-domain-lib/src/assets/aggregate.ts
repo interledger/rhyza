@@ -4,15 +4,15 @@ import { PalAsset } from './entity';
 import {
   AssetActivatedEvent,
   AssetCreatedEvent,
-  IPalAssetDto,
-  LedgerDomainEvent
+  AssetDomainEvent,
+  IPalAssetDto
 } from 'pal-public-types-lib';
 import { ILogger } from 'common-types-lib';
 
 export class AssetAggregate {
   private readonly _logger: ILogger;
   private readonly _repo: IPalAssetRepository;
-  private readonly _uncommittedDomainEvents: LedgerDomainEvent[];
+  private readonly _uncommittedDomainEvents: AssetDomainEvent[];
 
   constructor(
     repo: IPalAssetRepository,
@@ -23,7 +23,7 @@ export class AssetAggregate {
     this._uncommittedDomainEvents = [];
   }
 
-  get uncommittedDomainEvents(): LedgerDomainEvent[] {
+  get uncommittedDomainEvents(): AssetDomainEvent[] {
     return this._uncommittedDomainEvents;
   }
 

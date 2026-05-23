@@ -7,12 +7,12 @@ import {
   PeerNotFoundError
 } from './errors';
 import { IPalPeerCommunicationMethodDefinition, PalPeer } from './entity';
-import {LedgerDomainEvent, PeerActivatedEvent, PeerCreatedEvent} from "pal-public-types-lib";
+import { PeerActivatedEvent, PeerCreatedEvent, PeerDomainEvent} from "pal-public-types-lib";
 
 export class PeerAggregate {
   private readonly _logger: ILogger;
   private readonly _repo: IPalPeerRepository;
-  private readonly _uncommittedDomainEvents: LedgerDomainEvent[];
+  private readonly _uncommittedDomainEvents: PeerDomainEvent[];
 
   constructor(repo: IPalPeerRepository, logger: ILogger) {
     this._logger = logger;
@@ -20,7 +20,7 @@ export class PeerAggregate {
     this._uncommittedDomainEvents = [];
   }
 
-  get uncommittedDomainEvents(): LedgerDomainEvent[] {
+  get uncommittedDomainEvents(): PeerDomainEvent[] {
     return this._uncommittedDomainEvents;
   }
 
