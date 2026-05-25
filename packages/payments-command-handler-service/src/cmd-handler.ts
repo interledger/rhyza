@@ -1,5 +1,6 @@
 import {
   CommandTopics,
+  ILogger,
   IMessage,
   IMessageConsumer,
   IMessageProducer
@@ -9,22 +10,27 @@ import {
   CreateQuoteCmd,
   CreatePaymentCmd,
   PaymentIntentAggregate,
-  ApprovePaymentCmd
+  ApprovePaymentCmd,
+  CompleteRemoteQuoteCmd,
+  FailRemoteQuoteCmd
 } from 'payments-domain-lib';
 
 export class PaymentsCommandHandler {
   private _msgConsumer: IMessageConsumer;
   private _msgProducer: IMessageProducer;
   private _paymentIntentAggregate: PaymentIntentAggregate;
+  private _logger: ILogger;
 
   constructor(
     msgConsumer: IMessageConsumer,
     msgProducer: IMessageProducer,
-    paymentIntentAggregate: PaymentIntentAggregate
+    paymentIntentAggregate: PaymentIntentAggregate,
+    logger: ILogger
   ) {
     this._msgConsumer = msgConsumer;
     this._msgProducer = msgProducer;
     this._paymentIntentAggregate = paymentIntentAggregate;
+    this._logger = logger;
   }
 
   async start(): Promise<void> {
@@ -41,7 +47,6 @@ export class PaymentsCommandHandler {
 
   private async _handleBatch(messages: IMessage[]): Promise<void> {
     const commandMessages: IMessage[] = [];
-    // TODO: route quote and outgoing payment commands to their aggregates
     const unhandled: IMessage[] = [];
 
     for (const msg of messages) {
@@ -58,6 +63,12 @@ export class PaymentsCommandHandler {
         case ApprovePaymentCmd.name:
           commandMessages.push(msg);
           break;
+        case CompleteRemoteQuoteCmd.name:
+          commandMessages.push(msg);
+          break;
+        case FailRemoteQuoteCmd.name:
+          commandMessages.push(msg);
+          break;
         default:
           unhandled.push(msg);
           break;
@@ -65,7 +76,7 @@ export class PaymentsCommandHandler {
     }
 
     if (unhandled.length > 0) {
-      console.warn(
+      this._logger.warn(
         `Unhandled command types: ${[...new Set(unhandled.map((m) => m.msgName))].join(', ')}`
       );
     }

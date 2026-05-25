@@ -1,4 +1,5 @@
 import {
+  FinalizedRemoteQuoteUpdate,
   IPaymentIntent,
   IPaymentIntentRepository,
   PaymentIntentState,
@@ -14,11 +15,27 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
+  async fetchById(id: string): Promise<IPaymentIntent | undefined> {
+    return this._store.get(id);
+  }
+
   async fetchByIdsWithPayments(ids: string[]): Promise<IPaymentIntent[]> {
     const results: IPaymentIntent[] = [];
     for (const id of ids) {
       const p = this._store.get(id);
       if (p) results.push(p);
+    }
+    return results;
+  }
+
+  async fetchIdsByRemoteUrls(
+    urls: string[]
+  ): Promise<Array<{ id: string; remoteUrl: string }>> {
+    const results: Array<{ id: string; remoteUrl: string }> = [];
+    for (const p of this._store.values()) {
+      if (p.remoteUrl && urls.includes(p.remoteUrl)) {
+        results.push({ id: p.id, remoteUrl: p.remoteUrl });
+      }
     }
     return results;
   }
@@ -68,6 +85,38 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
 
         foundPayment.state = payment.state;
         foundPayment.sentAmount = payment.sentAmount;
+      }
+    }
+  }
+
+  async storeFinalizedRemoteQuotes(
+    updates: FinalizedRemoteQuoteUpdate[]
+  ): Promise<void> {
+    for (const update of updates) {
+      const paymentIntent = this._store.get(update.paymentIntentId);
+      if (!paymentIntent) {
+        throw new Error('Could not find paymentIntent in store');
+      }
+
+      const quote = paymentIntent.quotes.find((q) => q.id === update.quoteId);
+      if (!quote) {
+        throw new Error('Could not find quote in store');
+      }
+
+      if (update.state === 'COMPLETED') {
+        Object.assign(quote, {
+          state: 'COMPLETED',
+          debitAmount: update.debitAmount,
+          receiveAmount: update.receiveAmount,
+          exchangeRate: update.exchangeRate,
+          expiresAt: update.expiresAt
+        });
+      } else {
+        Object.assign(quote, {
+          state: 'FAILED',
+          errorName: update.errorName,
+          message: update.message
+        });
       }
     }
   }

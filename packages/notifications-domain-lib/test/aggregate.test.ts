@@ -19,10 +19,12 @@ describe('notification aggregate', () => {
     mock.restoreAll();
   });
 
+  const data = {};
+
   describe('create and send notification', () => {
     test('creates and sends notification successfully', async () => {
       const notificationId =
-        await notificationAggregate.createAndSendNotification();
+        await notificationAggregate.createAndSendNotification(data);
       assert.ok(notificationId);
     });
 
@@ -32,7 +34,7 @@ describe('notification aggregate', () => {
         throw error;
       });
       await assert.rejects(
-        () => notificationAggregate.createAndSendNotification(),
+        () => notificationAggregate.createAndSendNotification(data),
         error
       );
 
@@ -40,32 +42,12 @@ describe('notification aggregate', () => {
       assert.ok(notifications);
       assert.equal(notifications.length, 1);
 
-      const sentNotification = await notificationAggregate.getNotification(
+      const sentNotification = await notificationRepository.fetch(
         notifications[0].id
       );
       assert.ok(sentNotification);
       assert.equal(sentNotification.status, NotificationStatus.FAILED);
       assert.ok(!sentNotification.sentAt);
-    });
-  });
-
-  describe('get notification', () => {
-    test('returns notification when exists', async () => {
-      const notificationId =
-        await notificationAggregate.createAndSendNotification();
-      const notification =
-        await notificationAggregate.getNotification(notificationId);
-      assert.ok(notification);
-      assert.equal(notification.id, notificationId);
-      assert.equal(notification.status, NotificationStatus.SENT);
-      assert.ok(notification.sentAt);
-    });
-
-    test('returns null when notification does not exist', async () => {
-      const notification = await notificationAggregate.getNotification(
-        'non-existing-notification'
-      );
-      assert.ok(notification === null);
     });
   });
 });

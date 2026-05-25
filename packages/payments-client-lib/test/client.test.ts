@@ -3,7 +3,7 @@
 import { after, before, describe, test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { randomUUID } from 'crypto';
-import { PaymentsClient } from '../src';
+import { PaymentsClient, RemoteQuotingNotConfiguredError } from '../src';
 import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
 
 describe('Payments Client', () => {
@@ -185,7 +185,7 @@ describe('Payments Client', () => {
       const quoteId = randomUUID();
       const result = await paymentsClient.createQuote(
         quoteId,
-        paymentId,
+        { incomingPaymentId: paymentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
         100
@@ -200,7 +200,7 @@ describe('Payments Client', () => {
       const quoteId = randomUUID();
       const result = await paymentsClient.createQuote(
         quoteId,
-        paymentId,
+        { incomingPaymentId: paymentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
         undefined,
@@ -216,7 +216,7 @@ describe('Payments Client', () => {
       const quoteId = randomUUID();
       const result = await paymentsClient.createQuote(
         quoteId,
-        paymentId,
+        { incomingPaymentId: paymentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS
       );
@@ -230,7 +230,7 @@ describe('Payments Client', () => {
       const quoteId = randomUUID();
       await paymentsClient.createQuote(
         quoteId,
-        paymentId,
+        { incomingPaymentId: paymentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
         100
@@ -239,7 +239,7 @@ describe('Payments Client', () => {
       try {
         await paymentsClient.createQuote(
           quoteId,
-          paymentId,
+          { incomingPaymentId: paymentId },
           senderWalletAddressId,
           SENDER_WALLET_ADDRESS,
           100
@@ -254,7 +254,7 @@ describe('Payments Client', () => {
       try {
         await paymentsClient.createQuote(
           randomUUID(),
-          randomUUID(),
+          { incomingPaymentId: randomUUID() },
           senderWalletAddressId,
           SENDER_WALLET_ADDRESS,
           100
@@ -265,12 +265,33 @@ describe('Payments Client', () => {
       }
     });
 
+    test('remote quote without openPaymentsUrl throws RemoteQuotingNotConfiguredError', async () => {
+      const clientWithoutUrl = new PaymentsClient(PAYMENTS_GRPC_URL);
+      await clientWithoutUrl.init();
+      try {
+        await clientWithoutUrl.createQuote(
+          randomUUID(),
+          {
+            incomingPaymentUrl:
+              'https://remote.example.com/incoming-payments/123'
+          },
+          senderWalletAddressId,
+          SENDER_WALLET_ADDRESS
+        );
+        assert.fail('expected RemoteQuotingNotConfiguredError');
+      } catch (e) {
+        assert.ok(e instanceof RemoteQuotingNotConfiguredError);
+      } finally {
+        await clientWithoutUrl.disconnect();
+      }
+    });
+
     test('unknown sender wallet address id is rejected', async () => {
       const paymentId = await createIncomingPayment();
       try {
         await paymentsClient.createQuote(
           randomUUID(),
-          paymentId,
+          { incomingPaymentId: paymentId },
           randomUUID(),
           SENDER_WALLET_ADDRESS,
           100
@@ -288,7 +309,7 @@ describe('Payments Client', () => {
       const quoteId = randomUUID();
       await paymentsClient.createQuote(
         quoteId,
-        incomingPaymentId,
+        { incomingPaymentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS
       );

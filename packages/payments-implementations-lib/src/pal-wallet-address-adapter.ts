@@ -1,4 +1,4 @@
-import { IWalletAddressService, WalletAddress } from 'payments-domain-lib';
+import { IWalletAddressService, IWalletAddress } from 'payments-domain-lib';
 import { PalClient } from 'pal-client-lib';
 
 export class PalWalletAddressAdapter implements IWalletAddressService {
@@ -8,7 +8,7 @@ export class PalWalletAddressAdapter implements IWalletAddressService {
     this._palClient = palClient;
   }
 
-  async fetchByIds(ids: string[]): Promise<WalletAddress[]> {
+  async fetchByIds(ids: string[]): Promise<IWalletAddress[]> {
     if (ids.length === 0) return [];
 
     const results = await this._palClient.getWalletAddresses(ids);

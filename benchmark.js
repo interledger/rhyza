@@ -7,7 +7,6 @@ import { uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 import { sleep } from 'k6';
 
 export const options = {
-  // discardResponseBodies: true,
   scenarios: {
     contacts: {
       executor: 'ramping-vus',
@@ -17,7 +16,6 @@ export const options = {
         { duration: '15s', target: 500 },
         { duration: '15s', target: 0 }
       ]
-      // gracefulRampDown: "30s",
     }
   }
 };

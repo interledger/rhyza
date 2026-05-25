@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "common-types-lib": "workspace:*",
     "mongodb": "~7.1.0",
     "pal-client-lib": "workspace:*",
     "payments-domain-lib": "workspace:*"

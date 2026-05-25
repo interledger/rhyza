@@ -1,0 +1,21 @@
+{
+  "name": "notifications-command-handler-service",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "build": "tsc --build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "common-types-lib": "workspace:*",
+    "implementations-lib": "workspace:*",
+    "notifications-domain-lib": "workspace:*",
+    "notifications-implementations-lib": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}

@@ -35,13 +35,9 @@ export interface IAccessItem {
   identifier?: string;
 }
 
-export interface SubjectId {
+export interface ISubjectId {
   format: string;
   id: string;
-}
-
-export interface ISubject {
-  sub_ids: SubjectId[];
 }
 
 export type InteractionChoice =
@@ -72,11 +68,6 @@ export const IFinishMethod = {
   REDIRECT: 'REDIRECT'
 } as const;
 export type IFinishMethod = keyof typeof IFinishMethod;
-
-export interface ISubjectId {
-  format: string;
-  id: string;
-}
 
 export interface IGrantFinishMethod {
   method: IFinishMethod;
@@ -121,13 +112,12 @@ export type IGrantEntity = Omit<IGrant, 'id'>;
 export interface IGrant {
   id: string;
   startMethods: IStartMethod[];
-  identifier: string;
   continueToken?: string;
   continueId?: string;
   state: GrantState;
   finalizationReason?: GrantFinalization;
   client?: string | IJsonWebKey;
-  subject?: ISubject;
+  subjectIds?: ISubjectId[];
   accesses?: IAccessItem[];
   finishMethod?: IFinishMethod;
   finishUri?: string;
@@ -157,4 +147,9 @@ export interface IJsonWebKey {
   alg: string;
   crv: string;
   x: string;
+}
+
+export interface IAccessRequest {
+  actions: AccessAction[];
+  identifier?: string;
 }

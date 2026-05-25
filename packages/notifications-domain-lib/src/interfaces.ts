@@ -18,8 +18,6 @@ export enum NotificationStatus {
 
 export interface INotificationRepository {
   store(notification: INotification): Promise<void>;
-  fetch(id: string): Promise<INotification | null>;
-  fetchAll(): Promise<INotification[]>;
 }
 
 export interface INotificationSenderService {

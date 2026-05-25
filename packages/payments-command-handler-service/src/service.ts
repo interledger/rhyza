@@ -7,6 +7,7 @@ import {
 } from 'implementations-lib';
 import {
   MongoDbPaymentIntentRepo,
+  RemotePaymentIntentAdapter,
   PalWalletAddressAdapter,
   StaticRatesAdapter
 } from 'payments-implementations-lib';
@@ -36,26 +37,34 @@ export class PaymentsCommandHandlerService {
   private static repo: MongoDbPaymentIntentRepo;
 
   static async start(): Promise<void> {
-    const logger = new PinoLogger();
+    const logger = new PinoLogger({
+      service: 'payments-command-handler-service'
+    });
 
     const kafkaBuilder = new KafkaBuilder()
-      .withLogger(logger)
+      .withLogger(logger.child({ component: 'kafka' }))
       .withBrokerList(KAFKA_URL)
       .withClientId(INSTANCE_ID)
       .withSerializerFactory(MessageSerializationFactory.instance());
 
-    this.repo = new MongoDbPaymentIntentRepo(MONGODB_URL);
+    this.repo = new MongoDbPaymentIntentRepo(
+      MONGODB_URL,
+      logger.child({ component: 'payment-intent-repo' })
+    );
     await this.repo.init();
 
     const palClient = new PalClient(PAL_GRPC_URL);
 
     const walletAddressAdapter = new PalWalletAddressAdapter(palClient);
     const staticRatesAdapter = new StaticRatesAdapter();
+    const remotePaymentIntentAdapter = new RemotePaymentIntentAdapter();
 
     const aggregate = new PaymentIntentAggregate(
       this.repo,
       walletAddressAdapter,
-      staticRatesAdapter
+      staticRatesAdapter,
+      remotePaymentIntentAdapter,
+      logger.child({ component: 'aggregate' })
     );
 
     this.msgProducer = kafkaBuilder.buildProducer({});
@@ -70,7 +79,8 @@ export class PaymentsCommandHandlerService {
     this.commandHandler = new PaymentsCommandHandler(
       this.msgConsumer,
       this.msgProducer,
-      aggregate
+      aggregate,
+      logger.child({ component: 'command-handler' })
     );
     await this.commandHandler.start();
   }

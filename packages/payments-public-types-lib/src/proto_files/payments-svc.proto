@@ -5,7 +5,6 @@ package rafiki.payments.service;
 service PaymentsGrpc {
   // Creates a new incoming payment.
   rpc CreateIncomingPayment(CreateIncomingPaymentRequest) returns (CreateIncomingPaymentResponse);
-  // Retrieves an incoming payment by ID.
 
   // Creates a new quote.
   rpc CreateQuote(CreateQuoteRequest) returns (CreateQuoteResponse);
@@ -15,6 +14,9 @@ service PaymentsGrpc {
 
   // Approves an existing outgoing payment.
   rpc ApproveOutgoingPayment(ApproveOutgoingPaymentRequest) returns (ApproveOutgoingPaymentResponse);
+
+  // Fetches a payment intent by ID.
+  rpc GetPaymentIntent(GetPaymentIntentRequest) returns (GetPaymentIntentResponse);
 }
 
 /*
@@ -48,11 +50,13 @@ message CreateQuoteRequest {
   string incoming_payment_id = 4;
   optional uint64 debit_amount = 5;
   optional uint64 receive_amount = 6;
+  optional string remote_url = 7;
 }
 
-// Response containing the ID of the created quote.
+// Response containing the ID of the created quote and the resolved payment intent ID.
 message CreateQuoteResponse {
   string id = 1;
+  string payment_intent_id = 2;
 }
 
 /*
@@ -83,5 +87,28 @@ message ApproveOutgoingPaymentRequest {
 // Response confirming the approval of the outgoing payment.
 message ApproveOutgoingPaymentResponse {
   string id = 1;
+}
+
+/*
+ * Get Payment Intent messages
+ */
+
+// Request to fetch a payment intent by ID.
+message GetPaymentIntentRequest {
+  string id = 1;
+}
+
+// Response containing the payment intent details.
+message GetPaymentIntentResponse {
+  string id = 1;
+  string wallet_address = 2;
+  string state = 3;
+  string destination = 4;
+  optional uint64 incoming_amount = 5;
+  uint64 received_amount = 6;
+  string asset_code = 7;
+  uint32 asset_scale = 8;
+  optional string expires_at = 9;
+  optional string destination_ilp_address = 10;
 }
 

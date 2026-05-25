@@ -13,6 +13,7 @@ const PORT = parseInt(process.env['PORT'] || '3001', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
 const PAL_GRPC_URL = process.env['PAL_GRPC_URL'] || 'localhost:50051';
 const PAYMENTS_GRPC_URL = process.env['PAYMENTS_GRPC_URL'] || 'localhost:50052';
+const OPEN_PAYMENTS_URL = process.env['OPEN_PAYMENTS_URL'];
 
 export class AdminApiService {
   private static server: FastifyInstance;
@@ -24,7 +25,11 @@ export class AdminApiService {
     await this.palClient.init();
     console.log(`Connected to PAL service at ${PAL_GRPC_URL}`);
 
-    this.paymentsClient = new PaymentsClient(PAYMENTS_GRPC_URL);
+    this.paymentsClient = new PaymentsClient(
+      PAYMENTS_GRPC_URL,
+      5_000,
+      OPEN_PAYMENTS_URL
+    );
     await this.paymentsClient.init();
     console.log(`Connected to Payments service at ${PAYMENTS_GRPC_URL}`);
 
@@ -40,7 +45,8 @@ export class AdminApiService {
     });
     this.server.register(incomingPaymentRoutes, {
       palClient: this.palClient,
-      paymentsClient: this.paymentsClient
+      paymentsClient: this.paymentsClient,
+      openPaymentsUrl: OPEN_PAYMENTS_URL
     });
     this.server.register(quoteRoutes, {
       palClient: this.palClient,

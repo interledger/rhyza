@@ -5,14 +5,14 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
 import { PaymentsClient } from 'payments-client-lib';
 
-interface IncomingPaymentRouteOptions extends FastifyPluginOptions {
+interface QuoteRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
   paymentsClient: PaymentsClient;
 }
 
 export async function quoteRoutes(
   server: FastifyInstance,
-  opts: IncomingPaymentRouteOptions
+  opts: QuoteRouteOptions
 ): Promise<void> {
   const { palClient, paymentsClient } = opts;
 
@@ -20,13 +20,32 @@ export async function quoteRoutes(
     Body: {
       walletAddress: string;
       id?: string;
-      incomingPaymentId: string;
+      incomingPaymentId?: string;
+      incomingPaymentUrl?: string;
       debitAmount?: string;
       receiveAmount?: string;
     };
   }>('/quotes', async (request, reply) => {
-    const { incomingPaymentId, walletAddress, debitAmount, receiveAmount } =
-      request.body;
+    const {
+      walletAddress,
+      debitAmount,
+      receiveAmount,
+      incomingPaymentId,
+      incomingPaymentUrl
+    } = request.body;
+
+    let incomingPayment:
+      | { incomingPaymentUrl: string }
+      | { incomingPaymentId: string };
+    if (incomingPaymentUrl) {
+      incomingPayment = { incomingPaymentUrl };
+    } else if (incomingPaymentId) {
+      incomingPayment = { incomingPaymentId };
+    } else {
+      return reply.status(400).send({
+        error: 'Either incomingPaymentId or incomingPaymentUrl is required'
+      });
+    }
 
     const id = request.body.id ?? randomUUID();
 
@@ -40,13 +59,15 @@ export async function quoteRoutes(
 
     const result = await paymentsClient.createQuote(
       id,
-      incomingPaymentId,
+      incomingPayment,
       alias.walletAddressId,
       walletAddress,
       Number(debitAmount),
       Number(receiveAmount)
     );
 
-    return reply.status(201).send({ id: `${incomingPaymentId}_${result.id}` }); // Concatenate ids when returning the request
+    return reply
+      .status(201)
+      .send({ id: `${result.paymentIntentId}_${result.id}` }); // Concatenate ids when returning the request
   });
 }

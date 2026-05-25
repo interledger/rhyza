@@ -17,7 +17,6 @@ import {
   InteractionState,
   InteractionChoice,
   IStartMethod,
-  ISubject,
   IGrantEntity,
   IAccessToken,
   NewAccessToken,
@@ -25,23 +24,24 @@ import {
   GrantFinalization,
   InteractiveAccessType,
   IJsonWebKey,
-  AccessAction
+  AccessAction,
+  ISubjectId
 } from './interfaces';
 
 interface IGrantInput {
   id: string;
   startMethods: IStartMethod[];
-  identifier: string;
   continueToken?: string;
   continueId?: string;
   state: GrantState;
   finalizationReason?: GrantFinalization;
   interaction?: IInteraction;
-  client?: string;
-  subject?: ISubject;
+  client?: string | IJsonWebKey;
+  subjectIds?: ISubjectId[];
   accesses?: IAccessItem[];
   finishMethod?: IFinishMethod;
   finishUri?: string;
+  interactionNonce?: string;
   lastContinuedAt?: Date;
 }
 
@@ -95,18 +95,18 @@ const ACCESS_TOKEN_EXPIRY_MS = 10_000; // 10 seconds
 export class GrantEntity implements IGrantEntity {
   private _id: string;
   private _startMethods: IStartMethod[];
-  private _identifier: string;
   private _continueToken?: string;
   private _continueId?: string;
   private _state: GrantState;
   private _finalizationReason?: GrantFinalization;
   private _client?: string | IJsonWebKey;
-  private _subject?: ISubject;
+  private _subjectIds?: ISubjectId[];
   private _accesses?: IAccessItem[];
   private _finishMethod?: IFinishMethod;
   private _finishUri?: string;
   private _interaction?: IInteraction;
   private _lastContinuedAt?: Date;
+  // Map is indexed by the value of the access token.
   private _accessTokens: Map<string, IAccessToken> = new Map<
     string,
     IAccessToken
@@ -115,13 +115,12 @@ export class GrantEntity implements IGrantEntity {
   private constructor(input: IGrantInput) {
     this._id = input.id;
     this._startMethods = input.startMethods;
-    this._identifier = input.identifier;
     this._continueToken = input.continueToken;
     this._continueId = input.continueId;
     this._state = input.state;
     this._finalizationReason = input.finalizationReason;
     this._client = input.client;
-    this._subject = input.subject;
+    this._subjectIds = input.subjectIds;
     this._accesses = input.accesses;
     this._finishMethod = input.finishMethod;
     this._finishUri = input.finishUri;
@@ -129,7 +128,7 @@ export class GrantEntity implements IGrantEntity {
     this._lastContinuedAt = input.lastContinuedAt;
   }
 
-  static fromObject(obj: IGrantInput): GrantEntity {
+  static fromObject(obj: IGrant): GrantEntity {
     return new GrantEntity(obj);
   }
 
@@ -162,13 +161,12 @@ export class GrantEntity implements IGrantEntity {
       id: this._id,
       interaction: this._interaction,
       startMethods: this._startMethods,
-      identifier: this._identifier,
       continueToken: this._continueToken,
       continueId: this._continueId,
       state: this._state,
       finalizationReason: this._finalizationReason,
       client: this._client,
-      subject: this._subject,
+      subjectIds: this._subjectIds,
       accesses: this._accesses,
       finishMethod: this._finishMethod,
       finishUri: this._finishUri,
@@ -206,7 +204,7 @@ export class GrantEntity implements IGrantEntity {
   }
 
   // Continues the grant, if an interaction was required.
-  continueGrant(
+  continue(
     continueToken: string,
     continueId: string,
     interactRef: string
@@ -334,10 +332,6 @@ export class GrantEntity implements IGrantEntity {
     return this._startMethods;
   }
 
-  get identifier(): string {
-    return this._identifier;
-  }
-
   get continueToken(): string | undefined {
     return this._continueToken;
   }
@@ -358,8 +352,8 @@ export class GrantEntity implements IGrantEntity {
     return this._client;
   }
 
-  get subject(): ISubject | undefined {
-    return this._subject;
+  get subjectIds(): ISubjectId[] | undefined {
+    return this._subjectIds;
   }
 
   get accesses(): IAccessItem[] | undefined {

@@ -1,4 +1,5 @@
 export class CannotCreateDuplicatePaymentIntentError extends Error {}
+export class InvalidPaymentIntentError extends Error {}
 export class WalletAddressNotFoundError extends Error {}
 export class WalletAddressInactiveError extends Error {}
 export class InvalidPaymentIntentExpiryError extends Error {}
@@ -14,3 +15,4 @@ export class InvalidPaymentIdError extends Error {}
 export class PaymentNotFoundError extends Error {}
 export class PaymentInvalidStateError extends Error {}
 export class InvalidPaymentAmountError extends Error {}
+export class MissingDestinationIlpAddressError extends Error {}

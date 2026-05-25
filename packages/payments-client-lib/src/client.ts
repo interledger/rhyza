@@ -1,10 +1,16 @@
 import * as grpc from '@grpc/grpc-js';
-import { ServiceError } from '@grpc/grpc-js';
+import { ServiceError, status } from '@grpc/grpc-js';
+import { randomUUID } from 'node:crypto';
+import {
+  PaymentIntentNotFoundError,
+  RemoteQuotingNotConfiguredError
+} from './errors';
 import {
   ICreateIncomingPaymentResponse,
   ICreateQuoteResponse,
   ICreateOutgoingPaymentResponse,
-  IApproveOutgoingPaymentResponse
+  IApproveOutgoingPaymentResponse,
+  IGetPaymentIntentResponse
 } from './local-types';
 import {
   CreateIncomingPaymentRequest,
@@ -15,17 +21,33 @@ import {
   CreateOutgoingPaymentRequest,
   CreateOutgoingPaymentResponse,
   ApproveOutgoingPaymentRequest,
-  ApproveOutgoingPaymentResponse
+  ApproveOutgoingPaymentResponse,
+  GetPaymentIntentRequest,
+  GetPaymentIntentResponse
 } from 'payments-public-types-lib';
+
+type IncomingPaymentInput =
+  | { incomingPaymentId: string }
+  | { incomingPaymentUrl: string };
 
 export class PaymentsClient {
   private readonly _serverUrl: string;
   private readonly _grpcConnectTimeOutMs: number;
   private readonly _grpcClient: PaymentsGrpcClient;
+  private readonly _openPaymentsUrl: string | undefined;
 
-  constructor(serverUrl: string, grpcConnectTimeOutMs: number = 5_000) {
+  /**
+   * @param openPaymentsUrl - Base URL of this node's Open Payments server (e.g. https://payments.example.com).
+   *   Required for remote quoting and payments; may omit for local-only use.
+   */
+  constructor(
+    serverUrl: string,
+    grpcConnectTimeOutMs: number = 5_000,
+    openPaymentsUrl?: string
+  ) {
     this._serverUrl = serverUrl;
     this._grpcConnectTimeOutMs = grpcConnectTimeOutMs;
+    this._openPaymentsUrl = openPaymentsUrl;
 
     this._grpcClient = new PaymentsGrpcClient(
       this._serverUrl,
@@ -100,23 +122,45 @@ export class PaymentsClient {
 
   async createQuote(
     id: string,
-    incomingPaymentId: string,
+    incomingPayment: IncomingPaymentInput,
     senderWalletAddressId: string,
     senderWalletAddress: string,
     debitAmount?: number,
     receiveAmount?: number
   ): Promise<ICreateQuoteResponse> {
+    let paymentIntentId: string;
+    let remoteUrl: string | undefined;
+
+    if ('incomingPaymentUrl' in incomingPayment) {
+      if (!this._openPaymentsUrl) {
+        throw new RemoteQuotingNotConfiguredError();
+      }
+      if (
+        incomingPayment.incomingPaymentUrl.startsWith(this._openPaymentsUrl)
+      ) {
+        paymentIntentId = incomingPayment.incomingPaymentUrl.split('/').at(-1)!;
+      } else {
+        paymentIntentId = randomUUID();
+        remoteUrl = incomingPayment.incomingPaymentUrl;
+      }
+    } else {
+      paymentIntentId = incomingPayment.incomingPaymentId;
+    }
+
     const request = new CreateQuoteRequest();
     request.setId(id);
     request.setWalletAddressId(senderWalletAddressId);
     request.setWalletAddress(senderWalletAddress);
-    request.setIncomingPaymentId(incomingPaymentId);
+    request.setIncomingPaymentId(paymentIntentId);
 
     if (debitAmount) {
       request.setDebitAmount(debitAmount);
     }
     if (receiveAmount) {
       request.setReceiveAmount(receiveAmount);
+    }
+    if (remoteUrl) {
+      request.setRemoteUrl(remoteUrl);
     }
 
     return new Promise((resolve, reject) => {
@@ -129,7 +173,8 @@ export class PaymentsClient {
           }
 
           return resolve({
-            id: response.getId()
+            id: response.getId(),
+            paymentIntentId: response.getPaymentIntentId()
           });
         }
       );
@@ -200,6 +245,43 @@ export class PaymentsClient {
 
           return resolve({
             id: response.getId()
+          });
+        }
+      );
+    });
+  }
+
+  async getPaymentIntent(id: string): Promise<IGetPaymentIntentResponse> {
+    const request = new GetPaymentIntentRequest();
+    request.setId(id);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.getPaymentIntent(
+        request,
+        (error: ServiceError | null, response: GetPaymentIntentResponse) => {
+          if (error) {
+            if (error.code === status.NOT_FOUND) {
+              return reject(new PaymentIntentNotFoundError(id));
+            }
+            console.error(error);
+            return reject(error);
+          }
+
+          const incomingAmount = response.getIncomingAmount();
+          const expiresAt = response.getExpiresAt();
+          const destinationIlpAddress = response.getDestinationIlpAddress();
+
+          return resolve({
+            id: response.getId(),
+            receiverWalletAddress: response.getWalletAddress(),
+            state: response.getState(),
+            destination: response.getDestination(),
+            receivedAmount: BigInt(response.getReceivedAmount()),
+            assetCode: response.getAssetCode(),
+            assetScale: response.getAssetScale(),
+            incomingAmount: incomingAmount ? BigInt(incomingAmount) : undefined,
+            expiresAt: expiresAt || undefined,
+            destinationIlpAddress: destinationIlpAddress || undefined
           });
         }
       );

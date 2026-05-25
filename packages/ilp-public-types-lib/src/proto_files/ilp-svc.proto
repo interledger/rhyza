@@ -1,0 +1,69 @@
+syntax = "proto3";
+package rafiki.ilp.svc;
+
+service IlpGrpc {
+  rpc CreatePeer(CreatePeerRequest) returns (CreatePeerResponse);
+  rpc GetPeer(GetPeerRequest) returns (GetPeerResponse);
+  rpc ListPeers(ListPeersRequest) returns (ListPeersResponse);
+  rpc UpdatePeer(UpdatePeerRequest) returns (UpdatePeerResponse);
+}
+
+/* 
+Peer configuration messages
+*/
+
+message PeerHttpOutgoingSettings {
+  string endpoint = 1;
+  string auth_token = 2;
+}
+
+message PeerHttpIncomingSettings {
+  optional string auth_token = 1;
+}
+
+message PeerHttpSettings {
+  PeerHttpOutgoingSettings outgoing = 1;
+  optional PeerHttpIncomingSettings incoming = 2;
+}
+
+// ILP BC view of a peer.
+message Peer {
+  string id = 1;
+  PeerHttpSettings http = 2;
+  optional uint64 max_packet_amount = 3;
+  optional bool is_active = 4;
+}
+
+/* 
+Peer lifecycle messages 
+*/
+
+message CreatePeerRequest {
+  Peer peer = 1;
+}
+
+message CreatePeerResponse {
+  Peer peer = 1;
+}
+
+message GetPeerRequest {
+  string id = 1;
+}
+
+message GetPeerResponse {
+  optional Peer peer = 1;
+}
+
+message ListPeersRequest {}
+
+message ListPeersResponse {
+  repeated Peer peers = 1;
+}
+
+message UpdatePeerRequest {
+  Peer peer = 1;
+}
+
+message UpdatePeerResponse {
+  Peer peer = 1;
+}

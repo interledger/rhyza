@@ -10,12 +10,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "payments-public-types-lib": "workspace:*",
-    "@grpc/grpc-js": "~1.14.3"
+    "@grpc/grpc-js": "~1.14.3",
+    "payments-public-types-lib": "workspace:*"
   },
   "devDependencies": {
     "@types/google-protobuf": "~3.15.12",
-    "tsx": "^4.19.3",
-    "pal-client-lib": "workspace:*"
+    "pal-client-lib": "workspace:*",
+    "tsx": "^4.19.3"
   }
 }

@@ -1,6 +1,7 @@
 import {
   InvalidPaymentAmountError,
   InvalidPaymentIdError,
+  InvalidPaymentIntentError,
   InvalidPaymentIntentExpiryError,
   InvalidQuoteAmountError,
   InvalidQuoteIdError,
@@ -12,7 +13,10 @@ import {
   QuoteExpiredError
 } from './errors';
 import {
+  IBaseQuote,
+  IPendingQuote,
   IPaymentIntent,
+  IQuote,
   PaymentIntentDestination,
   PaymentIntentState,
   PaymentState,
@@ -22,25 +26,170 @@ import {
 const MAX_PAYMENT_INTENT_EXPIRY_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const QUOTE_EXPIRY_MS = 1000 * 60 * 10;
 
-type Quote = PendingQuote | CompletedQuote;
+type QuoteData =
+  | { state: 'PENDING'; debitAmount?: bigint; receiveAmount?: bigint }
+  | {
+      state: 'COMPLETED';
+      debitAmount: bigint;
+      receiveAmount: bigint;
+      exchangeRate: number;
+      expiresAt: Date;
+    }
+  | { state: 'FAILED'; errorName: string; message: string };
 
-interface BaseQuote {
-  id: string;
-  state: QuoteState;
-  senderWalletAddress: string;
-  senderWalletAddressId: string;
-}
+class Quote implements IBaseQuote {
+  private _id: string;
+  private _senderWalletAddress: string;
+  private _senderWalletAddressId: string;
+  private _data: QuoteData;
 
-interface PendingQuote extends BaseQuote {
-  state: 'PENDING';
-}
+  private constructor(
+    id: string,
+    senderWalletAddress: string,
+    senderWalletAddressId: string,
+    data: QuoteData
+  ) {
+    this._id = id;
+    this._senderWalletAddress = senderWalletAddress;
+    this._senderWalletAddressId = senderWalletAddressId;
+    this._data = data;
+  }
 
-interface CompletedQuote extends BaseQuote {
-  state: 'COMPLETED';
-  expiresAt: Date;
-  receiveAmount: bigint;
-  debitAmount: bigint;
-  exchangeRate: number;
+  static createPending(
+    id: string,
+    senderWalletAddress: string,
+    senderWalletAddressId: string,
+    debitAmount?: bigint,
+    receiveAmount?: bigint
+  ): Quote {
+    return new Quote(id, senderWalletAddress, senderWalletAddressId, {
+      state: 'PENDING',
+      debitAmount,
+      receiveAmount
+    });
+  }
+
+  static fromObject(obj: IQuote): Quote {
+    if (obj.state === 'COMPLETED') {
+      return new Quote(
+        obj.id,
+        obj.senderWalletAddress,
+        obj.senderWalletAddressId,
+        {
+          state: 'COMPLETED',
+          debitAmount: obj.debitAmount,
+          receiveAmount: obj.receiveAmount,
+          exchangeRate: obj.exchangeRate,
+          expiresAt: obj.expiresAt
+        }
+      );
+    } else if (obj.state === 'FAILED') {
+      return new Quote(
+        obj.id,
+        obj.senderWalletAddress,
+        obj.senderWalletAddressId,
+        {
+          state: 'FAILED',
+          errorName: obj.errorName,
+          message: obj.message
+        }
+      );
+    } else {
+      return new Quote(
+        obj.id,
+        obj.senderWalletAddress,
+        obj.senderWalletAddressId,
+        {
+          state: 'PENDING',
+          debitAmount: obj.debitAmount,
+          receiveAmount: obj.receiveAmount
+        }
+      );
+    }
+  }
+
+  complete(args: {
+    debitAmount: bigint;
+    receiveAmount: bigint;
+    exchangeRate: number;
+    paymentIntentExpiresAt: Date;
+  }): void {
+    if (this._data.state !== 'PENDING') {
+      throw new InvalidQuoteStateError(
+        `Quote ${this._id} is not in PENDING state, cannot complete`
+      );
+    }
+    const { debitAmount, receiveAmount, exchangeRate, paymentIntentExpiresAt } =
+      args;
+    this._data = {
+      state: 'COMPLETED',
+      debitAmount,
+      receiveAmount,
+      exchangeRate,
+      expiresAt: new Date(
+        Math.min(paymentIntentExpiresAt.getTime(), Date.now() + QUOTE_EXPIRY_MS)
+      )
+    };
+  }
+
+  fail(args: { errorName: string; message: string }): void {
+    if (this._data.state !== 'PENDING') {
+      throw new InvalidQuoteStateError(
+        `Quote ${this._id} is not in PENDING state, cannot fail`
+      );
+    }
+    this._data = {
+      state: 'FAILED',
+      errorName: args.errorName,
+      message: args.message
+    };
+  }
+
+  toObject(): IQuote {
+    const base = {
+      id: this._id,
+      senderWalletAddress: this._senderWalletAddress,
+      senderWalletAddressId: this._senderWalletAddressId
+    };
+    if (this._data.state === 'COMPLETED') {
+      const { debitAmount, receiveAmount, exchangeRate, expiresAt } =
+        this._data;
+      return {
+        ...base,
+        state: 'COMPLETED',
+        debitAmount,
+        receiveAmount,
+        exchangeRate,
+        expiresAt
+      };
+    }
+    if (this._data.state === 'FAILED') {
+      const { errorName, message } = this._data;
+      return { ...base, state: 'FAILED', errorName, message };
+    }
+    return {
+      ...base,
+      state: 'PENDING',
+      debitAmount: this._data.debitAmount,
+      receiveAmount: this._data.receiveAmount
+    };
+  }
+
+  get id(): string {
+    return this._id;
+  }
+
+  get state(): QuoteState {
+    return this._data.state;
+  }
+
+  get senderWalletAddress(): string {
+    return this._senderWalletAddress;
+  }
+
+  get senderWalletAddressId(): string {
+    return this._senderWalletAddressId;
+  }
 }
 
 interface Payment {
@@ -59,7 +208,7 @@ interface Payment {
 
 export class PaymentIntent implements IPaymentIntent {
   private _id: string;
-  private _receiverWalletAddressId: string;
+  private _receiverWalletAddressId: string | undefined;
   private _receiverWalletAddress: string;
   private _state: PaymentIntentState;
   private _destination: PaymentIntentDestination;
@@ -70,10 +219,12 @@ export class PaymentIntent implements IPaymentIntent {
   private _receivedAmount: bigint;
   private _quotes: Quote[] = [];
   private _payments: Payment[] = [];
+  private _destinationIlpAddress: string | undefined;
+  private _remoteUrl: string | undefined;
 
   private constructor(
     id: string,
-    receiverWalletAddressId: string,
+    receiverWalletAddressId: string | undefined,
     receiverWalletAddress: string,
     destination: PaymentIntentDestination,
     assetCode: string,
@@ -83,7 +234,9 @@ export class PaymentIntent implements IPaymentIntent {
     receivedAmount: bigint = 0n,
     state: PaymentIntentState = PaymentIntentState.CREATED,
     quotes: Quote[] = [],
-    payments: Payment[] = []
+    payments: Payment[] = [],
+    destinationIlpAddress?: string,
+    remoteUrl?: string
   ) {
     this._id = id;
     this._receiverWalletAddressId = receiverWalletAddressId;
@@ -99,19 +252,29 @@ export class PaymentIntent implements IPaymentIntent {
     this._payments = payments;
 
     this._expiresAt = expiresAt;
+    this._destinationIlpAddress = destinationIlpAddress;
+    this._remoteUrl = remoteUrl;
   }
 
   static create(
     id: string,
-    receiverWalletAddressId: string,
+    receiverWalletAddressId: string | undefined,
     receiverWalletAddress: string,
     destination: PaymentIntentDestination,
     assetCode: string,
     assetScale: number,
     expiresAt: string | null,
     incomingAmount: bigint | null = null,
-    receivedAmount: bigint = 0n
+    receivedAmount: bigint = 0n,
+    destinationIlpAddress?: string,
+    remoteUrl?: string
   ): PaymentIntent {
+    if (destination === 'LOCAL' && !receiverWalletAddressId) {
+      throw new InvalidPaymentIntentError(
+        'receiverWalletAddressId is required for LOCAL payment intents'
+      );
+    }
+
     const resolvedExpiresAt = expiresAt
       ? new Date(expiresAt)
       : new Date(Date.now() + MAX_PAYMENT_INTENT_EXPIRY_MS);
@@ -139,7 +302,12 @@ export class PaymentIntent implements IPaymentIntent {
       assetScale,
       resolvedExpiresAt,
       incomingAmount,
-      receivedAmount
+      receivedAmount,
+      undefined,
+      undefined,
+      undefined,
+      destinationIlpAddress,
+      remoteUrl
     );
   }
 
@@ -155,22 +323,7 @@ export class PaymentIntent implements IPaymentIntent {
       obj.incomingAmount,
       obj.receivedAmount,
       obj.state,
-      obj.quotes.map((quote) => ({
-        id: quote.id,
-        senderWalletAddress: quote.senderWalletAddress,
-        senderWalletAddressId: quote.senderWalletAddressId,
-        ...(quote.state === 'COMPLETED'
-          ? {
-              debitAmount: quote.debitAmount,
-              receiveAmount: quote.receiveAmount,
-              expiresAt: quote.expiresAt,
-              exchangeRate: quote.exchangeRate,
-              state: quote.state
-            }
-          : {
-              state: quote.state
-            })
-      })),
+      obj.quotes.map((q) => Quote.fromObject(q)),
       obj.payments.map((payment) => ({
         id: payment.id,
         senderWalletAddress: payment.senderWalletAddress,
@@ -183,7 +336,9 @@ export class PaymentIntent implements IPaymentIntent {
         state: payment.state,
         debitAmount: payment.debitAmount,
         receiveAmount: payment.receiveAmount
-      }))
+      })),
+      obj.destinationIlpAddress,
+      obj.remoteUrl
     );
   }
 
@@ -199,22 +354,7 @@ export class PaymentIntent implements IPaymentIntent {
       expiresAt: this._expiresAt,
       incomingAmount: this._incomingAmount,
       receivedAmount: this._receivedAmount,
-      quotes: this._quotes.map((quote) => ({
-        id: quote.id,
-        senderWalletAddress: quote.senderWalletAddress,
-        senderWalletAddressId: quote.senderWalletAddressId,
-        ...(quote.state === 'COMPLETED'
-          ? {
-              debitAmount: quote.debitAmount,
-              receiveAmount: quote.receiveAmount,
-              expiresAt: quote.expiresAt,
-              exchangeRate: quote.exchangeRate,
-              state: quote.state
-            }
-          : {
-              state: quote.state
-            })
-      })),
+      quotes: this._quotes.map((q) => q.toObject()),
       payments: this._payments.map((payment) => ({
         id: payment.id,
         state: payment.state,
@@ -227,7 +367,9 @@ export class PaymentIntent implements IPaymentIntent {
         debitAmount: payment.debitAmount,
         receiveAmount: payment.receiveAmount,
         sentAmount: payment.sentAmount
-      }))
+      })),
+      destinationIlpAddress: this._destinationIlpAddress,
+      remoteUrl: this._remoteUrl
     };
   }
 
@@ -263,7 +405,7 @@ export class PaymentIntent implements IPaymentIntent {
       );
     }
 
-    if (this.quotes.find((quote) => quote.id === id)) {
+    if (this._quotes.find((q) => q.id === id)) {
       throw new InvalidQuoteIdError(
         `Duplicate quote id ${id} exists for ${this.id} payment intent`
       );
@@ -296,21 +438,112 @@ export class PaymentIntent implements IPaymentIntent {
       );
     }
 
-    const quoteDefaultExpiryMs = Date.now() + QUOTE_EXPIRY_MS;
-    const quote: Quote = {
+    const quote = Quote.createPending(
       id,
+      senderWalletAddress.address,
+      senderWalletAddress.id
+    );
+    quote.complete({
       debitAmount: quoteDebitAmount,
       receiveAmount: quoteReceiveAmount,
-      state: 'COMPLETED',
-      senderWalletAddress: senderWalletAddress.address,
-      senderWalletAddressId: senderWalletAddress.id,
-      expiresAt: new Date(
-        Math.min(this.expiresAt.getTime(), quoteDefaultExpiryMs)
-      ),
-      exchangeRate
-    };
-
+      exchangeRate,
+      paymentIntentExpiresAt: this.expiresAt
+    });
     this._quotes.push(quote);
+  }
+
+  addPendingRemoteQuote(args: {
+    id: string;
+    senderWalletAddress: {
+      id: string;
+      address: string;
+    };
+    debitAmount?: bigint;
+    receiveAmount?: bigint;
+  }): IPendingQuote {
+    const { id, senderWalletAddress, debitAmount } = args;
+    const receiveAmount =
+      args.receiveAmount ?? this._incomingAmount ?? undefined;
+
+    if (this.state !== 'CREATED') {
+      throw new PaymentIntentInvalidState(
+        `Payment intent is in an invalid state for quoting: ${this.state}`
+      );
+    }
+
+    if (this.isExpired) {
+      throw new PaymentIntentExpired(
+        `Payment intent is expired at: ${this.expiresAt.toISOString()}`
+      );
+    }
+
+    if (this._quotes.find((quote) => quote.id === id)) {
+      throw new InvalidQuoteIdError(
+        `Duplicate quote id ${id} exists for ${this.id} payment intent`
+      );
+    }
+
+    if (!debitAmount && !receiveAmount) {
+      throw new InvalidQuoteAmountError(
+        'Pending remote quote must have debitAmount or receiveAmount'
+      );
+    }
+
+    const quote = Quote.createPending(
+      id,
+      senderWalletAddress.address,
+      senderWalletAddress.id,
+      debitAmount,
+      receiveAmount
+    );
+    this._quotes.push(quote);
+    return quote.toObject() as IPendingQuote;
+  }
+
+  completeRemoteQuote(args: {
+    id: string;
+    debitAmount: bigint;
+    receiveAmount: bigint;
+    exchangeRate: number;
+  }): void {
+    const { id, debitAmount, receiveAmount, exchangeRate } = args;
+
+    const quote = this._quotes.find((q) => q.id === id);
+    if (!quote) {
+      throw new InvalidQuoteIdError(
+        `Quote ${id} not found for ${this.id} payment intent`
+      );
+    }
+
+    if (this.isExpired) {
+      throw new PaymentIntentExpired(
+        `Payment intent is expired at: ${this.expiresAt.toISOString()}`
+      );
+    }
+
+    quote.complete({
+      debitAmount,
+      receiveAmount,
+      exchangeRate,
+      paymentIntentExpiresAt: this.expiresAt
+    });
+  }
+
+  failRemoteQuote(args: {
+    id: string;
+    errorName: string;
+    message: string;
+  }): void {
+    const { id, errorName, message } = args;
+
+    const quote = this._quotes.find((q) => q.id === id);
+    if (!quote) {
+      throw new InvalidQuoteIdError(
+        `Quote ${id} not found for ${this.id} payment intent`
+      );
+    }
+
+    quote.fail({ errorName, message });
   }
 
   addLocalPayment(args: {
@@ -473,7 +706,7 @@ export class PaymentIntent implements IPaymentIntent {
     return this._id;
   }
 
-  get receiverWalletAddressId(): string {
+  get receiverWalletAddressId(): string | undefined {
     return this._receiverWalletAddressId;
   }
 
@@ -513,11 +746,19 @@ export class PaymentIntent implements IPaymentIntent {
     return this._receivedAmount;
   }
 
-  get quotes(): Quote[] {
-    return this._quotes;
+  get quotes(): IQuote[] {
+    return this._quotes.map((q) => q.toObject());
   }
 
   get payments(): Payment[] {
     return this._payments;
+  }
+
+  get destinationIlpAddress(): string | undefined {
+    return this._destinationIlpAddress;
+  }
+
+  get remoteUrl(): string | undefined {
+    return this._remoteUrl;
   }
 }

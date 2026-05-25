@@ -8,15 +8,25 @@ services:
     environment:
       PAL_GRPC_URL: pal-api-service:50051
       PAYMENTS_GRPC_URL: payments-api-service:50052
+      OPEN_PAYMENTS_URL: http://open-payments-svc:3000
+      MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
     ports:
       - '3001:3001'
     depends_on:
+      mongodb:
+        condition: service_healthy
       pal-api-service:
         condition: service_started
       payments-api-service:
         condition: service_started
     networks:
-      - rafiki-v2
+      rafiki-v2:
+        # TODO: alias may let us use this admin api as a remote rafiki incoming payment endpoint
+        # for the purposes of testing remote quoting. 1) Create a quote with an incomingPaymentUrl
+        # pointing to this alias (which doesnt match OPEN_PAYMENTS_URL), 2) admin api detects as remote
+        # 3) payments domain fetches the "remote" intent from itself via the admin api
+        aliases:
+          - peer-open-payments-svc
 
   pal-api-service:
     build:
@@ -78,9 +88,12 @@ services:
     restart: always
     environment:
       KAFKA_URL: kafka:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
     ports:
       - '50052:50052'
     depends_on:
+      mongodb:
+        condition: service_healthy
       init-kafka:
         condition: service_completed_successfully
     networks:
@@ -96,6 +109,7 @@ services:
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
       PAL_GRPC_URL: pal-api-service:50051
       UV_THREADPOOL_SIZE: 128
+      LOG_LEVEL: debug
     depends_on:
       mongodb:
         condition: service_healthy
@@ -103,6 +117,54 @@ services:
         condition: service_completed_successfully
       pal-api-service:
         condition: service_started
+    networks:
+      - rafiki-v2
+
+  payments-event-handler-service:
+    build:
+      context: ../
+      dockerfile: ./packages/payments-event-handler-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+    networks:
+      - rafiki-v2
+  notifications-command-handler-service:
+    build:
+      context: ../
+      dockerfile: ./packages/notifications-command-handler-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb:27017/
+    ports:
+      - '5100:5100'
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+    networks:
+      - rafiki-v2
+
+  notifications-event-handler-service:
+    build:
+      context: ../
+      dockerfile: ./packages/notifications-event-handler-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+      UV_THREADPOOL_SIZE: 128
+    ports:
+      - '5101:5101'
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      init-kafka:
+        condition: service_completed_successfully
     networks:
       - rafiki-v2
 
@@ -187,6 +249,7 @@ services:
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-snapshot-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-state-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic wallet-address-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ilp-domain-events
       echo -e '\nSuccessfully created the following topics:'
       ./kafka-topics.sh --bootstrap-server kafka:19092 --list
       "

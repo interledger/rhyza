@@ -41,7 +41,6 @@ tmp
 !test/**/.env
 
 dist
+**/src/proto_generated/
 
 .agents
-
-**/src/proto_generated

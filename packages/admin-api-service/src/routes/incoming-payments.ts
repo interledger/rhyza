@@ -3,18 +3,22 @@
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
-import { PaymentsClient } from 'payments-client-lib';
+import {
+  PaymentsClient,
+  PaymentIntentNotFoundError
+} from 'payments-client-lib';
 
 interface IncomingPaymentRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
   paymentsClient: PaymentsClient;
+  openPaymentsUrl: string | undefined;
 }
 
 export async function incomingPaymentRoutes(
   server: FastifyInstance,
   opts: IncomingPaymentRouteOptions
 ): Promise<void> {
-  const { palClient, paymentsClient } = opts;
+  const { palClient, paymentsClient, openPaymentsUrl } = opts;
 
   server.post<{
     Body: {
@@ -48,6 +52,74 @@ export async function incomingPaymentRoutes(
       metadata
     );
 
-    return reply.status(201).send({ id: result.id });
+    const response: { id: string; openPaymentsUrl?: string } = {
+      id: result.id
+    };
+
+    if (openPaymentsUrl) {
+      response.openPaymentsUrl = `${openPaymentsUrl}/incoming-payments/${result.id}`;
+    }
+
+    return reply.status(201).send(response);
   });
+
+  server.get<{ Params: { id: string } }>(
+    '/incoming-payments/:id',
+    async (request, reply) => {
+      const { id } = request.params;
+
+      let paymentIntent;
+      try {
+        paymentIntent = await paymentsClient.getPaymentIntent(id);
+      } catch (err) {
+        if (err instanceof PaymentIntentNotFoundError) {
+          return reply
+            .status(404)
+            .send({ error: `Incoming payment '${id}' not found` });
+        }
+        throw err;
+      }
+
+      const response: {
+        walletAddress: string;
+        incomingAmount?: {
+          value: string;
+          assetCode: string;
+          assetScale: number;
+        };
+        receivedAmount: {
+          value: string;
+          assetCode: string;
+          assetScale: number;
+        };
+        expiresAt?: string;
+        destinationIlpAddress?: string;
+      } = {
+        walletAddress: paymentIntent.receiverWalletAddress,
+        receivedAmount: {
+          value: String(paymentIntent.receivedAmount),
+          assetCode: paymentIntent.assetCode,
+          assetScale: paymentIntent.assetScale
+        }
+      };
+
+      if (paymentIntent.incomingAmount != null) {
+        response.incomingAmount = {
+          value: String(paymentIntent.incomingAmount),
+          assetCode: paymentIntent.assetCode,
+          assetScale: paymentIntent.assetScale
+        };
+      }
+
+      if (paymentIntent.expiresAt) {
+        response.expiresAt = paymentIntent.expiresAt;
+      }
+
+      if (paymentIntent.destinationIlpAddress) {
+        response.destinationIlpAddress = paymentIntent.destinationIlpAddress;
+      }
+
+      return reply.status(200).send(response);
+    }
+  );
 }

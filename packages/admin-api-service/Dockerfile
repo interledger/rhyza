@@ -28,6 +28,8 @@ COPY packages/pal-public-types-lib/package.json ./packages/pal-public-types-lib/
 COPY packages/pal-client-lib/package.json ./packages/pal-client-lib/package.json
 COPY packages/payments-public-types-lib/package.json ./packages/payments-public-types-lib/package.json
 COPY packages/payments-client-lib/package.json ./packages/payments-client-lib/package.json
+COPY packages/payments-domain-lib/package.json ./packages/payments-domain-lib/package.json
+COPY packages/payments-implementations-lib/package.json ./packages/payments-implementations-lib/package.json
 COPY packages/admin-api-service/package.json ./packages/admin-api-service/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store BUILD_LIBRDKAFKA=0 pnpm install --recursive --prefer-offline --frozen-lockfile --prod
 
@@ -39,6 +41,8 @@ RUN pnpm --filter pal-public-types-lib build
 RUN pnpm --filter pal-client-lib build
 RUN pnpm --filter payments-public-types-lib build
 RUN pnpm --filter payments-client-lib build
+RUN pnpm --filter payments-domain-lib build
+RUN pnpm --filter payments-implementations-lib build
 RUN pnpm --filter admin-api-service build
 
 FROM node:24-alpine AS runner
@@ -50,6 +54,8 @@ COPY --from=prod-deps /workspace/packages/pal-public-types-lib/node_modules ./pa
 COPY --from=prod-deps /workspace/packages/pal-client-lib/node_modules ./packages/pal-client-lib/node_modules
 COPY --from=prod-deps /workspace/packages/payments-public-types-lib/node_modules ./packages/payments-public-types-lib/node_modules
 COPY --from=prod-deps /workspace/packages/payments-client-lib/node_modules ./packages/payments-client-lib/node_modules
+COPY --from=prod-deps /workspace/packages/payments-domain-lib/node_modules ./packages/payments-domain-lib/node_modules
+COPY --from=prod-deps /workspace/packages/payments-implementations-lib/node_modules ./packages/payments-implementations-lib/node_modules
 COPY --from=prod-deps /workspace/packages/admin-api-service/node_modules ./packages/admin-api-service/node_modules
 
 # package.json for each workspace dep
@@ -58,6 +64,8 @@ COPY --from=prod-deps /workspace/packages/pal-public-types-lib/package.json ./pa
 COPY --from=prod-deps /workspace/packages/pal-client-lib/package.json ./packages/pal-client-lib/package.json
 COPY --from=prod-deps /workspace/packages/payments-public-types-lib/package.json ./packages/payments-public-types-lib/package.json
 COPY --from=prod-deps /workspace/packages/payments-client-lib/package.json ./packages/payments-client-lib/package.json
+COPY --from=prod-deps /workspace/packages/payments-domain-lib/package.json ./packages/payments-domain-lib/package.json
+COPY --from=prod-deps /workspace/packages/payments-implementations-lib/package.json ./packages/payments-implementations-lib/package.json
 COPY --from=prod-deps /workspace/packages/admin-api-service/package.json ./packages/admin-api-service/package.json
 
 # built dist from each workspace dep
@@ -66,6 +74,8 @@ COPY --from=build /workspace/packages/pal-public-types-lib/dist ./packages/pal-p
 COPY --from=build /workspace/packages/pal-client-lib/dist ./packages/pal-client-lib/dist
 COPY --from=build /workspace/packages/payments-public-types-lib/dist ./packages/payments-public-types-lib/dist
 COPY --from=build /workspace/packages/payments-client-lib/dist ./packages/payments-client-lib/dist
+COPY --from=build /workspace/packages/payments-domain-lib/dist ./packages/payments-domain-lib/dist
+COPY --from=build /workspace/packages/payments-implementations-lib/dist ./packages/payments-implementations-lib/dist
 COPY --from=build /workspace/packages/admin-api-service/dist ./packages/admin-api-service/dist
 
 CMD ["node", "packages/admin-api-service/dist/index.js"]

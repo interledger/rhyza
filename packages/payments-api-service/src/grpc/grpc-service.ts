@@ -19,12 +19,20 @@ import {
   CreateOutgoingPaymentResponse,
   ApproveOutgoingPaymentRequest,
   ApproveOutgoingPaymentResponse,
+  GetPaymentIntentRequest,
+  GetPaymentIntentResponse,
   HealthCheckRequest,
   HealthCheckResponse,
   HealthService,
   PaymentsGrpcService
 } from 'payments-public-types-lib';
-import { IMessage, IMessageConsumer, IMessageProducer } from 'common-types-lib';
+import { IPaymentIntentRepository } from 'payments-domain-lib';
+import {
+  ILogger,
+  IMessage,
+  IMessageConsumer,
+  IMessageProducer
+} from 'common-types-lib';
 import {
   CreatePaymentIntentCmd,
   CreateQuoteCmd,
@@ -48,11 +56,13 @@ export class PaymentsServiceServer {
   private readonly _server: grpc.Server;
   private readonly _msgProducer: IMessageProducer;
   private readonly _msgConsumer: IMessageConsumer;
+  private readonly _repo: IPaymentIntentRepository;
   private readonly _responseTimeoutMs: number;
   // Holds pending gRPC callbacks keyed by command ID (UUID).
   // Kafka consumer resolves/rejects these when response events arrive.
   // Entries are cleaned up on response or when the deadline expires.
   private readonly _responseMap: Map<string, PendingResponse> = new Map();
+  private readonly _logger: ILogger;
   private _startedAt: number = 0;
   private _terminating: boolean = false;
 
@@ -61,13 +71,17 @@ export class PaymentsServiceServer {
     serverUrl: string,
     msgProducer: IMessageProducer,
     msgConsumer: IMessageConsumer,
+    repo: IPaymentIntentRepository,
+    logger: ILogger,
     responseTimeoutMs: number = DEFAULT_RESPONSE_TIMEOUT_MS
   ) {
+    this._logger = logger;
     this._responseTimeoutMs = responseTimeoutMs;
     this._serverUrl = serverUrl;
     this._instanceId = instanceId;
     this._msgProducer = msgProducer;
     this._msgConsumer = msgConsumer;
+    this._repo = repo;
 
     this._msgConsumer.setBatchCallbackFn(this._handleBatch.bind(this));
 
@@ -102,18 +116,21 @@ export class PaymentsServiceServer {
       createIncomingPayment: this._handleUnary.bind(this),
       createQuote: this._handleUnary.bind(this),
       createOutgoingPayment: this._handleUnary.bind(this),
-      approveOutgoingPayment: this._handleUnary.bind(this)
+      approveOutgoingPayment: this._handleUnary.bind(this),
+      getPaymentIntent: this._handleGetPaymentIntent.bind(this)
     });
   }
 
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       const credentials = grpc.ServerCredentials.createInsecure();
-      console.info(`Starting Payments GRPC service at: ${this._serverUrl}...`);
+      this._logger.info(
+        `Starting Payments GRPC service at: ${this._serverUrl}...`
+      );
 
       this._server.bindAsync(this._serverUrl, credentials, (error) => {
         if (error !== null) {
-          console.error(error);
+          this._logger.error(error);
           reject(error);
           return;
         }
@@ -126,17 +143,17 @@ export class PaymentsServiceServer {
 
   async stop(): Promise<void> {
     this._terminating = true;
-    console.info('Stopping the server...');
+    this._logger.info('Stopping the server...');
 
     return new Promise((resolve, reject) => {
       this._server.tryShutdown((error) => {
         if (error !== undefined) {
-          console.info(`Shutdown completed with error: ${error}`);
+          this._logger.info(`Shutdown completed with error: ${error}`);
           reject(error);
           return;
         }
 
-        console.info('Shutdown completed successfully');
+        this._logger.info('Shutdown completed successfully');
         resolve();
       });
     });
@@ -205,6 +222,7 @@ export class PaymentsServiceServer {
       this._storePendingResponse(commandId, call, callback);
       const receiveAmount = call.request.getReceiveAmount();
       const debitAmount = call.request.getDebitAmount();
+      const remoteUrl = call.request.getRemoteUrl();
       const cmd = new CreateQuoteCmd(
         {
           id: commandId,
@@ -212,7 +230,8 @@ export class PaymentsServiceServer {
           senderWalletAddressId: call.request.getWalletAddressId(),
           senderWalletAddress: call.request.getWalletAddress(),
           receiveAmount: receiveAmount ? receiveAmount : undefined,
-          debitAmount: debitAmount ? debitAmount : undefined
+          debitAmount: debitAmount ? debitAmount : undefined,
+          remoteUrl: remoteUrl ? remoteUrl : undefined
         },
         commandId
       );
@@ -251,6 +270,45 @@ export class PaymentsServiceServer {
       callback(
         new Error(`Invalid request type: ${call.request.constructor.name}`)
       );
+    }
+  }
+
+  private async _handleGetPaymentIntent(
+    call: ServerUnaryCall<GetPaymentIntentRequest, GetPaymentIntentResponse>,
+    callback: sendUnaryData<GetPaymentIntentResponse>
+  ): Promise<void> {
+    const id = call.request.getId();
+    try {
+      const paymentIntent = await this._repo.fetchById(id);
+      if (!paymentIntent) {
+        callback({
+          code: grpc.status.NOT_FOUND,
+          message: `Payment intent '${id}' not found`
+        });
+        return;
+      }
+
+      const response = new GetPaymentIntentResponse();
+      response.setId(paymentIntent.id);
+      response.setWalletAddress(paymentIntent.receiverWalletAddress);
+      response.setState(paymentIntent.state);
+      response.setDestination(paymentIntent.destination);
+      response.setReceivedAmount(Number(paymentIntent.receivedAmount));
+      response.setAssetCode(paymentIntent.assetCode);
+      response.setAssetScale(paymentIntent.assetScale);
+      if (paymentIntent.incomingAmount != null) {
+        response.setIncomingAmount(Number(paymentIntent.incomingAmount));
+      }
+      if (paymentIntent.expiresAt) {
+        response.setExpiresAt(new Date(paymentIntent.expiresAt).toISOString());
+      }
+      if (paymentIntent.destinationIlpAddress) {
+        response.setDestinationIlpAddress(paymentIntent.destinationIlpAddress);
+      }
+
+      callback(null, response);
+    } catch (err) {
+      callback({ code: grpc.status.INTERNAL, message: (err as Error).message });
     }
   }
 
@@ -301,64 +359,64 @@ export class PaymentsServiceServer {
     const pending = this._responseMap.get(requestId);
     if (!pending) return;
 
-    const event = message as PaymentIntentDomainEvent;
+    const evt = message as PaymentIntentDomainEvent;
 
-    if (PaymentIntentDomainEvent.isPaymentIntentCreatedEvent(event)) {
+    if (PaymentIntentDomainEvent.isPaymentIntentCreatedEvent(evt)) {
       const response = new CreateIncomingPaymentResponse().setId(
-        event.payload.id
+        evt.payload.id
       );
       this._resolvePendingResponse(pending, requestId, null, response);
-    } else if (
-      PaymentIntentDomainEvent.isPaymentIntentCreateFailedEvent(event)
-    ) {
+    } else if (PaymentIntentDomainEvent.isPaymentIntentCreateFailedEvent(evt)) {
       this._resolvePendingResponse(pending, requestId, {
         code: grpc.status.INTERNAL,
-        message: event.payload.message || 'Command processing failed',
-        details: event.payload.message,
-        name: event.payload.errorName || 'CommandError',
+        message: evt.payload.message || 'Command processing failed',
+        details: evt.payload.message,
+        name: evt.payload.errorName || 'CommandError',
         metadata: new grpc.Metadata()
       });
-    } else if (PaymentIntentDomainEvent.isQuoteCompletedEvent(event)) {
-      const response = new CreateQuoteResponse().setId(event.payload.id);
+    } else if (PaymentIntentDomainEvent.isQuoteCompletedEvent(evt)) {
+      const response = new CreateQuoteResponse()
+        .setId(evt.payload.id)
+        .setPaymentIntentId(evt.payload.paymentIntentId);
       this._resolvePendingResponse(pending, requestId, null, response);
-    } else if (PaymentIntentDomainEvent.isQuoteCreateFailedEvent(event)) {
+    } else if (PaymentIntentDomainEvent.isQuoteCreateFailedEvent(evt)) {
       this._resolvePendingResponse(pending, requestId, {
         code: grpc.status.INTERNAL,
-        message: event.payload.message || 'Command processing failed',
-        details: event.payload.message,
-        name: event.payload.errorName || 'CommandError',
+        message: evt.payload.message || 'Command processing failed',
+        details: evt.payload.message,
+        name: evt.payload.errorName || 'CommandError',
         metadata: new grpc.Metadata()
       });
-    } else if (PaymentIntentDomainEvent.isPaymentCreatedEvent(event)) {
+    } else if (PaymentIntentDomainEvent.isPaymentCreatedEvent(evt)) {
       const response = new CreateOutgoingPaymentResponse().setId(
-        event.payload.id
+        evt.payload.id
       );
       this._resolvePendingResponse(pending, requestId, null, response);
-    } else if (PaymentIntentDomainEvent.isPaymentCreateFailedEvent(event)) {
+    } else if (PaymentIntentDomainEvent.isPaymentCreateFailedEvent(evt)) {
       this._resolvePendingResponse(pending, requestId, {
         code: grpc.status.INTERNAL,
-        message: event.payload.message || 'Command processing failed',
-        details: event.payload.message,
-        name: event.payload.errorName || 'CommandError',
+        message: evt.payload.message || 'Command processing failed',
+        details: evt.payload.message,
+        name: evt.payload.errorName || 'CommandError',
         metadata: new grpc.Metadata()
       });
-    } else if (PaymentIntentDomainEvent.isLocalPaymentCompletedEvent(event)) {
+    } else if (PaymentIntentDomainEvent.isLocalPaymentCompletedEvent(evt)) {
       const response = new ApproveOutgoingPaymentResponse().setId(
-        event.payload.id
+        evt.payload.id
       );
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (
-      PaymentIntentDomainEvent.isLocalPaymentCompleteFailedEvent(event)
+      PaymentIntentDomainEvent.isLocalPaymentCompleteFailedEvent(evt)
     ) {
       this._resolvePendingResponse(pending, requestId, {
         code: grpc.status.INTERNAL,
-        message: event.payload.message || 'Command processing failed',
-        details: event.payload.message,
-        name: event.payload.errorName || 'CommandError',
+        message: evt.payload.message || 'Command processing failed',
+        details: evt.payload.message,
+        name: evt.payload.errorName || 'CommandError',
         metadata: new grpc.Metadata()
       });
     } else {
-      console.warn(
+      this._logger.warn(
         `Unknown response event — msgName: ${message.msgName}, requestId: ${requestId}`
       );
     }

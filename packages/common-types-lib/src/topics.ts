@@ -16,7 +16,8 @@ export enum CommandTopics {
   'AuthCommands' = 'auth-commands',
   'LedgerCommands' = 'ledger-commands',
   'AssetCommands' = 'asset-commands',
-  'IlpCommands' = 'ilp-commands'
+  'IlpCommands' = 'ilp-commands',
+  'NotificationCommands' = 'notification-commands'
 }
 
 // for private event-sourcing events

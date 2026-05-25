@@ -18,9 +18,12 @@ export class NotificationAggregate {
     this._notificationSenderService = notificationSenderService;
   }
 
-  async createAndSendNotification(): Promise<string> {
+  async createAndSendNotification(
+    data: Record<string, unknown>
+  ): Promise<string> {
     const id = crypto.randomUUID();
-    const notification = new Notification(id);
+    const notification = new Notification(id, data);
+    await this._repo.store(notification.toObject());
     try {
       await this._notificationSenderService.send(notification);
       notification.markAsSent();
@@ -31,10 +34,5 @@ export class NotificationAggregate {
     } finally {
       await this._repo.store(notification.toObject());
     }
-  }
-
-  async getNotification(id: string): Promise<Notification | null> {
-    const found = await this._repo.fetch(id);
-    return found ? Notification.fromObject(found) : null;
   }
 }

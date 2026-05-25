@@ -6,11 +6,25 @@ import { ILogger, ILoggerParams } from 'common-types-lib';
 export class PinoLogger implements ILogger {
   private _logger: pino.Logger<never, boolean>;
 
-  constructor() {
+  constructor(options?: { service?: string }) {
     this._logger = pino({
       level: process.env['LOG_LEVEL'] || 'debug',
-      base: null
+      base: options?.service ? { service: options.service } : null
     });
+  }
+
+  private static _fromInstance(
+    instance: pino.Logger<never, boolean>
+  ): PinoLogger {
+    const wrapper = new PinoLogger();
+    wrapper._logger = instance;
+    return wrapper;
+  }
+
+  child(bindings: Record<string, unknown>): PinoLogger {
+    return PinoLogger._fromInstance(
+      this._logger.child(bindings) as pino.Logger<never, boolean>
+    );
   }
 
   private _log(fn: ILoggerParams, ...args: any[]): void {

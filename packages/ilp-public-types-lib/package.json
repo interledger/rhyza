@@ -1,0 +1,29 @@
+{
+  "name": "ilp-public-types-lib",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "build": "tsc --build",
+    "gen-types": "node gen-types.js",
+    "prebuild": "pnpm run gen-types"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@grpc/grpc-js": "~1.14.3",
+    "@grpc/proto-loader": "~0.8.0",
+    "google-protobuf": "~4.0.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "grpc_tools_node_protoc_ts": "~5.3.3",
+    "grpc-tools": "~1.13.1",
+    "@types/google-protobuf": "~3.15.12",
+    "tslib": "~2.8.1"
+  }
+}
