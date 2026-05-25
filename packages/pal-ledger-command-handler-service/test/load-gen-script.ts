@@ -165,7 +165,7 @@ function getSimpleTransactionTestCommands(
 }
 
 function getHighLevelTransactionTestCommands(
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   transactionIdPrefix: string
 ): LedgerCommand[] {
   const cmds: CommandMsg[] = [];
