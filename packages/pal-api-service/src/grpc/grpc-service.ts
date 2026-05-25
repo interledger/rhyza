@@ -23,7 +23,8 @@ import {
   HealthCheckRequest,
   HealthCheckResponse,
   HealthService,
-  PalGrpcService, PeerActivatedEvent
+  PalGrpcService,
+  PeerActivatedEvent
 } from 'pal-public-types-lib';
 import {
   DomainEvent,
@@ -348,9 +349,7 @@ export class PalGrpcServer {
 
     this._eventHandlerRegistry.register(
       [PeerActivatedEvent.name],
-      this._peerGrpcHandler.handlePeerActivatedEvent.bind(
-        this._peerGrpcHandler
-      )
+      this._peerGrpcHandler.handlePeerActivatedEvent.bind(this._peerGrpcHandler)
     );
 
     // register a lambda handler for ledger not found event

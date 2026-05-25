@@ -17,7 +17,9 @@ import { JsonDomainEventSerializer } from './json/json-domain-event-serializer';
 import { JsonSnapshotSerializer } from './json/json-snapshot-serializer';
 import { JsonStateEventSerializer } from './json/json-state-event-serializer';
 
-export class MessageSerializationFactory implements IRawMessageSerializerFactory {
+export class MessageSerializationFactory
+  implements IRawMessageSerializerFactory
+{
   private static _instance: MessageSerializationFactory | null = null;
   private _serializers: IRawMessageSerializer[];
 

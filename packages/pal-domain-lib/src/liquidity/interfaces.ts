@@ -1,5 +1,9 @@
 import { LedgerSnapshotEvent, LedgerStateEvent } from './messages/events';
-import {ILedgerAccountDto, ILedgerDto, ILedgerTransactionDto } from "pal-public-types-lib";
+import {
+  ILedgerAccountDto,
+  ILedgerDto,
+  ILedgerTransactionDto
+} from 'pal-public-types-lib';
 
 /*
 repositories

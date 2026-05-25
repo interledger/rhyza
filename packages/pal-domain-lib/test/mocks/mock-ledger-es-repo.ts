@@ -4,7 +4,9 @@ import {
   LedgerStateEvent
 } from '../../src';
 
-export class MockLedgerEventSourcingRepository implements ILedgerEventSourcingRepository {
+export class MockLedgerEventSourcingRepository
+  implements ILedgerEventSourcingRepository
+{
   private _events: LedgerStateEvent[] = [];
   private _snapshots: LedgerSnapshotEvent[] = [];
 

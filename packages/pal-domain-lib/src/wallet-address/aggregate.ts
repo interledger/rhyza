@@ -10,7 +10,8 @@ import { ILogger } from 'common-types-lib';
 import {
   IPalWalletAddressDto,
   WalletAddressAliasCreatedEvent,
-  WalletAddressCreatedEvent, WalletAddressDomainEvent
+  WalletAddressCreatedEvent,
+  WalletAddressDomainEvent
 } from 'pal-public-types-lib';
 
 export class WalletAddressAggregate {
@@ -18,10 +19,7 @@ export class WalletAddressAggregate {
   private _repo: IPalWalletAddressRepository;
   private readonly _uncommittedDomainEvents: WalletAddressDomainEvent[];
 
-  constructor(
-    repo: IPalWalletAddressRepository,
-    logger: ILogger
-  ) {
+  constructor(repo: IPalWalletAddressRepository, logger: ILogger) {
     this._logger = logger;
     this._repo = repo;
     this._uncommittedDomainEvents = [];
@@ -46,7 +44,9 @@ export class WalletAddressAggregate {
     const alias = await this.resolveWalletAddressAlias(domain, pathName);
 
     if (alias) {
-      this._logger.warn(`Wallet Address with that domain and pathName ${domain}/${pathName} already exists`)
+      this._logger.warn(
+        `Wallet Address with that domain and pathName ${domain}/${pathName} already exists`
+      );
       throw new CannotCreateDuplicateWalletAddressError(
         `Wallet Address with that domain and pathName ${domain}/${pathName} already exists`
       );

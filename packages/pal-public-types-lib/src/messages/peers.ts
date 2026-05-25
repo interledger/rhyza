@@ -18,7 +18,9 @@ export abstract class PeerDomainEvent extends DomainEvent {
   static isPeerCreatedEvent(evt: DomainEvent): evt is PeerCreatedEvent {
     return evt.msgName === PeerCreatedEvent.name;
   }
-  static isPeerCreationFailedEvent(evt: DomainEvent): evt is PeerCreationFailedEvent {
+  static isPeerCreationFailedEvent(
+    evt: DomainEvent
+  ): evt is PeerCreationFailedEvent {
     return evt.msgName === PeerCreationFailedEvent.name;
   }
   static isPeerActivatedEvent(evt: DomainEvent): evt is PeerActivatedEvent {

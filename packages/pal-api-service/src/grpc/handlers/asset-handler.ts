@@ -1,15 +1,9 @@
 import { ILogger, IMessageProducer } from 'common-types-lib';
-import {
-  AssetAggregate,
-  CreateLedgerAccountForAssetCmd,
-  CreateLedgerCmd
-} from 'pal-domain-lib';
+import { AssetAggregate } from 'pal-domain-lib';
 import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js';
 import { Status } from '@grpc/grpc-js/build/src/constants';
 import {
   AssetActivatedEvent,
-  LedgerAccountCreatedForAssetEvent,
-  LedgerCreatedEvent,
   PbCreateAssetRequest
 } from 'pal-public-types-lib';
 import { PendingResponseRegistry } from '../registries/pending-response-registry';
@@ -21,7 +15,7 @@ import {
   PbGetAssetResponse
 } from 'pal-public-types-lib';
 import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
-import crypto from "crypto";
+import crypto from 'crypto';
 
 /**
  * Asset related request and event handlers
@@ -85,8 +79,10 @@ export class AssetGrpcHandler {
       highThreshold ? BigInt(highThreshold) : undefined
     );
 
-    if(this._assetAggregate.uncommittedDomainEvents.length == 0){
-      this._logger.warn('No uncommitted domain events after successful asset creation request');
+    if (this._assetAggregate.uncommittedDomainEvents.length == 0) {
+      this._logger.warn(
+        'No uncommitted domain events after successful asset creation request'
+      );
       callback({
         code: Status.UNKNOWN,
         message: `Error processing asset creation request - trying to create asset: ${assetCode}`
@@ -98,22 +94,21 @@ export class AssetGrpcHandler {
     // make sure the request id is passed on to any outgoing events
     this._responseRegistry.store(requestId, call, callback);
 
-    this._assetAggregate.uncommittedDomainEvents.every(
-      evt =>{evt.requestId = requestId}
-    );
+    this._assetAggregate.uncommittedDomainEvents.every((evt) => {
+      evt.requestId = requestId;
+    });
     await this._msgProducer.send(this._assetAggregate.uncommittedDomainEvents);
     this._assetAggregate.clearUncommittedDomainEvents();
   }
 
   async handleAssetActivatedEvent(
     pendingResp: PendingResponse,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     event: AssetActivatedEvent
   ): Promise<void> {
-
     // respond to the client
     this._responseRegistry.resolve(pendingResp, null, new Empty());
   }
-
 
   async handleGetAssetRequest(
     call: ServerUnaryCall<PbGetAssetRequest, PbGetAssetResponse>

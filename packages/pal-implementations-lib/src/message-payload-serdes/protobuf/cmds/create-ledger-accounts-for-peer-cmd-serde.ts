@@ -1,9 +1,7 @@
 import { Any as PbAny } from 'google-protobuf/google/protobuf/any_pb';
 import { ProtoBufBaseCommandSerializer } from 'implementations-lib';
 import { CreateLedgerAccountsForPeerCmdPayload } from 'pal-domain-lib';
-import {
-  PbCreateLedgerAccountsForPeerCmdPayload
-} from '../../../proto_generated';
+import { PbCreateLedgerAccountsForPeerCmdPayload } from '../../../proto_generated';
 
 export class CreateLedgerAccountsForPeerCmdSerde extends ProtoBufBaseCommandSerializer<CreateLedgerAccountsForPeerCmdPayload> {
   protected _payloadPbClassName = 'PbCreateLedgerAccountsForPeerCmdPayload';
@@ -42,7 +40,7 @@ export class CreateLedgerAccountsForPeerCmdSerde extends ProtoBufBaseCommandSeri
       peerClearingAccId: pbPayload.getPeerClearingAccountId(),
       aseLiquidityAccId: pbPayload.getAseLiquidityAccountId(),
       aseClearingAccId: pbPayload.getAseClearingAccountId(),
-      suspenseAccId: pbPayload.getSuspenseAccountId(),
+      suspenseAccId: pbPayload.getSuspenseAccountId()
     };
 
     return payload;

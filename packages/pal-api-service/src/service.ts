@@ -179,17 +179,14 @@ export class PalApiService {
     );
 
     // create aggregates driven by this gRPC port
-    const assetAggregate = new AssetAggregate(
-      this._assetRepo, this._logger
-    );
+    const assetAggregate = new AssetAggregate(this._assetRepo, this._logger);
 
     const walletAggregate = new WalletAddressAggregate(
-      this._walletRepo, this._logger
+      this._walletRepo,
+      this._logger
     );
 
-    const peerAggregate = new PeerAggregate(
-      this._peerRepo, this._logger
-    );
+    const peerAggregate = new PeerAggregate(this._peerRepo, this._logger);
 
     this.grpcService = new PalGrpcServer(
       INSTANCE_ID,

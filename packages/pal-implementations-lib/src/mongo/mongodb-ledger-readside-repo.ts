@@ -5,9 +5,7 @@ import {
   InsertManyResult,
   MongoClient
 } from 'mongodb';
-import {
-  ILedgerReadSideRepository
-} from 'pal-domain-lib';
+import { ILedgerReadSideRepository } from 'pal-domain-lib';
 import {
   ILedgerDto,
   ILedgerAccountDto,

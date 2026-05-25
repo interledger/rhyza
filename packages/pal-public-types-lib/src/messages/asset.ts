@@ -19,14 +19,15 @@ export abstract class AssetDomainEvent extends DomainEvent {
     return evt.msgName === AssetCreatedEvent.name;
   }
 
-  static isAssetCreationFailedEvent(evt: DomainEvent): evt is AssetCreationFailedEvent {
+  static isAssetCreationFailedEvent(
+    evt: DomainEvent
+  ): evt is AssetCreationFailedEvent {
     return evt.msgName === AssetCreationFailedEvent.name;
   }
 
   static isAssetActivatedEvent(evt: DomainEvent): evt is AssetActivatedEvent {
     return evt.msgName === AssetActivatedEvent.name;
   }
-
 }
 
 /*

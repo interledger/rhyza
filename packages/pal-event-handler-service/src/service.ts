@@ -12,7 +12,11 @@ import {
 import {
   ILedgerEventSourcingRepository,
   LedgerAggregate,
-  ILedgerReadSideRepository, PeerAggregate, IPalPeerRepository, IPalAssetRepository, AssetAggregate
+  ILedgerReadSideRepository,
+  PeerAggregate,
+  IPalPeerRepository,
+  IPalAssetRepository,
+  AssetAggregate
 } from 'pal-domain-lib';
 import {
   CreateLedgerAccountForAssetCmdSerde,
@@ -22,8 +26,10 @@ import {
   LedgerAccountsCreatedStateEventSerde,
   LedgerCreatedStateEventSerde,
   LedgerSnapshotSerde,
-  LedgerTransactionRecordedStateEventSerde, MongoDbAssetRepo,
-  MongoDbLedgerReadSideRepo, MongoDbPeerRepo,
+  LedgerTransactionRecordedStateEventSerde,
+  MongoDbAssetRepo,
+  MongoDbLedgerReadSideRepo,
+  MongoDbPeerRepo,
   PostTransactionCmdSerde
 } from 'pal-implementations-lib';
 
@@ -42,7 +48,7 @@ import {
   LedgerStateEventHandlerConfigs
 } from './handlers/ledger-state-event-handler';
 import { IntegrationEventHandler } from './handlers/integration-event-handler';
-import {InternalEventHandler} from "./handlers/internal-event-handler";
+import { InternalEventHandler } from './handlers/internal-event-handler';
 
 const INSTANCE_ID = `ES_LEDGER_POC_SVC__${crypto.randomUUID()}`;
 const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379';
@@ -124,7 +130,7 @@ export class PalLedgerEventHandlerService {
     internalEventsConsumer?: IMessageConsumer,
     producer?: IMessageProducer,
     peerRepo?: IPalPeerRepository,
-    assetRepo?: IPalAssetRepository,
+    assetRepo?: IPalAssetRepository
   ): Promise<void> {
     if (!logger) {
       logger = new PinoLogger();
@@ -199,7 +205,6 @@ export class PalLedgerEventHandlerService {
     }
     this._producer = producer;
 
-
     /*
      * Instantiate state event habdlers - snapshotter and projector
      */
@@ -217,7 +222,11 @@ export class PalLedgerEventHandlerService {
     this._stateEventsConsumer = stateEventsConsumer;
 
     // Instantiate the aggregate to be used by the snapshotter and read side projections
-    const ledgerAggregate = new LedgerAggregate(this._esRepo, this._producer, logger);
+    const ledgerAggregate = new LedgerAggregate(
+      this._esRepo,
+      this._producer,
+      logger
+    );
 
     const configs: LedgerStateEventHandlerConfigs = {
       maxStateEventsBetweenSnapshots: MAX_EVENTS_PER_SNAPSHOT,
@@ -256,27 +265,21 @@ export class PalLedgerEventHandlerService {
     }
     this._internalEventsConsumer = internalEventsConsumer;
 
-    if(!assetRepo){
+    if (!assetRepo) {
       assetRepo = new MongoDbAssetRepo(MONGO_URL, this._logger);
       await (assetRepo as MongoDbAssetRepo).init();
     }
     this._assetRepo = assetRepo;
 
-    const assetAggregate = new AssetAggregate(
-      this._assetRepo,
-      this._logger
-    );
+    const assetAggregate = new AssetAggregate(this._assetRepo, this._logger);
 
-    if(!peerRepo){
+    if (!peerRepo) {
       peerRepo = new MongoDbPeerRepo(MONGO_URL, this._logger);
       await (peerRepo as MongoDbPeerRepo).init();
     }
     this._peerRepo = peerRepo;
 
-    const peerAggregate = new PeerAggregate(
-      this._peerRepo,
-      this._logger
-    );
+    const peerAggregate = new PeerAggregate(this._peerRepo, this._logger);
 
     this._internalEventHandler = new InternalEventHandler(
       peerAggregate,

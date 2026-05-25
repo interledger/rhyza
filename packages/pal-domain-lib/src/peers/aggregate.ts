@@ -1,4 +1,4 @@
-import {ILogger} from 'common-types-lib';
+import { ILogger } from 'common-types-lib';
 import { IPalPeerRepository } from './interfaces';
 import {
   CannotCreateDuplicatePeerError,
@@ -7,7 +7,11 @@ import {
   PeerNotFoundError
 } from './errors';
 import { IPalPeerCommunicationMethodDefinition, PalPeer } from './entity';
-import { PeerActivatedEvent, PeerCreatedEvent, PeerDomainEvent} from "pal-public-types-lib";
+import {
+  PeerActivatedEvent,
+  PeerCreatedEvent,
+  PeerDomainEvent
+} from 'pal-public-types-lib';
 
 export class PeerAggregate {
   private readonly _logger: ILogger;
@@ -48,7 +52,7 @@ export class PeerAggregate {
 
     await this._repo.store(peer.toDto());
     this._uncommittedDomainEvents.push(
-      new PeerCreatedEvent({peerId: peerId, assetCode: assetCode})
+      new PeerCreatedEvent({ peerId: peerId, assetCode: assetCode })
     );
     this._logger.debug(`Peer ${peerId} and assetCode: ${assetCode} created`);
   }
@@ -83,7 +87,9 @@ export class PeerAggregate {
     const found = await this._repo.fetch([peerId]);
 
     if (found.length == 0) {
-      this._logger.warn(`Peer with id: ${peerId} not found in setCommunicationMethodDefinition()`);
+      this._logger.warn(
+        `Peer with id: ${peerId} not found in setCommunicationMethodDefinition()`
+      );
       throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
     }
 
@@ -107,24 +113,31 @@ export class PeerAggregate {
     const found = await this._repo.fetch([peerId]);
 
     if (found.length == 0) {
-      this._logger.warn(`Peer with id: ${peerId} not found in associateLedgerAccountsAndActivate()`);
+      this._logger.warn(
+        `Peer with id: ${peerId} not found in associateLedgerAccountsAndActivate()`
+      );
       throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
     }
 
     const peer = PalPeer.fromDto(found[0]);
     peer.associateLedgerAccounts(
-      peerLiquidityAccId, peerClearingAccId, aseLiquidityAccId,
-      aseClearingAccId, suspenseAccId
+      peerLiquidityAccId,
+      peerClearingAccId,
+      aseLiquidityAccId,
+      aseClearingAccId,
+      suspenseAccId
     );
     peer.activate();
 
     await this._repo.store(peer.toDto());
 
     this._uncommittedDomainEvents.push(
-      new PeerActivatedEvent({peerId: peerId})
+      new PeerActivatedEvent({ peerId: peerId })
     );
 
-    this._logger.debug(`Peer ${peerId} and assetCode: ${peer.assetCode} now has ledger accounts associated and has been activated`);
+    this._logger.debug(
+      `Peer ${peerId} and assetCode: ${peer.assetCode} now has ledger accounts associated and has been activated`
+    );
   }
 
   async activate(peerId: string): Promise<void> {

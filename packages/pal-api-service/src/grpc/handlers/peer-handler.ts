@@ -1,9 +1,8 @@
-import {ILogger, IMessage, IMessageProducer} from 'common-types-lib';
+import { ILogger, IMessageProducer } from 'common-types-lib';
 import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js';
 import { Status } from '@grpc/grpc-js/build/src/constants';
 import { PendingResponseRegistry } from '../registries/pending-response-registry';
 import {
-  CreateLedgerAccountsForPeerCmd,
   PalPeer,
   PeerAggregate,
   PeerAlreadyActiveError,
@@ -15,12 +14,13 @@ import crypto from 'crypto';
 
 import { PendingResponse, UnaryResponse } from '../types';
 import {
-  LedgerAccountsCreatedForPeerEvent,
   PbDeactivatePeerRequest,
   PbPeer,
   PbGetPeerResponse,
   PbGetPeerRequest,
-  PbPeerCommsMethodDefinition, PbPeerLedgerAccounts, AssetActivatedEvent, PeerActivatedEvent
+  PbPeerCommsMethodDefinition,
+  PbPeerLedgerAccounts,
+  PeerActivatedEvent
 } from 'pal-public-types-lib';
 import {
   PbActivatePeerRequest,
@@ -70,9 +70,15 @@ export class PeerGrpcHandler {
 
     if (peer.ledgerAccounts !== null) {
       const pbAccounts = new PbPeerLedgerAccounts();
-      pbAccounts.setPeerLiquidityAccountId(peer.ledgerAccounts.peerLiquidityAccId);
-      pbAccounts.setPeerClearingAccountId(peer.ledgerAccounts.peerClearingAccId);
-      pbAccounts.setAseLiquidityAccountId(peer.ledgerAccounts.aseLiquidityAccId);
+      pbAccounts.setPeerLiquidityAccountId(
+        peer.ledgerAccounts.peerLiquidityAccId
+      );
+      pbAccounts.setPeerClearingAccountId(
+        peer.ledgerAccounts.peerClearingAccId
+      );
+      pbAccounts.setAseLiquidityAccountId(
+        peer.ledgerAccounts.aseLiquidityAccId
+      );
       pbAccounts.setAseClearingAccountId(peer.ledgerAccounts.aseClearingAccId);
       pbAccounts.setSuspenseAccountId(peer.ledgerAccounts.suspenseAccId);
       pbPeer.setLedgerAccounts(pbAccounts);
@@ -115,8 +121,10 @@ export class PeerGrpcHandler {
       }
     );
 
-    if(this._peerAggregate.uncommittedDomainEvents.length == 0){
-      this._logger.warn('No uncommitted domain events after successful peer creation request');
+    if (this._peerAggregate.uncommittedDomainEvents.length == 0) {
+      this._logger.warn(
+        'No uncommitted domain events after successful peer creation request'
+      );
       callback({
         code: Status.UNKNOWN,
         message: `Error processing peer creation request - trying to create peer id: ${peerId}`
@@ -128,18 +136,18 @@ export class PeerGrpcHandler {
     this._responseRegistry.store(requestId, call, callback);
 
     // make sure the request id is passed on to any outgoing events
-    this._peerAggregate.uncommittedDomainEvents.every(
-      evt =>{evt.requestId = requestId}
-    );
+    this._peerAggregate.uncommittedDomainEvents.every((evt) => {
+      evt.requestId = requestId;
+    });
     await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
     this._peerAggregate.clearUncommittedDomainEvents();
   }
 
   async handlePeerActivatedEvent(
     pendingResp: PendingResponse,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     event: PeerActivatedEvent
   ): Promise<void> {
-
     // respond to the client
     this._responseRegistry.resolve(pendingResp, null, new Empty());
   }
@@ -185,8 +193,10 @@ export class PeerGrpcHandler {
         }
       );
 
-      if(this._peerAggregate.uncommittedDomainEvents.length > 0){
-        await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
+      if (this._peerAggregate.uncommittedDomainEvents.length > 0) {
+        await this._msgProducer.send(
+          this._peerAggregate.uncommittedDomainEvents
+        );
         this._peerAggregate.clearUncommittedDomainEvents();
       }
 
@@ -212,8 +222,10 @@ export class PeerGrpcHandler {
     try {
       await this._peerAggregate.activate(peerId);
 
-      if(this._peerAggregate.uncommittedDomainEvents.length > 0){
-        await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
+      if (this._peerAggregate.uncommittedDomainEvents.length > 0) {
+        await this._msgProducer.send(
+          this._peerAggregate.uncommittedDomainEvents
+        );
         this._peerAggregate.clearUncommittedDomainEvents();
       }
 
@@ -247,8 +259,10 @@ export class PeerGrpcHandler {
     try {
       await this._peerAggregate.deactivate(peerId);
 
-      if(this._peerAggregate.uncommittedDomainEvents.length > 0){
-        await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
+      if (this._peerAggregate.uncommittedDomainEvents.length > 0) {
+        await this._msgProducer.send(
+          this._peerAggregate.uncommittedDomainEvents
+        );
         this._peerAggregate.clearUncommittedDomainEvents();
       }
 

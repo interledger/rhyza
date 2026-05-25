@@ -1,7 +1,9 @@
 import { IMessage, MessageDataFormats } from 'common-types-lib';
 import { IRawMessageSerializer } from '../types';
 
-export abstract class JsonBaseMessageSerializer implements IRawMessageSerializer {
+export abstract class JsonBaseMessageSerializer
+  implements IRawMessageSerializer
+{
   readonly dataFormat: MessageDataFormats = MessageDataFormats.JSON;
 
   abstract readonly msgType: string;

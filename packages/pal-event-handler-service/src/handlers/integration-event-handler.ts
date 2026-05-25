@@ -4,7 +4,8 @@ import {
   IMessageConsumer,
   IMessage,
   DomainEventTopics,
-  DomainEvent, MessageTypes
+  DomainEvent,
+  MessageTypes
 } from 'common-types-lib';
 
 /**
@@ -31,7 +32,7 @@ export class IntegrationEventHandler {
     // NOTE: we shouldn't log ignored events, they can be the majority
 
     for (const msg of messages) {
-      if(msg.msgType !== MessageTypes.DOMAIN_EVENT){
+      if (msg.msgType !== MessageTypes.DOMAIN_EVENT) {
         continue;
       }
 
@@ -61,9 +62,9 @@ export class IntegrationEventHandler {
     } else if (evt.msgName === 'RemoteQuoteRequestedEvent') {
       // from payments - to ILP
       /*
-      * 1. resolve peer and determine FX (fx for now is 1)
-      * 2. publish a PeerResolvedForRemoteQuoteEvent
-      * */
+       * 1. resolve peer and determine FX (fx for now is 1)
+       * 2. publish a PeerResolvedForRemoteQuoteEvent
+       * */
     }
   }
 
@@ -72,9 +73,7 @@ export class IntegrationEventHandler {
       DomainEventTopics.PaymentEvents,
       DomainEventTopics.IlpEvents
     ]);
-    this._msgConsumer.setBatchCallbackFn(
-      this._handleMessageBatch.bind(this)
-    );
+    this._msgConsumer.setBatchCallbackFn(this._handleMessageBatch.bind(this));
     await this._msgConsumer.connect();
     await this._msgConsumer.startAndWaitForRebalance();
 

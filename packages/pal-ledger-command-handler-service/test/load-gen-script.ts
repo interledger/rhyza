@@ -9,6 +9,7 @@ import {
   CreateLedgerAccountForAssetCmd,
   CreateLedgerAccountsForPeerCmd,
   CreateLedgerCmd,
+  IPalPeerAccounts,
   LedgerCommand,
   PostTransactionCmd
 } from 'pal-domain-lib';
@@ -39,14 +40,17 @@ const kafkaProducerCommonOptions: KafkaProducerOptions = {
 
 const ASSET_CODE = 'EUR';
 const ASSET_SYSTEM_ACC_ID = 'system';
-const PEDRO_PEER_ID = 'pedro';
-const PEDRO_CLEARING_ACC_ID = 'pedro_clearing'
-const PEDRO_LIQUIDITY_ACC_ID = 'pedro_liquidity';
-const ELSA_PEER_ID = 'elsa';
-const ELSA_CLEARING_ASS_ID = 'elsa_clearing';
-const ELSA_LIQUIDITY_ACC_ID = 'elsa_liquidity';
+const PEER_ID = 'peer';
 
 let producer: IMessageProducer;
+
+const peerAccounts: IPalPeerAccounts = {
+  peerLiquidityAccId: 'peerLiquidityAccId',
+  peerClearingAccId: 'peerClearingAccId',
+  aseLiquidityAccId: 'aseLiquidityAccId',
+  aseClearingAccId: 'aseClearingAccId',
+  suspenseAccId: 'suspenseAccId'
+};
 
 const CREATE_LEDGER_AND_ACCOUNTS =
   (process.env['CREATE_LEDGER_AND_ACCOUNTS'] &&
@@ -58,7 +62,11 @@ const TRANSACTION_COUNT = process.env['TRANSACTION_COUNT']
 
 const TEST_TYPE_LOW_LEVEL = 'lowlevel';
 const TEST_TYPE_HIGH_LEVEL = 'highlevel';
-const TEST_TYPE = process.env['TEST_TYPE'] && process.env['TEST_TYPE'].toUpperCase() === TEST_TYPE_HIGH_LEVEL ? TEST_TYPE_HIGH_LEVEL : TEST_TYPE_LOW_LEVEL;
+const TEST_TYPE =
+  process.env['TEST_TYPE'] &&
+  process.env['TEST_TYPE'].toUpperCase() === TEST_TYPE_HIGH_LEVEL
+    ? TEST_TYPE_HIGH_LEVEL
+    : TEST_TYPE_LOW_LEVEL;
 
 const logger = new ConsoleLogger();
 
@@ -104,14 +112,13 @@ async function setup() {
 
   const cmds: CommandMsg[] = [];
 
-
   if (CREATE_LEDGER_AND_ACCOUNTS) {
     const startTs = Date.now();
     cmds.push(...createLedgerAssetAndPeerAccounts());
     await producer.send(cmds);
     const endTs = Date.now();
     logger.debug(`Setup - Created ledger and accounts in ${endTs - startTs}ms`);
-  }else{
+  } else {
     logger.debug(`Setup - Skipping ledger and accounts creation`);
   }
 }
@@ -123,30 +130,25 @@ function createLedgerAssetAndPeerAccounts(): CommandMsg[] {
     assetCode: ASSET_CODE
   });
   const cmd3 = new CreateLedgerAccountsForPeerCmd(ASSET_CODE, {
-    liquidityAccountId: PEDRO_LIQUIDITY_ACC_ID,
-    clearingAccountId: PEDRO_CLEARING_ACC_ID,
+    ...peerAccounts,
     assetCode: ASSET_CODE,
-    peerId: PEDRO_PEER_ID
+    peerId: PEER_ID
   });
-  const cmd4 = new CreateLedgerAccountsForPeerCmd(ASSET_CODE, {
-    liquidityAccountId: ELSA_LIQUIDITY_ACC_ID,
-    clearingAccountId: ELSA_CLEARING_ASS_ID,
-    assetCode: ASSET_CODE,
-    peerId: ELSA_PEER_ID
-  });
-  return [cmd1, cmd2, cmd3, cmd4];
+  return [cmd1, cmd2, cmd3];
 }
 
-function getSimpleTransactionTestCommands(transactionIdPrefix:string):LedgerCommand[] {
+function getSimpleTransactionTestCommands(
+  transactionIdPrefix: string
+): LedgerCommand[] {
   const cmds: CommandMsg[] = [];
 
   for (let i = 0; i < TRANSACTION_COUNT; i++) {
     //let amount = "1"; //BigInt(Math.round(Math.random() * 1000));
     const amount = BigInt(Math.round(Math.random() * 1000)).toString();
-    const [sender, receiver] = getRandomPair([PEDRO_CLEARING_ACC_ID, ELSA_CLEARING_ASS_ID]) || [
-      PEDRO_CLEARING_ACC_ID,
-      ELSA_CLEARING_ASS_ID
-    ];
+    const [sender, receiver] = getRandomPair([
+      peerAccounts.aseClearingAccId,
+      peerAccounts.peerClearingAccId
+    ]) || [peerAccounts.aseClearingAccId, peerAccounts.peerClearingAccId];
 
     cmds.push(
       new PostTransactionCmd(ASSET_CODE, {
@@ -162,20 +164,22 @@ function getSimpleTransactionTestCommands(transactionIdPrefix:string):LedgerComm
   return cmds;
 }
 
-function getHighLevelTransactionTestCommands(transactionIdPrefix:string):LedgerCommand[] {
+function getHighLevelTransactionTestCommands(
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  transactionIdPrefix: string
+): LedgerCommand[] {
   const cmds: CommandMsg[] = [];
 
-  for (let i = 0; i < TRANSACTION_COUNT; i++) {
+  /* for (let i = 0; i < TRANSACTION_COUNT; i++) {
     const amount = BigInt(Math.round(Math.random() * 1000)).toString();
-    const [sender, receiver] = getRandomPair([PEDRO_PEER_ID, ELSA_PEER_ID]);
+    const [payer, payee] = getRandomPair([peerAccounts.aseClearingAccId, peerAccounts.peerClearingAccId]);
 
   // TODO
-
-  }
+    const a = transactionIdPrefix;
+  }*/
 
   return cmds;
 }
-
 
 async function main() {
   await setup();
@@ -188,12 +192,11 @@ async function main() {
 
   const transactionIdPrefix = `txn_${randomBytes(3).toString('hex')}_`;
 
-
-  if(TEST_TYPE === TEST_TYPE_HIGH_LEVEL){
+  if (TEST_TYPE === TEST_TYPE_HIGH_LEVEL) {
     cmds.push(...getHighLevelTransactionTestCommands(transactionIdPrefix));
-  }else if(TEST_TYPE === TEST_TYPE_LOW_LEVEL){
+  } else if (TEST_TYPE === TEST_TYPE_LOW_LEVEL) {
     cmds.push(...getSimpleTransactionTestCommands(transactionIdPrefix));
-  }else{
+  } else {
     throw new Error(`Invalid test type: ${TEST_TYPE}`);
   }
 

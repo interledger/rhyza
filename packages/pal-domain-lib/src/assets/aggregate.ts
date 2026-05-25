@@ -14,10 +14,7 @@ export class AssetAggregate {
   private readonly _repo: IPalAssetRepository;
   private readonly _uncommittedDomainEvents: AssetDomainEvent[];
 
-  constructor(
-    repo: IPalAssetRepository,
-    logger: ILogger
-  ) {
+  constructor(repo: IPalAssetRepository, logger: ILogger) {
     this._logger = logger;
     this._repo = repo;
     this._uncommittedDomainEvents = [];
@@ -57,7 +54,7 @@ export class AssetAggregate {
 
     await this._repo.store(newAsset.toDto());
     this._uncommittedDomainEvents.push(
-      new AssetCreatedEvent({assetCode: code})
+      new AssetCreatedEvent({ assetCode: code })
     );
     this._logger.debug(`Asset with code: ${code} created`);
   }
@@ -77,7 +74,7 @@ export class AssetAggregate {
     await this._repo.store(asset.toDto());
 
     this._uncommittedDomainEvents.push(
-      new AssetActivatedEvent({assetCode: assetCode})
+      new AssetActivatedEvent({ assetCode: assetCode })
     );
   }
 

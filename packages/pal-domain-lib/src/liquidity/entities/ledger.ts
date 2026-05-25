@@ -1,7 +1,4 @@
-import {
-  ILedgerAccount,
-  LedgerAccountDtoSerializer
-} from './ledger-account';
+import { ILedgerAccount, LedgerAccountDtoSerializer } from './ledger-account';
 import {
   LedgerAccountsCreatedStateEvent,
   LedgerCreatedStateEvent,
@@ -32,9 +29,9 @@ import {
   LedgerAccountCreatedForAssetEvent,
   LedgerAccountCreationForAssetFailedEvent,
   LedgerAccountCreationForPeerFailedEvent,
-  LedgerAccountsCreatedForPeerEvent, ILedgerDto
+  LedgerAccountsCreatedForPeerEvent,
+  ILedgerDto
 } from 'pal-public-types-lib';
-
 
 const DEFAULT_DISPLAY_ASSET_SCALE = 2;
 
@@ -141,7 +138,10 @@ export class Ledger {
     this._applyEvent(event);
   }
 
-  private _recordDomainEvent(event: LedgerDomainEvent, requestId?: string): void {
+  private _recordDomainEvent(
+    event: LedgerDomainEvent,
+    requestId?: string
+  ): void {
     if (requestId) {
       event.requestId = requestId;
     }
@@ -294,7 +294,7 @@ export class Ledger {
         accounts: [
           {
             id: cmd.payload.id,
-            name:  `Asset Account for '${cmd.payload.assetCode}'`,
+            name: `Asset Account for '${cmd.payload.assetCode}'`,
             assetCode: cmd.payload.assetCode,
             assetDisplayScale: DEFAULT_DISPLAY_ASSET_SCALE,
             externalId: cmd.payload.assetCode,
@@ -305,10 +305,13 @@ export class Ledger {
       })
     );
 
-    this._recordDomainEvent(new LedgerAccountCreatedForAssetEvent(this._id, {
-      id: cmd.payload.id,
-      assetCode: cmd.payload.assetCode
-    }), cmd.requestId);
+    this._recordDomainEvent(
+      new LedgerAccountCreatedForAssetEvent(this._id, {
+        id: cmd.payload.id,
+        assetCode: cmd.payload.assetCode
+      }),
+      cmd.requestId
+    );
   }
 
   private async _processCreateLedgerAccountsForPeerCmd(
@@ -329,10 +332,13 @@ export class Ledger {
       return;
     }
 
-    const duplicateIdFound = this._accounts.some(acc =>
-      acc.id === cmd.payload.peerLiquidityAccId || acc.id === cmd.payload.peerClearingAccId
-      || acc.id === cmd.payload.aseLiquidityAccId || acc.id === cmd.payload.aseClearingAccId
-      || acc.id === cmd.payload.suspenseAccId
+    const duplicateIdFound = this._accounts.some(
+      (acc) =>
+        acc.id === cmd.payload.peerLiquidityAccId ||
+        acc.id === cmd.payload.peerClearingAccId ||
+        acc.id === cmd.payload.aseLiquidityAccId ||
+        acc.id === cmd.payload.aseClearingAccId ||
+        acc.id === cmd.payload.suspenseAccId
     );
 
     if (duplicateIdFound) {
@@ -356,7 +362,7 @@ export class Ledger {
       externalId: cmd.payload.peerId,
       debitedAmount: 0n.toString(),
       creditedAmount: 0n.toString()
-    }
+    };
 
     this._recordAndApplyStateEvent(
       new LedgerAccountsCreatedStateEvent(this._id, {
@@ -365,23 +371,27 @@ export class Ledger {
             id: cmd.payload.peerLiquidityAccId,
             name: `Peer Liquidity Account for peer '${cmd.payload.peerId}'`,
             ...commonStateEventObj
-          }, {
+          },
+          {
             id: cmd.payload.peerClearingAccId,
             name: `Peer Clearing Account for peer '${cmd.payload.peerId}'`,
             ...commonStateEventObj
-          }, {
+          },
+          {
             id: cmd.payload.aseLiquidityAccId,
             name: `ASE Liquidity Account for peer '${cmd.payload.peerId}'`,
             ...commonStateEventObj
-          }, {
+          },
+          {
             id: cmd.payload.aseClearingAccId,
             name: `ASE Clearing Account for peer '${cmd.payload.peerId}'`,
             ...commonStateEventObj
-          }, {
+          },
+          {
             id: cmd.payload.suspenseAccId,
             name: `Peer Suspense Account for peer '${cmd.payload.peerId}'`,
             ...commonStateEventObj
-          },
+          }
         ]
       })
     );

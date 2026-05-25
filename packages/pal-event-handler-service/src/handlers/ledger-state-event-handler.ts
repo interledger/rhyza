@@ -17,9 +17,10 @@ import {
   LedgerTransactionDtoSerializer,
   LedgerTransactionRecordedStateEvent,
   ILedgerReadSideRepository,
-  LedgerAccountsCreatedStateEvent, LedgerAccountDtoSerializer
+  LedgerAccountsCreatedStateEvent,
+  LedgerAccountDtoSerializer
 } from 'pal-domain-lib';
-import {ILedgerDto} from "pal-public-types-lib";
+import { ILedgerDto } from 'pal-public-types-lib';
 
 export type LedgerStateEventHandlerConfigs = {
   maxStateEventsBetweenSnapshots: number;
@@ -196,16 +197,17 @@ export class LedgerStateEventHandler {
     }
 
     if (this._changedAccounts.size) {
-      await this._readSideRepo.storeLedgerAccounts(Array.from(this._changedAccounts.values()).map(
-        LedgerAccountDtoSerializer.toDTO
-      ));
+      await this._readSideRepo.storeLedgerAccounts(
+        Array.from(this._changedAccounts.values()).map(
+          LedgerAccountDtoSerializer.toDTO
+        )
+      );
       this._logger.debug(
         `Updated read side projections for ${this._changedAccounts.size} accounts`
       );
       this._changedAccounts.clear();
     }
     if (this._createdTransactions.length > 0) {
-
       await this._readSideRepo.storeLedgerTransactions(
         this._createdTransactions.map(LedgerTransactionDtoSerializer.toDTO)
       );

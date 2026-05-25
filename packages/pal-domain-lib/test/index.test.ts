@@ -8,16 +8,14 @@ import {
   IPalWalletAddressRepository,
   WalletAddressAggregate
 } from '../src';
-import { MockMessageProducer, MockAssetRepo, MockWalletRepo } from './mocks';
-import { ConsoleLogger, DomainEvent } from 'common-types-lib';
+import { MockAssetRepo, MockWalletRepo } from './mocks';
+import { ConsoleLogger } from 'common-types-lib';
 import {
   WalletAddressAliasCreatedEvent,
   WalletAddressCreatedEvent
 } from 'pal-public-types-lib';
 
 const logger = new ConsoleLogger();
-
-const mockProducer = new MockMessageProducer();
 
 let assetAggregate: AssetAggregate;
 let assetRepository: IPalAssetRepository;
@@ -39,10 +37,7 @@ before(async () => {
   assetAggregate = new AssetAggregate(assetRepository, logger);
 
   walletRepository = new MockWalletRepo();
-  walletAggregate = new WalletAddressAggregate(
-    walletRepository,
-    logger
-  );
+  walletAggregate = new WalletAddressAggregate(walletRepository, logger);
 });
 
 //region assets

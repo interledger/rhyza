@@ -2,7 +2,7 @@ import { after, before, test } from 'node:test';
 import { randomBytes } from 'node:crypto';
 import * as assert from 'node:assert/strict';
 import { PalClient, parseAddressToDomainAndPathName } from '../src';
-import { IPalPeerDto } from "pal-public-types-lib";
+import { IPalPeerDto } from 'pal-public-types-lib';
 
 let client: PalClient;
 const testPrefix = `TEST-${randomBytes(3).toString('hex')}`;
@@ -129,16 +129,15 @@ test('pal client - created peer must exist', async () => {
 test('pal client - created peer must have an new set of ledger accounts', async () => {
   // we have to wait for the ledger acount to be created in the read side of the ledger
   await new Promise((resolve) => setTimeout(resolve, 1000));
-  const accountIds:string[] = Object.values(peerOneDto.ledgerAccounts);
+  const accountIds: string[] = Object.values(peerOneDto.ledgerAccounts);
 
   const accounts = await client.getLedgerAccounts(accountIds);
 
   assert.ok(accounts);
   assert.equal(accounts.length, 5);
 
-
   const peerLiqAcc = accounts.find(
-    a => a.id === peerOneDto.ledgerAccounts.peerLiquidityAccId
+    (a) => a.id === peerOneDto.ledgerAccounts.peerLiquidityAccId
   );
   assert.ok(peerLiqAcc);
   assert.equal(peerLiqAcc.id, peerOneDto.ledgerAccounts.peerLiquidityAccId);
@@ -148,7 +147,7 @@ test('pal client - created peer must have an new set of ledger accounts', async 
   assert.equal(peerLiqAcc.debitedAmount, '0');
 
   const peerCleAcc = accounts.find(
-    a => a.id === peerOneDto.ledgerAccounts.peerClearingAccId
+    (a) => a.id === peerOneDto.ledgerAccounts.peerClearingAccId
   );
   assert.ok(peerCleAcc);
   assert.equal(peerCleAcc.id, peerOneDto.ledgerAccounts.peerClearingAccId);
@@ -158,7 +157,7 @@ test('pal client - created peer must have an new set of ledger accounts', async 
   assert.equal(peerCleAcc.debitedAmount, '0');
 
   const aseLiqAcc = accounts.find(
-    a => a.id === peerOneDto.ledgerAccounts.aseLiquidityAccId
+    (a) => a.id === peerOneDto.ledgerAccounts.aseLiquidityAccId
   );
   assert.ok(aseLiqAcc);
   assert.equal(aseLiqAcc.id, peerOneDto.ledgerAccounts.aseLiquidityAccId);
@@ -168,7 +167,7 @@ test('pal client - created peer must have an new set of ledger accounts', async 
   assert.equal(aseLiqAcc.debitedAmount, '0');
 
   const aseCleAcc = accounts.find(
-    a => a.id === peerOneDto.ledgerAccounts.aseClearingAccId
+    (a) => a.id === peerOneDto.ledgerAccounts.aseClearingAccId
   );
   assert.ok(aseCleAcc);
   assert.equal(aseCleAcc.id, peerOneDto.ledgerAccounts.aseClearingAccId);
@@ -178,7 +177,7 @@ test('pal client - created peer must have an new set of ledger accounts', async 
   assert.equal(aseCleAcc.debitedAmount, '0');
 
   const suspenseAcc = accounts.find(
-    a => a.id === peerOneDto.ledgerAccounts.suspenseAccId
+    (a) => a.id === peerOneDto.ledgerAccounts.suspenseAccId
   );
   assert.ok(suspenseAcc);
   assert.equal(suspenseAcc.id, peerOneDto.ledgerAccounts.suspenseAccId);
@@ -186,7 +185,6 @@ test('pal client - created peer must have an new set of ledger accounts', async 
   assert.equal(suspenseAcc.externalId, PEER_ONE_ID);
   assert.equal(suspenseAcc.creditedAmount, '0');
   assert.equal(suspenseAcc.debitedAmount, '0');
-
 });
 
 /*
