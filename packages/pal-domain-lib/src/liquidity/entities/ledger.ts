@@ -289,22 +289,15 @@ export class Ledger {
       return;
     }
 
-    const accountName = `Asset Account for '${cmd.payload.assetCode}'`;
-    const externalId = cmd.payload.assetCode;
-    const outputDomainEvent = new LedgerAccountCreatedForAssetEvent(this._id, {
-      id: cmd.payload.id,
-      assetCode: cmd.payload.assetCode
-    });
-
     this._recordAndApplyStateEvent(
       new LedgerAccountsCreatedStateEvent(this._id, {
         accounts: [
           {
             id: cmd.payload.id,
-            name: accountName,
+            name:  `Asset Account for '${cmd.payload.assetCode}'`,
             assetCode: cmd.payload.assetCode,
             assetDisplayScale: DEFAULT_DISPLAY_ASSET_SCALE,
-            externalId: externalId,
+            externalId: cmd.payload.assetCode,
             debitedAmount: 0n.toString(),
             creditedAmount: 0n.toString()
           }
@@ -312,7 +305,10 @@ export class Ledger {
       })
     );
 
-    this._recordDomainEvent(outputDomainEvent, cmd.requestId);
+    this._recordDomainEvent(new LedgerAccountCreatedForAssetEvent(this._id, {
+      id: cmd.payload.id,
+      assetCode: cmd.payload.assetCode
+    }), cmd.requestId);
   }
 
   private async _processCreateLedgerAccountsForPeerCmd(

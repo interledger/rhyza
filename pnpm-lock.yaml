@@ -238,6 +238,46 @@ importers:
         specifier: ^4.19.3
         version: 4.21.0
 
+  packages/pal-event-handler-service:
+    dependencies:
+      '@grpc/grpc-js':
+        specifier: ~1.14.3
+        version: 1.14.3
+      '@grpc/proto-loader':
+        specifier: ~0.8.0
+        version: 0.8.0
+      '@grpc/reflection':
+        specifier: ~1.0.4
+        version: 1.0.4(@grpc/grpc-js@1.14.3)
+      common-types-lib:
+        specifier: 'workspace: *'
+        version: link:../common-types-lib
+      google-protobuf:
+        specifier: ~4.0.1
+        version: 4.0.2
+      implementations-lib:
+        specifier: 'workspace: *'
+        version: link:../implementations-lib
+      pal-domain-lib:
+        specifier: 'workspace: *'
+        version: link:../pal-domain-lib
+      pal-implementations-lib:
+        specifier: 'workspace: *'
+        version: link:../pal-implementations-lib
+      pal-public-types-lib:
+        specifier: 'workspace: *'
+        version: link:../pal-public-types-lib
+      protobufjs:
+        specifier: ~8.0.0
+        version: 8.0.3
+    devDependencies:
+      '@types/google-protobuf':
+        specifier: ~3.15.12
+        version: 3.15.12
+      tsx:
+        specifier: ^4.19.3
+        version: 4.21.0
+
   packages/pal-implementations-lib:
     dependencies:
       common-types-lib:
@@ -279,46 +319,6 @@ importers:
         version: 4.21.0
 
   packages/pal-ledger-command-handler-service:
-    dependencies:
-      '@grpc/grpc-js':
-        specifier: ~1.14.3
-        version: 1.14.3
-      '@grpc/proto-loader':
-        specifier: ~0.8.0
-        version: 0.8.0
-      '@grpc/reflection':
-        specifier: ~1.0.4
-        version: 1.0.4(@grpc/grpc-js@1.14.3)
-      common-types-lib:
-        specifier: 'workspace: *'
-        version: link:../common-types-lib
-      google-protobuf:
-        specifier: ~4.0.1
-        version: 4.0.2
-      implementations-lib:
-        specifier: 'workspace: *'
-        version: link:../implementations-lib
-      pal-domain-lib:
-        specifier: 'workspace: *'
-        version: link:../pal-domain-lib
-      pal-implementations-lib:
-        specifier: 'workspace: *'
-        version: link:../pal-implementations-lib
-      pal-public-types-lib:
-        specifier: 'workspace: *'
-        version: link:../pal-public-types-lib
-      protobufjs:
-        specifier: ~8.0.0
-        version: 8.0.3
-    devDependencies:
-      '@types/google-protobuf':
-        specifier: ~3.15.12
-        version: 3.15.12
-      tsx:
-        specifier: ^4.19.3
-        version: 4.21.0
-
-  packages/pal-ledger-event-handler-service:
     dependencies:
       '@grpc/grpc-js':
         specifier: ~1.14.3
