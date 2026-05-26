@@ -17,24 +17,12 @@ export async function assetRoutes(
     Body: {
       code: string;
       scale: number;
-      liquidityLowThreshold?: number;
-      liquidityHighThreshold?: number;
     };
   }>('/assets', async (request, reply) => {
-    const { code, scale, liquidityLowThreshold, liquidityHighThreshold } =
-      request.body;
+    const { code, scale } = request.body;
 
     try {
-      await palClient.createAsset(
-        code,
-        scale,
-        liquidityLowThreshold !== undefined
-          ? BigInt(liquidityLowThreshold)
-          : undefined,
-        liquidityHighThreshold !== undefined
-          ? BigInt(liquidityHighThreshold)
-          : undefined
-      );
+      await palClient.createAsset(code, scale);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       // TODO: PAL service returns gRPC code 2 (UNKNOWN) for duplicates — should probably

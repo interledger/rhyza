@@ -47,8 +47,7 @@ test('pal client - created asset must exist', async () => {
   assert.ok(asset);
   assert.equal(asset.code, ASSET_CODE);
   assert.equal(asset.scale, ASSET_SCALE);
-  assert.equal(asset.liquidityLowThreshold, null);
-  assert.equal(asset.liquidityHighThreshold, null);
+
   assert.ok(asset.ledgerAccountId);
   createdAssetLedgerAccountId = asset.ledgerAccountId;
 });

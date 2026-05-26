@@ -30,8 +30,6 @@ Asset messages
 message PbCreateAssetRequest{
   string code = 1;
   uint32 scale = 2;
-  optional uint64 liquidity_low_threshold = 3;
-  optional uint64 liquidity_high_threshold = 4;
 }
 
 message PbGetAssetRequest{
@@ -44,8 +42,6 @@ message PbAsset{
   string code = 1;
   uint32 scale = 2;
   optional string ledger_account_id = 3;
-  optional uint64 liquidity_low_threshold = 4;
-  optional uint64 liquidity_high_threshold = 5;
 }
 
 /*

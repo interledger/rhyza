@@ -29,7 +29,7 @@ const client = new PalClient('localhost:50051');
 await client.init();
 
 // Create an asset
-await client.createAsset('EUR', 2, BigInt(100000), BigInt(10_000_000)); // thresholds are optional
+await client.createAsset('EUR', 2, BigInt(100000), BigInt(10_000_000));
 
 // Retrieve an asset - will return null if not found
 const retrievedAsset = await client.getAsset('EUR');

@@ -28,12 +28,7 @@ export class AssetAggregate {
     this._uncommittedDomainEvents.length = 0;
   }
 
-  async createAsset(
-    code: string,
-    scale: number,
-    liquidityLowThreshold: bigint | null = null,
-    liquidityHighThreshold: bigint | null = null
-  ): Promise<void> {
+  async createAsset(code: string, scale: number): Promise<void> {
     const existing = await this._repo.fetch(code);
 
     if (existing) {
@@ -45,12 +40,7 @@ export class AssetAggregate {
 
     // TODO: validate inputs
 
-    const newAsset = new PalAsset(
-      code,
-      scale,
-      liquidityLowThreshold,
-      liquidityHighThreshold
-    );
+    const newAsset = new PalAsset(code, scale);
 
     await this._repo.store(newAsset.toDto());
     this._uncommittedDomainEvents.push(

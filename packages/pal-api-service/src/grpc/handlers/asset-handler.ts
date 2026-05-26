@@ -49,16 +49,6 @@ export class AssetGrpcHandler {
       pbAssetResp.setLedgerAccountId(asset.ledgerAccountId);
     }
 
-    if (asset.liquidityLowThreshold !== null) {
-      pbAssetResp.setLiquidityLowThreshold(Number(asset.liquidityLowThreshold));
-    }
-
-    if (asset.liquidityHighThreshold !== null) {
-      pbAssetResp.setLiquidityHighThreshold(
-        Number(asset.liquidityHighThreshold)
-      );
-    }
-
     return pbAssetResp;
   }
 
@@ -67,17 +57,9 @@ export class AssetGrpcHandler {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     callback: sendUnaryData<any | undefined>
   ): Promise<void> {
-    const lowThreshold = call.request.getLiquidityLowThreshold();
-    const highThreshold = call.request.getLiquidityHighThreshold();
-
     const assetCode = call.request.getCode();
 
-    await this._assetAggregate.createAsset(
-      assetCode,
-      call.request.getScale(),
-      lowThreshold ? BigInt(lowThreshold) : undefined,
-      highThreshold ? BigInt(highThreshold) : undefined
-    );
+    await this._assetAggregate.createAsset(assetCode, call.request.getScale());
 
     if (this._assetAggregate.uncommittedDomainEvents.length == 0) {
       this._logger.warn(

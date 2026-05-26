@@ -99,8 +99,6 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
       return {
         code: doc.code,
         scale: doc.scale,
-        liquidityLowThreshold: doc.liquidityLowThreshold || null,
-        liquidityHighThreshold: doc.liquidityHighThreshold || null,
         ledgerAccountId: doc.ledgerAccountId || null
       };
     } catch (e) {

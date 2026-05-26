@@ -56,8 +56,6 @@ test('PAL Asset Domain - get asset', async () => {
   assert.ok(asset);
   assert.equal(asset.code, ASSET_CODE);
   assert.equal(asset.scale, ASSET_SCALE);
-  assert.equal(asset.liquidityLowThreshold, null);
-  assert.equal(asset.liquidityHighThreshold, null);
 });
 
 test('PAL Asset Domain - created duplicate asset should fail', async () => {

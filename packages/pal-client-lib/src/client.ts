@@ -89,22 +89,10 @@ export class PalClient {
    * Asset related functions
    * */
 
-  async createAsset(
-    code: string,
-    scale: number,
-    liquidityLowThreshold?: bigint,
-    liquidityHighThreshold?: bigint
-  ): Promise<void> {
+  async createAsset(code: string, scale: number): Promise<void> {
     const request = new PbCreateAssetRequest();
     request.setCode(code);
     request.setScale(scale);
-
-    if (liquidityLowThreshold !== undefined) {
-      request.setLiquidityLowThreshold(Number(liquidityLowThreshold));
-    }
-    if (liquidityHighThreshold !== undefined) {
-      request.setLiquidityHighThreshold(Number(liquidityHighThreshold));
-    }
 
     return new Promise((resolve, reject) => {
       this._grpcClient.createAsset(request, (error: ServiceError | null) => {
@@ -142,12 +130,6 @@ export class PalClient {
           const respObj: IPalAssetDto = {
             code: respAsset.getCode(),
             scale: respAsset.getScale(),
-            liquidityLowThreshold: respAsset.hasLiquidityLowThreshold()
-              ? BigInt(respAsset.getLiquidityLowThreshold()!)
-              : null,
-            liquidityHighThreshold: respAsset.hasLiquidityHighThreshold()
-              ? BigInt(respAsset.getLiquidityHighThreshold()!)
-              : null,
             ledgerAccountId: respAsset.hasLedgerAccountId()
               ? respAsset.getLedgerAccountId()!
               : null
