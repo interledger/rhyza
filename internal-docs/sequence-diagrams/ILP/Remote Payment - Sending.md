@@ -23,7 +23,7 @@ sequenceDiagram
 
     alt Not Enough liquidity
     PAL ->> PAL: Publish peer liquidity insufficient funds event<br>LedgerOutgoingTransferInsufficientFundsErrorEvent
-    PBC -->> PAL: Read peer liquidity insufficient funds event
+   PBC -->> PAL: Read LedgerOutgoingTransferInsufficientFundsErrorEvent
     end
     PAL ->> PAL: Publish peer liquidity transfer reserved event<br>LedgerOutgoingTransferReservedEvent
     PBC -->> PAL: Read peer liquidity transfer reserved event
