@@ -40,6 +40,7 @@ sequenceDiagram
     PBC ->> PBC: Publish remote payment confirmed/rejected event
     PAL -->> PBC: Read remote payment confirmed/rejected event
     PAL ->> PAL: Commit/reject liquidity transfer 
+    PAL ->> PAL: Publish LedgerOutgoingTransferRejectedEvent
     PBC -->> PAL: Read LedgerOutgoingTransferCommittedEvent/<br>LedgerOutgoingTransferRejectedEvent
     PBC ->> PBC: Mark payment complete/failed
     PBC -->> PBC: Publish payment completed/failed event
