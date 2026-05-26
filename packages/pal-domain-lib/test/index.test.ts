@@ -42,12 +42,7 @@ before(async () => {
 
 //region assets
 test('PAL Asset Domain - create asset', async () => {
-  await assetAggregate.createAsset(
-    ASSET_CODE,
-    ASSET_SCALE,
-    undefined,
-    undefined
-  );
+  await assetAggregate.createAsset(ASSET_CODE, ASSET_SCALE);
 });
 
 test('PAL Asset Domain - get asset', async () => {
@@ -60,12 +55,7 @@ test('PAL Asset Domain - get asset', async () => {
 
 test('PAL Asset Domain - created duplicate asset should fail', async () => {
   try {
-    await assetAggregate.createAsset(
-      ASSET_CODE,
-      ASSET_SCALE,
-      undefined,
-      undefined
-    );
+    await assetAggregate.createAsset(ASSET_CODE, ASSET_SCALE);
 
     assert.fail();
   } catch (e) {

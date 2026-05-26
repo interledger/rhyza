@@ -31,7 +31,8 @@ import {
   PbGetPeerByIlpAddressRequest,
   PbSetPeerCommunicationMethodRequest,
   PbActivatePeerRequest,
-  PbPeer
+  PbPeer,
+  PbDeactivatePeerRequest
 } from 'pal-public-types-lib';
 import process from 'process';
 
@@ -494,7 +495,7 @@ export class PalClient {
   }
 
   deactivatePeer(peerId: string): Promise<void> {
-    const request = new PbActivatePeerRequest();
+    const request = new PbDeactivatePeerRequest();
     request.setPeerId(peerId);
 
     return new Promise((resolve, reject) => {

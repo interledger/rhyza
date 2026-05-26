@@ -1,8 +1,8 @@
 import { IPalAssetDto } from 'pal-public-types-lib';
 
 export class PalAsset {
-  private _code: string;
-  private _scale: number;
+  private readonly _code: string;
+  private readonly _scale: number;
   private _ledgerAccountId: string | null;
 
   constructor(

@@ -132,9 +132,18 @@ export class MongoDbPeerRepo implements IPalPeerRepository {
 
     try {
       const doc = await this._collection.findOne({
-        communicationMethodDefinition: {
-          $elemMatch: { type: commType, staticAddress: staticAddress }
-        }
+        $and: [
+          {
+            'communicationMethodDefinition.type': {
+              $regex: new RegExp(`^${commType}$`, 'i')
+            }
+          },
+          {
+            'communicationMethodDefinition.staticAddress': {
+              $regex: new RegExp(`^${staticAddress}$`, 'i')
+            }
+          }
+        ]
       });
 
       if (!doc) {

@@ -14,6 +14,7 @@ const ASSET_SCALE = 2;
 const PEER_ONE_ID = `${testPrefix}_peer1`;
 const PEER_ONE_NAME = `${testPrefix} Peer One`;
 const PEER_ONE_ILP_STATIC_ADDRESS = `${testPrefix}_peer1.static.address`;
+const PEER_ONE_ILP_ALTERNATE_STATIC_ADDRESS = `${testPrefix}_peer1.static.alt-address`;
 
 const ALIAS_DOMAIN = `${testPrefix}_domain.com`;
 const ALIAS_PATHNAME = `${testPrefix}_pedrobarreto`;
@@ -37,7 +38,7 @@ after(async () => {
  * */
 
 test('pal client - create asset', async () => {
-  await client.createAsset(ASSET_CODE, ASSET_SCALE, undefined, undefined);
+  await client.createAsset(ASSET_CODE, ASSET_SCALE);
   assert.ok(true);
 });
 
@@ -71,7 +72,7 @@ test('pal client - created asset must exist and have an new ledger in the liquid
 
 test('pal client - created duplicate asset should fail', async () => {
   try {
-    await client.createAsset(ASSET_CODE, ASSET_SCALE, undefined, undefined);
+    await client.createAsset(ASSET_CODE, ASSET_SCALE);
 
     assert.fail();
   } catch (e) {
@@ -123,6 +124,89 @@ test('pal client - created peer must exist', async () => {
     PEER_ONE_ILP_STATIC_ADDRESS
   );
   peerOneDto = peer;
+});
+
+test('pal client - get created peer by ILP Address', async () => {
+  const peer = await client.getPeerByIlpAddress(PEER_ONE_ILP_STATIC_ADDRESS);
+
+  assert.ok(peer);
+  assert.equal(peer.id, PEER_ONE_ID);
+  assert.equal(peer.name, PEER_ONE_NAME);
+  assert.equal(peer.assetCode, ASSET_CODE);
+  assert.equal(peer.assetScale, ASSET_SCALE);
+  assert.ok(peer.ledgerAccounts);
+  assert.ok(peer.ledgerAccounts.peerLiquidityAccId);
+  assert.ok(peer.ledgerAccounts.peerClearingAccId);
+  assert.ok(peer.ledgerAccounts.aseLiquidityAccId);
+  assert.ok(peer.ledgerAccounts.aseClearingAccId);
+  assert.ok(peer.ledgerAccounts.suspenseAccId);
+
+  assert.ok(peer.communicationMethodDefinition);
+  assert.equal(peer.communicationMethodDefinition.type, 'ILP');
+  assert.equal(
+    peer.communicationMethodDefinition.staticAddress,
+    PEER_ONE_ILP_STATIC_ADDRESS
+  );
+  peerOneDto = peer;
+});
+
+test('pal client - update peer ILP Address', async () => {
+  await client.setPeerCommunicationMethod(
+    PEER_ONE_ID,
+    PEER_ONE_ILP_ALTERNATE_STATIC_ADDRESS
+  );
+
+  let peer = await client.getPeerByIlpAddress(
+    PEER_ONE_ILP_ALTERNATE_STATIC_ADDRESS
+  );
+
+  assert.ok(peer);
+  assert.equal(peer.id, PEER_ONE_ID);
+
+  assert.ok(peer.communicationMethodDefinition);
+  assert.equal(peer.communicationMethodDefinition.type, 'ILP');
+  assert.equal(
+    peer.communicationMethodDefinition.staticAddress,
+    PEER_ONE_ILP_ALTERNATE_STATIC_ADDRESS
+  );
+
+  // revert for remaining tests
+
+  await client.setPeerCommunicationMethod(
+    PEER_ONE_ID,
+    PEER_ONE_ILP_STATIC_ADDRESS
+  );
+
+  peer = await client.getPeerByIlpAddress(PEER_ONE_ILP_STATIC_ADDRESS);
+  assert.ok(peer);
+  assert.equal(peer.id, PEER_ONE_ID);
+
+  assert.ok(peer.communicationMethodDefinition);
+  assert.equal(peer.communicationMethodDefinition.type, 'ILP');
+  assert.equal(
+    peer.communicationMethodDefinition.staticAddress,
+    PEER_ONE_ILP_STATIC_ADDRESS
+  );
+});
+
+test('pal client - deactivate peer', async () => {
+  await client.deactivatePeer(PEER_ONE_ID);
+
+  const peer = await client.getPeer(PEER_ONE_ID);
+
+  assert.ok(peer);
+  assert.equal(peer.id, PEER_ONE_ID);
+  assert.equal(peer.active, false);
+});
+
+test('pal client - re-activating peer', async () => {
+  await client.activatePeer(PEER_ONE_ID);
+
+  const peer = await client.getPeer(PEER_ONE_ID);
+
+  assert.ok(peer);
+  assert.equal(peer.id, PEER_ONE_ID);
+  assert.equal(peer.active, true);
 });
 
 test('pal client - created peer must have an new set of ledger accounts', async () => {
