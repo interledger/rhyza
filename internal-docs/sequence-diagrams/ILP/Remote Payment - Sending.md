@@ -26,7 +26,7 @@ sequenceDiagram
    PBC -->> PAL: Read LedgerOutgoingTransferInsufficientFundsErrorEvent
     end
     PAL ->> PAL: Publish peer liquidity transfer reserved event<br>LedgerOutgoingTransferReservedEvent
-    PBC -->> PAL: Read peer liquidity transfer reserved event
+    PBC -->> PAL: Read LedgerOutgoingTransferReservedEvent
     PBC ->> PBC: Payment prepared event
     ILPBC ->> PBC: Read payment prepared event
 
