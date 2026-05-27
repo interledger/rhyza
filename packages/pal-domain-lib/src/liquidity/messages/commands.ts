@@ -119,6 +119,7 @@ export type CheckBalanceAndReserveTransferCmdPayload = {
   suspenseAccountId: string;
   amount: string;
   amountScale: number;
+  transferDirection: 'INCOMING' | 'OUTGOING';
 };
 export class CheckBalanceAndReserveTransferCmd extends LedgerCommand {
   msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
@@ -139,6 +140,7 @@ export type ReserveTransferCmdPayload = {
   suspenseAccountId: string;
   amount: string;
   amountScale: number;
+  transferDirection: 'INCOMING' | 'OUTGOING';
 };
 export class ReserveTransferCmd extends LedgerCommand {
   msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
@@ -157,6 +159,7 @@ export type CommitTransferCmdPayload = {
   payeeClearingAccountId: string;
   amount: string;
   amountScale: number;
+  transferDirection: 'INCOMING' | 'OUTGOING';
 };
 export class CommitTransferCmd extends LedgerCommand {
   msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
@@ -174,6 +177,7 @@ export type RejectTransferCmdPayload = {
   suspenseAccountId: string;
   amount: string;
   amountScale: number;
+  transferDirection: 'INCOMING' | 'OUTGOING';
 };
 export class RejectTransferCmd extends LedgerCommand {
   msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;

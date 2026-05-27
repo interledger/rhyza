@@ -25,10 +25,13 @@ import { ConsoleLogger, DomainEvent } from 'common-types-lib';
 import {
   LedgerAccountsCreatedForPeerEvent,
   LedgerTransactionPostedEvent,
-  LedgerTransferCommitedEvent,
-  LedgerTransferInsufficientFundsErrorEvent,
-  LedgerTransferRejectedEvent,
-  LedgerTransferReservedEvent
+  LedgerOutgoingTransferCommittedEvent,
+  LedgerOutgoingTransferInsufficientFundsErrorEvent,
+  LedgerOutgoingTransferRejectedEvent,
+  LedgerOutgoingTransferReservedEvent,
+  LedgerIncomingTransferReservedEvent,
+  LedgerIncomingTransferInsufficientFundsErrorEvent,
+  LedgerIncomingTransferRejectedEvent
 } from 'pal-public-types-lib';
 import { LedgerAccountCreatedForAssetEvent } from 'pal-public-types-lib/dist';
 
@@ -60,7 +63,7 @@ before(() => {
   assert.ok(aggregate.verify());
 });
 
-test('PAL Ledger Domain LowLevel API - create ledger', async () => {
+test('PAL Ledger Domain LowLevel API - Create ledger', async () => {
   const cmd: CreateLedgerCmd = new CreateLedgerCmd({ id: EUR_LEDGER_ID });
 
   await aggregate.processCommands(cmd);
@@ -78,7 +81,7 @@ test('PAL Ledger Domain LowLevel API - create ledger', async () => {
   assert.ok(aggregate.verify());
 });
 
-test('PAL Ledger Domain LowLevel API - create ledger account for asset', async () => {
+test('PAL Ledger Domain LowLevel API - Create ledger account for asset', async () => {
   const cmd = new CreateLedgerAccountForAssetCmd(EUR_LEDGER_ID, {
     id: assetSystemAccId,
     assetCode: EUR_LEDGER_ID
@@ -110,7 +113,7 @@ test('PAL Ledger Domain LowLevel API - create ledger account for asset', async (
   assert.ok(aggregate.verify());
 });
 
-test('PAL Ledger Domain LowLevel API - create ledger account for peer one', async () => {
+test('PAL Ledger Domain LowLevel API - Create ledger account for peer one', async () => {
   const cmd = new CreateLedgerAccountsForPeerCmd(EUR_LEDGER_ID, {
     ...peerOneAccounts,
     peerId: PEER_ONE_ID,
@@ -178,130 +181,6 @@ test('PAL Ledger Domain LowLevel API - create ledger account for peer one', asyn
 });
 
 /*
-
-test('PAL Ledger Domain LowLevel API - create a ledger account for peer two', async () => {
-  const cmd = new CreateLedgerAccountsForPeerCmd(EUR_LEDGER_ID, {
-    ...peerTwoAccounts,
-    peerId: PEER_TWO_ID,
-    assetCode: EUR_LEDGER_ID
-  });
-
-  await aggregate.processCommands(cmd);
-
-  const stateEvents = await mockRepo.fetchStateEvents(EUR_LEDGER_ID);
-  const lastStateEvent = stateEvents.at(-1);
-  assert.ok(lastStateEvent);
-
-  assert.equal(
-    lastStateEvent.aggregateVersion,
-    (++aggExpectedVersion).toString()
-  );
-
-  assert.equal(lastStateEvent.msgName, LedgerAccountsCreatedStateEvent.name);
-  assert.equal(lastStateEvent.aggregateId, EUR_LEDGER_ID);
-  const payload = lastStateEvent.payload as LedgerAccountsCreatedStatePayload;
-
-  assert.ok(payload.accounts);
-  const payloadAccounts = payload.accounts;
-  assert.ok(payloadAccounts.length == 5);
-
-  // get the accounts from the aggregate
-  const ids =  Object.values(peerTwoAccounts);
-  const fetchedAccounts = aggregate.getAccounts(ids);
-  ids.forEach((id) => {
-    const payloadAccount = payloadAccounts.find((acc) => acc.id === id);
-    assert.ok(payloadAccount);
-    const fetchedAccount = fetchedAccounts.find((acc) => acc.id === id);
-    assert.ok(fetchedAccount);
-
-    assert.ok(payloadAccount.name.includes(PEER_TWO_ID));
-    assert.equal(payloadAccount.assetCode, EUR_LEDGER_ID);
-    assert.equal(payloadAccount.assetDisplayScale, 2);
-    assert.equal(payloadAccount.debitedAmount, "0");
-    assert.equal(payloadAccount.creditedAmount, "0");
-
-    assert.equal(payloadAccount.name, fetchedAccount.name);
-    assert.equal(payloadAccount.assetCode, fetchedAccount.assetCode);
-    assert.equal(payloadAccount.assetDisplayScale, fetchedAccount.assetDisplayScale);
-    assert.equal(payloadAccount.debitedAmount, fetchedAccount.debitedAmount.toString());
-    assert.equal(payloadAccount.creditedAmount, fetchedAccount.creditedAmount.toString());
-  });
-
-  assert.ok(aggregate.verify());
-
-  // check domain/integration events
-  const lastDomainEvent = mockProducer.messages.at(-1) as LedgerAccountsCreatedForPeerEvent;
-  assert.equal(lastDomainEvent.msgName, LedgerAccountsCreatedForPeerEvent.name);
-  assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
-});
-
-
-test.skip('PAL Ledger Domain LowLevel API - post transaction between peers', async () => {
-  const strAmount = AMOUNT.toString();
-  const cmd: PostTransactionCmd = new PostTransactionCmd(EUR_LEDGER_ID, {
-    id: '1',
-    amount:strAmount,
-    amountScale: 2,
-    debitedAccountId: peerOneAccounts.peerClearingAccId,
-    creditedAccountId: peerTwoAccounts.peerClearingAccId
-  });
-
-  await aggregate.processCommands(cmd);
-
-  const lastEvents = await mockRepo.fetchStateEvents(EUR_LEDGER_ID);
-  assert.ok(lastEvents.length > 0);
-  assert.equal(
-    lastEvents[lastEvents.length - 1].msgName,
-    LedgerTransactionRecordedStateEvent.name
-  );
-  assert.equal(lastEvents[lastEvents.length - 1].aggregateId, EUR_LEDGER_ID);
-
-  assert.equal(
-    lastEvents[lastEvents.length - 1].aggregateVersion,
-    (++aggExpectedVersion).toString()
-  );
-
-  const payload = lastEvents[lastEvents.length - 1]
-    .payload as LedgerTransactionRecordedStatePayload;
-  assert.ok(payload);
-  assert.equal(payload.transaction.id, '1');
-  assert.equal(payload.transaction.amount,strAmount);
-  assert.equal(payload.transaction.amountScale, 2);
-  assert.equal(payload.transaction.debitedAccountId, peerOneAccounts.peerClearingAccId);
-  assert.equal(payload.transaction.creditedAccountId, peerTwoAccounts.peerClearingAccId);
-
-  const [debitedAcc, creditedAcc] = aggregate.getAccounts([
-    peerOneAccounts.peerClearingAccId,
-    peerTwoAccounts.peerClearingAccId
-  ]);
-  assert.ok(debitedAcc);
-  assert.ok(creditedAcc);
-
-  assert.equal(debitedAcc.id, peerOneAccounts.peerClearingAccId);
-  assert.equal(creditedAcc.id, peerTwoAccounts.peerClearingAccId);
-  assert.equal(debitedAcc.creditedAmount, BigInt(0));
-  assert.equal(debitedAcc.debitedAmount, BigInt(123));
-  assert.equal(creditedAcc.creditedAmount, BigInt(123));
-  assert.equal(creditedAcc.debitedAmount, BigInt(0));
-
-  assert.ok(aggregate.verify());
-
-  // check domain/integration events
-  const lastDomainEvent = mockProducer.messages[
-    mockProducer.messages.length - 1
-  ] as DomainEvent;
-  assert.equal(lastDomainEvent.msgName, LedgerTransactionPostedEvent.name);
-  assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
-  assert.equal(lastDomainEvent.payload.id, '1');
-  assert.equal(lastDomainEvent.payload.amount,strAmount);
-  assert.equal(lastDomainEvent.payload.debitedAccountId, peerOneAccounts.peerClearingAccId);
-  assert.equal(lastDomainEvent.payload.creditedAccountId, peerTwoAccounts.peerClearingAccId);
-
-  assert.ok(aggregate.verify());
-});
-*/
-
-/*
  * High Level API Calls
  * */
 
@@ -314,7 +193,8 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer cmd s
       amountScale: 2,
       payerClearingAccountId: peerOneAccounts.peerClearingAccId,
       payerLiquidityAccountId: peerOneAccounts.peerLiquidityAccId,
-      suspenseAccountId: peerOneAccounts.suspenseAccId
+      suspenseAccountId: peerOneAccounts.suspenseAccId,
+      transferDirection: 'OUTGOING'
     });
 
   await aggregate.processCommands(cmd);
@@ -327,7 +207,7 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer cmd s
   ] as DomainEvent;
   assert.equal(
     lastDomainEvent.msgName,
-    LedgerTransferInsufficientFundsErrorEvent.name
+    LedgerOutgoingTransferInsufficientFundsErrorEvent.name
   );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.payload.requestId, 'req1');
@@ -385,7 +265,7 @@ test('PAL Ledger Domain HighLevel API - Deposit payer liquidity', async () => {
   );
 });
 
-test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer', async () => {
+test('PAL Ledger Domain HighLevel API - Outgoing - Check Balance And Reserve Transfer', async () => {
   const reqId = 'req1';
   const txId = '1';
   const cmd: CheckBalanceAndReserveTransferCmd =
@@ -396,7 +276,8 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer', asy
       amountScale: 2,
       payerClearingAccountId: peerOneAccounts.aseClearingAccId,
       payerLiquidityAccountId: peerOneAccounts.aseLiquidityAccId,
-      suspenseAccountId: peerOneAccounts.suspenseAccId
+      suspenseAccountId: peerOneAccounts.suspenseAccId,
+      transferDirection: 'OUTGOING'
     });
 
   await aggregate.processCommands(cmd);
@@ -430,7 +311,10 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer', asy
 
   // check domain/integration events
   const lastDomainEvent = mockProducer.messages.at(-1) as DomainEvent;
-  assert.equal(lastDomainEvent.msgName, LedgerTransferReservedEvent.name);
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerOutgoingTransferReservedEvent.name
+  );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
@@ -438,7 +322,7 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer', asy
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
-test('PAL Ledger Domain HighLevel API - Commit Transfer', async () => {
+test('PAL Ledger Domain HighLevel API - Outgoing - Commit Transfer', async () => {
   const reqId = 'req1';
   const txId = '1';
 
@@ -449,7 +333,8 @@ test('PAL Ledger Domain HighLevel API - Commit Transfer', async () => {
     amountScale: 2,
     payerClearingAccountId: peerOneAccounts.aseClearingAccId,
     suspenseAccountId: peerOneAccounts.suspenseAccId,
-    payeeClearingAccountId: peerOneAccounts.peerClearingAccId
+    payeeClearingAccountId: peerOneAccounts.peerClearingAccId,
+    transferDirection: 'OUTGOING'
   });
 
   await aggregate.processCommands(cmd);
@@ -490,7 +375,10 @@ test('PAL Ledger Domain HighLevel API - Commit Transfer', async () => {
 
   // check domain/integration events
   const lastDomainEvent = mockProducer.messages.at(-1) as DomainEvent;
-  assert.equal(lastDomainEvent.msgName, LedgerTransferCommitedEvent.name);
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerOutgoingTransferCommittedEvent.name
+  );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
@@ -498,7 +386,7 @@ test('PAL Ledger Domain HighLevel API - Commit Transfer', async () => {
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
-test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer to reject', async () => {
+test('PAL Ledger Domain HighLevel API - Outgoing - Check Balance And Reserve Transfer to reject', async () => {
   const reqId = 'req1';
   const txId = '1';
 
@@ -510,7 +398,8 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer to re
       amountScale: 2,
       payerClearingAccountId: peerOneAccounts.aseClearingAccId,
       payerLiquidityAccountId: peerOneAccounts.aseLiquidityAccId,
-      suspenseAccountId: peerOneAccounts.suspenseAccId
+      suspenseAccountId: peerOneAccounts.suspenseAccId,
+      transferDirection: 'OUTGOING'
     });
 
   await aggregate.processCommands(cmd);
@@ -546,7 +435,10 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer to re
   const lastDomainEvent = mockProducer.messages[
     mockProducer.messages.length - 1
   ] as DomainEvent;
-  assert.equal(lastDomainEvent.msgName, LedgerTransferReservedEvent.name);
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerOutgoingTransferReservedEvent.name
+  );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
@@ -554,7 +446,7 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer to re
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
-test('PAL Ledger Domain HighLevel API - Reject Transfer', async () => {
+test('PAL Ledger Domain HighLevel API - Outgoing - Reject Transfer', async () => {
   const reqId = 'req1';
   const txId = '1';
   const cmd: RejectTransferCmd = new RejectTransferCmd(EUR_LEDGER_ID, {
@@ -563,7 +455,8 @@ test('PAL Ledger Domain HighLevel API - Reject Transfer', async () => {
     amount: AMOUNT.toString(),
     amountScale: 2,
     payerClearingAccountId: peerOneAccounts.aseClearingAccId,
-    suspenseAccountId: peerOneAccounts.suspenseAccId
+    suspenseAccountId: peerOneAccounts.suspenseAccId,
+    transferDirection: 'OUTGOING'
   });
 
   await aggregate.processCommands(cmd);
@@ -606,7 +499,10 @@ test('PAL Ledger Domain HighLevel API - Reject Transfer', async () => {
   const lastDomainEvent = mockProducer.messages[
     mockProducer.messages.length - 1
   ] as DomainEvent;
-  assert.equal(lastDomainEvent.msgName, LedgerTransferRejectedEvent.name);
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerOutgoingTransferRejectedEvent.name
+  );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
@@ -614,7 +510,7 @@ test('PAL Ledger Domain HighLevel API - Reject Transfer', async () => {
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
-test('PAL Ledger Domain HighLevel API - Reserve Transfer', async () => {
+test('PAL Ledger Domain HighLevel API - Outgoing - Reserve Transfer', async () => {
   const reqId = 'req3';
   const txId = '1';
   const cmd: ReserveTransferCmd = new ReserveTransferCmd(EUR_LEDGER_ID, {
@@ -623,7 +519,8 @@ test('PAL Ledger Domain HighLevel API - Reserve Transfer', async () => {
     amount: AMOUNT.toString(),
     amountScale: 2,
     payerClearingAccountId: peerOneAccounts.aseClearingAccId,
-    suspenseAccountId: peerOneAccounts.suspenseAccId
+    suspenseAccountId: peerOneAccounts.suspenseAccId,
+    transferDirection: 'OUTGOING'
   });
 
   await aggregate.processCommands(cmd);
@@ -659,7 +556,124 @@ test('PAL Ledger Domain HighLevel API - Reserve Transfer', async () => {
   const lastDomainEvent = mockProducer.messages[
     mockProducer.messages.length - 1
   ] as DomainEvent;
-  assert.equal(lastDomainEvent.msgName, LedgerTransferReservedEvent.name);
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerOutgoingTransferReservedEvent.name
+  );
+  assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
+  assert.equal(lastDomainEvent.requestId, reqId);
+  assert.equal(lastDomainEvent.payload.requestId, reqId);
+  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.isError, false);
+});
+
+test('PAL Ledger Domain HighLevel API - Incoming - Check Balance And Reserve Transfer should produce incoming error event', async () => {
+  const cmd: CheckBalanceAndReserveTransferCmd =
+    new CheckBalanceAndReserveTransferCmd(EUR_LEDGER_ID, {
+      requestId: 'req1',
+      transactionId: '1',
+      amount: (AMOUNT * 99999n).toString(),
+      amountScale: 2,
+      payerClearingAccountId: peerOneAccounts.peerClearingAccId,
+      payerLiquidityAccountId: peerOneAccounts.peerLiquidityAccId,
+      suspenseAccountId: peerOneAccounts.suspenseAccId,
+      transferDirection: 'INCOMING'
+    });
+
+  await aggregate.processCommands(cmd);
+
+  assert.ok(aggregate.verify());
+
+  // check domain/integration events
+  const lastDomainEvent = mockProducer.messages.at(-1) as DomainEvent;
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerIncomingTransferInsufficientFundsErrorEvent.name
+  );
+  assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
+  assert.equal(lastDomainEvent.payload.requestId, 'req1');
+  assert.equal(lastDomainEvent.payload.transactionId, '1');
+  assert.equal(lastDomainEvent.payload.isError, true);
+});
+
+test('PAL Ledger Domain HighLevel API - Incoming - Check Balance And Reserve Transfer should produce incoming success event', async () => {
+  const cmd: CheckBalanceAndReserveTransferCmd =
+    new CheckBalanceAndReserveTransferCmd(EUR_LEDGER_ID, {
+      requestId: 'req2',
+      transactionId: '1',
+      amount: AMOUNT.toString(),
+      amountScale: 2,
+      payerClearingAccountId: peerOneAccounts.peerClearingAccId,
+      payerLiquidityAccountId: peerOneAccounts.peerLiquidityAccId,
+      suspenseAccountId: peerOneAccounts.suspenseAccId,
+      transferDirection: 'INCOMING'
+    });
+
+  await aggregate.processCommands(cmd);
+
+  assert.ok(aggregate.verify());
+
+  // check domain/integration events
+  const lastDomainEvent = mockProducer.messages.at(-1) as DomainEvent;
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerIncomingTransferReservedEvent.name
+  );
+  assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
+  assert.equal(lastDomainEvent.payload.requestId, 'req2');
+  assert.equal(lastDomainEvent.payload.transactionId, '1');
+  assert.equal(lastDomainEvent.payload.isError, false);
+});
+
+test('PAL Ledger Domain HighLevel API - Incoming - Reject Transfer', async () => {
+  const reqId = 'req1';
+  const txId = '1';
+  const cmd: RejectTransferCmd = new RejectTransferCmd(EUR_LEDGER_ID, {
+    requestId: reqId,
+    transactionId: txId,
+    amount: AMOUNT.toString(),
+    amountScale: 2,
+    payerClearingAccountId: peerOneAccounts.aseClearingAccId,
+    suspenseAccountId: peerOneAccounts.suspenseAccId,
+    transferDirection: 'INCOMING'
+  });
+
+  await aggregate.processCommands(cmd);
+
+  // check domain/integration events
+  const lastDomainEvent = mockProducer.messages.at(-1) as DomainEvent;
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerIncomingTransferRejectedEvent.name
+  );
+  assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
+  assert.equal(lastDomainEvent.requestId, reqId);
+  assert.equal(lastDomainEvent.payload.requestId, reqId);
+  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.isError, false);
+});
+
+test('PAL Ledger Domain HighLevel API - Incoming - Reserve Transfer', async () => {
+  const reqId = 'req3';
+  const txId = '1';
+  const cmd: ReserveTransferCmd = new ReserveTransferCmd(EUR_LEDGER_ID, {
+    requestId: reqId,
+    transactionId: txId,
+    amount: AMOUNT.toString(),
+    amountScale: 2,
+    payerClearingAccountId: peerOneAccounts.aseClearingAccId,
+    suspenseAccountId: peerOneAccounts.suspenseAccId,
+    transferDirection: 'INCOMING'
+  });
+
+  await aggregate.processCommands(cmd);
+
+  // check domain/integration events
+  const lastDomainEvent = mockProducer.messages.at(-1) as DomainEvent;
+  assert.equal(
+    lastDomainEvent.msgName,
+    LedgerIncomingTransferReservedEvent.name
+  );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);

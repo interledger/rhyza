@@ -20,17 +20,21 @@ import { ILogger, MessageTypes } from 'common-types-lib';
 import {
   LedgerDomainEvent,
   LedgerTransactionPostedEvent,
-  LedgerTransferCommitedEvent,
-  LedgerTransferRejectedEvent,
-  LedgerTransferReservedEvent,
-  LedgerTransferInsufficientFundsErrorEvent,
+  LedgerOutgoingTransferCommittedEvent,
+  LedgerOutgoingTransferRejectedEvent,
+  LedgerOutgoingTransferReservedEvent,
+  LedgerOutgoingTransferInsufficientFundsErrorEvent,
   LedgerAccountNotFoundEvent,
   ILedgerTransactionDto,
   LedgerAccountCreatedForAssetEvent,
   LedgerAccountCreationForAssetFailedEvent,
   LedgerAccountCreationForPeerFailedEvent,
   LedgerAccountsCreatedForPeerEvent,
-  ILedgerDto
+  ILedgerDto,
+  LedgerIncomingTransferReservedEvent,
+  LedgerIncomingTransferCommittedEvent,
+  LedgerIncomingTransferRejectedEvent,
+  LedgerIncomingTransferInsufficientFundsErrorEvent
 } from 'pal-public-types-lib';
 
 const DEFAULT_DISPLAY_ASSET_SCALE = 2;
@@ -455,7 +459,17 @@ export class Ledger {
       (a) => a.id === cmd.payload.suspenseAccountId
     );
     if (!payerClearingAccount || !suspenseAccount) {
-      throw new Error('Account(s) not found');
+      this._recordDomainEvent(
+        new LedgerAccountNotFoundEvent({
+          assetCode: this._id,
+          accountId: cmd.payload.payerClearingAccountId
+        }),
+        cmd.requestId
+      );
+      this._logger.warn(
+        'Account(s) not found in CheckBalanceAndReserveTransferCmd'
+      );
+      return;
     }
     // note: we don't need to check that the accounts are of the same asset in the same ledger!
 
@@ -476,14 +490,25 @@ export class Ledger {
       })
     );
 
-    this._recordDomainEvent(
-      new LedgerTransferReservedEvent(this._id, {
-        requestId: cmd.payload.requestId,
-        transactionId: cmd.payload.transactionId,
-        isError: false
-      }),
-      cmd.requestId
-    );
+    if (cmd.payload.transferDirection === 'OUTGOING') {
+      this._recordDomainEvent(
+        new LedgerOutgoingTransferReservedEvent(this._id, {
+          requestId: cmd.payload.requestId,
+          transactionId: cmd.payload.transactionId,
+          isError: false
+        }),
+        cmd.requestId
+      );
+    } else {
+      this._recordDomainEvent(
+        new LedgerIncomingTransferReservedEvent(this._id, {
+          requestId: cmd.payload.requestId,
+          transactionId: cmd.payload.transactionId,
+          isError: false
+        }),
+        cmd.requestId
+      );
+    }
   }
 
   private async _processCheckBalanceAndReserveCmd(
@@ -526,13 +551,23 @@ export class Ledger {
       this._logger.warn(
         `Ledger ${this._id} - check balance and reserve transfer failed, insufficient liquidity`
       );
-      this._uncommittedDomainEvents.push(
-        new LedgerTransferInsufficientFundsErrorEvent(
-          this._id,
-          cmd.payload.requestId,
-          cmd.payload.transactionId
-        )
-      );
+      if (cmd.payload.transferDirection === 'OUTGOING') {
+        this._uncommittedDomainEvents.push(
+          new LedgerOutgoingTransferInsufficientFundsErrorEvent(
+            this._id,
+            cmd.payload.requestId,
+            cmd.payload.transactionId
+          )
+        );
+      } else {
+        this._uncommittedDomainEvents.push(
+          new LedgerIncomingTransferInsufficientFundsErrorEvent(
+            this._id,
+            cmd.payload.requestId,
+            cmd.payload.transactionId
+          )
+        );
+      }
       return;
     }
 
@@ -554,14 +589,25 @@ export class Ledger {
       })
     );
 
-    this._recordDomainEvent(
-      new LedgerTransferReservedEvent(this._id, {
-        requestId: cmd.payload.requestId,
-        transactionId: cmd.payload.transactionId,
-        isError: false
-      }),
-      cmd.requestId
-    );
+    if (cmd.payload.transferDirection === 'OUTGOING') {
+      this._recordDomainEvent(
+        new LedgerOutgoingTransferReservedEvent(this._id, {
+          requestId: cmd.payload.requestId,
+          transactionId: cmd.payload.transactionId,
+          isError: false
+        }),
+        cmd.requestId
+      );
+    } else {
+      this._recordDomainEvent(
+        new LedgerIncomingTransferReservedEvent(this._id, {
+          requestId: cmd.payload.requestId,
+          transactionId: cmd.payload.transactionId,
+          isError: false
+        }),
+        cmd.requestId
+      );
+    }
   }
 
   private async _processCommitTransferCmd(
@@ -617,14 +663,25 @@ export class Ledger {
       })
     );
 
-    this._recordDomainEvent(
-      new LedgerTransferCommitedEvent(this._id, {
-        requestId: cmd.payload.requestId,
-        transactionId: cmd.payload.transactionId,
-        isError: false
-      }),
-      cmd.requestId
-    );
+    if (cmd.payload.transferDirection === 'OUTGOING') {
+      this._recordDomainEvent(
+        new LedgerOutgoingTransferCommittedEvent(this._id, {
+          requestId: cmd.payload.requestId,
+          transactionId: cmd.payload.transactionId,
+          isError: false
+        }),
+        cmd.requestId
+      );
+    } else {
+      this._recordDomainEvent(
+        new LedgerIncomingTransferCommittedEvent(this._id, {
+          requestId: cmd.payload.requestId,
+          transactionId: cmd.payload.transactionId,
+          isError: false
+        }),
+        cmd.requestId
+      );
+    }
   }
 
   private async _processRejectTransferCmd(
@@ -661,14 +718,25 @@ export class Ledger {
       })
     );
 
-    this._recordDomainEvent(
-      new LedgerTransferRejectedEvent(this._id, {
-        requestId: cmd.payload.requestId,
-        transactionId: cmd.payload.transactionId,
-        isError: false
-      }),
-      cmd.requestId
-    );
+    if (cmd.payload.transferDirection === 'OUTGOING') {
+      this._recordDomainEvent(
+        new LedgerOutgoingTransferRejectedEvent(this._id, {
+          requestId: cmd.payload.requestId,
+          transactionId: cmd.payload.transactionId,
+          isError: false
+        }),
+        cmd.requestId
+      );
+    } else {
+      this._recordDomainEvent(
+        new LedgerIncomingTransferRejectedEvent(this._id, {
+          requestId: cmd.payload.requestId,
+          transactionId: cmd.payload.transactionId,
+          isError: false
+        }),
+        cmd.requestId
+      );
+    }
   }
 
   /*
@@ -743,12 +811,14 @@ export class Ledger {
 
   async processCommand(ledgerCmd: LedgerCommand): Promise<void> {
     if (LedgerCommand.isCreateLedgerAccountForAssetCmd(ledgerCmd)) {
+      // low level
       await this._processCreateLedgerAccountForAssetCmd(ledgerCmd);
     } else if (LedgerCommand.isCreateLedgerAccountsForPeerCmd(ledgerCmd)) {
       await this._processCreateLedgerAccountsForPeerCmd(ledgerCmd);
     } else if (LedgerCommand.isPostTransactionCmd(ledgerCmd)) {
       await this._processPostTransactionCmd(ledgerCmd);
     } else if (LedgerCommand.isReserveTransferCmd(ledgerCmd)) {
+      // high level
       await this._processReserveTransferCmd(ledgerCmd);
     } else if (LedgerCommand.isCheckBalanceAndReserveTransferCmd(ledgerCmd)) {
       await this._processCheckBalanceAndReserveCmd(ledgerCmd);

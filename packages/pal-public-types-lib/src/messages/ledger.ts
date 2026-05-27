@@ -54,25 +54,49 @@ export abstract class LedgerDomainEvent extends DomainEvent {
   ): evt is LedgerTransactionPostedEvent {
     return evt.msgName === LedgerTransactionPostedEvent.name;
   }
-  static isLedgerTransferReservedEvent(
+  static isLedgerOutgoingTransferReservedEvent(
     evt: DomainEvent
-  ): evt is LedgerTransferReservedEvent {
-    return evt.msgName === LedgerTransferReservedEvent.name;
+  ): evt is LedgerOutgoingTransferReservedEvent {
+    return evt.msgName === LedgerOutgoingTransferReservedEvent.name;
   }
-  static isLedgerTransferInsufficientFundsErrorEvent(
+  static isLedgerIncomingTransferReservedEvent(
     evt: DomainEvent
-  ): evt is LedgerTransferInsufficientFundsErrorEvent {
-    return evt.msgName === LedgerTransferInsufficientFundsErrorEvent.name;
+  ): evt is LedgerIncomingTransferReservedEvent {
+    return evt.msgName === LedgerIncomingTransferReservedEvent.name;
   }
-  static isLedgerTransferCommitedEvent(
+  static isLedgerOutgoingTransferInsufficientFundsErrorEvent(
     evt: DomainEvent
-  ): evt is LedgerTransferCommitedEvent {
-    return evt.msgName === LedgerTransferCommitedEvent.name;
+  ): evt is LedgerOutgoingTransferInsufficientFundsErrorEvent {
+    return (
+      evt.msgName === LedgerOutgoingTransferInsufficientFundsErrorEvent.name
+    );
   }
-  static isLedgerTransferRejectedEvent(
+  static isLedgerIncomingTransferInsufficientFundsErrorEvent(
     evt: DomainEvent
-  ): evt is LedgerTransferRejectedEvent {
-    return evt.msgName === LedgerTransferRejectedEvent.name;
+  ): evt is LedgerIncomingTransferInsufficientFundsErrorEvent {
+    return (
+      evt.msgName === LedgerIncomingTransferInsufficientFundsErrorEvent.name
+    );
+  }
+  static isLedgerOutgoingTransferCommittedEvent(
+    evt: DomainEvent
+  ): evt is LedgerOutgoingTransferCommittedEvent {
+    return evt.msgName === LedgerOutgoingTransferCommittedEvent.name;
+  }
+  static isLedgerIncomingTransferCommittedEvent(
+    evt: DomainEvent
+  ): evt is LedgerIncomingTransferCommittedEvent {
+    return evt.msgName === LedgerIncomingTransferCommittedEvent.name;
+  }
+  static isLedgerOutgoingTransferRejectedEvent(
+    evt: DomainEvent
+  ): evt is LedgerOutgoingTransferRejectedEvent {
+    return evt.msgName === LedgerOutgoingTransferRejectedEvent.name;
+  }
+  static isLedgerIncomingTransferRejectedEvent(
+    evt: DomainEvent
+  ): evt is LedgerIncomingTransferRejectedEvent {
+    return evt.msgName === LedgerIncomingTransferRejectedEvent.name;
   }
 }
 
@@ -225,6 +249,7 @@ export class LedgerTransactionPostedEvent extends LedgerDomainEvent {
 }
 
 // high level events
+// same payload for incoming or outgoing transfer events
 export type LedgerTransferResponseEventPayload = {
   requestId: string;
   transactionId: string;
@@ -233,7 +258,8 @@ export type LedgerTransferResponseEventPayload = {
   isError: boolean;
   errorMessage?: string;
 };
-export class LedgerTransferReservedEvent extends LedgerDomainEvent {
+
+export class LedgerOutgoingTransferReservedEvent extends LedgerDomainEvent {
   payload: LedgerTransferResponseEventPayload;
 
   constructor(aggId: string, payload: LedgerTransferResponseEventPayload) {
@@ -243,7 +269,9 @@ export class LedgerTransferReservedEvent extends LedgerDomainEvent {
     this.requestId = payload.requestId;
   }
 }
-export class LedgerTransferInsufficientFundsErrorEvent extends LedgerDomainEvent {
+export class LedgerIncomingTransferReservedEvent extends LedgerOutgoingTransferReservedEvent {}
+
+export class LedgerOutgoingTransferInsufficientFundsErrorEvent extends LedgerDomainEvent {
   payload: LedgerTransferResponseEventPayload;
   isErrorEvent = true;
 
@@ -259,8 +287,9 @@ export class LedgerTransferInsufficientFundsErrorEvent extends LedgerDomainEvent
     this.requestId = requestId;
   }
 }
+export class LedgerIncomingTransferInsufficientFundsErrorEvent extends LedgerOutgoingTransferInsufficientFundsErrorEvent {}
 
-export class LedgerTransferCommitedEvent extends LedgerDomainEvent {
+export class LedgerOutgoingTransferCommittedEvent extends LedgerDomainEvent {
   payload: LedgerTransferResponseEventPayload;
 
   constructor(aggId: string, payload: LedgerTransferResponseEventPayload) {
@@ -270,8 +299,9 @@ export class LedgerTransferCommitedEvent extends LedgerDomainEvent {
     this.requestId = payload.requestId;
   }
 }
+export class LedgerIncomingTransferCommittedEvent extends LedgerOutgoingTransferCommittedEvent {}
 
-export class LedgerTransferRejectedEvent extends LedgerDomainEvent {
+export class LedgerOutgoingTransferRejectedEvent extends LedgerDomainEvent {
   payload: LedgerTransferResponseEventPayload;
   isErrorEvent = true;
 
@@ -282,3 +312,4 @@ export class LedgerTransferRejectedEvent extends LedgerDomainEvent {
     this.requestId = payload.requestId;
   }
 }
+export class LedgerIncomingTransferRejectedEvent extends LedgerOutgoingTransferRejectedEvent {}
