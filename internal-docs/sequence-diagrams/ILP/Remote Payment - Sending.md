@@ -22,11 +22,11 @@ sequenceDiagram
     PAL ->> PAL: Resolve peer & reserve funds
 
     alt Not Enough liquidity
-    PAL ->> PAL: Publish peer liquidity insufficient funds event
-    PBC -->> PAL: Read peer liquidity insufficient funds event
+    PAL ->> PAL: Publish peer liquidity insufficient funds event<br>LedgerOutgoingTransferInsufficientFundsErrorEvent
+   PBC -->> PAL: Read LedgerOutgoingTransferInsufficientFundsErrorEvent
     end
-    PAL ->> PAL: Publish peer liquidity transfer reserved event
-    PBC -->> PAL: Read peer liquidity transfer reserved event
+    PAL ->> PAL: Publish peer liquidity transfer reserved event<br>LedgerOutgoingTransferReservedEvent
+    PBC -->> PAL: Read LedgerOutgoingTransferReservedEvent
     PBC ->> PBC: Payment prepared event
     ILPBC ->> PBC: Read payment prepared event
 
@@ -40,7 +40,8 @@ sequenceDiagram
     PBC ->> PBC: Publish remote payment confirmed/rejected event
     PAL -->> PBC: Read remote payment confirmed/rejected event
     PAL ->> PAL: Commit/reject liquidity transfer
-    PBC -->> PAL: Read LedgerTransferCommitedEvent/<br>LedgerTransferRejectedEvent
+    PAL ->> PAL: Publish LedgerOutgoingTransferRejectedEvent
+    PBC -->> PAL: Read LedgerOutgoingTransferCommittedEvent/<br>LedgerOutgoingTransferRejectedEvent
     PBC ->> PBC: Mark payment complete/failed
     PBC -->> PBC: Publish payment completed/failed event
 ```

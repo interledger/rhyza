@@ -1,0 +1,27 @@
+'payments-bc':
+  - changed-files:
+      - any-glob-to-any-file: 'packages/payments-*/**'
+
+'pal-bc':
+  - changed-files:
+      - any-glob-to-any-file: 'packages/pal-*/**'
+
+'notifications-bc':
+  - changed-files:
+      - any-glob-to-any-file: 'packages/notifications-*/**'
+
+'auth-bc':
+  - changed-files:
+      - any-glob-to-any-file: 'packages/auth-*/**'
+
+'ilp-bc':
+  - changed-files:
+      - any-glob-to-any-file: 'packages/ilp-*/**'
+
+'admin-api':
+  - changed-files:
+      - any-glob-to-any-file: 'packages/admin-api-service/**'
+
+'open-payments-resource-service':
+  - changed-files:
+      - any-glob-to-any-file: 'packages/open-payments-resource-service/**'
