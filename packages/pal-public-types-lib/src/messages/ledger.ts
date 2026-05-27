@@ -252,7 +252,7 @@ export class LedgerTransactionPostedEvent extends LedgerDomainEvent {
 // same payload for incoming or outgoing transfer events
 export type LedgerTransferResponseEventPayload = {
   requestId: string;
-  transactionId: string;
+  transferId: string;
 
   // for generic error handling (without dedicated error event)
   isError: boolean;
@@ -280,7 +280,7 @@ export class LedgerOutgoingTransferInsufficientFundsErrorEvent extends LedgerDom
     this.msgKey = aggId;
     this.payload = {
       requestId: requestId,
-      transactionId: transactionId,
+      transferId: transactionId,
       isError: true,
       errorMessage: 'Insufficient funds'
     };

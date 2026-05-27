@@ -98,6 +98,7 @@ export type PostTransactionCmdPayload = {
   creditedAccountId: string;
   amount: string;
   amountScale: number;
+  transferId?: string;
 };
 export class PostTransactionCmd extends LedgerCommand {
   payload: PostTransactionCmdPayload;
@@ -113,7 +114,7 @@ export class PostTransactionCmd extends LedgerCommand {
 
 export type CheckBalanceAndReserveTransferCmdPayload = {
   requestId: string;
-  transactionId: string;
+  transferId: string;
   payerClearingAccountId: string;
   payerLiquidityAccountId: string;
   suspenseAccountId: string;
@@ -135,7 +136,7 @@ export class CheckBalanceAndReserveTransferCmd extends LedgerCommand {
 
 export type ReserveTransferCmdPayload = {
   requestId: string;
-  transactionId: string;
+  transferId: string;
   payerClearingAccountId: string;
   suspenseAccountId: string;
   amount: string;
@@ -153,7 +154,7 @@ export class ReserveTransferCmd extends LedgerCommand {
 
 export type CommitTransferCmdPayload = {
   requestId: string;
-  transactionId: string;
+  transferId: string;
   payerClearingAccountId: string;
   suspenseAccountId: string;
   payeeClearingAccountId: string;
@@ -172,7 +173,7 @@ export class CommitTransferCmd extends LedgerCommand {
 
 export type RejectTransferCmdPayload = {
   requestId: string;
-  transactionId: string;
+  transferId: string;
   payerClearingAccountId: string;
   suspenseAccountId: string;
   amount: string;

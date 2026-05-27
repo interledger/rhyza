@@ -435,7 +435,8 @@ export class Ledger {
       creditedAccountId: cmd.payload.creditedAccountId,
       amount: cmd.payload.amount,
       amountScale: cmd.payload.amountScale,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      externalId: cmd.payload.transferId
     };
 
     this._recordAndApplyStateEvent(
@@ -475,13 +476,13 @@ export class Ledger {
 
     // TODO validate amount and convert to ledger scale
     const transactionDTO: ILedgerTransactionDto = {
-      id: cmd.payload.transactionId,
+      id: crypto.randomUUID(),
       debitedAccountId: cmd.payload.payerClearingAccountId,
       creditedAccountId: cmd.payload.suspenseAccountId,
       amount: cmd.payload.amount,
       amountScale: cmd.payload.amountScale,
       timestamp: Date.now(),
-      externalId: cmd.payload.transactionId
+      externalId: cmd.payload.transferId
     };
 
     this._recordAndApplyStateEvent(
@@ -494,7 +495,7 @@ export class Ledger {
       this._recordDomainEvent(
         new LedgerOutgoingTransferReservedEvent(this._id, {
           requestId: cmd.payload.requestId,
-          transactionId: cmd.payload.transactionId,
+          transferId: cmd.payload.transferId,
           isError: false
         }),
         cmd.requestId
@@ -503,7 +504,7 @@ export class Ledger {
       this._recordDomainEvent(
         new LedgerIncomingTransferReservedEvent(this._id, {
           requestId: cmd.payload.requestId,
-          transactionId: cmd.payload.transactionId,
+          transferId: cmd.payload.transferId,
           isError: false
         }),
         cmd.requestId
@@ -556,7 +557,7 @@ export class Ledger {
           new LedgerOutgoingTransferInsufficientFundsErrorEvent(
             this._id,
             cmd.payload.requestId,
-            cmd.payload.transactionId
+            cmd.payload.transferId
           )
         );
       } else {
@@ -564,7 +565,7 @@ export class Ledger {
           new LedgerIncomingTransferInsufficientFundsErrorEvent(
             this._id,
             cmd.payload.requestId,
-            cmd.payload.transactionId
+            cmd.payload.transferId
           )
         );
       }
@@ -574,13 +575,13 @@ export class Ledger {
     // TODO validate amount and convert to ledger scale
 
     const transactionDTO: ILedgerTransactionDto = {
-      id: cmd.payload.transactionId,
+      id: crypto.randomUUID(),
       debitedAccountId: cmd.payload.payerClearingAccountId,
       creditedAccountId: cmd.payload.suspenseAccountId,
       amount: amount.toString(),
       amountScale: cmd.payload.amountScale,
       timestamp: Date.now(),
-      externalId: cmd.payload.transactionId
+      externalId: cmd.payload.transferId
     };
 
     this._recordAndApplyStateEvent(
@@ -593,7 +594,7 @@ export class Ledger {
       this._recordDomainEvent(
         new LedgerOutgoingTransferReservedEvent(this._id, {
           requestId: cmd.payload.requestId,
-          transactionId: cmd.payload.transactionId,
+          transferId: cmd.payload.transferId,
           isError: false
         }),
         cmd.requestId
@@ -602,7 +603,7 @@ export class Ledger {
       this._recordDomainEvent(
         new LedgerIncomingTransferReservedEvent(this._id, {
           requestId: cmd.payload.requestId,
-          transactionId: cmd.payload.transactionId,
+          transferId: cmd.payload.transferId,
           isError: false
         }),
         cmd.requestId
@@ -638,13 +639,13 @@ export class Ledger {
     this._recordAndApplyStateEvent(
       new LedgerTransactionRecordedStateEvent(this._id, {
         transaction: {
-          id: cmd.payload.transactionId,
+          id: crypto.randomUUID(),
           debitedAccountId: cmd.payload.suspenseAccountId,
           creditedAccountId: cmd.payload.payerClearingAccountId,
           amount: cmd.payload.amount,
           amountScale: cmd.payload.amountScale,
           timestamp: now,
-          externalId: cmd.payload.transactionId
+          externalId: cmd.payload.transferId
         }
       })
     );
@@ -652,13 +653,13 @@ export class Ledger {
     this._recordAndApplyStateEvent(
       new LedgerTransactionRecordedStateEvent(this._id, {
         transaction: {
-          id: cmd.payload.transactionId,
+          id: crypto.randomUUID(),
           debitedAccountId: cmd.payload.payerClearingAccountId,
           creditedAccountId: cmd.payload.payeeClearingAccountId,
           amount: cmd.payload.amount,
           amountScale: cmd.payload.amountScale,
           timestamp: now,
-          externalId: cmd.payload.transactionId
+          externalId: cmd.payload.transferId
         }
       })
     );
@@ -667,7 +668,7 @@ export class Ledger {
       this._recordDomainEvent(
         new LedgerOutgoingTransferCommittedEvent(this._id, {
           requestId: cmd.payload.requestId,
-          transactionId: cmd.payload.transactionId,
+          transferId: cmd.payload.transferId,
           isError: false
         }),
         cmd.requestId
@@ -676,7 +677,7 @@ export class Ledger {
       this._recordDomainEvent(
         new LedgerIncomingTransferCommittedEvent(this._id, {
           requestId: cmd.payload.requestId,
-          transactionId: cmd.payload.transactionId,
+          transferId: cmd.payload.transferId,
           isError: false
         }),
         cmd.requestId
@@ -707,13 +708,13 @@ export class Ledger {
     this._recordAndApplyStateEvent(
       new LedgerTransactionRecordedStateEvent(this._id, {
         transaction: {
-          id: cmd.payload.transactionId,
+          id: crypto.randomUUID(),
           debitedAccountId: cmd.payload.suspenseAccountId,
           creditedAccountId: cmd.payload.payerClearingAccountId,
           amount: cmd.payload.amount,
           amountScale: cmd.payload.amountScale,
           timestamp: Date.now(),
-          externalId: cmd.payload.transactionId
+          externalId: cmd.payload.transferId
         }
       })
     );
@@ -722,7 +723,7 @@ export class Ledger {
       this._recordDomainEvent(
         new LedgerOutgoingTransferRejectedEvent(this._id, {
           requestId: cmd.payload.requestId,
-          transactionId: cmd.payload.transactionId,
+          transferId: cmd.payload.transferId,
           isError: false
         }),
         cmd.requestId
@@ -731,7 +732,7 @@ export class Ledger {
       this._recordDomainEvent(
         new LedgerIncomingTransferRejectedEvent(this._id, {
           requestId: cmd.payload.requestId,
-          transactionId: cmd.payload.transactionId,
+          transferId: cmd.payload.transferId,
           isError: false
         }),
         cmd.requestId

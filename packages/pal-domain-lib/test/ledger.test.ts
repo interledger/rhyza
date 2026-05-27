@@ -188,7 +188,7 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer cmd s
   const cmd: CheckBalanceAndReserveTransferCmd =
     new CheckBalanceAndReserveTransferCmd(EUR_LEDGER_ID, {
       requestId: 'req1',
-      transactionId: '1',
+      transferId: '1',
       amount: AMOUNT.toString(),
       amountScale: 2,
       payerClearingAccountId: peerOneAccounts.peerClearingAccId,
@@ -211,7 +211,7 @@ test('PAL Ledger Domain HighLevel API - Check Balance And Reserve Transfer cmd s
   );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.payload.requestId, 'req1');
-  assert.equal(lastDomainEvent.payload.transactionId, '1');
+  assert.equal(lastDomainEvent.payload.transferId, '1');
   assert.equal(lastDomainEvent.payload.isError, true);
 });
 
@@ -271,7 +271,7 @@ test('PAL Ledger Domain HighLevel API - Outgoing - Check Balance And Reserve Tra
   const cmd: CheckBalanceAndReserveTransferCmd =
     new CheckBalanceAndReserveTransferCmd(EUR_LEDGER_ID, {
       requestId: reqId,
-      transactionId: txId,
+      transferId: txId,
       amount: AMOUNT.toString(),
       amountScale: 2,
       payerClearingAccountId: peerOneAccounts.aseClearingAccId,
@@ -318,17 +318,17 @@ test('PAL Ledger Domain HighLevel API - Outgoing - Check Balance And Reserve Tra
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
-  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.transferId, txId);
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
 test('PAL Ledger Domain HighLevel API - Outgoing - Commit Transfer', async () => {
   const reqId = 'req1';
-  const txId = '1';
+  const transferId = '1';
 
   const cmd: CommitTransferCmd = new CommitTransferCmd(EUR_LEDGER_ID, {
     requestId: reqId,
-    transactionId: txId,
+    transferId: transferId,
     amount: AMOUNT.toString(),
     amountScale: 2,
     payerClearingAccountId: peerOneAccounts.aseClearingAccId,
@@ -382,7 +382,7 @@ test('PAL Ledger Domain HighLevel API - Outgoing - Commit Transfer', async () =>
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
-  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.transferId, transferId);
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
@@ -393,7 +393,7 @@ test('PAL Ledger Domain HighLevel API - Outgoing - Check Balance And Reserve Tra
   const cmd: CheckBalanceAndReserveTransferCmd =
     new CheckBalanceAndReserveTransferCmd(EUR_LEDGER_ID, {
       requestId: reqId,
-      transactionId: txId,
+      transferId: txId,
       amount: AMOUNT.toString(),
       amountScale: 2,
       payerClearingAccountId: peerOneAccounts.aseClearingAccId,
@@ -442,16 +442,16 @@ test('PAL Ledger Domain HighLevel API - Outgoing - Check Balance And Reserve Tra
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
-  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.transferId, txId);
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
 test('PAL Ledger Domain HighLevel API - Outgoing - Reject Transfer', async () => {
   const reqId = 'req1';
-  const txId = '1';
+  const transferId = '1';
   const cmd: RejectTransferCmd = new RejectTransferCmd(EUR_LEDGER_ID, {
     requestId: reqId,
-    transactionId: txId,
+    transferId: transferId,
     amount: AMOUNT.toString(),
     amountScale: 2,
     payerClearingAccountId: peerOneAccounts.aseClearingAccId,
@@ -506,16 +506,16 @@ test('PAL Ledger Domain HighLevel API - Outgoing - Reject Transfer', async () =>
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
-  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.transferId, transferId);
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
 test('PAL Ledger Domain HighLevel API - Outgoing - Reserve Transfer', async () => {
   const reqId = 'req3';
-  const txId = '1';
+  const transferId = '1';
   const cmd: ReserveTransferCmd = new ReserveTransferCmd(EUR_LEDGER_ID, {
     requestId: reqId,
-    transactionId: txId,
+    transferId: transferId,
     amount: AMOUNT.toString(),
     amountScale: 2,
     payerClearingAccountId: peerOneAccounts.aseClearingAccId,
@@ -563,7 +563,7 @@ test('PAL Ledger Domain HighLevel API - Outgoing - Reserve Transfer', async () =
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
-  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.transferId, transferId);
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
@@ -571,7 +571,7 @@ test('PAL Ledger Domain HighLevel API - Incoming - Check Balance And Reserve Tra
   const cmd: CheckBalanceAndReserveTransferCmd =
     new CheckBalanceAndReserveTransferCmd(EUR_LEDGER_ID, {
       requestId: 'req1',
-      transactionId: '1',
+      transferId: '1',
       amount: (AMOUNT * 99999n).toString(),
       amountScale: 2,
       payerClearingAccountId: peerOneAccounts.peerClearingAccId,
@@ -592,7 +592,7 @@ test('PAL Ledger Domain HighLevel API - Incoming - Check Balance And Reserve Tra
   );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.payload.requestId, 'req1');
-  assert.equal(lastDomainEvent.payload.transactionId, '1');
+  assert.equal(lastDomainEvent.payload.transferId, '1');
   assert.equal(lastDomainEvent.payload.isError, true);
 });
 
@@ -600,7 +600,7 @@ test('PAL Ledger Domain HighLevel API - Incoming - Check Balance And Reserve Tra
   const cmd: CheckBalanceAndReserveTransferCmd =
     new CheckBalanceAndReserveTransferCmd(EUR_LEDGER_ID, {
       requestId: 'req2',
-      transactionId: '1',
+      transferId: '1',
       amount: AMOUNT.toString(),
       amountScale: 2,
       payerClearingAccountId: peerOneAccounts.peerClearingAccId,
@@ -621,7 +621,7 @@ test('PAL Ledger Domain HighLevel API - Incoming - Check Balance And Reserve Tra
   );
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.payload.requestId, 'req2');
-  assert.equal(lastDomainEvent.payload.transactionId, '1');
+  assert.equal(lastDomainEvent.payload.transferId, '1');
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
@@ -630,7 +630,7 @@ test('PAL Ledger Domain HighLevel API - Incoming - Reject Transfer', async () =>
   const txId = '1';
   const cmd: RejectTransferCmd = new RejectTransferCmd(EUR_LEDGER_ID, {
     requestId: reqId,
-    transactionId: txId,
+    transferId: txId,
     amount: AMOUNT.toString(),
     amountScale: 2,
     payerClearingAccountId: peerOneAccounts.aseClearingAccId,
@@ -649,7 +649,7 @@ test('PAL Ledger Domain HighLevel API - Incoming - Reject Transfer', async () =>
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
-  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.transferId, txId);
   assert.equal(lastDomainEvent.payload.isError, false);
 });
 
@@ -658,7 +658,7 @@ test('PAL Ledger Domain HighLevel API - Incoming - Reserve Transfer', async () =
   const txId = '1';
   const cmd: ReserveTransferCmd = new ReserveTransferCmd(EUR_LEDGER_ID, {
     requestId: reqId,
-    transactionId: txId,
+    transferId: txId,
     amount: AMOUNT.toString(),
     amountScale: 2,
     payerClearingAccountId: peerOneAccounts.aseClearingAccId,
@@ -677,6 +677,6 @@ test('PAL Ledger Domain HighLevel API - Incoming - Reserve Transfer', async () =
   assert.equal(lastDomainEvent.aggregateId, EUR_LEDGER_ID);
   assert.equal(lastDomainEvent.requestId, reqId);
   assert.equal(lastDomainEvent.payload.requestId, reqId);
-  assert.equal(lastDomainEvent.payload.transactionId, txId);
+  assert.equal(lastDomainEvent.payload.transferId, txId);
   assert.equal(lastDomainEvent.payload.isError, false);
 });
