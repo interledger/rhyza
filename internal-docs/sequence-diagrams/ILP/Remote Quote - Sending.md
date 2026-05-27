@@ -4,59 +4,28 @@
 sequenceDiagram
 	autonumber
 
-    box Payments BC
-	participant PEH as Payment Event Handler
-    participant PCH as Payment Command Handler
-    participant PET as Payment Events Topic
+    participant AAPI as Admin API
+    participant PBC as Payments BC
+    participant PAL as PAL BC
+    participant ILPBC as ILP BC
+    participant Peer as Peer / ILP Network
+
+    AAPI ->> PBC: POST /quotes
+    PBC ->> PBC: Determine remote quote needed
+    PBC ->> PAL: Resolve peer by ILP destination address
+    PBC ->> PBC: Publish remote quote requested event <br> (with fixed quote amount, eg 100 <peer asset>)
+
+    ILPBC -->> PBC: Read remote quote requested event
+    ILPBC ->> ILPBC: Store packet correlation & expiry
+    ILPBC ->> Peer: Send quoting packet (unfulfillable prepare)
+    Peer -->> ILPBC: Receive quote response (reject packet) <br> with amount
+    ILPBC ->> ILPBC: Publish remote quote received event
+
+    PBC -->> ILPBC: Read remote quote received event
+    alt: If sender wallet address asset is different than peer asset
+    PBC ->> PAL: Get FX rate
     end
-
-    box PAL BC
-    participant PALEH as PAL Event Handler
-    participant PAL as PAL Command Handler
-    participant PALET as PAL Events Topic
-    end
-
-    box ILP BC
-    participant ILPET as ILP Events Topic
-    participant ILPEH as ILP Event Handler
-	participant ILP as ILP Command Handler
-    participant ILPPC as ILP peer to peer client
-    participant ILPCAPI as ILP Connector API
-    end
-
-
-    PCH ->> PCH: Quote requested command
-	PCH ->> PCH: Determine whether payment is local or <br> remote
-    PCH -->> PET: Remote quote requested event <br> (with destination ILP address)
-
-    PALEH -->> PET: Read remote quote requested event
-    PALEH -->> PAL: Resolve peer command
-    PAL ->> PAL: Resolve peer from ILP address
-    PAL ->> PAL: Check if peer is active
-    PAL ->> PAL: Determine FX if necessary
-    PAL -->> PALET: Peer resolved for remote quote event
-
-    ILPEH -->> PALET: Read peer resolved for remote quote event
-    ILPEH -->> ILP: Start quote command
-    ILP ->> ILP: Fetch peer connector details
-    ILP ->> ILP: Store packet & its expiry (put it on a worker and handle expiries separately)
-
-    ILP ->> ILPPC: Send unfulfillable prepare packet (quoting packet)
-    ILPPC -->> ILPPC: Send prepare packet to peer
-
-    alt Quote packet received
-    ILPCAPI ->> ILPCAPI: Receive reject packet
-    ILPCAPI -->> ILP: Process quote response (reject packet) command
-    ILP ->> ILP: Fetch peer based on original outgoing packet
-    ILP -->> ILPET: ILP Quote determined event
-
-    PEH -->> ILPET: Read ILP quote determined event
-    PEH -->> PCH: Finalize remote quote command
-    PCH ->> PCH: Check the destination amount. If 0, throw error + include minimumSendAmount
-    PCH ->> PCH: Store quote
-    PCH -->> PET: (Remote) Quote completed event
-    PALEH -->> PET: Read quote completed event (if needed to finalize liquidity)
-
-    else No packets received, error
-    end
+    PBC ->> PBC: Determine quote amount & store quote
+    PBC ->> PBC: Publish remote quote completed event
+    PBC ->> AAPI: Return quote
 ```
