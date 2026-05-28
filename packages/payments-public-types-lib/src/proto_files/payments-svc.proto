@@ -3,28 +3,31 @@ package rafiki.payments.service;
 
 // Service for managing payment resources.
 service PaymentsGrpc {
-  // Creates a new incoming payment.
-  rpc CreateIncomingPayment(CreateIncomingPaymentRequest) returns (CreateIncomingPaymentResponse);
+  // Creates a new payment intent.
+  rpc CreatePaymentIntent(CreatePaymentIntentRequest) returns (CreatePaymentIntentResponse);
 
   // Creates a new quote.
   rpc CreateQuote(CreateQuoteRequest) returns (CreateQuoteResponse);
 
-  // Creates a new outgoing payment.
-  rpc CreateOutgoingPayment(CreateOutgoingPaymentRequest) returns (CreateOutgoingPaymentResponse);
+  // Creates a new payment.
+  rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
 
-  // Approves an existing outgoing payment.
-  rpc ApproveOutgoingPayment(ApproveOutgoingPaymentRequest) returns (ApproveOutgoingPaymentResponse);
+  // Approves an existing payment.
+  rpc ApprovePayment(ApprovePaymentRequest) returns (ApprovePaymentResponse);
 
   // Fetches a payment intent by ID.
   rpc GetPaymentIntent(GetPaymentIntentRequest) returns (GetPaymentIntentResponse);
+
+  // Fetches a payment by concatenated ID (paymentIntentId_paymentId).
+  rpc GetPayment(GetPaymentRequest) returns (GetPaymentResponse);
 }
 
 /*
- * Incoming Payment messages
+ * Payment Intent messages
  */
 
-// Request to create a new incoming payment.
-message CreateIncomingPaymentRequest {
+// Request to create a new payment intent.
+message CreatePaymentIntentRequest {
   string id = 1;
   string wallet_address_id = 2;
   string wallet_address = 3;
@@ -33,8 +36,8 @@ message CreateIncomingPaymentRequest {
   optional string metadata = 6;
 }
 
-// Response containing the ID of the created incoming payment.
-message CreateIncomingPaymentResponse {
+// Response containing the ID of the created payment intent.
+message CreatePaymentIntentResponse {
   string id = 1;
 }
 
@@ -47,45 +50,51 @@ message CreateQuoteRequest {
   string id = 1;
   string wallet_address_id = 2;
   string wallet_address = 3;
-  string incoming_payment_id = 4;
+  string payment_intent_id = 4;
   optional uint64 debit_amount = 5;
   optional uint64 receive_amount = 6;
   optional string remote_url = 7;
 }
 
-// Response containing the ID of the created quote and the resolved payment intent ID.
+// Response containing the created quote details.
 message CreateQuoteResponse {
   string id = 1;
   string payment_intent_id = 2;
+  string sender_wallet_address = 3;
+  string sender_wallet_address_id = 4;
+  string expires_at = 5;
+  uint64 debit_amount = 6;
+  uint64 receive_amount = 7;
+  double exchange_rate = 8;
 }
 
 /*
- * Outgoing Payment messages
+ * Payment messages
  */
 
-// Request to create a new outgoing payment.
-message CreateOutgoingPaymentRequest {
+// Request to create a new payment.
+message CreatePaymentRequest {
   string id = 1;
   string wallet_address_id = 2;
   string wallet_address = 3;
-  string incoming_payment_id = 4;
+  string payment_intent_id = 4;
   optional string quote_id = 5;
   optional uint64 debit_amount = 6;
 }
 
-// Response containing the ID of the created outgoing payment.
-message CreateOutgoingPaymentResponse {
+// Response containing the ID of the created payment.
+message CreatePaymentResponse {
   string id = 1;
 }
 
-// Request to approve an outgoing payment.
-message ApproveOutgoingPaymentRequest {
+// Request to approve a payment.
+message ApprovePaymentRequest {
   string id = 1;
-  string incoming_payment_id = 2;
+  string payment_intent_id = 2;
 }
 
-// Response confirming the approval of the outgoing payment.
-message ApproveOutgoingPaymentResponse {
+// Response confirming the approval of the payment.
+message ApprovePaymentResponse {
   string id = 1;
 }
 
@@ -112,3 +121,27 @@ message GetPaymentIntentResponse {
   optional string destination_ilp_address = 10;
 }
 
+/*
+ * Get Payment messages
+ */
+
+// Request to fetch a payment by its parent intent ID and its own ID.
+message GetPaymentRequest {
+  string payment_intent_id = 1;
+  string id = 2;
+}
+
+// Response containing the payment details.
+message GetPaymentResponse {
+  string id = 1;
+  string state = 2;
+  string sender_wallet_address = 3;
+  string sender_wallet_address_id = 4;
+  string payment_intent_id = 5;
+  string asset_code = 6;
+  uint32 asset_scale = 7;
+  optional string quote_id = 8;
+  uint64 debit_amount = 9;
+  uint64 receive_amount = 10;
+  uint64 sent_amount = 11;
+}

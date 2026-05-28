@@ -94,6 +94,12 @@ export class PaymentIntentCreateFailedEvent extends PaymentIntentDomainEvent {
 export type QuoteCompletedPayload = {
   id: string;
   paymentIntentId: string;
+  senderWalletAddress: string;
+  senderWalletAddressId: string;
+  expiresAt: string;
+  debitAmount: string;
+  receiveAmount: string;
+  exchangeRate: number;
 };
 
 export class QuoteCompletedEvent extends PaymentIntentDomainEvent {

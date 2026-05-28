@@ -71,23 +71,23 @@ export function setup() {
 }
 
 export default function (data) {
-  const incomingPaymentId = uuidv4();
-  const incomingPaymentRes = request(`${ADMIN_API_URL}/incoming-payments`, {
-    id: incomingPaymentId,
+  const paymentIntentId = uuidv4();
+  const paymentIntentRes = request(`${ADMIN_API_URL}/payment-intents`, {
+    id: paymentIntentId,
     walletAddress: data.receiverWalletAddress
   });
 
-  console.log(`incoming payment response: ${incomingPaymentRes.body}`);
+  console.log(`payment intent response: ${paymentIntentRes.body}`);
 
-  check(incomingPaymentRes, {
-    'incoming payment created': (r) => r.status === 201,
-    'incoming payment id matches': (r) =>
-      JSON.parse(r.body).id === incomingPaymentId
+  check(paymentIntentRes, {
+    'payment intent created': (r) => r.status === 201,
+    'payment intent id matches': (r) =>
+      JSON.parse(r.body).id === paymentIntentId
   });
 
   const quoteRes = request(`${ADMIN_API_URL}/quotes`, {
     walletAddress: data.senderWalletAddress,
-    incomingPaymentId,
+    paymentIntentId,
     debitAmount: '100'
   });
 
@@ -97,16 +97,19 @@ export default function (data) {
     'quote created': (r) => r.status === 201
   });
 
-  const quoteId = JSON.parse(quoteRes.body).id;
+  const quoteBody = JSON.parse(quoteRes.body);
+  const quoteId = quoteBody.id;
+  const quotePaymentIntentId = quoteBody.paymentIntentId;
 
-  const outgoingPaymentRes = request(`${ADMIN_API_URL}/outgoing-payments`, {
+  const paymentRes = request(`${ADMIN_API_URL}/payments`, {
     walletAddress: data.senderWalletAddress,
+    paymentIntentId: quotePaymentIntentId,
     quoteId
   });
 
-  console.log(`outgoing payment response: ${outgoingPaymentRes.body}`);
+  console.log(`payment response: ${paymentRes.body}`);
 
-  check(outgoingPaymentRes, {
-    'outgoing payment created': (r) => r.status === 201
+  check(paymentRes, {
+    'payment created': (r) => r.status === 201
   });
 }

@@ -15,8 +15,14 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
-  async fetchById(id: string): Promise<IPaymentIntent | undefined> {
-    return this._store.get(id);
+  async fetchByIds(ids: string[]): Promise<Omit<IPaymentIntent, 'payments'>[]> {
+    return ids.flatMap((id) => {
+      const p = this._store.get(id);
+      if (!p) return [];
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const { payments: _payments, ...rest } = p;
+      return [rest];
+    });
   }
 
   async fetchByIdsWithPayments(ids: string[]): Promise<IPaymentIntent[]> {

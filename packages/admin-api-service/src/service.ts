@@ -5,9 +5,9 @@ import { PalClient } from 'pal-client-lib';
 import { PaymentsClient } from 'payments-client-lib';
 import { assetRoutes } from './routes/assets.js';
 import { walletAddressRoutes } from './routes/wallet-addresses.js';
-import { incomingPaymentRoutes } from './routes/incoming-payments.js';
+import { paymentIntentRoutes } from './routes/payment-intents.js';
 import { quoteRoutes } from './routes/quotes.js';
-import { outgoingPaymentRoutes } from './routes/outgoing-payments.js';
+import { paymentRoutes } from './routes/payments.js';
 
 const PORT = parseInt(process.env['PORT'] || '3001', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
@@ -43,7 +43,7 @@ export class AdminApiService {
     this.server.register(walletAddressRoutes, {
       palClient: this.palClient
     });
-    this.server.register(incomingPaymentRoutes, {
+    this.server.register(paymentIntentRoutes, {
       palClient: this.palClient,
       paymentsClient: this.paymentsClient,
       openPaymentsUrl: OPEN_PAYMENTS_URL
@@ -52,7 +52,7 @@ export class AdminApiService {
       palClient: this.palClient,
       paymentsClient: this.paymentsClient
     });
-    this.server.register(outgoingPaymentRoutes, {
+    this.server.register(paymentRoutes, {
       palClient: this.palClient,
       paymentsClient: this.paymentsClient
     });

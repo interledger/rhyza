@@ -14,6 +14,7 @@ import {
 } from './errors';
 import {
   IBaseQuote,
+  ICompletedQuote,
   IPendingQuote,
   IPaymentIntent,
   IQuote,
@@ -384,7 +385,7 @@ export class PaymentIntent implements IPaymentIntent {
       assetCode: string;
       assetScale: number;
     };
-  }): void {
+  }): ICompletedQuote {
     const {
       id,
       debitAmount,
@@ -450,6 +451,7 @@ export class PaymentIntent implements IPaymentIntent {
       paymentIntentExpiresAt: this.expiresAt
     });
     this._quotes.push(quote);
+    return quote.toObject() as ICompletedQuote;
   }
 
   addPendingRemoteQuote(args: {
@@ -505,7 +507,7 @@ export class PaymentIntent implements IPaymentIntent {
     debitAmount: bigint;
     receiveAmount: bigint;
     exchangeRate: number;
-  }): void {
+  }): ICompletedQuote {
     const { id, debitAmount, receiveAmount, exchangeRate } = args;
 
     const quote = this._quotes.find((q) => q.id === id);
@@ -527,6 +529,7 @@ export class PaymentIntent implements IPaymentIntent {
       exchangeRate,
       paymentIntentExpiresAt: this.expiresAt
     });
+    return quote.toObject() as ICompletedQuote;
   }
 
   failRemoteQuote(args: {

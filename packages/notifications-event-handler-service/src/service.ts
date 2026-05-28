@@ -3,6 +3,7 @@ import {
   KafkaBuilder,
   KafkaConsumer,
   KafkaProducer,
+  MessageSerializationFactory,
   PinoLogger
 } from 'implementations-lib';
 
@@ -18,6 +19,7 @@ export class NotificationsEventHandlerService {
     kafkaBuilder
       .withBrokerList(KAFKA_URL)
       .withClientId(`NOTIFICATIONS_EVENT_HANDLER_SVC_${crypto.randomUUID()}`)
+      .withSerializerFactory(MessageSerializationFactory.instance())
       .withLogger(new PinoLogger());
 
     this.msgProducer = kafkaBuilder.buildProducer({});

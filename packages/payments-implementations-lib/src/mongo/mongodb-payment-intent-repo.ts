@@ -141,14 +141,17 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
-  async fetchById(id: string): Promise<IPaymentIntent | undefined> {
+  async fetchByIds(ids: string[]): Promise<Omit<IPaymentIntent, 'payments'>[]> {
     this._checkInitialisedOrThrow();
 
-    try {
-      const doc = await this._paymentIntentCollection.findOne({ id });
-      if (!doc) return undefined;
+    if (ids.length === 0) return [];
 
-      return {
+    try {
+      const docs = await this._paymentIntentCollection
+        .find({ id: { $in: ids } })
+        .toArray();
+
+      return docs.map((doc) => ({
         id: doc.id,
         receiverWalletAddressId: doc.receiverWalletAddressId,
         receiverWalletAddress: doc.receiverWalletAddress,
@@ -161,13 +164,31 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         receivedAmount: doc.receivedAmount,
         destinationIlpAddress: doc.destinationIlpAddress,
         remoteUrl: doc.remoteUrl,
-        quotes: [],
-        payments: []
-      };
+        quotes: doc.quotes.map((quote) => ({
+          id: quote.id,
+          senderWalletAddress: quote.senderWalletAddress,
+          senderWalletAddressId: quote.senderWalletAddressId,
+          ...(quote.state === 'COMPLETED'
+            ? {
+                state: quote.state,
+                debitAmount: quote.debitAmount,
+                receiveAmount: quote.receiveAmount,
+                expiresAt: quote.expiresAt,
+                exchangeRate: quote.exchangeRate
+              }
+            : quote.state === 'FAILED'
+              ? {
+                  state: quote.state,
+                  errorName: quote.errorName,
+                  message: quote.message
+                }
+              : { state: quote.state })
+        }))
+      }));
     } catch (err) {
       this._logger.error(err);
       throw new Error(
-        `Unable to fetch payment intent - error: ${(err as Error).message}`
+        `Unable to fetch payment intents - error: ${(err as Error).message}`
       );
     }
   }

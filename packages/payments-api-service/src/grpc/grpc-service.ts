@@ -11,16 +11,18 @@ import {
 } from '@grpc/grpc-js';
 
 import {
-  CreateIncomingPaymentRequest,
-  CreateIncomingPaymentResponse,
+  CreatePaymentIntentRequest,
+  CreatePaymentIntentResponse,
   CreateQuoteRequest,
   CreateQuoteResponse,
-  CreateOutgoingPaymentRequest,
-  CreateOutgoingPaymentResponse,
-  ApproveOutgoingPaymentRequest,
-  ApproveOutgoingPaymentResponse,
+  CreatePaymentRequest,
+  CreatePaymentResponse,
+  ApprovePaymentRequest,
+  ApprovePaymentResponse,
   GetPaymentIntentRequest,
   GetPaymentIntentResponse,
+  GetPaymentRequest,
+  GetPaymentResponse,
   HealthCheckRequest,
   HealthCheckResponse,
   HealthService,
@@ -113,11 +115,12 @@ export class PaymentsServiceServer {
 
     // payments service RPCs
     this._server.addService(PaymentsGrpcService, {
-      createIncomingPayment: this._handleUnary.bind(this),
+      createPaymentIntent: this._handleUnary.bind(this),
       createQuote: this._handleUnary.bind(this),
-      createOutgoingPayment: this._handleUnary.bind(this),
-      approveOutgoingPayment: this._handleUnary.bind(this),
-      getPaymentIntent: this._handleGetPaymentIntent.bind(this)
+      createPayment: this._handleUnary.bind(this),
+      approvePayment: this._handleUnary.bind(this),
+      getPaymentIntent: this._handleGetPaymentIntent.bind(this),
+      getPayment: this._handleGetPayment.bind(this)
     });
   }
 
@@ -188,7 +191,7 @@ export class PaymentsServiceServer {
     call: ServerUnaryCall<any, any>,
     callback: sendUnaryData<any>
   ): Promise<void> {
-    if (call.request instanceof CreateIncomingPaymentRequest) {
+    if (call.request instanceof CreatePaymentIntentRequest) {
       const commandId = call.request.getId();
       if (!PaymentsServiceServer.UUID_REGEX.test(commandId)) {
         callback({
@@ -226,7 +229,7 @@ export class PaymentsServiceServer {
       const cmd = new CreateQuoteCmd(
         {
           id: commandId,
-          paymentIntentId: call.request.getIncomingPaymentId(),
+          paymentIntentId: call.request.getPaymentIntentId(),
           senderWalletAddressId: call.request.getWalletAddressId(),
           senderWalletAddress: call.request.getWalletAddress(),
           receiveAmount: receiveAmount ? receiveAmount : undefined,
@@ -236,7 +239,7 @@ export class PaymentsServiceServer {
         commandId
       );
       await this._msgProducer.send(cmd);
-    } else if (call.request instanceof CreateOutgoingPaymentRequest) {
+    } else if (call.request instanceof CreatePaymentRequest) {
       const commandId = call.request.getId();
       if (!PaymentsServiceServer.UUID_REGEX.test(commandId)) {
         callback({
@@ -251,18 +254,18 @@ export class PaymentsServiceServer {
           id: commandId,
           senderWalletAddressId: call.request.getWalletAddressId(),
           senderWalletAddress: call.request.getWalletAddress(),
-          paymentIntentId: call.request.getIncomingPaymentId(),
+          paymentIntentId: call.request.getPaymentIntentId(),
           quoteId: call.request.getQuoteId(),
           debitAmount: call.request.getDebitAmount() || undefined
         },
         commandId
       );
       await this._msgProducer.send(cmd);
-    } else if (call.request instanceof ApproveOutgoingPaymentRequest) {
+    } else if (call.request instanceof ApprovePaymentRequest) {
       const commandId = call.request.getId();
       this._storePendingResponse(commandId, call, callback);
       const cmd = new ApprovePaymentCmd(
-        { id: commandId, paymentIntentId: call.request.getIncomingPaymentId() },
+        { id: commandId, paymentIntentId: call.request.getPaymentIntentId() },
         commandId
       );
       await this._msgProducer.send(cmd);
@@ -279,7 +282,7 @@ export class PaymentsServiceServer {
   ): Promise<void> {
     const id = call.request.getId();
     try {
-      const paymentIntent = await this._repo.fetchById(id);
+      const [paymentIntent] = await this._repo.fetchByIds([id]);
       if (!paymentIntent) {
         callback({
           code: grpc.status.NOT_FOUND,
@@ -304,6 +307,55 @@ export class PaymentsServiceServer {
       }
       if (paymentIntent.destinationIlpAddress) {
         response.setDestinationIlpAddress(paymentIntent.destinationIlpAddress);
+      }
+
+      callback(null, response);
+    } catch (err) {
+      callback({ code: grpc.status.INTERNAL, message: (err as Error).message });
+    }
+  }
+
+  private async _handleGetPayment(
+    call: ServerUnaryCall<GetPaymentRequest, GetPaymentResponse>,
+    callback: sendUnaryData<GetPaymentResponse>
+  ): Promise<void> {
+    const paymentIntentId = call.request.getPaymentIntentId();
+    const paymentId = call.request.getId();
+
+    try {
+      const [paymentIntent] = await this._repo.fetchByIdsWithPayments([
+        paymentIntentId
+      ]);
+      if (!paymentIntent) {
+        callback({
+          code: grpc.status.NOT_FOUND,
+          message: `Payment intent '${paymentIntentId}' not found`
+        });
+        return;
+      }
+
+      const payment = paymentIntent.payments.find((p) => p.id === paymentId);
+      if (!payment) {
+        callback({
+          code: grpc.status.NOT_FOUND,
+          message: `Payment '${paymentId}' not found`
+        });
+        return;
+      }
+
+      const response = new GetPaymentResponse();
+      response.setId(payment.id);
+      response.setState(payment.state);
+      response.setSenderWalletAddress(payment.senderWalletAddress);
+      response.setSenderWalletAddressId(payment.senderWalletAddressId);
+      response.setPaymentIntentId(payment.paymentIntentId);
+      response.setAssetCode(payment.assetCode);
+      response.setAssetScale(payment.assetScale);
+      response.setDebitAmount(Number(payment.debitAmount));
+      response.setReceiveAmount(Number(payment.receiveAmount));
+      response.setSentAmount(Number(payment.sentAmount));
+      if (payment.quoteId) {
+        response.setQuoteId(payment.quoteId);
       }
 
       callback(null, response);
@@ -362,9 +414,7 @@ export class PaymentsServiceServer {
     const evt = message as PaymentIntentDomainEvent;
 
     if (PaymentIntentDomainEvent.isPaymentIntentCreatedEvent(evt)) {
-      const response = new CreateIncomingPaymentResponse().setId(
-        evt.payload.id
-      );
+      const response = new CreatePaymentIntentResponse().setId(evt.payload.id);
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (PaymentIntentDomainEvent.isPaymentIntentCreateFailedEvent(evt)) {
       this._resolvePendingResponse(pending, requestId, {
@@ -377,7 +427,13 @@ export class PaymentsServiceServer {
     } else if (PaymentIntentDomainEvent.isQuoteCompletedEvent(evt)) {
       const response = new CreateQuoteResponse()
         .setId(evt.payload.id)
-        .setPaymentIntentId(evt.payload.paymentIntentId);
+        .setPaymentIntentId(evt.payload.paymentIntentId)
+        .setSenderWalletAddress(evt.payload.senderWalletAddress)
+        .setSenderWalletAddressId(evt.payload.senderWalletAddressId)
+        .setExpiresAt(evt.payload.expiresAt)
+        .setDebitAmount(Number(evt.payload.debitAmount))
+        .setReceiveAmount(Number(evt.payload.receiveAmount))
+        .setExchangeRate(evt.payload.exchangeRate);
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (PaymentIntentDomainEvent.isQuoteCreateFailedEvent(evt)) {
       this._resolvePendingResponse(pending, requestId, {
@@ -388,9 +444,7 @@ export class PaymentsServiceServer {
         metadata: new grpc.Metadata()
       });
     } else if (PaymentIntentDomainEvent.isPaymentCreatedEvent(evt)) {
-      const response = new CreateOutgoingPaymentResponse().setId(
-        evt.payload.id
-      );
+      const response = new CreatePaymentResponse().setId(evt.payload.id);
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (PaymentIntentDomainEvent.isPaymentCreateFailedEvent(evt)) {
       this._resolvePendingResponse(pending, requestId, {
@@ -401,9 +455,7 @@ export class PaymentsServiceServer {
         metadata: new grpc.Metadata()
       });
     } else if (PaymentIntentDomainEvent.isLocalPaymentCompletedEvent(evt)) {
-      const response = new ApproveOutgoingPaymentResponse().setId(
-        evt.payload.id
-      );
+      const response = new ApprovePaymentResponse().setId(evt.payload.id);
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (
       PaymentIntentDomainEvent.isLocalPaymentCompleteFailedEvent(evt)

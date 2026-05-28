@@ -17,7 +17,7 @@ export class NotificationsCommandHandler {
   }
 
   async start(): Promise<void> {
-    this._msgConsumer.setTopics([CommandTopics.PaymentCommands]);
+    this._msgConsumer.setTopics([CommandTopics.NotificationCommands]);
     this._msgConsumer.setBatchCallbackFn(this._handleBatch.bind(this));
     await this._msgConsumer.connect();
     await this._msgConsumer.startAndWaitForRebalance();
@@ -34,8 +34,12 @@ export class NotificationsCommandHandler {
     for (const msg of messages) {
       switch (msg.msgName) {
         case CreateNotificationCmd.name: {
-          await this._notificationAggregate.createAndSendNotification(
-            (msg as CreateNotificationCmd).payload.data
+          const id =
+            await this._notificationAggregate.createAndSendNotification(
+              (msg as CreateNotificationCmd).payload.data
+            );
+          console.log(
+            `Notification created and sent for command: ${msg.msgName} with id ${id}`
           );
           break;
         }

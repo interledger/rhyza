@@ -14,29 +14,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Asset'
+                $ref: '#/components/schemas/AssetCreateResponse'
+        '409':
+          description: Asset already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/AssetCreate'
-  /assets/{code}:
-    get:
-      operationId: Assets_getAsset
-      parameters:
-        - name: code
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: The request has succeeded.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Asset'
   /wallet-addresses:
     post:
       operationId: WalletAddresses_createWalletAddress
@@ -47,18 +37,47 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WalletAddress'
+                $ref: '#/components/schemas/WalletAddressCreateResponse'
+        '409':
+          description: Wallet address already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/WalletAddressCreate'
-  /wallet-addresses/{address}:
+  /payment-intents:
+    post:
+      operationId: PaymentIntents_createPaymentIntent
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntentCreateResponse'
+        '404':
+          description: Wallet address not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentIntentCreate'
+  /payment-intents/{id}:
     get:
-      operationId: WalletAddresses_getWalletAddress
+      operationId: PaymentIntents_getPaymentIntent
       parameters:
-        - name: address
+        - name: id
           in: path
           required: true
           schema:
@@ -69,19 +88,127 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WalletAddress'
+                $ref: '#/components/schemas/PaymentIntent'
+        '404':
+          description: Payment intent not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /quotes:
+    post:
+      operationId: Quotes_createQuote
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '400':
+          description: Either paymentIntentId or paymentIntentUrl is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Wallet address not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteCreate'
+  /payments:
+    post:
+      operationId: Payments_createPayment
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCreateResponse'
+        '404':
+          description: Wallet address not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+  /payment-intents/{intentId}/payments/{id}:
+    get:
+      operationId: Payments_getPayment
+      parameters:
+        - name: intentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '404':
+          description: Payment not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /payment-intents/{intentId}/payments/{id}/approve:
+    post:
+      operationId: Payments_approvePayment
+      parameters:
+        - name: intentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: string
 components:
   schemas:
-    Asset:
+    ErrorResponse:
       type: object
       required:
-        - code
-        - scale
+        - error
       properties:
-        code:
+        error:
           type: string
-        scale:
-          type: number
     AssetCreate:
       type: object
       required:
@@ -92,24 +219,17 @@ components:
           type: string
         scale:
           type: number
-    WalletAddress:
+        liquidityLowThreshold:
+          type: integer
+        liquidityHighThreshold:
+          type: integer
+    AssetCreateResponse:
       type: object
       required:
-        - address
-        - assetScale
-        - assetCode
-        - publicName
+        - code
       properties:
-        address:
+        code:
           type: string
-        publicName:
-          type: string
-        assetCode:
-          type: string
-        assetScale:
-          type: number
-        isActive:
-          type: boolean
     WalletAddressCreate:
       type: object
       required:
@@ -125,3 +245,176 @@ components:
           type: string
         isActive:
           type: boolean
+    WalletAddressCreateResponse:
+      type: object
+      required:
+        - address
+      properties:
+        address:
+          type: string
+    PaymentIntentCreate:
+      type: object
+      required:
+        - walletAddress
+      properties:
+        id:
+          type: string
+        walletAddress:
+          type: string
+        incomingAmount:
+          type: number
+        expiresAt:
+          type: string
+          format: date-time
+        metadata:
+          type: string
+    PaymentIntentCreateResponse:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+        openPaymentsUrl:
+          type: string
+    Amount:
+      type: object
+      required:
+        - value
+        - assetCode
+        - assetScale
+      properties:
+        value:
+          type: string
+        assetCode:
+          type: string
+        assetScale:
+          type: number
+    PaymentIntent:
+      type: object
+      required:
+        - id
+        - state
+        - destination
+        - walletAddress
+        - receivedAmount
+      properties:
+        id:
+          type: string
+        state:
+          type: string
+        destination:
+          type: string
+        walletAddress:
+          type: string
+        incomingAmount:
+          $ref: '#/components/schemas/Amount'
+        receivedAmount:
+          $ref: '#/components/schemas/Amount'
+        expiresAt:
+          type: string
+          format: date-time
+        destinationIlpAddress:
+          type: string
+    QuoteCreate:
+      type: object
+      required:
+        - walletAddress
+      properties:
+        id:
+          type: string
+        walletAddress:
+          type: string
+        paymentIntentId:
+          type: string
+        paymentIntentUrl:
+          type: string
+        debitAmount:
+          type: string
+        receiveAmount:
+          type: string
+    Quote:
+      type: object
+      required:
+        - id
+        - paymentIntentId
+        - senderWalletAddress
+        - senderWalletAddressId
+        - expiresAt
+        - debitAmount
+        - receiveAmount
+        - exchangeRate
+      properties:
+        id:
+          type: string
+        paymentIntentId:
+          type: string
+        senderWalletAddress:
+          type: string
+        senderWalletAddressId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        debitAmount:
+          type: string
+        receiveAmount:
+          type: string
+        exchangeRate:
+          type: number
+    PaymentCreate:
+      type: object
+      required:
+        - walletAddress
+        - paymentIntentId
+      properties:
+        id:
+          type: string
+        walletAddress:
+          type: string
+        paymentIntentId:
+          type: string
+        quoteId:
+          type: string
+        debitAmount:
+          type: number
+    PaymentCreateResponse:
+      type: object
+      required:
+        - id
+        - paymentIntentId
+      properties:
+        id:
+          type: string
+        paymentIntentId:
+          type: string
+    Payment:
+      type: object
+      required:
+        - id
+        - state
+        - senderWalletAddress
+        - assetCode
+        - assetScale
+        - debitAmount
+        - receiveAmount
+        - sentAmount
+      properties:
+        id:
+          type: string
+        state:
+          type: string
+        senderWalletAddress:
+          type: string
+        assetCode:
+          type: string
+        assetScale:
+          type: number
+        quoteId:
+          type: string
+        debitAmount:
+          type: string
+        receiveAmount:
+          type: string
+        sentAmount:
+          type: string

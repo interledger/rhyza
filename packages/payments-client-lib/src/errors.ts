@@ -11,3 +11,9 @@ export class PaymentIntentNotFoundError extends Error {
     super(`Payment intent '${id}' not found`);
   }
 }
+
+export class PaymentNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Payment '${id}' not found`);
+  }
+}

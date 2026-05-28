@@ -1,17 +1,23 @@
-export interface ICreateIncomingPaymentResponse {
+export interface ICreatePaymentIntentResponse {
   id: string;
 }
 
 export interface ICreateQuoteResponse {
   id: string;
   paymentIntentId: string;
+  senderWalletAddress: string;
+  senderWalletAddressId: string;
+  expiresAt: string;
+  debitAmount: bigint;
+  receiveAmount: bigint;
+  exchangeRate: number;
 }
 
-export interface ICreateOutgoingPaymentResponse {
+export interface ICreatePaymentResponse {
   id: string;
 }
 
-export interface IApproveOutgoingPaymentResponse {
+export interface IApprovePaymentResponse {
   id: string;
 }
 
@@ -26,4 +32,18 @@ export interface IGetPaymentIntentResponse {
   incomingAmount?: bigint;
   expiresAt?: string;
   destinationIlpAddress?: string;
+}
+
+export interface IGetPaymentResponse {
+  id: string;
+  state: string;
+  senderWalletAddress: string;
+  senderWalletAddressId: string;
+  paymentIntentId: string;
+  assetCode: string;
+  assetScale: number;
+  quoteId?: string;
+  debitAmount: bigint;
+  receiveAmount: bigint;
+  sentAmount: bigint;
 }

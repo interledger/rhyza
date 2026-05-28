@@ -72,7 +72,11 @@ export class MongoDbNotificationRepo implements INotificationRepository {
   async store(notification: INotification): Promise<void> {
     this._checkInitialisedOrThrow();
     try {
-      await this._notificationCollection.insertOne(notification);
+      await this._notificationCollection.updateOne(
+        { id: notification.id },
+        { $set: notification },
+        { upsert: true }
+      );
     } catch (e: unknown) {
       this._handleError(e, 'store');
     }

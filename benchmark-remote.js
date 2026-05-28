@@ -72,27 +72,27 @@ export function setup() {
 }
 
 export default function (data) {
-  const incomingPaymentId = uuidv4();
-  const incomingPaymentRes = request(`${ADMIN_API_URL}/incoming-payments`, {
-    id: incomingPaymentId,
+  const paymentIntentId = uuidv4();
+  const paymentIntentRes = request(`${ADMIN_API_URL}/payment-intents`, {
+    id: paymentIntentId,
     walletAddress: data.receiverWalletAddress
   });
 
-  console.log(`incoming payment response: ${incomingPaymentRes.body}`);
+  console.log(`payment intent response: ${paymentIntentRes.body}`);
 
-  check(incomingPaymentRes, {
-    'incoming payment created': (r) => r.status === 201,
-    'incoming payment id matches': (r) =>
-      JSON.parse(r.body).id === incomingPaymentId
+  check(paymentIntentRes, {
+    'payment intent created': (r) => r.status === 201,
+    'payment intent id matches': (r) =>
+      JSON.parse(r.body).id === paymentIntentId
   });
 
-  // Normally this URL would come from the incoming payment response.
+  // Normally this URL would come from the payment intent response.
   // Here we construct it directly using the docker alias to simulate a remote Rafiki instance
-  const incomingPaymentUrl = `${PEER_OPEN_PAYMENTS_URL}/incoming-payments/${incomingPaymentId}`;
-  // const incomingPaymentUrl = JSON.parse(
-  //   incomingPaymentRes.body
+  const paymentIntentUrl = `${PEER_OPEN_PAYMENTS_URL}/incoming-payments/${paymentIntentId}`;
+  // const paymentIntentUrl = JSON.parse(
+  //   paymentIntentRes.body
   // ).openPaymentsUrl;
-  // const openPaymentsUrlDefined = check(incomingPaymentRes, {
+  // const openPaymentsUrlDefined = check(paymentIntentRes, {
   //   'openPaymentsUrl is defined': (r) =>
   //     JSON.parse(r.body).openPaymentsUrl !== undefined
   // });
@@ -100,7 +100,7 @@ export default function (data) {
 
   const quoteRes = request(`${ADMIN_API_URL}/quotes`, {
     walletAddress: data.senderWalletAddress,
-    incomingPaymentUrl,
+    paymentIntentUrl,
     debitAmount: '100'
   });
 

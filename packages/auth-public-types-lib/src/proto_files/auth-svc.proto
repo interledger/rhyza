@@ -1,0 +1,166 @@
+syntax = "proto3";
+package rafiki.auth.service;
+
+service RafikiAuth {
+	// Grant RPCs
+	rpc CreateGrant(GrantRequest) returns (Grant) {}
+	rpc GetGrant(GetGrantRequest) returns (Grant) {}
+	rpc ContinueGrant(GrantContinuationRequest) returns (Grant) {}
+	rpc RevokeGrant(GrantRevocationRequest) returns (Grant) {}
+	// Access Token RPCs
+	rpc IntrospectToken(TokenIntrospectionRequest) returns (TokenInfo) {}
+	rpc RotateToken(TokenRotationRequest) returns (AccessToken) {}
+	rpc RevokeToken(TokenRevocationRequest) returns (AccessToken) {}
+	// Interaction RPCs
+	rpc AcceptInteraction(InteractionChoiceRequest)  returns (InteractionChoiceResponse) {}
+	rpc RejectInteraction(InteractionChoiceRequest) returns (InteractionChoiceResponse) {}
+}
+
+message AccessItem {
+	AccessType type = 1;
+	AccessLimits limits = 2;
+	repeated AccessAction actions = 3;
+	string identifier = 4;
+}
+
+message AccessToken {
+	string value = 1;
+	string management_id = 2;
+	int32 expires_in = 3;
+	string revoked_at = 4; // Date string
+}
+
+message Interaction {
+	string interact_ref = 1;
+	string client_nonce = 2;
+	string state = 3;
+	int64 expires_in_ms = 4;
+}
+
+message Grant {
+	string id = 1;
+	repeated StartMethod start = 2;
+	string continue_token = 3;
+	string continue_id = 4;
+	string state = 5;
+	string finalization = 6;
+	string client = 7;
+	Subject subject = 8;
+	repeated AccessItem accesses = 9;
+	repeated FinishMethod finishMethods = 10;
+	repeated string finishUris = 11;
+	Interaction interaction = 12;
+	string last_continued_at = 13; // Date string
+	repeated AccessToken access_tokens = 14;
+}
+
+enum AccessType {
+	INCOMING_PAYMENT = 0;
+	OUTGOING_PAYMENT = 1;
+	QUOTE = 2;
+}
+
+enum AccessAction {
+	CREATE = 0;
+	COMPLETE = 1;
+	READ = 2;
+	READ_ALL = 3;
+	LIST = 4;
+	LIST_ALL = 5;
+}
+
+message Amount {
+	string value = 1;
+	int32 scale = 2;	
+}
+
+message AccessLimits {
+	string receiver = 1;
+	Amount debit_amount = 2;
+	Amount send_amount = 3;
+	string asset_code = 4;
+	string interval = 5;
+}
+
+enum StartMethod {
+	START_REDIRECT = 0;
+}
+
+enum FinishMethod {
+	FINISH_REDIRECT = 0;
+}
+
+message GrantRequestFinish {
+	FinishMethod finish = 1;
+	string uri = 2;
+	string nonce = 3;
+}
+
+message SubjectId {
+	string format = 1;
+	string id = 2;
+}
+
+message Subject {
+	repeated SubjectId sub_ids = 1;
+}
+
+message GrantRequest {
+	repeated AccessItem access = 1;
+	string client = 2;
+	Subject subject = 3;
+	repeated StartMethod start = 4;
+	GrantRequestFinish finish = 5;
+}
+
+message GetGrantRequest {
+	string id = 1;
+}
+
+message GrantContinuationRequest {
+	string id = 1;
+	string continue_id = 2;
+	string continue_token = 3;
+	string interact_ref = 4;
+}
+
+message GrantRevocationRequest {
+	string id = 1;
+	string continue_id = 2;
+	string continue_token = 3;
+}
+
+message TokenInfo {
+	bool active = 1;
+	string grant_id = 2;
+	repeated AccessItem access = 3;
+	string client = 4;
+}
+
+message TokenIntrospectionRequest {
+	string id = 1; // grant id
+	string token_value = 2;
+	repeated AccessItem access = 3;
+}
+
+message TokenRotationRequest {
+	string id = 1; // grant id
+	string token_value = 2;
+	string management_id = 3;
+}
+
+message TokenRevocationRequest {
+	string id = 1; // grant id
+	string token_value = 2;
+	string management_id = 3;
+}
+
+message InteractionChoiceResponse {
+	bool success = 1;
+}
+
+message InteractionChoiceRequest {
+	string id = 1; // grant id
+	string interact_id = 2;
+	string nonce = 3;
+}

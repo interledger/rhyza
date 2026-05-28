@@ -5,6 +5,10 @@ import {
   IMessageProducer
 } from 'common-types-lib';
 import { CreateNotificationCmd } from 'notifications-domain-lib';
+import {
+  PaymentIntentCreatedEvent,
+  PaymentIntentCreatedPayload
+} from 'payments-domain-lib';
 
 export class NotificationsEventHandler {
   private _msgConsumer: IMessageConsumer;
@@ -23,6 +27,7 @@ export class NotificationsEventHandler {
       }
     });
     await this._msgConsumer.connect();
+    await this._msgConsumer.startAndWaitForRebalance();
   }
 
   async stop(): Promise<void> {
@@ -31,7 +36,18 @@ export class NotificationsEventHandler {
   }
 
   private async _handleEvent(message: IMessage) {
-    const cmd = new CreateNotificationCmd(message.payload, message.requestId);
-    await this._msgProducer.send(cmd);
+    switch (message.msgName) {
+      case PaymentIntentCreatedEvent.name: {
+        console.log(
+          `PaymentIntentCreated event received with id ${message.payload.id}`
+        );
+        const { id, ...data } = message.payload as PaymentIntentCreatedPayload;
+        const cmd = new CreateNotificationCmd({ id, data }, message.requestId);
+        await this._msgProducer.send(cmd);
+        break;
+      }
+      default:
+        console.warn(`Unhandled message: ${message.msgName}`);
+    }
   }
 }

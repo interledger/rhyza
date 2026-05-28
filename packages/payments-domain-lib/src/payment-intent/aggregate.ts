@@ -285,7 +285,7 @@ export class PaymentIntentAggregate {
           throw new RatesError('Could not get rates during quoting');
         }
 
-        paymentIntent.addLocalQuote({
+        const completedQuote = paymentIntent.addLocalQuote({
           id: quoteId,
           senderWalletAddress: {
             id: senderWalletAddressId,
@@ -309,7 +309,16 @@ export class PaymentIntentAggregate {
           `handleCreateQuoteCommand — LOCAL quote completed quoteId: ${quoteId}, paymentIntentId: ${paymentIntent.id}`
         );
         return new QuoteCompletedEvent(
-          { id: quoteId, paymentIntentId: paymentIntent.id },
+          {
+            id: quoteId,
+            paymentIntentId: paymentIntent.id,
+            senderWalletAddress: completedQuote.senderWalletAddress,
+            senderWalletAddressId: completedQuote.senderWalletAddressId,
+            expiresAt: completedQuote.expiresAt.toISOString(),
+            debitAmount: String(completedQuote.debitAmount),
+            receiveAmount: String(completedQuote.receiveAmount),
+            exchangeRate: completedQuote.exchangeRate
+          },
           cmd.requestId
         );
       }
@@ -478,7 +487,7 @@ export class PaymentIntentAggregate {
 
       const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
 
-      paymentIntent.completeRemoteQuote({
+      const completedQuote = paymentIntent.completeRemoteQuote({
         id: quoteId,
         debitAmount: BigInt(maxSourceAmount),
         receiveAmount: BigInt(minDeliveryAmount),
@@ -489,7 +498,16 @@ export class PaymentIntentAggregate {
       this._appendToMap(this.finalizedRemoteQuotes, paymentIntent.id, quoteId);
 
       return new QuoteCompletedEvent(
-        { id: quoteId, paymentIntentId },
+        {
+          id: quoteId,
+          paymentIntentId,
+          senderWalletAddress: completedQuote.senderWalletAddress,
+          senderWalletAddressId: completedQuote.senderWalletAddressId,
+          expiresAt: completedQuote.expiresAt.toISOString(),
+          debitAmount: String(completedQuote.debitAmount),
+          receiveAmount: String(completedQuote.receiveAmount),
+          exchangeRate: completedQuote.exchangeRate
+        },
         cmd.requestId
       );
     } catch (err) {

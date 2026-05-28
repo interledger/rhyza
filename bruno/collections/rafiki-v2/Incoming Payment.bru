@@ -1,11 +1,11 @@
 meta {
-  name: Incoming Payment
+  name: Create Payment Intent
   type: http
   seq: 5
 }
 
 post {
-  url: http://{{baseUrl}}/incoming-payments
+  url: http://{{baseUrl}}/payment-intents
   body: json
   auth: none
 }
@@ -19,8 +19,8 @@ body:json {
 
 script:post-response {
   const body = res.getBody();
-  
+
   if (body?.id) {
-    bru.setVar("incomingPaymentId", body.id);
+    bru.setVar("paymentIntentId", body.id);
   }
 }

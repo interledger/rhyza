@@ -3,27 +3,31 @@ import { ServiceError, status } from '@grpc/grpc-js';
 import { randomUUID } from 'node:crypto';
 import {
   PaymentIntentNotFoundError,
+  PaymentNotFoundError,
   RemoteQuotingNotConfiguredError
 } from './errors';
 import {
-  ICreateIncomingPaymentResponse,
+  ICreatePaymentIntentResponse,
   ICreateQuoteResponse,
-  ICreateOutgoingPaymentResponse,
-  IApproveOutgoingPaymentResponse,
-  IGetPaymentIntentResponse
+  ICreatePaymentResponse,
+  IApprovePaymentResponse,
+  IGetPaymentIntentResponse,
+  IGetPaymentResponse
 } from './local-types';
 import {
-  CreateIncomingPaymentRequest,
-  CreateIncomingPaymentResponse,
+  CreatePaymentIntentRequest,
+  CreatePaymentIntentResponse,
   PaymentsGrpcClient,
   CreateQuoteRequest,
   CreateQuoteResponse,
-  CreateOutgoingPaymentRequest,
-  CreateOutgoingPaymentResponse,
-  ApproveOutgoingPaymentRequest,
-  ApproveOutgoingPaymentResponse,
+  CreatePaymentRequest,
+  CreatePaymentResponse,
+  ApprovePaymentRequest,
+  ApprovePaymentResponse,
   GetPaymentIntentRequest,
-  GetPaymentIntentResponse
+  GetPaymentIntentResponse,
+  GetPaymentRequest,
+  GetPaymentResponse
 } from 'payments-public-types-lib';
 
 type IncomingPaymentInput =
@@ -77,15 +81,15 @@ export class PaymentsClient {
     return Promise.resolve();
   }
 
-  async createIncomingPayment(
+  async createPaymentIntent(
     id: string,
     receiverWalletAddressId: string,
     receiverWalletAddress: string,
     incomingAmount?: number,
     expiresAt?: string,
     metadata?: string
-  ): Promise<ICreateIncomingPaymentResponse> {
-    const request = new CreateIncomingPaymentRequest();
+  ): Promise<ICreatePaymentIntentResponse> {
+    const request = new CreatePaymentIntentRequest();
     request.setId(id);
     request.setWalletAddressId(receiverWalletAddressId);
     request.setWalletAddress(receiverWalletAddress);
@@ -101,12 +105,9 @@ export class PaymentsClient {
     }
 
     return new Promise((resolve, reject) => {
-      this._grpcClient.createIncomingPayment(
+      this._grpcClient.createPaymentIntent(
         request,
-        (
-          error: ServiceError | null,
-          response: CreateIncomingPaymentResponse
-        ) => {
+        (error: ServiceError | null, response: CreatePaymentIntentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -151,7 +152,7 @@ export class PaymentsClient {
     request.setId(id);
     request.setWalletAddressId(senderWalletAddressId);
     request.setWalletAddress(senderWalletAddress);
-    request.setIncomingPaymentId(paymentIntentId);
+    request.setPaymentIntentId(paymentIntentId);
 
     if (debitAmount) {
       request.setDebitAmount(debitAmount);
@@ -174,26 +175,32 @@ export class PaymentsClient {
 
           return resolve({
             id: response.getId(),
-            paymentIntentId: response.getPaymentIntentId()
+            paymentIntentId: response.getPaymentIntentId(),
+            senderWalletAddress: response.getSenderWalletAddress(),
+            senderWalletAddressId: response.getSenderWalletAddressId(),
+            expiresAt: response.getExpiresAt(),
+            debitAmount: BigInt(response.getDebitAmount()),
+            receiveAmount: BigInt(response.getReceiveAmount()),
+            exchangeRate: response.getExchangeRate()
           });
         }
       );
     });
   }
 
-  async createOutgoingPayment(
+  async createPayment(
     id: string,
     walletAddressId: string,
     walletAddress: string,
-    incomingPaymentId: string,
+    paymentIntentId: string,
     quoteId?: string,
     debitAmount?: number
-  ): Promise<ICreateOutgoingPaymentResponse> {
-    const request = new CreateOutgoingPaymentRequest();
+  ): Promise<ICreatePaymentResponse> {
+    const request = new CreatePaymentRequest();
     request.setId(id);
     request.setWalletAddressId(walletAddressId);
     request.setWalletAddress(walletAddress);
-    request.setIncomingPaymentId(incomingPaymentId);
+    request.setPaymentIntentId(paymentIntentId);
 
     if (quoteId) {
       request.setQuoteId(quoteId);
@@ -204,12 +211,9 @@ export class PaymentsClient {
     }
 
     return new Promise((resolve, reject) => {
-      this._grpcClient.createOutgoingPayment(
+      this._grpcClient.createPayment(
         request,
-        (
-          error: ServiceError | null,
-          response: CreateOutgoingPaymentResponse
-        ) => {
+        (error: ServiceError | null, response: CreatePaymentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -223,21 +227,18 @@ export class PaymentsClient {
     });
   }
 
-  async approveOutgoingPayment(
-    id: string,
-    incomingPaymentId: string
-  ): Promise<IApproveOutgoingPaymentResponse> {
-    const request = new ApproveOutgoingPaymentRequest();
+  async approvePayment(
+    paymentIntentId: string,
+    id: string
+  ): Promise<IApprovePaymentResponse> {
+    const request = new ApprovePaymentRequest();
     request.setId(id);
-    request.setIncomingPaymentId(incomingPaymentId);
+    request.setPaymentIntentId(paymentIntentId);
 
     return new Promise((resolve, reject) => {
-      this._grpcClient.approveOutgoingPayment(
+      this._grpcClient.approvePayment(
         request,
-        (
-          error: ServiceError | null,
-          response: ApproveOutgoingPaymentResponse
-        ) => {
+        (error: ServiceError | null, response: ApprovePaymentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -282,6 +283,46 @@ export class PaymentsClient {
             incomingAmount: incomingAmount ? BigInt(incomingAmount) : undefined,
             expiresAt: expiresAt || undefined,
             destinationIlpAddress: destinationIlpAddress || undefined
+          });
+        }
+      );
+    });
+  }
+
+  async getPayment(
+    paymentIntentId: string,
+    id: string
+  ): Promise<IGetPaymentResponse> {
+    const request = new GetPaymentRequest();
+    request.setId(id);
+    request.setPaymentIntentId(paymentIntentId);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.getPayment(
+        request,
+        (error: ServiceError | null, response: GetPaymentResponse) => {
+          if (error) {
+            if (error.code === status.NOT_FOUND) {
+              return reject(new PaymentNotFoundError(id));
+            }
+            console.error(error);
+            return reject(error);
+          }
+
+          const quoteId = response.getQuoteId();
+
+          return resolve({
+            id: response.getId(),
+            state: response.getState(),
+            senderWalletAddress: response.getSenderWalletAddress(),
+            senderWalletAddressId: response.getSenderWalletAddressId(),
+            paymentIntentId: response.getPaymentIntentId(),
+            assetCode: response.getAssetCode(),
+            assetScale: response.getAssetScale(),
+            quoteId: quoteId || undefined,
+            debitAmount: BigInt(response.getDebitAmount()),
+            receiveAmount: BigInt(response.getReceiveAmount()),
+            sentAmount: BigInt(response.getSentAmount())
           });
         }
       );

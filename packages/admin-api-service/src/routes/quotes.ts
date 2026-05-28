@@ -20,8 +20,8 @@ export async function quoteRoutes(
     Body: {
       walletAddress: string;
       id?: string;
-      incomingPaymentId?: string;
-      incomingPaymentUrl?: string;
+      paymentIntentId?: string;
+      paymentIntentUrl?: string;
       debitAmount?: string;
       receiveAmount?: string;
     };
@@ -30,20 +30,20 @@ export async function quoteRoutes(
       walletAddress,
       debitAmount,
       receiveAmount,
-      incomingPaymentId,
-      incomingPaymentUrl
+      paymentIntentId,
+      paymentIntentUrl
     } = request.body;
 
     let incomingPayment:
       | { incomingPaymentUrl: string }
       | { incomingPaymentId: string };
-    if (incomingPaymentUrl) {
-      incomingPayment = { incomingPaymentUrl };
-    } else if (incomingPaymentId) {
-      incomingPayment = { incomingPaymentId };
+    if (paymentIntentUrl) {
+      incomingPayment = { incomingPaymentUrl: paymentIntentUrl };
+    } else if (paymentIntentId) {
+      incomingPayment = { incomingPaymentId: paymentIntentId };
     } else {
       return reply.status(400).send({
-        error: 'Either incomingPaymentId or incomingPaymentUrl is required'
+        error: 'Either paymentIntentId or paymentIntentUrl is required'
       });
     }
 
@@ -62,12 +62,19 @@ export async function quoteRoutes(
       incomingPayment,
       alias.walletAddressId,
       walletAddress,
-      Number(debitAmount),
-      Number(receiveAmount)
+      debitAmount ? Number(debitAmount) : undefined,
+      receiveAmount ? Number(receiveAmount) : undefined
     );
 
-    return reply
-      .status(201)
-      .send({ id: `${result.paymentIntentId}_${result.id}` }); // Concatenate ids when returning the request
+    return reply.status(201).send({
+      id: result.id,
+      paymentIntentId: result.paymentIntentId,
+      senderWalletAddress: result.senderWalletAddress,
+      senderWalletAddressId: result.senderWalletAddressId,
+      expiresAt: result.expiresAt,
+      debitAmount: String(result.debitAmount),
+      receiveAmount: String(result.receiveAmount),
+      exchangeRate: result.exchangeRate
+    });
   });
 }

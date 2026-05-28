@@ -8,15 +8,15 @@ import {
   PaymentIntentNotFoundError
 } from 'payments-client-lib';
 
-interface IncomingPaymentRouteOptions extends FastifyPluginOptions {
+interface PaymentIntentRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
   paymentsClient: PaymentsClient;
   openPaymentsUrl: string | undefined;
 }
 
-export async function incomingPaymentRoutes(
+export async function paymentIntentRoutes(
   server: FastifyInstance,
-  opts: IncomingPaymentRouteOptions
+  opts: PaymentIntentRouteOptions
 ): Promise<void> {
   const { palClient, paymentsClient, openPaymentsUrl } = opts;
 
@@ -28,7 +28,7 @@ export async function incomingPaymentRoutes(
       expiresAt?: string;
       metadata?: string;
     };
-  }>('/incoming-payments', async (request, reply) => {
+  }>('/payment-intents', async (request, reply) => {
     const { walletAddress, incomingAmount, expiresAt, metadata } = request.body;
 
     const id = request.body.id ?? randomUUID();
@@ -43,7 +43,7 @@ export async function incomingPaymentRoutes(
         .send({ error: `Wallet address '${walletAddress}' not found` });
     }
 
-    const result = await paymentsClient.createIncomingPayment(
+    const result = await paymentsClient.createPaymentIntent(
       id,
       alias.walletAddressId,
       walletAddress,
@@ -64,7 +64,7 @@ export async function incomingPaymentRoutes(
   });
 
   server.get<{ Params: { id: string } }>(
-    '/incoming-payments/:id',
+    '/payment-intents/:id',
     async (request, reply) => {
       const { id } = request.params;
 
@@ -75,12 +75,15 @@ export async function incomingPaymentRoutes(
         if (err instanceof PaymentIntentNotFoundError) {
           return reply
             .status(404)
-            .send({ error: `Incoming payment '${id}' not found` });
+            .send({ error: `Payment intent '${id}' not found` });
         }
         throw err;
       }
 
       const response: {
+        id: string;
+        state: string;
+        destination: string;
         walletAddress: string;
         incomingAmount?: {
           value: string;
@@ -95,6 +98,9 @@ export async function incomingPaymentRoutes(
         expiresAt?: string;
         destinationIlpAddress?: string;
       } = {
+        id: paymentIntent.id,
+        state: paymentIntent.state,
+        destination: paymentIntent.destination,
         walletAddress: paymentIntent.receiverWalletAddress,
         receivedAmount: {
           value: String(paymentIntent.receivedAmount),
