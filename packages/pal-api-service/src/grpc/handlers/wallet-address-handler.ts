@@ -64,8 +64,6 @@ export class WalletAddressGrpcHandler {
       ? call.request.getDomain() || null
       : null;
 
-    // Use the wallet domain service to coordinate wallet address and wallet alias
-    // aggregates, ie, will automatically create the alias for the address
     await this._walletAddressAggregate.createWalletAddress(
       domain,
       call.request.getPathName(),

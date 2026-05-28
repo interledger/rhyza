@@ -77,7 +77,7 @@ export class LedgerStateEventHandler {
     }
 
     // load state events, already loaded evts/versions will be ignored
-    await ledger.applyEvents(stateEvents, true);
+    ledger.applyEvents(stateEvents, true);
     return ledger;
   }
 

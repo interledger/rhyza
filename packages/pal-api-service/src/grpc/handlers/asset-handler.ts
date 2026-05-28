@@ -76,11 +76,17 @@ export class AssetGrpcHandler {
     // make sure the request id is passed on to any outgoing events
     this._responseRegistry.store(requestId, call, callback);
 
-    this._assetAggregate.uncommittedDomainEvents.every((evt) => {
+    this._assetAggregate.uncommittedDomainEvents.forEach((evt) => {
       evt.requestId = requestId;
     });
-    await this._msgProducer.send(this._assetAggregate.uncommittedDomainEvents);
-    this._assetAggregate.clearUncommittedDomainEvents();
+
+    try {
+      await this._msgProducer.send(
+        this._assetAggregate.uncommittedDomainEvents
+      );
+    } finally {
+      this._assetAggregate.clearUncommittedDomainEvents();
+    }
   }
 
   async handleAssetActivatedEvent(

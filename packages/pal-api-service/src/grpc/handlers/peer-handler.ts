@@ -52,6 +52,23 @@ export class PeerGrpcHandler {
     this._logger.info('PeerGrpcHandler created');
   }
 
+  private async _sendUncommittedEvents(requestId?: string): Promise<void> {
+    if (this._peerAggregate.uncommittedDomainEvents.length === 0) return;
+
+    if (requestId) {
+      // make sure the request id is passed on to any outgoing events
+      this._peerAggregate.uncommittedDomainEvents.forEach((evt) => {
+        evt.requestId = requestId;
+      });
+    }
+
+    try {
+      await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
+    } finally {
+      this._peerAggregate.clearUncommittedDomainEvents();
+    }
+  }
+
   private _getPbGetPeerResponseFromPeer(
     peer: PalPeer | null
   ): PbGetPeerResponse {
@@ -135,12 +152,7 @@ export class PeerGrpcHandler {
     const requestId = crypto.randomUUID();
     this._responseRegistry.store(requestId, call, callback);
 
-    // make sure the request id is passed on to any outgoing events
-    this._peerAggregate.uncommittedDomainEvents.every((evt) => {
-      evt.requestId = requestId;
-    });
-    await this._msgProducer.send(this._peerAggregate.uncommittedDomainEvents);
-    this._peerAggregate.clearUncommittedDomainEvents();
+    await this._sendUncommittedEvents(requestId);
   }
 
   async handlePeerActivatedEvent(
@@ -192,13 +204,7 @@ export class PeerGrpcHandler {
           staticAddress: commsMethod.getStaticAddress()
         }
       );
-
-      if (this._peerAggregate.uncommittedDomainEvents.length > 0) {
-        await this._msgProducer.send(
-          this._peerAggregate.uncommittedDomainEvents
-        );
-        this._peerAggregate.clearUncommittedDomainEvents();
-      }
+      await this._sendUncommittedEvents();
 
       return { resp: new Empty() };
     } catch (e) {
@@ -222,12 +228,7 @@ export class PeerGrpcHandler {
     try {
       await this._peerAggregate.activate(peerId);
 
-      if (this._peerAggregate.uncommittedDomainEvents.length > 0) {
-        await this._msgProducer.send(
-          this._peerAggregate.uncommittedDomainEvents
-        );
-        this._peerAggregate.clearUncommittedDomainEvents();
-      }
+      await this._sendUncommittedEvents();
 
       return { resp: new Empty() };
     } catch (e) {
@@ -259,12 +260,7 @@ export class PeerGrpcHandler {
     try {
       await this._peerAggregate.deactivate(peerId);
 
-      if (this._peerAggregate.uncommittedDomainEvents.length > 0) {
-        await this._msgProducer.send(
-          this._peerAggregate.uncommittedDomainEvents
-        );
-        this._peerAggregate.clearUncommittedDomainEvents();
-      }
+      await this._sendUncommittedEvents();
 
       return { resp: new Empty() };
     } catch (e) {

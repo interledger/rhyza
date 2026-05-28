@@ -84,7 +84,7 @@ export class Ledger {
   }
 
   /**
-   * Create a new ledger with the given id and asset scale, to be loaced from events
+   * Create a new ledger with the given id and asset scale, to be loaded from events
    * @param id
    * @param logger
    * @constructor
@@ -775,14 +775,11 @@ export class Ledger {
       return false;
     }
 
-    await this.applyEvents(events, replayed);
+    this.applyEvents(events, replayed);
     return true;
   }
 
-  async applyEvents(
-    events: LedgerStateEvent[],
-    replayed: boolean
-  ): Promise<void> {
+  applyEvents(events: LedgerStateEvent[], replayed: boolean): void {
     if (events.length <= 0) return;
     // if replaying and last event is older than the current version, ignore it
     if (
@@ -869,7 +866,7 @@ export class Ledger {
         list.push(account);
       }
     });
-    return list as ReadonlyArray<ILedgerAccount>;
+    return list;
   }
 
   printStats() {

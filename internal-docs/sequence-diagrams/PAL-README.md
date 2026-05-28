@@ -50,10 +50,6 @@ sequenceDiagram
     participant LEDGER_DOM as Ledger Domain
   end
 
-  box Infrastructure Services
-    participant BROKER as Message Broker
-  end
-
   PAL_Cli ->> PAL_API: Create Asset Request
   PAL_API ->> ASSET_DOM: Create Asset
   ASSET_DOM ->> ASSET_DOM: Publish<br>AssetCreatedEvent
@@ -98,10 +94,6 @@ sequenceDiagram
     participant PAL_EVT as Event Handler<br>(Internal evts)
     participant PAL_LIQ_CMD as Ledger Cmd Handler
     participant LEDGER_DOM as Ledger Domain
-  end
-
-  box Infrastructure Services
-    participant BROKER as Message Broker
   end
 
   PAL_Cli ->> PAL_API: Create Peer Request
