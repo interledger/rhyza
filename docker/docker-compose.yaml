@@ -264,8 +264,8 @@ services:
     ports:
       - '6379:6379'
     healthcheck:
-      test: nc -z localhost 6379 || exit -1
-      start_period: 30s
+      test: redis-cli ping | grep -q PONG || exit 1
+      start_period: 10s
       interval: 10s
       timeout: 10s
       retries: 10
