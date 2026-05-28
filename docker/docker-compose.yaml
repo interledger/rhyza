@@ -43,6 +43,8 @@ services:
         condition: service_completed_successfully
       mongodb:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - rafiki-v2
   pal-ledger-command-handler-service:
@@ -62,10 +64,10 @@ services:
         condition: service_healthy
     networks:
       - rafiki-v2
-  pal-ledger-event-handler-service:
+  pal-event-handler-service:
     build:
       context: ../
-      dockerfile: ./packages/pal-ledger-event-handler-service/Dockerfile
+      dockerfile: ./packages/pal-event-handler-service/Dockerfile
     restart: always
     environment:
       MONGO_URL: mongodb://root:mongoPass@mongodb:27017/
@@ -261,6 +263,12 @@ services:
     image: redis:latest
     ports:
       - '6379:6379'
+    healthcheck:
+      test: nc -z localhost 6379 || exit -1
+      start_period: 30s
+      interval: 10s
+      timeout: 10s
+      retries: 10
     networks:
       - rafiki-v2
 
