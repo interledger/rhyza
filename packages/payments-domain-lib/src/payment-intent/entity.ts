@@ -202,6 +202,7 @@ interface Payment {
   senderWalletAddressId: string;
   assetScale: number;
   assetCode: string;
+  createdAt: Date;
   debitAmount: bigint;
   receiveAmount: bigint;
   sentAmount: bigint;
@@ -215,6 +216,7 @@ export class PaymentIntent implements IPaymentIntent {
   private _destination: PaymentIntentDestination;
   private _assetCode: string;
   private _assetScale: number;
+  private _createdAt: Date;
   private _expiresAt: Date;
   private _incomingAmount: bigint | null;
   private _receivedAmount: bigint;
@@ -230,6 +232,7 @@ export class PaymentIntent implements IPaymentIntent {
     destination: PaymentIntentDestination,
     assetCode: string,
     assetScale: number,
+    createdAt: Date,
     expiresAt: Date,
     incomingAmount: bigint | null = null,
     receivedAmount: bigint = 0n,
@@ -252,6 +255,7 @@ export class PaymentIntent implements IPaymentIntent {
     this._quotes = quotes;
     this._payments = payments;
 
+    this._createdAt = createdAt;
     this._expiresAt = expiresAt;
     this._destinationIlpAddress = destinationIlpAddress;
     this._remoteUrl = remoteUrl;
@@ -275,6 +279,8 @@ export class PaymentIntent implements IPaymentIntent {
         'receiverWalletAddressId is required for LOCAL payment intents'
       );
     }
+
+    const createdAt = new Date();
 
     const resolvedExpiresAt = expiresAt
       ? new Date(expiresAt)
@@ -301,6 +307,7 @@ export class PaymentIntent implements IPaymentIntent {
       destination,
       assetCode,
       assetScale,
+      createdAt,
       resolvedExpiresAt,
       incomingAmount,
       receivedAmount,
@@ -320,6 +327,7 @@ export class PaymentIntent implements IPaymentIntent {
       obj.destination,
       obj.assetCode,
       obj.assetScale,
+      obj.createdAt,
       obj.expiresAt,
       obj.incomingAmount,
       obj.receivedAmount,
@@ -333,6 +341,7 @@ export class PaymentIntent implements IPaymentIntent {
         quoteId: payment.quoteId,
         assetCode: payment.assetCode,
         assetScale: payment.assetScale,
+        createdAt: payment.createdAt,
         sentAmount: payment.sentAmount,
         state: payment.state,
         debitAmount: payment.debitAmount,
@@ -352,6 +361,7 @@ export class PaymentIntent implements IPaymentIntent {
       destination: this._destination,
       assetCode: this._assetCode,
       assetScale: this._assetScale,
+      createdAt: this._createdAt,
       expiresAt: this._expiresAt,
       incomingAmount: this._incomingAmount,
       receivedAmount: this._receivedAmount,
@@ -365,6 +375,7 @@ export class PaymentIntent implements IPaymentIntent {
         quoteId: payment.quoteId,
         assetCode: payment.assetCode,
         assetScale: payment.assetScale,
+        createdAt: payment.createdAt,
         debitAmount: payment.debitAmount,
         receiveAmount: payment.receiveAmount,
         sentAmount: payment.sentAmount
@@ -560,7 +571,7 @@ export class PaymentIntent implements IPaymentIntent {
     };
     exchangeRate: number;
     debitAmount?: bigint;
-  }): void {
+  }): Payment {
     const {
       id,
       senderWalletAddress,
@@ -658,6 +669,7 @@ export class PaymentIntent implements IPaymentIntent {
       paymentIntentId: this.id,
       assetCode: senderWalletAddress.assetCode,
       assetScale: senderWalletAddress.assetScale,
+      createdAt: this._createdAt,
       debitAmount: paymentDebitAmount,
       receiveAmount: paymentReceiveAmount,
       sentAmount: 0n,
@@ -665,6 +677,7 @@ export class PaymentIntent implements IPaymentIntent {
     };
 
     this._payments.push(payment);
+    return payment;
   }
 
   completeLocalPayment(args: { id: string }): void {
@@ -731,6 +744,10 @@ export class PaymentIntent implements IPaymentIntent {
 
   get assetScale(): number {
     return this._assetScale;
+  }
+
+  get createdAt(): Date {
+    return this._createdAt;
   }
 
   get expiresAt(): Date {

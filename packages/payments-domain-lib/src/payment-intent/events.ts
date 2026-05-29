@@ -1,4 +1,10 @@
 import { DomainEvent, DomainEventTopics } from 'common-types-lib';
+import {
+  IPayment,
+  IPaymentIntent,
+  PaymentIntentState,
+  PaymentState
+} from './interfaces';
 
 export abstract class PaymentIntentDomainEvent extends DomainEvent {
   msgTopic: string = DomainEventTopics.PaymentEvents;
@@ -62,6 +68,14 @@ export abstract class PaymentIntentDomainEvent extends DomainEvent {
 
 export type PaymentIntentCreatedPayload = {
   id: string;
+  createdAt: Date;
+  expiresAt: Date;
+  incomingAmount: string | null;
+  receivedAmount: string | null;
+  state: PaymentIntentState;
+  receiverWalletAddressId?: string;
+  assetCode: string;
+  assetScale: number;
 };
 
 export class PaymentIntentCreatedEvent extends PaymentIntentDomainEvent {
@@ -71,6 +85,26 @@ export class PaymentIntentCreatedEvent extends PaymentIntentDomainEvent {
     super(payload.id);
     this.payload = payload;
     this.requestId = requestId;
+  }
+
+  static fromPaymentIntent(
+    paymentIntent: IPaymentIntent,
+    requestId?: string
+  ): PaymentIntentCreatedEvent {
+    return new PaymentIntentCreatedEvent(
+      {
+        id: paymentIntent.id,
+        createdAt: paymentIntent.createdAt,
+        expiresAt: paymentIntent.expiresAt,
+        incomingAmount: String(paymentIntent.incomingAmount),
+        receivedAmount: String(paymentIntent.receivedAmount),
+        state: paymentIntent.state,
+        receiverWalletAddressId: paymentIntent.receiverWalletAddressId,
+        assetCode: paymentIntent.assetCode,
+        assetScale: paymentIntent.assetScale
+      },
+      requestId
+    );
   }
 }
 
@@ -131,6 +165,17 @@ export class QuoteCreateFailedEvent extends PaymentIntentDomainEvent {
 
 export type PaymentCreatedPayload = {
   id: string;
+  paymentIntentId: string;
+  senderWalletAddress: string;
+  debitAmount: string | null;
+  receiveAmount: string | null;
+  sentAmount: string | null;
+  state: PaymentState;
+  createdAt: Date;
+  assetCode: string;
+  assetScale: number;
+  receiveAssetScale: number;
+  receiveAssetCode: string;
 };
 
 export class PaymentCreatedEvent extends PaymentIntentDomainEvent {
@@ -140,6 +185,30 @@ export class PaymentCreatedEvent extends PaymentIntentDomainEvent {
     super(payload.id);
     this.payload = payload;
     this.requestId = requestId;
+  }
+
+  static fromPayment(
+    payment: IPayment,
+    paymentIntent: IPaymentIntent,
+    requestId?: string
+  ): PaymentCreatedEvent {
+    return new PaymentCreatedEvent(
+      {
+        id: payment.id,
+        paymentIntentId: payment.paymentIntentId,
+        senderWalletAddress: payment.senderWalletAddress,
+        debitAmount: String(payment.debitAmount),
+        receiveAmount: String(payment.receiveAmount),
+        sentAmount: String(payment.sentAmount),
+        state: payment.state,
+        createdAt: payment.createdAt,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale,
+        receiveAssetCode: paymentIntent.assetCode,
+        receiveAssetScale: paymentIntent.assetScale
+      },
+      requestId
+    );
   }
 }
 

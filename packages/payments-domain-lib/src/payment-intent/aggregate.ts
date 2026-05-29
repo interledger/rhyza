@@ -203,9 +203,7 @@ export class PaymentIntentAggregate {
       this._logger.debug(
         `handleCreatePaymentIntentCommand — created id: ${id}`
       );
-      const event = new PaymentIntentCreatedEvent({ id }, cmd.requestId);
-
-      return event;
+      return PaymentIntentCreatedEvent.fromPaymentIntent(entity, cmd.requestId);
     } catch (err) {
       this._logger.debug(
         `handleCreatePaymentIntentCommand — failed id: ${cmd.payload.id} error: ${(err as Error).message}`
@@ -428,7 +426,7 @@ export class PaymentIntentAggregate {
         throw new RatesError('Could not get rates during quoting');
       }
 
-      paymentIntent.addLocalPayment({
+      const payment = paymentIntent.addLocalPayment({
         id: paymentId,
         senderWalletAddress: {
           id: senderWalletAddressId,
@@ -447,7 +445,12 @@ export class PaymentIntentAggregate {
       this._logger.debug(
         `handleCreatePaymentCommand — created paymentId: ${paymentId}`
       );
-      return new PaymentCreatedEvent({ id: paymentId }, cmd.requestId);
+
+      return PaymentCreatedEvent.fromPayment(
+        payment,
+        paymentIntent,
+        cmd.requestId
+      );
     } catch (err) {
       this._logger.debug(
         `handleCreatePaymentCommand — failed paymentIntentId: ${cmd.payload.paymentIntentId} error: ${(err as Error).message}`

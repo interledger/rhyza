@@ -60,6 +60,7 @@ export interface IPayment {
   paymentIntentId: string;
   assetCode: string;
   assetScale: number;
+  createdAt: Date;
   quoteId?: string;
   debitAmount: bigint;
   receiveAmount: bigint;
@@ -74,6 +75,7 @@ export interface IPaymentIntent {
   destination: PaymentIntentDestination;
   assetCode: string;
   assetScale: number;
+  createdAt: Date;
   expiresAt: Date;
   incomingAmount: bigint | null;
   receivedAmount: bigint;
