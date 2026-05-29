@@ -669,7 +669,7 @@ export class PaymentIntent implements IPaymentIntent {
       paymentIntentId: this.id,
       assetCode: senderWalletAddress.assetCode,
       assetScale: senderWalletAddress.assetScale,
-      createdAt: this._createdAt,
+      createdAt: new Date(),
       debitAmount: paymentDebitAmount,
       receiveAmount: paymentReceiveAmount,
       sentAmount: 0n,

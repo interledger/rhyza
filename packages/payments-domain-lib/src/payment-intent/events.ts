@@ -1,10 +1,5 @@
 import { DomainEvent, DomainEventTopics } from 'common-types-lib';
-import {
-  IPayment,
-  IPaymentIntent,
-  PaymentIntentState,
-  PaymentState
-} from './interfaces';
+import { PaymentIntentState, PaymentState } from './interfaces';
 
 export abstract class PaymentIntentDomainEvent extends DomainEvent {
   msgTopic: string = DomainEventTopics.PaymentEvents;
@@ -86,26 +81,6 @@ export class PaymentIntentCreatedEvent extends PaymentIntentDomainEvent {
     this.payload = payload;
     this.requestId = requestId;
   }
-
-  static fromPaymentIntent(
-    paymentIntent: IPaymentIntent,
-    requestId?: string
-  ): PaymentIntentCreatedEvent {
-    return new PaymentIntentCreatedEvent(
-      {
-        id: paymentIntent.id,
-        createdAt: paymentIntent.createdAt,
-        expiresAt: paymentIntent.expiresAt,
-        incomingAmount: String(paymentIntent.incomingAmount),
-        receivedAmount: String(paymentIntent.receivedAmount),
-        state: paymentIntent.state,
-        receiverWalletAddressId: paymentIntent.receiverWalletAddressId,
-        assetCode: paymentIntent.assetCode,
-        assetScale: paymentIntent.assetScale
-      },
-      requestId
-    );
-  }
 }
 
 export type PaymentIntentCreateFailedPayload = {
@@ -185,30 +160,6 @@ export class PaymentCreatedEvent extends PaymentIntentDomainEvent {
     super(payload.id);
     this.payload = payload;
     this.requestId = requestId;
-  }
-
-  static fromPayment(
-    payment: IPayment,
-    paymentIntent: IPaymentIntent,
-    requestId?: string
-  ): PaymentCreatedEvent {
-    return new PaymentCreatedEvent(
-      {
-        id: payment.id,
-        paymentIntentId: payment.paymentIntentId,
-        senderWalletAddress: payment.senderWalletAddress,
-        debitAmount: String(payment.debitAmount),
-        receiveAmount: String(payment.receiveAmount),
-        sentAmount: String(payment.sentAmount),
-        state: payment.state,
-        createdAt: payment.createdAt,
-        assetCode: payment.assetCode,
-        assetScale: payment.assetScale,
-        receiveAssetCode: paymentIntent.assetCode,
-        receiveAssetScale: paymentIntent.assetScale
-      },
-      requestId
-    );
   }
 }
 
