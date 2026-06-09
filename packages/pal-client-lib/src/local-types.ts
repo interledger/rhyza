@@ -20,6 +20,16 @@ export interface IGetWalletAddressResponse {
   isActive: boolean;
 }
 
+export type IGetFxRateFromSourceAsset = {
+  peerId: string;
+  sourceAssetCode: string;
+};
+
+export type IGetFxRateToDestinationAsset = {
+  peerId: string;
+  destinationAssetCode: string;
+};
+
 /**
  * Local error types
  */

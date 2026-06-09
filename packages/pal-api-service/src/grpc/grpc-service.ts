@@ -24,7 +24,7 @@ import {
   HealthCheckResponse,
   HealthService,
   PalGrpcService,
-  PeerActivatedEvent
+  PeerCreationCompletedEvent
 } from 'pal-public-types-lib';
 import {
   DomainEvent,
@@ -203,7 +203,9 @@ export class PalGrpcServer {
       getPeerByIlpAddress: this._handleUnary.bind(this),
       setPeerCommunicationMethod: this._handleUnary.bind(this),
       activatePeer: this._handleUnary.bind(this),
-      deactivatePeer: this._handleUnary.bind(this)
+      deactivatePeer: this._handleUnary.bind(this),
+      getFxRate: this._handleUnary.bind(this),
+      setFxRate: this._handleUnary.bind(this)
     });
   }
 
@@ -330,6 +332,16 @@ export class PalGrpcServer {
       )
     );
 
+    this._requestHandlerRegistry.register(
+      PalGrpcService.getFxRate,
+      this._peerGrpcHandler.handleGetFxRateRequest.bind(this._peerGrpcHandler)
+    );
+
+    this._requestHandlerRegistry.register(
+      PalGrpcService.setFxRate,
+      this._peerGrpcHandler.handleSetFxRateRequest.bind(this._peerGrpcHandler)
+    );
+
     // ledger requests
     this._requestHandlerRegistry.register(
       PalGrpcService.getLedgerAccounts,
@@ -348,8 +360,10 @@ export class PalGrpcServer {
     );
 
     this._eventHandlerRegistry.register(
-      [PeerActivatedEvent.name],
-      this._peerGrpcHandler.handlePeerActivatedEvent.bind(this._peerGrpcHandler)
+      [PeerCreationCompletedEvent.name],
+      this._peerGrpcHandler.handlePeerCreationCompletedEvent.bind(
+        this._peerGrpcHandler
+      )
     );
 
     // register a lambda handler for ledger not found event

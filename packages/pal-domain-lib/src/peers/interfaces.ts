@@ -8,3 +8,11 @@ export interface IPalPeerRepository {
     staticAddress: string
   ): Promise<IPalPeerDto | null>;
 }
+
+export interface IPalPeerAseFxService {
+  getFxFromAse(
+    peerId: string,
+    sourceAssetCode: string,
+    destinationAssetCode: string
+  ): Promise<{ rate: number; expiresAt: number }>;
+}

@@ -18,6 +18,13 @@ export type IPalPeerAccounts = {
   suspenseAccId: string;
 };
 
+export type IPalPeerFxRate = {
+  sourceAssetCode: string;
+  destinationAssetCode: string;
+  rate: number;
+  expiresAt: number | null;
+};
+
 export class PalPeer {
   private readonly _id: string;
   private readonly _name: string;
@@ -26,6 +33,7 @@ export class PalPeer {
   private _active: boolean; // maybe a getter that checks if the peer is active using other characteristics
   private _communicationMethod: IPalPeerCommunicationMethodDefinition | null;
   private _ledgerAccounts: IPalPeerAccounts | null;
+  private _fxRates: IPalPeerFxRate[];
 
   constructor(id: string, name: string, assetCode: string, assetScale: number) {
     this._id = id;
@@ -36,6 +44,7 @@ export class PalPeer {
     this._active = false;
     this._communicationMethod = null;
     this._ledgerAccounts = null;
+    this._fxRates = [];
   }
 
   setCommunicationMethodDefinition(
@@ -82,6 +91,7 @@ export class PalPeer {
       peer._ledgerAccounts = json.ledgerAccounts;
     }
     peer._active = json.active;
+    peer._fxRates = json.fxRates;
     return peer;
   }
 
@@ -93,9 +103,12 @@ export class PalPeer {
       assetScale: this._assetScale,
       active: this._active,
       communicationMethodDefinition: this._communicationMethod,
-      ledgerAccounts: this._ledgerAccounts
+      ledgerAccounts: this._ledgerAccounts,
+      fxRates: this._fxRates
     };
   }
+
+  // region getters and setters
 
   get id(): string {
     return this._id;
@@ -123,5 +136,80 @@ export class PalPeer {
 
   get ledgerAccounts(): IPalPeerAccounts | null {
     return this._ledgerAccounts;
+  }
+
+  get fxRates(): IPalPeerFxRate[] {
+    return this._fxRates;
+  }
+
+  // endregion getters and setters
+
+  setFxRateFromSourceAsset(
+    sourceAssetCode: string,
+    expiresAt: number | null,
+    rate: number
+  ): void {
+    const existing = this.fxRates.find(
+      (fx) => fx.sourceAssetCode === sourceAssetCode
+    );
+
+    if (existing) {
+      existing.expiresAt = expiresAt;
+      existing.rate = rate;
+    } else {
+      this._fxRates.push({
+        sourceAssetCode: sourceAssetCode,
+        destinationAssetCode: this.assetCode,
+        rate: rate,
+        expiresAt: expiresAt
+      });
+    }
+  }
+
+  setFxRateToDestinationAsset(
+    destinationAsset: string,
+    expiresAt: number | null,
+    rate: number
+  ): void {
+    const existing = this.fxRates.find(
+      (fx) => fx.destinationAssetCode === destinationAsset
+    );
+    if (existing) {
+      existing.expiresAt = expiresAt;
+      existing.rate = rate;
+    } else {
+      this._fxRates.push({
+        sourceAssetCode: this.assetCode,
+        destinationAssetCode: destinationAsset,
+        rate: rate,
+        expiresAt: expiresAt
+      });
+    }
+  }
+
+  getFxFromSourceAsset(sourceAssetCode: string): number | null {
+    const fxRate = this._fxRates.find(
+      (fx) =>
+        fx.sourceAssetCode === sourceAssetCode &&
+        (fx.expiresAt === null || fx.expiresAt > Date.now())
+    );
+    if (!fxRate) {
+      return null;
+    }
+
+    return fxRate.rate;
+  }
+
+  getFxToDestinationAsset(destinationAssetCode: string): number | null {
+    const fxRate = this._fxRates.find(
+      (fx) =>
+        fx.destinationAssetCode === destinationAssetCode &&
+        (fx.expiresAt === null || fx.expiresAt > Date.now())
+    );
+    if (!fxRate) {
+      return null;
+    }
+
+    return fxRate.rate;
   }
 }

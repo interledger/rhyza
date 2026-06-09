@@ -16,9 +16,11 @@ import {
   PeerAggregate,
   IPalPeerRepository,
   IPalAssetRepository,
-  AssetAggregate
+  AssetAggregate,
+  IPalPeerAseFxService
 } from 'pal-domain-lib';
 import {
+  AseFxServiceAdapter,
   CreateLedgerAccountForAssetCmdSerde,
   CreateLedgerAccountsForPeerCmdSerde,
   CreateLedgerCmdSerde,
@@ -78,6 +80,17 @@ const kafkaConsumerCommonOptions: KafkaConsumerOptions = {
 };
 const MONGO_URL = process.env['MONGO_URL'] || 'mongodb://localhost:27017/';
 
+const EXCHANGE_RATES_URL =
+  process.env['SVCEXCHANGE_RATES_URL_PORT'] || 'http://localhost/rates';
+const EXCHANGE_RATES_TIMEOUT_SECS = process.env['EXCHANGE_RATES_TIMEOUT_SECS']
+  ? parseInt(process.env['EXCHANGE_RATES_TIMEOUT_SECS'])
+  : 10;
+const EXCHANGE_RATES_DEFAULT_TTL_SECS = process.env[
+  'EXCHANGE_RATES_DEFAULT_TTL_SECS'
+]
+  ? parseInt(process.env['EXCHANGE_RATES_DEFAULT_TTL_SECS'])
+  : 3600;
+
 // these params are for non-productive environments, by default we don't create topics
 const CREATE_TOPICS =
   (process.env['CREATE_TOPICS'] &&
@@ -114,6 +127,7 @@ export class PalLedgerEventHandlerService {
   private static _readSideRepo: ILedgerReadSideRepository;
   private static _assetRepo: IPalAssetRepository;
   private static _peerRepo: IPalPeerRepository;
+  private static _aseFxService: IPalPeerAseFxService;
 
   private static _stateEventHandler: LedgerStateEventHandler;
   private static _integrationEventHandler: IntegrationEventHandler;
@@ -130,6 +144,7 @@ export class PalLedgerEventHandlerService {
     internalEventsConsumer?: IMessageConsumer,
     producer?: IMessageProducer,
     peerRepo?: IPalPeerRepository,
+    aseFxService?: IPalPeerAseFxService,
     assetRepo?: IPalAssetRepository
   ): Promise<void> {
     if (!logger) {
@@ -273,13 +288,27 @@ export class PalLedgerEventHandlerService {
 
     const assetAggregate = new AssetAggregate(this._assetRepo, this._logger);
 
+    if (!aseFxService) {
+      aseFxService = new AseFxServiceAdapter(
+        EXCHANGE_RATES_URL,
+        EXCHANGE_RATES_TIMEOUT_SECS,
+        EXCHANGE_RATES_DEFAULT_TTL_SECS,
+        logger
+      );
+    }
+    this._aseFxService = aseFxService;
+
     if (!peerRepo) {
       peerRepo = new MongoDbPeerRepo(MONGO_URL, this._logger);
       await (peerRepo as MongoDbPeerRepo).init();
     }
     this._peerRepo = peerRepo;
 
-    const peerAggregate = new PeerAggregate(this._peerRepo, this._logger);
+    const peerAggregate = new PeerAggregate(
+      this._peerRepo,
+      this._aseFxService,
+      this._logger
+    );
 
     this._internalEventHandler = new InternalEventHandler(
       peerAggregate,

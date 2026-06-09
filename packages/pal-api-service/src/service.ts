@@ -5,11 +5,13 @@ import {
   WalletAddressAggregate,
   ILedgerReadSideRepository,
   PeerAggregate,
-  IPalPeerRepository
+  IPalPeerRepository,
+  IPalPeerAseFxService
 } from 'pal-domain-lib';
 import { PalGrpcServer } from './grpc/grpc-service';
 import process from 'process';
 import {
+  AseFxServiceAdapter,
   CreateLedgerAccountForAssetCmdSerde,
   CreateLedgerAccountsForPeerCmdSerde,
   CreateLedgerCmdSerde,
@@ -67,6 +69,17 @@ const kafkaConsumerCommonOptions: KafkaConsumerOptions = {
 
 const MONGO_URL = process.env['MONGO_URL'] || 'mongodb://localhost:27017/';
 
+const EXCHANGE_RATES_URL =
+  process.env['SVCEXCHANGE_RATES_URL_PORT'] || 'http://localhost/rates';
+const EXCHANGE_RATES_TIMEOUT_SECS = process.env['EXCHANGE_RATES_TIMEOUT_SECS']
+  ? parseInt(process.env['EXCHANGE_RATES_TIMEOUT_SECS'])
+  : 10;
+const EXCHANGE_RATES_DEFAULT_TTL_SECS = process.env[
+  'EXCHANGE_RATES_DEFAULT_TTL_SECS'
+]
+  ? parseInt(process.env['EXCHANGE_RATES_DEFAULT_TTL_SECS'])
+  : 3600;
+
 // these params are for non-productive environments, by default we don't create topics
 const CREATE_TOPICS =
   (process.env['CREATE_TOPICS'] &&
@@ -90,6 +103,7 @@ export class PalApiService {
   private static _assetRepo: IPalAssetRepository;
   private static _walletRepo: IPalWalletAddressRepository;
   private static _peerRepo: IPalPeerRepository;
+  private static _aseFxService: IPalPeerAseFxService;
   private static _ledgerReadSideRepo: ILedgerReadSideRepository;
   private static _producer: IMessageProducer;
   private static _consumer: IMessageConsumer;
@@ -102,6 +116,7 @@ export class PalApiService {
     assetRepo?: IPalAssetRepository,
     walletRepo?: IPalWalletAddressRepository,
     peerRepo?: IPalPeerRepository,
+    aseFxService?: IPalPeerAseFxService,
     ledgerReadSideRepo?: ILedgerReadSideRepository
   ): Promise<void> {
     if (!logger) {
@@ -163,6 +178,16 @@ export class PalApiService {
     }
     this._peerRepo = peerRepo;
 
+    if (!aseFxService) {
+      aseFxService = new AseFxServiceAdapter(
+        EXCHANGE_RATES_URL,
+        EXCHANGE_RATES_TIMEOUT_SECS,
+        EXCHANGE_RATES_DEFAULT_TTL_SECS,
+        logger
+      );
+    }
+    this._aseFxService = aseFxService;
+
     if (!ledgerReadSideRepo) {
       const repo = new MongoDbLedgerReadSideRepo(MONGO_URL, logger);
       await repo.init();
@@ -186,7 +211,11 @@ export class PalApiService {
       this._logger
     );
 
-    const peerAggregate = new PeerAggregate(this._peerRepo, this._logger);
+    const peerAggregate = new PeerAggregate(
+      this._peerRepo,
+      this._aseFxService,
+      this._logger
+    );
 
     this.grpcService = new PalGrpcServer(
       INSTANCE_ID,

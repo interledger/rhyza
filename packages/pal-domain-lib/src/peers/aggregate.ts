@@ -1,7 +1,8 @@
 import { ILogger } from 'common-types-lib';
-import { IPalPeerRepository } from './interfaces';
+import { IPalPeerAseFxService, IPalPeerRepository } from './interfaces';
 import {
   CannotCreateDuplicatePeerError,
+  InvalidFxRateError,
   PeerAlreadyActiveError,
   PeerAlreadyInactiveError,
   PeerNotFoundError
@@ -10,18 +11,39 @@ import { IPalPeerCommunicationMethodDefinition, PalPeer } from './entity';
 import {
   PeerActivatedEvent,
   PeerCreatedEvent,
+  PeerCreationCompletedEvent,
+  PeerDeactivatedEvent,
   PeerDomainEvent
 } from 'pal-public-types-lib';
 
 export class PeerAggregate {
   private readonly _logger: ILogger;
   private readonly _repo: IPalPeerRepository;
+  private readonly _aseService: IPalPeerAseFxService;
   private readonly _uncommittedDomainEvents: PeerDomainEvent[];
 
-  constructor(repo: IPalPeerRepository, logger: ILogger) {
+  constructor(
+    repo: IPalPeerRepository,
+    aseService: IPalPeerAseFxService,
+    logger: ILogger
+  ) {
     this._logger = logger;
     this._repo = repo;
+    this._aseService = aseService;
     this._uncommittedDomainEvents = [];
+  }
+
+  private async _fetchOrThrow(peerId: string): Promise<PalPeer> {
+    const found = await this._repo.fetch([peerId]);
+
+    if (found.length == 0) {
+      this._logger.warn(
+        `Peer with id: ${peerId} not found in associateLedgerAccountsAndActivate()`
+      );
+      throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
+    }
+
+    return PalPeer.fromDto(found[0]);
   }
 
   get uncommittedDomainEvents(): PeerDomainEvent[] {
@@ -84,16 +106,8 @@ export class PeerAggregate {
     peerId: string,
     commMethod: IPalPeerCommunicationMethodDefinition
   ) {
-    const found = await this._repo.fetch([peerId]);
+    const peer = await this._fetchOrThrow(peerId);
 
-    if (found.length == 0) {
-      this._logger.warn(
-        `Peer with id: ${peerId} not found in setCommunicationMethodDefinition()`
-      );
-      throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
-    }
-
-    const peer = PalPeer.fromDto(found[0]);
     peer.setCommunicationMethodDefinition(commMethod);
 
     this._logger.info(
@@ -110,16 +124,8 @@ export class PeerAggregate {
     aseClearingAccId: string,
     suspenseAccId: string
   ): Promise<void> {
-    const found = await this._repo.fetch([peerId]);
+    const peer = await this._fetchOrThrow(peerId);
 
-    if (found.length == 0) {
-      this._logger.warn(
-        `Peer with id: ${peerId} not found in associateLedgerAccountsAndActivate()`
-      );
-      throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
-    }
-
-    const peer = PalPeer.fromDto(found[0]);
     peer.associateLedgerAccounts(
       peerLiquidityAccId,
       peerClearingAccId,
@@ -132,7 +138,7 @@ export class PeerAggregate {
     await this._repo.store(peer.toDto());
 
     this._uncommittedDomainEvents.push(
-      new PeerActivatedEvent({ peerId: peerId })
+      new PeerCreationCompletedEvent({ peerId: peerId })
     );
 
     this._logger.debug(
@@ -141,18 +147,15 @@ export class PeerAggregate {
   }
 
   async activate(peerId: string): Promise<void> {
-    const found = await this._repo.fetch([peerId]);
+    const peer = await this._fetchOrThrow(peerId);
 
-    if (found.length == 0) {
-      this._logger.warn(`Peer with id: ${peerId} not found in activate()`);
-      throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
-    }
-
-    const peer = PalPeer.fromDto(found[0]);
     if (peer.active) {
       throw new PeerAlreadyActiveError(`Peer ${peerId} is already active`);
     } else {
       peer.activate();
+      this._uncommittedDomainEvents.push(
+        new PeerActivatedEvent({ peerId: peerId })
+      );
     }
 
     this._logger.info(`Peer ${peerId} activated`);
@@ -160,21 +163,133 @@ export class PeerAggregate {
   }
 
   async deactivate(peerId: string): Promise<void> {
-    const found = await this._repo.fetch([peerId]);
+    const peer = await this._fetchOrThrow(peerId);
 
-    if (found.length == 0) {
-      this._logger.warn(`Peer with id: ${peerId} not found in deactivate()`);
-      throw new PeerNotFoundError('Peer with id: ' + peerId + ' not found');
-    }
-
-    const peer = PalPeer.fromDto(found[0]);
     if (!peer.active) {
       throw new PeerAlreadyInactiveError(`Peer ${peerId} is not active`);
     } else {
       peer.deactivate();
+      this._uncommittedDomainEvents.push(
+        new PeerDeactivatedEvent({ peerId: peerId })
+      );
     }
 
     this._logger.info(`Peer ${peerId} deactivated`);
     await this._repo.store(peer.toDto());
+  }
+
+  async setFxRate(
+    peerId: string,
+    sourceAssetCode: string,
+    destinationAsset: string,
+    rate: number,
+    expiresAt: number | null
+  ): Promise<void> {
+    const peer = await this._fetchOrThrow(peerId);
+
+    if (sourceAssetCode === peer.assetCode) {
+      peer.setFxRateToDestinationAsset(destinationAsset, expiresAt, rate);
+    } else if (destinationAsset === peer.assetCode) {
+      peer.setFxRateFromSourceAsset(sourceAssetCode, expiresAt, rate);
+    } else {
+      throw new InvalidFxRateError(
+        'Invalid source or asset codes on FX, one must match the peer asset code'
+      );
+    }
+
+    await this._repo.store(peer.toDto());
+  }
+
+  /*
+  async setFxRateFromSourceAsset(peerId:string, sourceAssetCode: string, expiresAt: number|null, rate: number): Promise<void>{
+    const peer = await this._fetchOrThrow(peerId);
+
+    peer.setFxRateFromSourceAsset(sourceAssetCode, expiresAt, rate);
+    await this._repo.store(peer.toDto());
+  }
+  async setFxRateToDestinationAsset(peerId:string, destinationAsset:string, expiresAt: number|null, rate: number): Promise<void> {
+    const peer = await this._fetchOrThrow(peerId);
+
+    peer.setFxRateToDestinationAsset(destinationAsset, expiresAt, rate);
+    await this._repo.store(peer.toDto());
+  }
+*/
+
+  async getFxFromSourceAsset(
+    peerId: string,
+    sourceAssetCode: string
+  ): Promise<number | null> {
+    const peer = await this._fetchOrThrow(peerId);
+    const localRate = peer.getFxFromSourceAsset(sourceAssetCode);
+
+    if (localRate) {
+      return localRate;
+    }
+
+    let aseRate: { rate: number; expiresAt: number };
+    try {
+      aseRate = await this._aseService.getFxFromAse(
+        peerId,
+        sourceAssetCode,
+        peer.assetCode
+      );
+    } catch (e) {
+      this._logger.error(
+        e,
+        `Failed to get ASE FX rate from ${sourceAssetCode} to ${peer.assetCode} from ${peerId}`
+      );
+      return null;
+    }
+
+    if (!aseRate) {
+      return null;
+    }
+    peer.setFxRateFromSourceAsset(
+      sourceAssetCode,
+      aseRate.expiresAt,
+      aseRate.rate
+    );
+    await this._repo.store(peer.toDto());
+
+    return aseRate.rate;
+  }
+
+  async getFxToDestinationAsset(
+    peerId: string,
+    destinationAssetCode: string
+  ): Promise<number | null> {
+    const peer = await this._fetchOrThrow(peerId);
+    const localRate = peer.getFxToDestinationAsset(destinationAssetCode);
+
+    if (localRate) {
+      return localRate;
+    }
+    let aseRate: { rate: number; expiresAt: number };
+    try {
+      aseRate = await this._aseService.getFxFromAse(
+        peerId,
+        peer.assetCode,
+        destinationAssetCode
+      );
+    } catch (e) {
+      this._logger.error(
+        e,
+        `Failed to get ASE FX rate from ${peer.assetCode} to ${destinationAssetCode} from ${peerId}`
+      );
+      return null;
+    }
+
+    if (!aseRate) {
+      return null;
+    }
+
+    peer.setFxRateToDestinationAsset(
+      destinationAssetCode,
+      aseRate.expiresAt,
+      aseRate.rate
+    );
+    await this._repo.store(peer.toDto());
+
+    return aseRate.rate;
   }
 }
