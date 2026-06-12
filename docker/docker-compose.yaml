@@ -161,7 +161,7 @@ services:
     environment:
       KAFKA_URL: kafka:19092
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017/
-      WEBHOOK_URL: http://mock-webhook-integration-service:3000
+      WEBHOOK_URL: http://mock-webhook-integration-service:3000/webhooks
     ports:
       - '5100:5100'
     depends_on:
