@@ -12,10 +12,12 @@ export class PeerFxCacheExpiryService implements IPalPeerFxCacheExpiryService {
   }
 
   async setExpiry(
-    peerId: string, sourceAssetCode: string,
-    destinationAssetCode: string, expiresAt: number
+    peerId: string,
+    sourceAssetCode: string,
+    destinationAssetCode: string,
+    expiresAt: number
   ): Promise<void> {
-    if (Date.now() >= expiresAt ) {
+    if (Date.now() >= expiresAt) {
       return Promise.resolve();
     }
 

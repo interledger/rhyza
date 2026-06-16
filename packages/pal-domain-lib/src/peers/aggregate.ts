@@ -223,10 +223,7 @@ export class PeerAggregate {
       return localRate;
     }
 
-    let aseRate = await this._fetchAseRate(
-      sourceAssetCode,
-      peer.assetCode
-    );
+    const aseRate = await this._fetchAseRate(sourceAssetCode, peer.assetCode);
     if (!aseRate) {
       return null;
     }
@@ -235,7 +232,7 @@ export class PeerAggregate {
       sourceAssetCode,
       aseRate.expiresAt,
       aseRate.rate,
-      true,
+      true
     );
     await this._repo.store(peer.toDto());
 
@@ -261,7 +258,7 @@ export class PeerAggregate {
       return localRate;
     }
 
-    let aseRate = await this._fetchAseRate(
+    const aseRate = await this._fetchAseRate(
       peer.assetCode,
       destinationAssetCode
     );
@@ -285,7 +282,7 @@ export class PeerAggregate {
       aseRate.expiresAt
     );
 
-    return aseRate.rate
+    return aseRate.rate;
   }
 
   private async _fetchAseRate(
@@ -314,7 +311,10 @@ export class PeerAggregate {
     expiresAt: number
   ): Promise<void> {
     const peer = await this._fetchOrThrow(peerId);
-    let currentRateRec = peer.getFxRate(sourceAssetCode, destinationAssetCode);
+    const currentRateRec = peer.getFxRate(
+      sourceAssetCode,
+      destinationAssetCode
+    );
 
     if (
       !currentRateRec ||

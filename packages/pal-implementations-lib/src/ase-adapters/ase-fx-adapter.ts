@@ -100,8 +100,10 @@ export class AseFxServiceAdapter implements IPalPeerAseFxService {
       throw new AseExchangeServiceUnknownError(msg);
     }
 
-    const key = Object.keys(respData.rates).find(key => key.toUpperCase() === destinationAssetCode.toUpperCase());
-    if(!key){
+    const key = Object.keys(respData.rates).find(
+      (key) => key.toUpperCase() === destinationAssetCode.toUpperCase()
+    );
+    if (!key) {
       this._logger.warn(
         `Could not get fx rate from ASE endpoint for ${sourceAssetCode} -> ${destinationAssetCode}.`
       );

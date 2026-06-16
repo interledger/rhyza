@@ -565,7 +565,7 @@ export class PalClient {
             }
             return reject(new PalClientUnknownError(error.message));
           }
-          let rate = response.getRate();
+          const rate = response.getRate();
           if (!response.hasRate() || rate === undefined) {
             return resolve(null);
           }

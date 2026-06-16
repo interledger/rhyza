@@ -90,7 +90,7 @@ const EXCHANGE_RATES_LIFETIME_SECS = process.env['EXCHANGE_RATES_LIFETIME']
 
 const EXCHANGE_RATES_TIMEOUT_SECS = process.env['EXCHANGE_RATES_TIMEOUT_SECS']
   ? parseInt(process.env['EXCHANGE_RATES_TIMEOUT_SECS'])
-  : 10
+  : 10;
 
 // these params are for non-productive environments, by default we don't create topics
 const CREATE_TOPICS =
@@ -308,10 +308,7 @@ export class PalLedgerEventHandlerService {
     const peerAggregate = new PeerAggregate(
       this._peerRepo,
       this._aseFxService,
-      new PeerFxCacheExpiryService(
-        this._producer,
-        this._logger
-      ),
+      new PeerFxCacheExpiryService(this._producer, this._logger),
       this._logger
     );
 

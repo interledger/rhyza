@@ -81,10 +81,8 @@ export class InternalEventHandler {
       await this._handleLedgerAccountCreatedForAssetEvent(
         evt as LedgerAccountCreatedForAssetEvent
       );
-    }  else if (evt.msgName === PeerFxCacheExpiredEvent.name) {
-      await this._handlePeerFxCacheExpiredEvent(
-        evt as PeerFxCacheExpiredEvent
-      );
+    } else if (evt.msgName === PeerFxCacheExpiredEvent.name) {
+      await this._handlePeerFxCacheExpiredEvent(evt as PeerFxCacheExpiredEvent);
     } else {
       this._logger.debug(
         `Internal event handler - unhandled event type: ${evt.msgName}`

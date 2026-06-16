@@ -10,10 +10,16 @@ import {
   IPalWalletAddressRepository,
   PeerAggregate,
   PeerAlreadyActiveError,
-  PeerAlreadyInactiveError, PeerFxCacheExpiryService,
+  PeerAlreadyInactiveError,
+  PeerFxCacheExpiryService,
   WalletAddressAggregate
 } from '../src';
-import {MockAssetRepo, MockMessageProducer, MockPeerRepo, MockWalletRepo} from './mocks';
+import {
+  MockAssetRepo,
+  MockMessageProducer,
+  MockPeerRepo,
+  MockWalletRepo
+} from './mocks';
 import { ConsoleLogger, DomainEvent } from 'common-types-lib';
 import {
   PeerActivatedEvent,
@@ -66,11 +72,9 @@ before(async () => {
 
   peerRepository = new MockPeerRepo();
   peerAggregate = new PeerAggregate(
-    peerRepository, mockAseFxSvc,
-    new PeerFxCacheExpiryService(
-      msgPublisher,
-      logger
-    ),
+    peerRepository,
+    mockAseFxSvc,
+    new PeerFxCacheExpiryService(msgPublisher, logger),
     logger
   );
 });
