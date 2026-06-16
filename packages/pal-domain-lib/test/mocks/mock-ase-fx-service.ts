@@ -6,7 +6,6 @@ export class MockAseFxService implements IPalPeerAseFxService {
   defaultRate: number = 1.0;
 
   async getFxFromAse(
-    peerId: string,
     sourceAssetCode: string,
     destinationAssetCode: string
   ): Promise<{ rate: number; expiresAt: number }> {

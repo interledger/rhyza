@@ -33,7 +33,7 @@ import { MockAseFxService } from './mocks/mock-ase-fx-service';
 
 const logger = new ConsoleLogger();
 
-let msgPublisher = new MockMessageProducer();
+const msgPublisher = new MockMessageProducer();
 
 let assetAggregate: AssetAggregate;
 let assetRepository: IPalAssetRepository;
