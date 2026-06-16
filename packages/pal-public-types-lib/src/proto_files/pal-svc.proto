@@ -148,8 +148,10 @@ message PbPeerLedgerAccounts{
 message PbPeerFxRate{
   string source_asset_code = 1;
   string destination_asset_code = 2;
-  float rate = 3;
+  double rate = 3;
   uint64 expires_at = 4;
+  bool fetched_from_ase = 5;
+  optional uint64 fetched_at = 6;
 }
 message PbGetPeerByIlpAddressRequest{
   string address = 1;
@@ -185,14 +187,14 @@ message PbGetFxRateRequest{
 }
 
 message PbGetFxRateResponse{
-  optional float rate = 1;
+  optional double rate = 1;
 }
 
 message PbSetFxRateRequest{
   string peer_id = 1;
   string source_asset_code = 2;
   string destination_asset_code = 3;
-  float rate = 4;
+  double rate = 4;
   optional int64 rate_ttl_secs = 5;
 }
 

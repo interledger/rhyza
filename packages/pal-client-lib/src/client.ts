@@ -54,7 +54,6 @@ const DEFAULT_GRPC_KEEPALIVE_TIMEOUT_MS =
 
 // fixed until we have more comms types, then we need an enum on public-types-lib
 const ILP_COMMS_TYPE = 'ILP';
-const FX_DECIMAL_DIGITS = 4; // this should match the server side
 
 export class PalClient {
   private readonly _serverUrl: string;
@@ -401,6 +400,8 @@ export class PalClient {
         sourceAssetCode: pbFxRate.getSourceAssetCode(),
         destinationAssetCode: pbFxRate.getDestinationAssetCode(),
         expiresAt: pbFxRate.getExpiresAt(),
+        fetchedFromAse: pbFxRate.getFetchedFromAse(),
+        fetchedAt: pbFxRate.getFetchedAt() || null,
         rate: pbFxRate.getRate()
       }));
     }
@@ -569,7 +570,6 @@ export class PalClient {
             return resolve(null);
           }
 
-          rate = parseFloat(rate.toFixed(FX_DECIMAL_DIGITS));
           return resolve(rate);
         }
       );
@@ -587,25 +587,22 @@ export class PalClient {
     pbReq.setPeerId(peerId);
     pbReq.setSourceAssetCode(sourceAssetCode);
     pbReq.setDestinationAssetCode(destinationAsset);
-    pbReq.setRate(parseFloat(rate.toFixed(FX_DECIMAL_DIGITS)));
+    pbReq.setRate(rate);
     if (rateTtlSecs !== null) {
       pbReq.setRateTtlSecs(rateTtlSecs);
     }
 
     return new Promise((resolve, reject) => {
-      this._grpcClient.setFxRate(
-        pbReq,
-        (error: ServiceError | null) => {
-          if (error) {
-            if (error.code == grpc.status.NOT_FOUND) {
-              return reject(new PalClientPeerNotFoundError(error.message));
-            }
-            return reject(new PalClientUnknownError(error.message));
+      this._grpcClient.setFxRate(pbReq, (error: ServiceError | null) => {
+        if (error) {
+          if (error.code == grpc.status.NOT_FOUND) {
+            return reject(new PalClientPeerNotFoundError(error.message));
           }
-
-          return resolve();
+          return reject(new PalClientUnknownError(error.message));
         }
-      );
+
+        return resolve();
+      });
     });
   }
 }

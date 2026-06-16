@@ -22,6 +22,8 @@ export type IPalPeerFxRate = {
   sourceAssetCode: string;
   destinationAssetCode: string;
   rate: number;
+  fetchedFromAse: boolean;
+  fetchedAt: number | null; // null for set directly from ASe
   expiresAt: number | null;
 };
 
@@ -147,7 +149,8 @@ export class PalPeer {
   setFxRateFromSourceAsset(
     sourceAssetCode: string,
     expiresAt: number | null,
-    rate: number
+    rate: number,
+    fetchedFromAse: boolean
   ): void {
     const existing = this.fxRates.find(
       (fx) => fx.sourceAssetCode === sourceAssetCode
@@ -155,12 +158,16 @@ export class PalPeer {
 
     if (existing) {
       existing.expiresAt = expiresAt;
+      existing.fetchedAt = fetchedFromAse ? Date.now() : null;
+      existing.fetchedFromAse = fetchedFromAse;
       existing.rate = rate;
     } else {
       this._fxRates.push({
         sourceAssetCode: sourceAssetCode,
         destinationAssetCode: this.assetCode,
         rate: rate,
+        fetchedFromAse: fetchedFromAse,
+        fetchedAt: fetchedFromAse ? Date.now() : 0,
         expiresAt: expiresAt
       });
     }
@@ -169,7 +176,8 @@ export class PalPeer {
   setFxRateToDestinationAsset(
     destinationAsset: string,
     expiresAt: number | null,
-    rate: number
+    rate: number,
+    fetchedFromAse: boolean
   ): void {
     const existing = this.fxRates.find(
       (fx) => fx.destinationAssetCode === destinationAsset
@@ -182,6 +190,8 @@ export class PalPeer {
         sourceAssetCode: this.assetCode,
         destinationAssetCode: destinationAsset,
         rate: rate,
+        fetchedFromAse: fetchedFromAse,
+        fetchedAt: fetchedFromAse ? Date.now() : 0,
         expiresAt: expiresAt
       });
     }
@@ -211,5 +221,19 @@ export class PalPeer {
     }
 
     return fxRate.rate;
+  }
+
+  getFxRate(
+    sourceAssetCode: string,
+    destinationAssetCode: string
+  ): IPalPeerFxRate | null {
+    const fxRate =
+      this._fxRates.find(
+        (fx) =>
+          fx.sourceAssetCode === sourceAssetCode &&
+          fx.destinationAssetCode === destinationAssetCode
+      ) || null;
+
+    return fxRate;
   }
 }

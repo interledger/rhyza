@@ -100,21 +100,21 @@ export class AseFxServiceAdapter implements IPalPeerAseFxService {
       throw new AseExchangeServiceUnknownError(msg);
     }
 
-    Object.keys(respData.rates).forEach((key) => {
-      if (key.toUpperCase() != destinationAssetCode.toUpperCase()) {
-        this._logger.info(
-          `Got fx rate from ASE endpoint for ${sourceAssetCode} -> ${destinationAssetCode}.`
-        );
-        return {
-          rate: respData.rates[key],
-          expiresAt: Date.now() + this._rateTtlMs
-        };
-      }
-    });
+    const key = Object.keys(respData.rates).find(key => key.toUpperCase() === destinationAssetCode.toUpperCase());
+    if(!key){
+      this._logger.warn(
+        `Could not get fx rate from ASE endpoint for ${sourceAssetCode} -> ${destinationAssetCode}.`
+      );
+      throw new AseExchangeServiceRateNotFoundError('');
+    }
 
-    this._logger.warn(
-      `Could not get fx rate from ASE endpoint for ${sourceAssetCode} -> ${destinationAssetCode}.`
+    this._logger.debug(
+      `Got fx rate from ASE endpoint for ${sourceAssetCode} -> ${destinationAssetCode}`
     );
-    throw new AseExchangeServiceRateNotFoundError('');
+
+    return {
+      rate: respData.rates[key],
+      expiresAt: Date.now() + this._rateTtlMs
+    };
   }
 }

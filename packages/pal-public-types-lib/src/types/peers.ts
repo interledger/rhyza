@@ -22,6 +22,8 @@ export interface IPalPeerDto {
     sourceAssetCode: string;
     destinationAssetCode: string;
     rate: number;
+    fetchedFromAse: boolean;
+    fetchedAt: number | null; // null for set directly from ASe;
     expiresAt: number | null;
   }[];
 }

@@ -115,6 +115,7 @@ services:
 
   redpanda-console:
     image: redpandadata/console
+    container_name: redpanda-console
     restart: unless-stopped
     environment:
       - KAFKA_BROKERS=kafka-1:19092

@@ -11,8 +11,16 @@ export interface IPalPeerRepository {
 
 export interface IPalPeerAseFxService {
   getFxFromAse(
-    peerId: string,
     sourceAssetCode: string,
     destinationAssetCode: string
   ): Promise<{ rate: number; expiresAt: number }>;
+}
+
+export interface IPalPeerFxCacheExpiryService {
+  setExpiry(
+    peerId: string,
+    sourceAssetCode: string,
+    destinationAssetCode: string,
+    expiresAt: number
+  ): Promise<void>;
 }

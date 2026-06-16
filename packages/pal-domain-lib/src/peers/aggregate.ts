@@ -1,5 +1,9 @@
 import { ILogger } from 'common-types-lib';
-import { IPalPeerAseFxService, IPalPeerRepository } from './interfaces';
+import {
+  IPalPeerAseFxService,
+  IPalPeerFxCacheExpiryService,
+  IPalPeerRepository
+} from './interfaces';
 import {
   CannotCreateDuplicatePeerError,
   InvalidFxRateError,
@@ -21,15 +25,18 @@ export class PeerAggregate {
   private readonly _repo: IPalPeerRepository;
   private readonly _aseService: IPalPeerAseFxService;
   private readonly _uncommittedDomainEvents: PeerDomainEvent[];
+  private readonly _fxCacheExpiryService: IPalPeerFxCacheExpiryService;
 
   constructor(
     repo: IPalPeerRepository,
     aseService: IPalPeerAseFxService,
+    fxCacheExpiryService: IPalPeerFxCacheExpiryService,
     logger: ILogger
   ) {
     this._logger = logger;
     this._repo = repo;
     this._aseService = aseService;
+    this._fxCacheExpiryService = fxCacheExpiryService;
     this._uncommittedDomainEvents = [];
   }
 
@@ -188,9 +195,14 @@ export class PeerAggregate {
     const peer = await this._fetchOrThrow(peerId);
 
     if (sourceAssetCode === peer.assetCode) {
-      peer.setFxRateToDestinationAsset(destinationAsset, expiresAt, rate);
+      peer.setFxRateToDestinationAsset(
+        destinationAsset,
+        expiresAt,
+        rate,
+        false
+      );
     } else if (destinationAsset === peer.assetCode) {
-      peer.setFxRateFromSourceAsset(sourceAssetCode, expiresAt, rate);
+      peer.setFxRateFromSourceAsset(sourceAssetCode, expiresAt, rate, false);
     } else {
       throw new InvalidFxRateError(
         'Invalid source or asset codes on FX, one must match the peer asset code'
@@ -199,21 +211,6 @@ export class PeerAggregate {
 
     await this._repo.store(peer.toDto());
   }
-
-  /*
-  async setFxRateFromSourceAsset(peerId:string, sourceAssetCode: string, expiresAt: number|null, rate: number): Promise<void>{
-    const peer = await this._fetchOrThrow(peerId);
-
-    peer.setFxRateFromSourceAsset(sourceAssetCode, expiresAt, rate);
-    await this._repo.store(peer.toDto());
-  }
-  async setFxRateToDestinationAsset(peerId:string, destinationAsset:string, expiresAt: number|null, rate: number): Promise<void> {
-    const peer = await this._fetchOrThrow(peerId);
-
-    peer.setFxRateToDestinationAsset(destinationAsset, expiresAt, rate);
-    await this._repo.store(peer.toDto());
-  }
-*/
 
   async getFxFromSourceAsset(
     peerId: string,
@@ -226,30 +223,29 @@ export class PeerAggregate {
       return localRate;
     }
 
-    let aseRate: { rate: number; expiresAt: number };
-    try {
-      aseRate = await this._aseService.getFxFromAse(
-        peerId,
-        sourceAssetCode,
-        peer.assetCode
-      );
-    } catch (e) {
-      this._logger.error(
-        e,
-        `Failed to get ASE FX rate from ${sourceAssetCode} to ${peer.assetCode} from ${peerId}`
-      );
-      return null;
-    }
-
+    let aseRate = await this._fetchAseRate(
+      sourceAssetCode,
+      peer.assetCode
+    );
     if (!aseRate) {
       return null;
     }
+
     peer.setFxRateFromSourceAsset(
       sourceAssetCode,
       aseRate.expiresAt,
-      aseRate.rate
+      aseRate.rate,
+      true,
     );
     await this._repo.store(peer.toDto());
+
+    // set expiration timer
+    await this._fxCacheExpiryService.setExpiry(
+      peerId,
+      sourceAssetCode,
+      peer.assetCode,
+      aseRate.expiresAt
+    );
 
     return aseRate.rate;
   }
@@ -264,21 +260,11 @@ export class PeerAggregate {
     if (localRate) {
       return localRate;
     }
-    let aseRate: { rate: number; expiresAt: number };
-    try {
-      aseRate = await this._aseService.getFxFromAse(
-        peerId,
-        peer.assetCode,
-        destinationAssetCode
-      );
-    } catch (e) {
-      this._logger.error(
-        e,
-        `Failed to get ASE FX rate from ${peer.assetCode} to ${destinationAssetCode} from ${peerId}`
-      );
-      return null;
-    }
 
+    let aseRate = await this._fetchAseRate(
+      peer.assetCode,
+      destinationAssetCode
+    );
     if (!aseRate) {
       return null;
     }
@@ -286,10 +272,68 @@ export class PeerAggregate {
     peer.setFxRateToDestinationAsset(
       destinationAssetCode,
       aseRate.expiresAt,
-      aseRate.rate
+      aseRate.rate,
+      true
     );
     await this._repo.store(peer.toDto());
 
-    return aseRate.rate;
+    // set expiration timer
+    await this._fxCacheExpiryService.setExpiry(
+      peerId,
+      peer.assetCode,
+      destinationAssetCode,
+      aseRate.expiresAt
+    );
+
+    return aseRate.rate
+  }
+
+  private async _fetchAseRate(
+    sourceAssetCode: string,
+    destinationAssetCode: string
+  ): Promise<{ rate: number; expiresAt: number } | null> {
+    try {
+      const aseRate = await this._aseService.getFxFromAse(
+        sourceAssetCode,
+        destinationAssetCode
+      );
+      return aseRate;
+    } catch (e) {
+      this._logger.error(
+        e,
+        `Failed to get ASE FX rate from ${sourceAssetCode} to ${destinationAssetCode}`
+      );
+      return null;
+    }
+  }
+
+  async notifyExpiredFxRate(
+    peerId: string,
+    sourceAssetCode: string,
+    destinationAssetCode: string,
+    expiresAt: number
+  ): Promise<void> {
+    const peer = await this._fetchOrThrow(peerId);
+    let currentRateRec = peer.getFxRate(sourceAssetCode, destinationAssetCode);
+
+    if (
+      !currentRateRec ||
+      !currentRateRec.fetchedFromAse ||
+      !currentRateRec.fetchedAt ||
+      currentRateRec.fetchedAt >= expiresAt
+    ) {
+      // rate doesn't exist, was set by ASE, or was pre-fetched recently
+      return;
+    }
+
+    if (sourceAssetCode === peer.assetCode) {
+      await this.getFxToDestinationAsset(peerId, destinationAssetCode);
+    } else if (destinationAssetCode === peer.assetCode) {
+      await this.getFxFromSourceAsset(peerId, sourceAssetCode);
+    } else {
+      throw new InvalidFxRateError(
+        'Invalid source or asset codes on notifyExpiredFxRate, one must match the peer asset code'
+      );
+    }
   }
 }

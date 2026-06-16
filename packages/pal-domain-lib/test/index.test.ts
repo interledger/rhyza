@@ -10,10 +10,10 @@ import {
   IPalWalletAddressRepository,
   PeerAggregate,
   PeerAlreadyActiveError,
-  PeerAlreadyInactiveError,
+  PeerAlreadyInactiveError, PeerFxCacheExpiryService,
   WalletAddressAggregate
 } from '../src';
-import { MockAssetRepo, MockPeerRepo, MockWalletRepo } from './mocks';
+import {MockAssetRepo, MockMessageProducer, MockPeerRepo, MockWalletRepo} from './mocks';
 import { ConsoleLogger, DomainEvent } from 'common-types-lib';
 import {
   PeerActivatedEvent,
@@ -26,6 +26,8 @@ import {
 import { MockAseFxService } from './mocks/mock-ase-fx-service';
 
 const logger = new ConsoleLogger();
+
+let msgPublisher = new MockMessageProducer();
 
 let assetAggregate: AssetAggregate;
 let assetRepository: IPalAssetRepository;
@@ -63,7 +65,14 @@ before(async () => {
   walletAggregate = new WalletAddressAggregate(walletRepository, logger);
 
   peerRepository = new MockPeerRepo();
-  peerAggregate = new PeerAggregate(peerRepository, mockAseFxSvc, logger);
+  peerAggregate = new PeerAggregate(
+    peerRepository, mockAseFxSvc,
+    new PeerFxCacheExpiryService(
+      msgPublisher,
+      logger
+    ),
+    logger
+  );
 });
 
 //region assets
