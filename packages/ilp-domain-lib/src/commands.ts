@@ -52,10 +52,36 @@ export class StartRemotePaymentCmd extends CommandMsg {
   }
 }
 
-// Published by the peering-client adapter when an outbound prepare receives
-// a fulfill response from the peer.
+export interface ProcessPreparePacketCmdPayload {
+  peerId: string;
+  packetId: string;
+  destinationIlpAddress: string;
+  amount: string;
+  expiresAt: string;
+  // base64-encoded 32-byte execution condition.
+  executionCondition: string;
+  // base64-encoded ILP packet data (opaque STREAM payload) - decoded by the
+  // aggregate, never by the connector.
+  data?: string;
+}
+
+export class ProcessPreparePacketCmd extends CommandMsg {
+  contextName: string = BOUNDED_CONTEXT_NAME;
+  aggregateName: string = AGGREGATE_NAME;
+  msgKey: string;
+  msgTopic: string = CommandTopics.IlpCommands;
+  payload: ProcessPreparePacketCmdPayload;
+
+  constructor(payload: ProcessPreparePacketCmdPayload) {
+    super(payload.peerId);
+    this.msgKey = payload.packetId;
+    this.payload = payload;
+  }
+}
+
 export interface ProcessFulfillPacketCmdPayload {
   peerId: string;
+  paymentIntentId: string;
   packetId: string;
   fulfilledAt: string;
 }
@@ -69,13 +95,14 @@ export class ProcessFulfillPacketCmd extends CommandMsg {
 
   constructor(payload: ProcessFulfillPacketCmdPayload) {
     super(payload.peerId);
-    this.msgKey = payload.peerId;
+    this.msgKey = payload.paymentIntentId;
     this.payload = payload;
   }
 }
 
 export interface ProcessRejectPacketCmdPayload {
   peerId: string;
+  paymentIntentId: string;
   packetId: string;
   rejectCode: string;
   rejectMessage: string;
@@ -95,7 +122,7 @@ export class ProcessRejectPacketCmd extends CommandMsg {
 
   constructor(payload: ProcessRejectPacketCmdPayload) {
     super(payload.peerId);
-    this.msgKey = payload.peerId;
+    this.msgKey = payload.paymentIntentId;
     this.payload = payload;
   }
 }
@@ -116,6 +143,75 @@ export class ExpirePacketCmd extends CommandMsg {
   payload: ExpirePacketCmdPayload;
 
   constructor(payload: ExpirePacketCmdPayload) {
+    super(payload.peerId);
+    this.msgKey = payload.peerId;
+    this.payload = payload;
+  }
+}
+
+export interface DispatchPreparePacketCmdPayload {
+  peerId: string;
+  packetId: string;
+  paymentIntentId: string;
+  destinationIlpAddress: string;
+  amount: string;
+  expiresAt: string;
+  executionCondition: string;
+  data?: string;
+}
+
+export class DispatchPreparePacketCmd extends CommandMsg {
+  contextName: string = BOUNDED_CONTEXT_NAME;
+  aggregateName: string = AGGREGATE_NAME;
+  msgKey: string;
+  msgTopic: string = CommandTopics.IlpConnectorCommands;
+  payload: DispatchPreparePacketCmdPayload;
+
+  constructor(payload: DispatchPreparePacketCmdPayload) {
+    super(payload.peerId);
+    this.msgKey = payload.peerId;
+    this.payload = payload;
+  }
+}
+
+export interface DispatchFulfillPacketCmdPayload {
+  peerId: string;
+  packetId: string;
+  fulfillment: string;
+  data?: string;
+}
+
+export class DispatchFulfillPacketCmd extends CommandMsg {
+  contextName: string = BOUNDED_CONTEXT_NAME;
+  aggregateName: string = AGGREGATE_NAME;
+  msgKey: string;
+  msgTopic: string = CommandTopics.IlpConnectorCommands;
+  payload: DispatchFulfillPacketCmdPayload;
+
+  constructor(payload: DispatchFulfillPacketCmdPayload) {
+    super(payload.peerId);
+    this.msgKey = payload.peerId;
+    this.payload = payload;
+  }
+}
+
+export interface DispatchRejectPacketCmdPayload {
+  peerId: string;
+  packetId: string;
+  rejectCode: string;
+  rejectMessage?: string;
+  triggeredBy?: string;
+  data?: string;
+}
+
+export class DispatchRejectPacketCmd extends CommandMsg {
+  contextName: string = BOUNDED_CONTEXT_NAME;
+  aggregateName: string = AGGREGATE_NAME;
+  msgKey: string;
+  msgTopic: string = CommandTopics.IlpConnectorCommands;
+  payload: DispatchRejectPacketCmdPayload;
+
+  constructor(payload: DispatchRejectPacketCmdPayload) {
     super(payload.peerId);
     this.msgKey = payload.peerId;
     this.payload = payload;

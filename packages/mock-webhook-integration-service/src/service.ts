@@ -1,0 +1,83 @@
+import Fastify, { FastifyInstance } from 'fastify';
+import { NotificationType } from 'notifications-domain-lib';
+import { PaymentCreatedPayload } from 'payments-domain-lib';
+
+const HOST = process.env['HOST'] || 'localhost:3000';
+const PORT = parseInt(process.env['PORT'] || '3000', 10);
+const ADMIN_URL = process.env['ADMIN_URL'] || 'localhost:3001';
+interface Webhook {
+  id: string;
+  type: NotificationType;
+  data: Record<string, unknown>;
+}
+
+class WebhookServiceError extends Error {
+  readonly code: number;
+  constructor(message: string, code: number) {
+    super(message);
+    this.code = code;
+  }
+}
+
+export class MockWebhookIntegrationService {
+  private static server: FastifyInstance;
+  public static async start() {
+    this.server = Fastify({ logger: true });
+
+    this.server.post<{ Body: Webhook }>('/webhooks', async (request, reply) => {
+      try {
+        console.log('Webhook received:', request.body);
+        await this.handleWebhook(request.body);
+        reply
+          .code(200)
+          .send('Webhook ' + request.body.type + ' processed successfully');
+      } catch (err) {
+        console.error(err);
+        if (err instanceof WebhookServiceError) {
+          reply.code(err.code).send(err.message);
+        } else {
+          reply.code(500).send('Internal server error');
+        }
+      }
+    });
+
+    await this.server.listen({ host: HOST, port: PORT });
+  }
+
+  private static async handleWebhook(webhook: Webhook) {
+    switch (webhook.type) {
+      case NotificationType.PaymentCreated:
+        await this.handlePaymentCreatedWebhook(webhook);
+        break;
+      case NotificationType.PaymentIntentCreated:
+        break;
+      default:
+        console.warn(`Webhook type ${webhook.type} is not supported`);
+        break;
+    }
+  }
+
+  private static async handlePaymentCreatedWebhook(webhook: Webhook) {
+    const payload = webhook.data as PaymentCreatedPayload;
+    if (!webhook.id) {
+      throw new WebhookServiceError('Created payment id is missing', 400);
+    }
+    if (!payload.paymentIntentId) {
+      throw new WebhookServiceError('Payment intent id is missing', 400);
+    }
+
+    const response = await fetch(
+      `${ADMIN_URL}/payment-intents/${payload.paymentIntentId}/payments/${payload.id}/approve`,
+      {
+        method: 'POST'
+      }
+    );
+    if (!response.ok) {
+      throw new WebhookServiceError('Failed to approve payment', 401);
+    }
+  }
+
+  static async stop(): Promise<void> {
+    await this.server?.close();
+  }
+}

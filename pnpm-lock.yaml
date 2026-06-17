@@ -146,6 +146,22 @@ importers:
         specifier: ^4.19.3
         version: 4.19.3
 
+  packages/ilp-connector-service:
+    dependencies:
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
+      ilp-domain-lib:
+        specifier: workspace:*
+        version: link:../ilp-domain-lib
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
   packages/ilp-domain-lib:
     dependencies:
       common-types-lib:
@@ -259,6 +275,22 @@ importers:
       grpc_tools_node_protoc_ts:
         specifier: ~5.3.3
         version: 5.3.3
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/mock-webhook-integration-service:
+    dependencies:
+      fastify:
+        specifier: ~5.3.3
+        version: 5.3.3
+      notifications-domain-lib:
+        specifier: workspace:*
+        version: link:../notifications-domain-lib
+      payments-domain-lib:
+        specifier: workspace:*
+        version: link:../payments-domain-lib
+    devDependencies:
       tsx:
         specifier: ^4.19.3
         version: 4.19.3

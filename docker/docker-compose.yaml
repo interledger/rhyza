@@ -161,6 +161,7 @@ services:
     environment:
       KAFKA_URL: kafka:19092
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017/
+      WEBHOOK_URL: http://mock-webhook-integration-service:3000/webhooks
     ports:
       - '5100:5100'
     depends_on:
@@ -186,6 +187,32 @@ services:
         condition: service_healthy
       init-kafka:
         condition: service_completed_successfully
+    networks:
+      - rafiki-v2
+
+  ilp-connector-service:
+    build:
+      context: ../
+      dockerfile: ./packages/ilp-connector-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+  mock-webhook-integration-service:
+    build:
+      context: ../
+      dockerfile: ./packages/mock-webhook-integration-service/Dockerfile
+    restart: always
+    environment:
+      HOST: mock-webhook-integration-service
+      PORT: 3000
+      ADMIN_URL: http://admin-api-service:3001
+    ports:
+      - '3000:3000'
+    depends_on:
+      - admin-api-service
     networks:
       - rafiki-v2
 
@@ -271,6 +298,8 @@ services:
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-state-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic wallet-address-domain-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ilp-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ilp-commands
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ilp-connector-commands
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic notification-commands
       echo -e '\nSuccessfully created the following topics:'
       ./kafka-topics.sh --bootstrap-server kafka:19092 --list
