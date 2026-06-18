@@ -1,5 +1,5 @@
 {
-  "name": "mock-webhook-integration-service",
+  "name": "ase-mock-service",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

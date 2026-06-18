@@ -20,6 +20,10 @@ service PalGrpc {
   rpc ActivatePeer(PbActivatePeerRequest) returns (google.protobuf.Empty);
   rpc DeactivatePeer(PbDeactivatePeerRequest) returns (google.protobuf.Empty);
 
+  // peer fx
+  rpc GetFxRate(PbGetFxRateRequest) returns (PbGetFxRateResponse);
+  rpc SetFxRate(PbSetFxRateRequest) returns (google.protobuf.Empty);
+
   // ledger queries
   rpc GetLedgerAccounts(PbGetLedgerAccountsRequest) returns (PbGetLedgerAccountsResponse);
 }
@@ -127,6 +131,7 @@ message PbPeer{
   bool active = 5;
   optional PbPeerLedgerAccounts ledger_accounts = 6;
   optional PbPeerCommsMethodDefinition comms_method_definition = 7;
+  repeated PbPeerFxRate fx_rates = 8;
 }
 
 message PbPeerCommsMethodDefinition{
@@ -140,7 +145,14 @@ message PbPeerLedgerAccounts{
   string ase_clearing_account_id = 4;
   string suspense_account_id = 5;
 }
-
+message PbPeerFxRate{
+  string source_asset_code = 1;
+  string destination_asset_code = 2;
+  double rate = 3;
+  uint64 expires_at = 4;
+  bool fetched_from_ase = 5;
+  optional uint64 fetched_at = 6;
+}
 message PbGetPeerByIlpAddressRequest{
   string address = 1;
 }
@@ -155,7 +167,36 @@ message PbDeactivatePeerRequest{
   string peer_id = 1;
 }
 
+// fx messages
+message PbGetFxRateFromSourceAssetRequest{
+  string peer_id = 1;
+  string source_asset_code = 2;
+}
 
+message PbGetFxRateToDestinationAssetRequest{
+  string peer_id = 1;
+  string destination_asset_code = 2;
+}
+
+
+message PbGetFxRateRequest{
+  oneof request {
+    PbGetFxRateFromSourceAssetRequest from_source_request = 1;
+    PbGetFxRateToDestinationAssetRequest to_destination_request = 2;
+  };
+}
+
+message PbGetFxRateResponse{
+  optional double rate = 1;
+}
+
+message PbSetFxRateRequest{
+  string peer_id = 1;
+  string source_asset_code = 2;
+  string destination_asset_code = 3;
+  double rate = 4;
+  optional int64 rate_ttl_secs = 5;
+}
 
 /*
 Liquidity messages

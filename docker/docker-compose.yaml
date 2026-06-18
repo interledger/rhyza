@@ -161,7 +161,7 @@ services:
     environment:
       KAFKA_URL: kafka:19092
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017/
-      WEBHOOK_URL: http://mock-webhook-integration-service:3000/webhooks
+      WEBHOOK_URL: http://ase-mock-service:3000/webhooks
     ports:
       - '5100:5100'
     depends_on:
@@ -200,13 +200,13 @@ services:
     depends_on:
       init-kafka:
         condition: service_completed_successfully
-  mock-webhook-integration-service:
+  ase-mock-service:
     build:
       context: ../
-      dockerfile: ./packages/mock-webhook-integration-service/Dockerfile
+      dockerfile: ./packages/ase-mock-service/Dockerfile
     restart: always
     environment:
-      HOST: mock-webhook-integration-service
+      HOST: ase-mock-service
       PORT: 3000
       ADMIN_URL: http://admin-api-service:3001
     ports:
@@ -292,6 +292,7 @@ services:
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic payment-commands
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic payment-domain-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic asset-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic peer-domain-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-commands
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-domain-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-snapshot-events

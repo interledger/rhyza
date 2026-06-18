@@ -1,27 +1,48 @@
-import { before, test } from 'node:test';
+import { before, test, mock, after } from 'node:test';
 import * as assert from 'node:assert/strict';
 import {
   AssetAggregate,
+  CannotCreateDuplicatePeerError,
   CannotCreateDuplicateWalletAddressAliasError,
   CannotCreateDuplicateWalletAddressError,
   IPalAssetRepository,
+  IPalPeerRepository,
   IPalWalletAddressRepository,
+  PeerAggregate,
+  PeerAlreadyActiveError,
+  PeerAlreadyInactiveError,
+  PeerFxCacheExpiryService,
   WalletAddressAggregate
 } from '../src';
-import { MockAssetRepo, MockWalletRepo } from './mocks';
-import { ConsoleLogger } from 'common-types-lib';
 import {
+  MockAssetRepo,
+  MockMessageProducer,
+  MockPeerRepo,
+  MockWalletRepo
+} from './mocks';
+import { ConsoleLogger, DomainEvent } from 'common-types-lib';
+import {
+  PeerActivatedEvent,
+  PeerCreatedEvent,
+  PeerCreationCompletedEvent,
+  PeerDeactivatedEvent,
   WalletAddressAliasCreatedEvent,
   WalletAddressCreatedEvent
 } from 'pal-public-types-lib';
+import { MockAseFxService } from './mocks/mock-ase-fx-service';
 
 const logger = new ConsoleLogger();
+
+const msgPublisher = new MockMessageProducer();
 
 let assetAggregate: AssetAggregate;
 let assetRepository: IPalAssetRepository;
 
 let walletAggregate: WalletAddressAggregate;
 let walletRepository: IPalWalletAddressRepository;
+
+let peerAggregate: PeerAggregate;
+let peerRepository: IPalPeerRepository;
 
 const ASSET_CODE = 'EUR';
 const ASSET_SCALE = 2;
@@ -30,7 +51,19 @@ const ALIAS_DOMAIN = 'domain.com';
 const ALIAS_PATHNAME = 'pedrobarreto';
 const PUBLIC_NAME = 'Pedro Barreto';
 
+const PEER_ONE_ID = 'peer1';
+const PEER_ONE_NAME = 'Peer One';
+const PEER_ONE_ILP_ADDRESS = 'ilp://peerone.com/';
+
+const FX_SOURCE_ASSET_CODE = 'USD';
+const FX_FROM_SOURCE_RATE = 1.2;
+const FX_DESTINATION_ASSET_CODE = 'XRP';
+const FX_TO_DESTINATION_RATE = 0.3;
+
 let createdWalletAddressInternalId: string;
+const mockAseFxSvc = new MockAseFxService();
+
+const fxCacheExpiryService = new PeerFxCacheExpiryService(msgPublisher, logger);
 
 before(async () => {
   assetRepository = new MockAssetRepo();
@@ -38,6 +71,18 @@ before(async () => {
 
   walletRepository = new MockWalletRepo();
   walletAggregate = new WalletAddressAggregate(walletRepository, logger);
+
+  peerRepository = new MockPeerRepo();
+  peerAggregate = new PeerAggregate(
+    peerRepository,
+    mockAseFxSvc,
+    fxCacheExpiryService,
+    logger
+  );
+});
+
+after(() => {
+  fxCacheExpiryService.destroy();
 });
 
 //region assets
@@ -70,6 +115,243 @@ test('PAL Asset Domain - get non existing asset should fail', async () => {
   assert.ok(asset === null);
 });
 //endregion assets
+
+test('PAL Peer Domain - create peer', async () => {
+  await peerAggregate.createPeer(
+    PEER_ONE_ID,
+    PEER_ONE_NAME,
+    ASSET_CODE,
+    ASSET_SCALE,
+    {
+      type: 'ILP',
+      staticAddress: PEER_ONE_ILP_ADDRESS
+    }
+  );
+
+  const lastDomainEvent = peerAggregate.uncommittedDomainEvents.at(
+    -1
+  ) as DomainEvent;
+  assert.ok(lastDomainEvent);
+  assert.equal(lastDomainEvent.msgName, PeerCreatedEvent.name);
+  assert.equal(lastDomainEvent.aggregateId, PEER_ONE_ID);
+  assert.ok(lastDomainEvent.payload);
+  assert.equal(lastDomainEvent.payload.peerId, PEER_ONE_ID);
+  assert.equal(lastDomainEvent.payload.assetCode, ASSET_CODE);
+});
+
+test('PAL Peer Domain - get Peer', async () => {
+  const peer = await peerAggregate.getPeer(PEER_ONE_ID);
+
+  assert.ok(peer);
+  assert.equal(peer.id, PEER_ONE_ID);
+  assert.equal(peer.name, PEER_ONE_NAME);
+  assert.equal(peer.assetCode, ASSET_CODE);
+  assert.equal(peer.assetScale, ASSET_SCALE);
+  assert.ok(peer.communicationMethod);
+  assert.equal(peer.communicationMethod.type, 'ILP');
+  assert.equal(peer.communicationMethod.staticAddress, PEER_ONE_ILP_ADDRESS);
+});
+
+test('PAL Peer Domain - created duplicate peer should fail', async () => {
+  try {
+    await peerAggregate.createPeer(
+      PEER_ONE_ID,
+      PEER_ONE_NAME,
+      ASSET_CODE,
+      ASSET_SCALE,
+      {
+        type: 'ILP',
+        staticAddress: PEER_ONE_ILP_ADDRESS
+      }
+    );
+
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof CannotCreateDuplicatePeerError);
+    assert.ok(e.message.includes('already exists'));
+  }
+});
+
+test('PAL Peer Domain - associate ledger accounts and activate', async () => {
+  await peerAggregate.associateLedgerAccountsAndActivate(
+    PEER_ONE_ID,
+    'peerLiqAcc',
+    'peerClearAcc',
+    'aseLiqacc',
+    'aseClearAcc',
+    'suspenseAcc'
+  );
+
+  const lastDomainEvent = peerAggregate.uncommittedDomainEvents.at(
+    -1
+  ) as DomainEvent;
+  assert.ok(lastDomainEvent);
+  assert.equal(lastDomainEvent.msgName, PeerCreationCompletedEvent.name);
+  assert.equal(lastDomainEvent.aggregateId, PEER_ONE_ID);
+  assert.ok(lastDomainEvent.payload);
+  assert.equal(lastDomainEvent.payload.peerId, PEER_ONE_ID);
+});
+
+test('PAL Peer Domain - activate already active peer fail', async () => {
+  try {
+    await peerAggregate.activate(PEER_ONE_ID);
+
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof PeerAlreadyActiveError);
+  }
+});
+
+test('PAL Peer Domain - deactivate peer', async () => {
+  await peerAggregate.deactivate(PEER_ONE_ID);
+
+  const peer = await peerAggregate.getPeer(PEER_ONE_ID);
+  assert.ok(peer);
+  assert.equal(peer.active, false);
+
+  const lastDomainEvent = peerAggregate.uncommittedDomainEvents.at(
+    -1
+  ) as DomainEvent;
+  assert.ok(lastDomainEvent);
+  assert.equal(lastDomainEvent.msgName, PeerDeactivatedEvent.name);
+  assert.equal(lastDomainEvent.aggregateId, PEER_ONE_ID);
+  assert.ok(lastDomainEvent.payload);
+  assert.equal(lastDomainEvent.payload.peerId, PEER_ONE_ID);
+});
+
+test('PAL Peer Domain - deactivate already inactive peer fail', async () => {
+  try {
+    await peerAggregate.deactivate(PEER_ONE_ID);
+
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof PeerAlreadyInactiveError);
+  }
+});
+
+test('PAL Peer Domain - re-activate peer', async () => {
+  await peerAggregate.activate(PEER_ONE_ID);
+
+  const peer = await peerAggregate.getPeer(PEER_ONE_ID);
+  assert.ok(peer);
+  assert.equal(peer.active, true);
+
+  const lastDomainEvent = peerAggregate.uncommittedDomainEvents.at(
+    -1
+  ) as DomainEvent;
+  assert.ok(lastDomainEvent);
+  assert.equal(lastDomainEvent.msgName, PeerActivatedEvent.name);
+  assert.equal(lastDomainEvent.aggregateId, PEER_ONE_ID);
+  assert.ok(lastDomainEvent.payload);
+  assert.equal(lastDomainEvent.payload.peerId, PEER_ONE_ID);
+});
+
+test('PAL Peer Domain - update comms method address', async () => {
+  const newAddress = 'ilp://peerone.org/';
+  await peerAggregate.setCommunicationMethodDefinition(PEER_ONE_ID, {
+    type: 'ILP',
+    staticAddress: newAddress
+  });
+
+  const peer = await peerAggregate.getPeer(PEER_ONE_ID);
+  assert.ok(peer);
+  assert.equal(peer.communicationMethod.type, 'ILP');
+  assert.equal(peer.communicationMethod.staticAddress, newAddress);
+});
+
+test('PAL Peer Domain - get fx from source without fx set should fetch it from ase', async () => {
+  // use mock to ensure that the fx is fetched from ASE
+  mock.reset();
+  mock.method(mockAseFxSvc, 'getFxFromAse');
+
+  const fx = await peerAggregate.getFxFromSourceAsset(
+    PEER_ONE_ID,
+    FX_SOURCE_ASSET_CODE
+  );
+
+  assert.equal(fx, mockAseFxSvc.defaultRate);
+  assert.equal(mockAseFxSvc.getFxFromAse.mock.calls.length, 1);
+});
+
+test('PAL Peer Domain - get fx from source should use locally cached fx', async () => {
+  // use mock to ensure that the fx is NOT fetched from ASE
+  mock.reset();
+  mock.method(mockAseFxSvc, 'getFxFromAse');
+
+  const fx = await peerAggregate.getFxFromSourceAsset(
+    PEER_ONE_ID,
+    FX_SOURCE_ASSET_CODE
+  );
+
+  assert.equal(fx, mockAseFxSvc.defaultRate);
+  assert.equal(mockAseFxSvc.getFxFromAse.mock.calls.length, 0);
+});
+
+test('PAL Peer Domain - get fx to destination without fx set should fetch it from ase', async () => {
+  // use mock to ensure that the fx is fetched from ASE
+  mock.reset();
+  mock.method(mockAseFxSvc, 'getFxFromAse');
+
+  const fx = await peerAggregate.getFxToDestinationAsset(
+    PEER_ONE_ID,
+    FX_DESTINATION_ASSET_CODE
+  );
+
+  assert.equal(fx, mockAseFxSvc.defaultRate);
+  assert.equal(mockAseFxSvc.getFxFromAse.mock.calls.length, 1);
+});
+
+test('PAL Peer Domain - get fx to destination should use locally cached fx', async () => {
+  // use mock to ensure that the fx is NOT fetched from ASE
+  mock.reset();
+  mock.method(mockAseFxSvc, 'getFxFromAse');
+
+  const fx = await peerAggregate.getFxToDestinationAsset(
+    PEER_ONE_ID,
+    FX_DESTINATION_ASSET_CODE
+  );
+
+  assert.equal(fx, mockAseFxSvc.defaultRate);
+  assert.equal(mockAseFxSvc.getFxFromAse.mock.calls.length, 0);
+});
+
+test('PAL Peer Domain - set both fx rates from ASE', async () => {
+  await peerAggregate.setFxRate(
+    PEER_ONE_ID,
+    FX_SOURCE_ASSET_CODE,
+    ASSET_CODE,
+    FX_FROM_SOURCE_RATE,
+    null
+  );
+
+  await peerAggregate.setFxRate(
+    PEER_ONE_ID,
+    ASSET_CODE,
+    FX_DESTINATION_ASSET_CODE,
+    FX_TO_DESTINATION_RATE,
+    null
+  );
+});
+
+test('PAL Peer Domain - get fx to destination should return rate set by ase', async () => {
+  const rate = await peerAggregate.getFxToDestinationAsset(
+    PEER_ONE_ID,
+    FX_DESTINATION_ASSET_CODE
+  );
+
+  assert.ok(rate);
+  assert.equal(rate, FX_TO_DESTINATION_RATE);
+});
+
+test('PAL Peer Domain - get fx to destination should return rate set by ase', async () => {
+  const rate = await peerAggregate.getFxFromSourceAsset(
+    PEER_ONE_ID,
+    FX_SOURCE_ASSET_CODE
+  );
+
+  assert.ok(rate);
+  assert.equal(rate, FX_FROM_SOURCE_RATE);
+});
 
 //region wallet address
 test('PAL WalletAddress Domain - create wallet address', async () => {

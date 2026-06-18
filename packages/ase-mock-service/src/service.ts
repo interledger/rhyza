@@ -1,10 +1,16 @@
-import Fastify, { FastifyInstance } from 'fastify';
+import Fastify, {
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest
+} from 'fastify';
 import { NotificationType } from 'notifications-domain-lib';
 import { PaymentCreatedPayload } from 'payments-domain-lib';
+import { RATES } from './rates-data';
 
-const HOST = process.env['HOST'] || 'localhost:3000';
+const HOST = process.env['HOST'] || '0.0.0.0';
 const PORT = parseInt(process.env['PORT'] || '3000', 10);
-const ADMIN_URL = process.env['ADMIN_URL'] || 'localhost:3001';
+const ADMIN_URL = process.env['ADMIN_URL'] || '127.0.0.1:3001';
+
 interface Webhook {
   id: string;
   type: NotificationType;
@@ -41,6 +47,9 @@ export class MockWebhookIntegrationService {
       }
     });
 
+    // ASE Rates mock handler
+    this.server.get('/rates', this.handleGetRates.bind(this));
+
     await this.server.listen({ host: HOST, port: PORT });
   }
 
@@ -75,6 +84,30 @@ export class MockWebhookIntegrationService {
     if (!response.ok) {
       throw new WebhookServiceError('Failed to approve payment', 401);
     }
+  }
+
+  private static async handleGetRates(
+    request: FastifyRequest<{ Querystring: { base: string } }>,
+    reply: FastifyReply
+  ): Promise<void> {
+    const baseParam = request.query.base;
+
+    if (!baseParam) {
+      reply.status(400).send('Missing mandatory query parameter: "base"');
+      return;
+    }
+
+    const rate = RATES.find((r) => r.base === baseParam);
+    if (!rate) {
+      reply.status(404).send('Rate not found');
+      return;
+    }
+
+    reply.send({
+      base: baseParam,
+      rates: rate.rates,
+      mockedAt: new Date().toISOString()
+    });
   }
 
   static async stop(): Promise<void> {

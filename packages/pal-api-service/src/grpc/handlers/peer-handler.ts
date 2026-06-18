@@ -20,7 +20,12 @@ import {
   PbGetPeerRequest,
   PbPeerCommsMethodDefinition,
   PbPeerLedgerAccounts,
-  PeerActivatedEvent
+  PbGetFxRateRequest,
+  PbGetFxRateResponse,
+  PbGetFxRateFromSourceAssetRequest,
+  PbGetFxRateToDestinationAssetRequest,
+  PbSetFxRateRequest,
+  PeerCreationCompletedEvent
 } from 'pal-public-types-lib';
 import {
   PbActivatePeerRequest,
@@ -155,10 +160,10 @@ export class PeerGrpcHandler {
     await this._sendUncommittedEvents(requestId);
   }
 
-  async handlePeerActivatedEvent(
+  async handlePeerCreationCompletedEvent(
     pendingResp: PendingResponse,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    event: PeerActivatedEvent
+    event: PeerCreationCompletedEvent
   ): Promise<void> {
     // respond to the client
     this._responseRegistry.resolve(pendingResp, null, new Empty());
@@ -209,13 +214,16 @@ export class PeerGrpcHandler {
       return { resp: new Empty() };
     } catch (e) {
       if (e instanceof PeerNotFoundError) {
-        this._logger.warn(`Peer with ID ${call.request.getPeerId()} not found`);
+        const msg = `Peer with ID ${call.request.getPeerId()} not found`;
+        this._logger.warn(msg);
         return {
           error: {
             code: Status.NOT_FOUND,
-            message: `Peer with ID ${call.request.getPeerId()} not found`
+            message: msg
           }
         };
+      } else {
+        throw e;
       }
     }
   }
@@ -233,21 +241,25 @@ export class PeerGrpcHandler {
       return { resp: new Empty() };
     } catch (e) {
       if (e instanceof PeerNotFoundError) {
-        this._logger.warn(`Peer with ID ${peerId} not found`);
+        const msg = `Peer with ID ${peerId} not found`;
+        this._logger.warn(msg);
         return {
           error: {
             code: Status.NOT_FOUND,
-            message: `Peer with ID ${peerId} not found`
+            message: msg
           }
         };
       } else if (e instanceof PeerAlreadyActiveError) {
-        this._logger.warn(`Peer with ID ${peerId} is already active`);
+        const msg = `Peer with ID ${peerId} is already active`;
+        this._logger.warn(msg);
         return {
           error: {
             code: Status.FAILED_PRECONDITION,
-            message: `Peer with ID ${peerId} is already active`
+            message: msg
           }
         };
+      } else {
+        throw e;
       }
     }
   }
@@ -265,21 +277,117 @@ export class PeerGrpcHandler {
       return { resp: new Empty() };
     } catch (e) {
       if (e instanceof PeerNotFoundError) {
-        this._logger.warn(`Peer with ID ${peerId} not found`);
+        const msg = `Peer with ID ${peerId} not found`;
+        this._logger.warn(msg);
         return {
           error: {
             code: Status.NOT_FOUND,
-            message: `Peer with ID ${peerId} not found`
+            message: msg
           }
         };
       } else if (e instanceof PeerAlreadyInactiveError) {
-        this._logger.warn(`Peer with ID ${peerId} is already inactive`);
+        const msg = `Peer with ID ${peerId} is already inactive`;
+        this._logger.warn(msg);
         return {
           error: {
             code: Status.FAILED_PRECONDITION,
-            message: `Peer with ID ${peerId} is already inactive`
+            message: msg
           }
         };
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  async handleGetFxRateRequest(
+    call: ServerUnaryCall<PbGetFxRateRequest, PbGetFxRateResponse>
+  ): Promise<UnaryResponse<PbGetFxRateResponse>> {
+    let peerId;
+    let sourceReq: PbGetFxRateFromSourceAssetRequest | undefined;
+    let destinationReq: PbGetFxRateToDestinationAssetRequest | undefined;
+
+    if (call.request.hasFromSourceRequest()) {
+      sourceReq = call.request.getFromSourceRequest();
+    } else if (call.request.hasToDestinationRequest()) {
+      destinationReq = call.request.getToDestinationRequest();
+    }
+    if (!sourceReq && !destinationReq) {
+      throw new Error('Invalid GetFxRateRequest');
+    }
+
+    try {
+      let rate: number | null = null;
+      if (sourceReq) {
+        peerId = sourceReq.getPeerId();
+        rate = await this._peerAggregate.getFxFromSourceAsset(
+          peerId,
+          sourceReq.getSourceAssetCode()
+        );
+      } else if (destinationReq) {
+        peerId = destinationReq.getPeerId();
+        rate = await this._peerAggregate.getFxToDestinationAsset(
+          peerId,
+          destinationReq.getDestinationAssetCode()
+        );
+      }
+
+      const pbResp = new PbGetFxRateResponse();
+      if (rate) pbResp.setRate(rate);
+      return { resp: pbResp };
+    } catch (e) {
+      if (e instanceof PeerNotFoundError) {
+        const msg = `Peer with ID ${peerId} not found`;
+        this._logger.warn(msg);
+        return {
+          error: {
+            code: Status.NOT_FOUND,
+            message: msg
+          }
+        };
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  async handleSetFxRateRequest(
+    call: ServerUnaryCall<PbSetFxRateRequest, Empty>
+  ): Promise<UnaryResponse<Empty>> {
+    const peerId = call.request.getPeerId();
+    const sourceAssetCode = call.request.getSourceAssetCode();
+    const destinationAssetCode = call.request.getDestinationAssetCode();
+    const rate = call.request.getRate();
+    const rateTtlSecs = call.request.hasRateTtlSecs()
+      ? call.request.getRateTtlSecs() || null
+      : null;
+
+    // We define the expiration timestamp here, the client proposes
+    // the ttl, we do the counting. This avoids clock difference issues.
+    const expiresAt = rateTtlSecs ? Date.now() + rateTtlSecs * 1000 : null;
+
+    try {
+      await this._peerAggregate.setFxRate(
+        peerId,
+        sourceAssetCode,
+        destinationAssetCode,
+        rate,
+        expiresAt
+      );
+
+      return { resp: new Empty() };
+    } catch (e) {
+      if (e instanceof PeerNotFoundError) {
+        const msg = `Peer with ID ${peerId} not found`;
+        this._logger.warn(msg);
+        return {
+          error: {
+            code: Status.NOT_FOUND,
+            message: msg
+          }
+        };
+      } else {
+        throw e;
       }
     }
   }

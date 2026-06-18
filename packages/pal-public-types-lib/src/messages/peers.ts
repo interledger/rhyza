@@ -62,8 +62,21 @@ export class PeerCreationFailedEvent extends PeerDomainEvent {
 }
 
 /**
- * When the peer is activated, ie, was created, has ledger accounts, and is ready to be used
+ * When the peer is fully created, it has ledger accounts, is activated and is ready to be used
  */
+export class PeerCreationCompletedEvent extends PeerDomainEvent {
+  payload: PeerCreationCompletedEventPayload;
+
+  constructor(payload: PeerCreationCompletedEventPayload) {
+    super(payload.peerId);
+    this.msgKey = payload.peerId;
+    this.payload = payload;
+  }
+}
+export type PeerCreationCompletedEventPayload = {
+  peerId: string;
+};
+
 export class PeerActivatedEvent extends PeerDomainEvent {
   payload: PeerActivatedEventPayload;
 
@@ -75,4 +88,33 @@ export class PeerActivatedEvent extends PeerDomainEvent {
 }
 export type PeerActivatedEventPayload = {
   peerId: string;
+};
+
+export class PeerDeactivatedEvent extends PeerDomainEvent {
+  payload: PeerDeactivatedEventPayload;
+
+  constructor(payload: PeerDeactivatedEventPayload) {
+    super(payload.peerId);
+    this.msgKey = payload.peerId;
+    this.payload = payload;
+  }
+}
+export type PeerDeactivatedEventPayload = {
+  peerId: string;
+};
+
+// message published by the peer aggregate when a fx rate is expired
+export class PeerFxCacheExpiredEvent extends PeerDomainEvent {
+  payload: PeerFxCacheExpiredEventPayload;
+
+  constructor(payload: PeerFxCacheExpiredEventPayload) {
+    super(payload.peerId);
+    this.msgKey = payload.peerId;
+    this.payload = payload;
+  }
+}
+export type PeerFxCacheExpiredEventPayload = {
+  peerId: string;
+  sourceAssetCode: string;
+  destinationAssetCode: string;
 };
