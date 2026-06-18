@@ -307,8 +307,7 @@ export class PeerAggregate {
   async notifyExpiredFxRate(
     peerId: string,
     sourceAssetCode: string,
-    destinationAssetCode: string,
-    expiresAt: number
+    destinationAssetCode: string
   ): Promise<void> {
     const peer = await this._fetchOrThrow(peerId);
     const currentRateRec = peer.getFxRate(
@@ -320,7 +319,7 @@ export class PeerAggregate {
       !currentRateRec ||
       !currentRateRec.fetchedFromAse ||
       !currentRateRec.fetchedAt ||
-      currentRateRec.fetchedAt >= expiresAt
+      currentRateRec.fetchedAt >= Date.now()
     ) {
       // rate doesn't exist, was set by ASE, or was pre-fetched recently
       return;

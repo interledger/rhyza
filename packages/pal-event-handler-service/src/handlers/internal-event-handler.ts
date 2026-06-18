@@ -11,8 +11,7 @@ import {
   AssetCreatedEvent,
   LedgerAccountCreatedForAssetEvent,
   LedgerAccountsCreatedForPeerEvent,
-  PeerCreatedEvent,
-  PeerFxCacheExpiredEvent
+  PeerCreatedEvent, PeerFxCacheExpiredEvent
 } from 'pal-public-types-lib';
 import {
   AssetAggregate,
@@ -204,8 +203,7 @@ export class InternalEventHandler {
     await this._peerAggregate.notifyExpiredFxRate(
       event.payload.peerId,
       event.payload.sourceAssetCode,
-      event.payload.destinationAssetCode,
-      event.payload.expiresAt
+      event.payload.destinationAssetCode
     );
   }
 
