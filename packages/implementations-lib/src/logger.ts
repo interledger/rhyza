@@ -1,30 +1,36 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import pino from 'pino';
+import pino, { LoggerOptions } from 'pino';
 import { ILogger, ILoggerParams } from 'common-types-lib';
+import * as os from "node:os";
 
 export class PinoLogger implements ILogger {
-  private _logger: pino.Logger<never, boolean>;
+  private _logger: pino.Logger;
 
-  constructor(options?: { service?: string }) {
-    this._logger = pino({
+  constructor(bcName?:string, app?:{name:string, version:string}, instanceId?:string) {
+    const options: LoggerOptions = {
       level: process.env['LOG_LEVEL'] || 'debug',
-      base: options?.service ? { service: options.service } : null
-    });
+      base: {pid: process.pid, hostname: os.hostname()}
+    }
+
+    if(bcName){
+      (options.base as any).bcName = bcName;
+    }
+    if(app){
+      (options.base as any).appName = app.name;
+      (options.base as any).appVersion = app.version;
+    }
+    if(instanceId){
+      (options.base as any).instanceId = instanceId;
+    }
+
+    this._logger = pino(options);
   }
 
-  private static _fromInstance(
-    instance: pino.Logger<never, boolean>
-  ): PinoLogger {
+  child(componentName:string): ILogger {
     const wrapper = new PinoLogger();
-    wrapper._logger = instance;
+    wrapper._logger = this._logger.child({component: componentName});
     return wrapper;
-  }
-
-  child(bindings: Record<string, unknown>): PinoLogger {
-    return PinoLogger._fromInstance(
-      this._logger.child(bindings) as pino.Logger<never, boolean>
-    );
   }
 
   private _log(fn: ILoggerParams, ...args: any[]): void {

@@ -42,14 +42,14 @@ export class PaymentsCommandHandlerService {
     });
 
     const kafkaBuilder = new KafkaBuilder()
-      .withLogger(logger.child({ component: 'kafka' }))
+      .withLogger(logger.child('kafka'))
       .withBrokerList(KAFKA_URL)
       .withClientId(INSTANCE_ID)
       .withSerializerFactory(MessageSerializationFactory.instance());
 
     this.repo = new MongoDbPaymentIntentRepo(
       MONGODB_URL,
-      logger.child({ component: 'payment-intent-repo' })
+      logger.child('payment-intent-repo')
     );
     await this.repo.init();
 
@@ -64,7 +64,7 @@ export class PaymentsCommandHandlerService {
       walletAddressAdapter,
       staticRatesAdapter,
       remotePaymentIntentAdapter,
-      logger.child({ component: 'aggregate' })
+      logger.child('aggregate')
     );
 
     this.msgProducer = kafkaBuilder.buildProducer({});
@@ -80,7 +80,7 @@ export class PaymentsCommandHandlerService {
       this.msgConsumer,
       this.msgProducer,
       aggregate,
-      logger.child({ component: 'command-handler' })
+      logger.child('command-handler')
     );
     await this.commandHandler.start();
   }
