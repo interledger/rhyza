@@ -117,5 +117,4 @@ export type PeerFxCacheExpiredEventPayload = {
   peerId: string;
   sourceAssetCode: string;
   destinationAssetCode: string;
-  expiresAt: number;
 };

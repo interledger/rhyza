@@ -167,7 +167,7 @@ export class PalPeer {
         destinationAssetCode: this.assetCode,
         rate: rate,
         fetchedFromAse: fetchedFromAse,
-        fetchedAt: fetchedFromAse ? Date.now() : 0,
+        fetchedAt: fetchedFromAse ? Date.now() : null,
         expiresAt: expiresAt
       });
     }
@@ -185,6 +185,8 @@ export class PalPeer {
     if (existing) {
       existing.expiresAt = expiresAt;
       existing.rate = rate;
+      existing.fetchedAt = fetchedFromAse ? Date.now() : null;
+      existing.fetchedFromAse = fetchedFromAse;
     } else {
       this._fxRates.push({
         sourceAssetCode: this.assetCode,

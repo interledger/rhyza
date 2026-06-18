@@ -120,7 +120,7 @@ sequenceDiagram
   PAL_EVT ->> ASSET_DOM: Associate Accounts and activate
   ASSET_DOM ->> ASSET_DOM: Publish<br>PeerActivatedEvent
 
-  PAL_API ->> ASSET_DOM: Reads<br>PeerActivatedEvent
+  PAL_API ->> ASSET_DOM: Reads<br>PeerCreationCompletedEvent
   PAL_API ->> PAL_Cli: Create Peer Response
 
 ```

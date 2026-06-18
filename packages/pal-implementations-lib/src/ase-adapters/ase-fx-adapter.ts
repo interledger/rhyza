@@ -91,9 +91,10 @@ export class AseFxServiceAdapter implements IPalPeerAseFxService {
 
     // Validate the response structure
     if (
+      !respData ||
       respData.base.toUpperCase() != sourceAssetCode.toUpperCase() ||
       !respData.rates ||
-      respData.rates.length === 0
+      Object.keys(respData.rates).length === 0
     ) {
       const msg = 'Invalid response format from ASE rates endpoint';
       this._logger.error(msg);

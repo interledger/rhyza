@@ -1,4 +1,4 @@
-import { before, test, mock } from 'node:test';
+import { before, test, mock, after } from 'node:test';
 import * as assert from 'node:assert/strict';
 import {
   AssetAggregate,
@@ -63,6 +63,8 @@ const FX_TO_DESTINATION_RATE = 0.3;
 let createdWalletAddressInternalId: string;
 const mockAseFxSvc = new MockAseFxService();
 
+const fxCacheExpiryService = new PeerFxCacheExpiryService(msgPublisher, logger);
+
 before(async () => {
   assetRepository = new MockAssetRepo();
   assetAggregate = new AssetAggregate(assetRepository, logger);
@@ -74,9 +76,13 @@ before(async () => {
   peerAggregate = new PeerAggregate(
     peerRepository,
     mockAseFxSvc,
-    new PeerFxCacheExpiryService(msgPublisher, logger),
+    fxCacheExpiryService,
     logger
   );
+});
+
+after(() => {
+  fxCacheExpiryService.destroy();
 });
 
 //region assets
