@@ -2,34 +2,38 @@
 
 import pino, { LoggerOptions } from 'pino';
 import { ILogger, ILoggerParams } from 'common-types-lib';
-import * as os from "node:os";
+import * as os from 'node:os';
 
 export class PinoLogger implements ILogger {
   private _logger: pino.Logger;
 
-  constructor(bcName?:string, app?:{name:string, version:string}, instanceId?:string) {
+  constructor(
+    bcName?: string,
+    app?: { name: string; version: string },
+    instanceId?: string
+  ) {
     const options: LoggerOptions = {
       level: process.env['LOG_LEVEL'] || 'debug',
-      base: {pid: process.pid, hostname: os.hostname()}
-    }
+      base: { pid: process.pid, hostname: os.hostname() }
+    };
 
-    if(bcName){
+    if (bcName) {
       (options.base as any).bcName = bcName;
     }
-    if(app){
+    if (app) {
       (options.base as any).appName = app.name;
       (options.base as any).appVersion = app.version;
     }
-    if(instanceId){
+    if (instanceId) {
       (options.base as any).instanceId = instanceId;
     }
 
     this._logger = pino(options);
   }
 
-  child(componentName:string): ILogger {
+  child(componentName: string): ILogger {
     const wrapper = new PinoLogger();
-    wrapper._logger = this._logger.child({component: componentName});
+    wrapper._logger = this._logger.child({ component: componentName });
     return wrapper;
   }
 
