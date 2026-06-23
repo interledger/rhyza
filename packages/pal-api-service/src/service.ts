@@ -45,7 +45,10 @@ import crypto from 'crypto';
 const SVC_PORT = process.env['SVC_PORT']
   ? parseInt(process.env['SVC_PORT'])
   : 50051;
-const INSTANCE_ID = `ES_LEDGER_POC_SVC__${crypto.randomUUID()}`;
+
+const BC_NAME = 'PAL';
+const APP_NAME = `${BC_NAME}_API_SVC`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
 
 // Message Consumer/Publisher
 const KAFKA_URL =
@@ -121,7 +124,11 @@ export class PalApiService {
     ledgerReadSideRepo?: ILedgerReadSideRepository
   ): Promise<void> {
     if (!logger) {
-      logger = new PinoLogger();
+      logger = new PinoLogger({
+        bcName: BC_NAME,
+        appName: APP_NAME,
+        instanceId: INSTANCE_ID
+      });
     }
     this._logger = logger;
 

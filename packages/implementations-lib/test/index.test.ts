@@ -2,15 +2,20 @@ import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { ILogger } from 'common-types-lib';
 import { PinoLogger } from '../src/logger';
+import crypto from 'crypto';
+
+const BC_NAME = 'TEST';
+const APP_NAME = `${BC_NAME}_SCRIPT`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
 
 let logger: ILogger;
 
 test('Logger - create PinoLogger', async () => {
-  logger = new PinoLogger(
-    'my BC',
-    { name: 'my app', version: '1.2' },
-    'instance 1'
-  );
+  logger = new PinoLogger({
+    bcName: BC_NAME,
+    appName: APP_NAME,
+    instanceId: INSTANCE_ID
+  });
 
   assert.ok(logger);
   logger.trace('test trace');

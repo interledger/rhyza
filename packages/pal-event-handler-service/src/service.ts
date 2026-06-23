@@ -53,7 +53,10 @@ import {
 import { IntegrationEventHandler } from './handlers/integration-event-handler';
 import { InternalEventHandler } from './handlers/internal-event-handler';
 
-const INSTANCE_ID = `ES_LEDGER_POC_SVC__${crypto.randomUUID()}`;
+const BC_NAME = 'PAL';
+const APP_NAME = `${BC_NAME}_EVT_HANDLER_SVC`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
+
 const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379';
 
 const MAX_EVENTS_PER_SNAPSHOT = 10;
@@ -149,7 +152,11 @@ export class PalLedgerEventHandlerService {
     assetRepo?: IPalAssetRepository
   ): Promise<void> {
     if (!logger) {
-      logger = new PinoLogger();
+      logger = new PinoLogger({
+        bcName: BC_NAME,
+        appName: APP_NAME,
+        instanceId: INSTANCE_ID
+      });
     }
     this._logger = logger;
 

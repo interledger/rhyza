@@ -7,28 +7,31 @@ import * as os from 'node:os';
 export class PinoLogger implements ILogger {
   private _logger: pino.Logger;
 
-  constructor(
-    bcName?: string,
-    app?: { name: string; version: string },
-    instanceId?: string
-  ) {
-    const options: LoggerOptions = {
+  constructor(options?: {
+    bcName?: string;
+    appName?: string;
+    appVersion?: string;
+    instanceId?: string;
+  }) {
+    const loggerOptions: LoggerOptions = {
       level: process.env['LOG_LEVEL'] || 'debug',
       base: { pid: process.pid, hostname: os.hostname() }
     };
 
-    if (bcName) {
-      (options.base as any).bcName = bcName;
+    if (options?.bcName) {
+      (loggerOptions.base as any).bcName = options.bcName;
     }
-    if (app) {
-      (options.base as any).appName = app.name;
-      (options.base as any).appVersion = app.version;
+    if (options?.appName) {
+      (loggerOptions.base as any).appName = options.appName;
     }
-    if (instanceId) {
-      (options.base as any).instanceId = instanceId;
+    if (options?.appVersion) {
+      (loggerOptions.base as any).appVersion = options.appVersion;
+    }
+    if (options?.instanceId) {
+      (loggerOptions.base as any).instanceId = options.instanceId;
     }
 
-    this._logger = pino(options);
+    this._logger = pino(loggerOptions);
   }
 
   child(componentName: string): ILogger {

@@ -17,7 +17,10 @@ import { PaymentsCommandHandler } from './cmd-handler';
 import process from 'process';
 import crypto from 'crypto';
 
-const INSTANCE_ID = `PAYMENTS_CMD_HANDLER_SVC_${crypto.randomUUID()}`;
+const BC_NAME = 'PAYMENTS';
+const APP_NAME = `${BC_NAME}_CMD_HANDLER_SVC`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
+
 const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9092';
 const MONGODB_URL = process.env['MONGODB_URL'] || 'mongodb://localhost:27017';
 const PAL_GRPC_URL = process.env['PAL_GRPC_URL'] || 'localhost:50051';
@@ -38,7 +41,9 @@ export class PaymentsCommandHandlerService {
 
   static async start(): Promise<void> {
     const logger = new PinoLogger({
-      service: 'payments-command-handler-service'
+      bcName: BC_NAME,
+      appName: APP_NAME,
+      instanceId: INSTANCE_ID
     });
 
     const kafkaBuilder = new KafkaBuilder()
