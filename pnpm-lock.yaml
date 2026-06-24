@@ -373,6 +373,9 @@ importers:
       fastify:
         specifier: ~5.3.3
         version: 5.3.3
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
       pal-client-lib:
         specifier: workspace:*
         version: link:../pal-client-lib

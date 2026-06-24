@@ -35,7 +35,7 @@ export class PinoLogger implements ILogger {
   }
 
   static isPinoLogger(logger: ILogger): logger is PinoLogger {
-    return (logger as PinoLogger)._logger !== undefined;
+    return logger instanceof PinoLogger;
   }
 
   private _log(fn: ILoggerParams, ...args: any[]): void {
