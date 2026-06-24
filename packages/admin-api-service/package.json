@@ -13,7 +13,8 @@
   "dependencies": {
     "fastify": "~5.3.3",
     "pal-client-lib": "workspace:*",
-    "payments-client-lib": "workspace:*"
+    "payments-client-lib": "workspace:*",
+    "implementations-lib": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.3"

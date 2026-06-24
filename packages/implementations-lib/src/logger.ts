@@ -34,10 +34,8 @@ export class PinoLogger implements ILogger {
     this._logger = pino(loggerOptions);
   }
 
-  child(componentName: string): ILogger {
-    const wrapper = new PinoLogger();
-    wrapper._logger = this._logger.child({ component: componentName });
-    return wrapper;
+  static isPinoLogger(logger: ILogger): logger is PinoLogger {
+    return (logger as PinoLogger)._logger !== undefined;
   }
 
   private _log(fn: ILoggerParams, ...args: any[]): void {
@@ -53,6 +51,15 @@ export class PinoLogger implements ILogger {
     }
   }
 
+  get internalLogger(): pino.Logger {
+    return this._logger;
+  }
+
+  child(componentName: string): ILogger {
+    const wrapper = new PinoLogger();
+    wrapper._logger = this._logger.child({ component: componentName });
+    return wrapper;
+  }
   setLogLevel(logLevel: any): void {
     this._logger.level = logLevel;
   }
