@@ -680,7 +680,7 @@ export class PaymentIntent implements IPaymentIntent {
     return payment;
   }
 
-  completeLocalPayment(args: { id: string }): void {
+  completeLocalPayment(args: { id: string }): Payment {
     const { id } = args;
 
     if (this.state !== 'CREATED') {
@@ -716,6 +716,7 @@ export class PaymentIntent implements IPaymentIntent {
       this._state = 'COMPLETED';
     }
     payment.state = 'COMPLETED';
+    return payment;
   }
 
   get id(): string {
