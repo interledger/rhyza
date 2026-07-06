@@ -50,6 +50,8 @@ export class MockWebhookIntegrationService {
         await this.handlePaymentCreatedWebhook(webhook);
         break;
       case NotificationType.PaymentIntentCreated:
+      case NotificationType.PaymentCompleted:
+      case NotificationType.PaymentFailed:
         break;
       default:
         console.warn(`Webhook type ${webhook.type} is not supported`);

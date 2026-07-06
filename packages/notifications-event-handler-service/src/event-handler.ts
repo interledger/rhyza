@@ -45,7 +45,7 @@ export class NotificationsEventHandler {
       [PaymentIntentCreatedEvent.name]: NotificationType.PaymentIntentCreated,
       [PaymentCreatedEvent.name]: NotificationType.PaymentCreated,
       [PaymentCompletedEvent.name]: NotificationType.PaymentCompleted,
-      [PaymentCompleteFailedEvent.name]: NotificationType.PaymentCompleteFailed
+      [PaymentCompleteFailedEvent.name]: NotificationType.PaymentFailed
     };
 
   private async _handleEvent(message: IMessage) {

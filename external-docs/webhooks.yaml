@@ -39,9 +39,9 @@ webhooks:
       responses:
         '200':
           description: Payment completed
-  paymentCompleteFailed:
+  paymentFailed:
     post:
-      summary: Payment complete failed
+      summary: Payment failed
       requestBody:
         required: true
         content:
@@ -50,7 +50,7 @@ webhooks:
               $ref: '#/components/schemas/paymentEventError'
       responses:
         '200':
-          description: Payment complete failed
+          description: Payment failed
 
 components:
   schemas:
@@ -70,7 +70,7 @@ components:
             - payment_intent.created
             - payment.created
             - payment.completed
-            - payment.complete_failed
+            - payment.failed
         data:
           type: object
 
@@ -167,14 +167,18 @@ components:
             type:
               type: string
               enum:
-                - payment.complete_failed
+                - payment.failed
             data:
               type: object
               required:
+                - id
                 - paymentIntentId
                 - errorName
                 - message
               properties:
+                id:
+                  type: string
+                  format: uuid
                 paymentIntentId:
                   type: string
                   format: uuid
