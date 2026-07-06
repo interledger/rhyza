@@ -9,7 +9,10 @@ import { PaymentsEventHandler } from './event-handler';
 import process from 'process';
 import crypto from 'crypto';
 
-const INSTANCE_ID = `PAYMENTS_EVENT_HANDLER_SVC_${crypto.randomUUID()}`;
+const BC_NAME = 'PAYMENTS';
+const APP_NAME = `${BC_NAME}_EVENT_HANDLER_SVC`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
+
 const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9092';
 
 export class PaymentsEventHandlerService {
@@ -18,7 +21,11 @@ export class PaymentsEventHandlerService {
   private static msgConsumer: KafkaConsumer;
 
   static async start(): Promise<void> {
-    const logger = new PinoLogger();
+    const logger = new PinoLogger({
+      bcName: BC_NAME,
+      appName: APP_NAME,
+      instanceId: INSTANCE_ID
+    });
 
     const kafkaBuilder = new KafkaBuilder()
       .withLogger(logger)

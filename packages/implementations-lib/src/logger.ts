@@ -1,30 +1,41 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import pino from 'pino';
+import pino, { LoggerOptions } from 'pino';
 import { ILogger, ILoggerParams } from 'common-types-lib';
+import * as os from 'node:os';
 
 export class PinoLogger implements ILogger {
-  private _logger: pino.Logger<never, boolean>;
+  private _logger: pino.Logger;
 
-  constructor(options?: { service?: string }) {
-    this._logger = pino({
+  constructor(options?: {
+    bcName?: string;
+    appName?: string;
+    appVersion?: string;
+    instanceId?: string;
+  }) {
+    const loggerOptions: LoggerOptions = {
       level: process.env['LOG_LEVEL'] || 'debug',
-      base: options?.service ? { service: options.service } : null
-    });
+      base: { pid: process.pid, hostname: os.hostname() }
+    };
+
+    if (options?.bcName) {
+      (loggerOptions.base as any).bcName = options.bcName;
+    }
+    if (options?.appName) {
+      (loggerOptions.base as any).appName = options.appName;
+    }
+    if (options?.appVersion) {
+      (loggerOptions.base as any).appVersion = options.appVersion;
+    }
+    if (options?.instanceId) {
+      (loggerOptions.base as any).instanceId = options.instanceId;
+    }
+
+    this._logger = pino(loggerOptions);
   }
 
-  private static _fromInstance(
-    instance: pino.Logger<never, boolean>
-  ): PinoLogger {
-    const wrapper = new PinoLogger();
-    wrapper._logger = instance;
-    return wrapper;
-  }
-
-  child(bindings: Record<string, unknown>): PinoLogger {
-    return PinoLogger._fromInstance(
-      this._logger.child(bindings) as pino.Logger<never, boolean>
-    );
+  static isPinoLogger(logger: ILogger): logger is PinoLogger {
+    return logger instanceof PinoLogger;
   }
 
   private _log(fn: ILoggerParams, ...args: any[]): void {
@@ -40,6 +51,15 @@ export class PinoLogger implements ILogger {
     }
   }
 
+  get internalLogger(): pino.Logger {
+    return this._logger;
+  }
+
+  child(componentName: string): ILogger {
+    const wrapper = new PinoLogger();
+    wrapper._logger = this._logger.child({ component: componentName });
+    return wrapper;
+  }
   setLogLevel(logLevel: any): void {
     this._logger.level = logLevel;
   }

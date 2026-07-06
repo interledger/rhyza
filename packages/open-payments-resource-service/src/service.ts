@@ -1,6 +1,6 @@
 'use strict';
 
-import Fastify, { FastifyInstance } from 'fastify';
+import Fastify, { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { PalClient } from 'pal-client-lib';
 import { PaymentsClient } from 'payments-client-lib';
 import { walletAddressRoutes } from './routes/wallet-addresses.js';
@@ -11,6 +11,13 @@ import { errorHandler } from './errors.js';
 import { quoteRoutes } from './routes/quotes.js';
 
 import { FastifyOpenApiValidator } from './validator.js';
+import crypto from 'crypto';
+import { ILogger } from '../../common-types-lib/dist/logger.js';
+import { PinoLogger } from 'implementations-lib';
+
+const BC_NAME = 'OPEN_PAYMENTS';
+const APP_NAME = `${BC_NAME}_API_SVC`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
 
 const PORT = parseInt(process.env['PORT'] || '3002', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
@@ -20,11 +27,18 @@ const OPEN_PAYMENTS_RESOURCE_SERVER_URL =
   process.env['OPEN_PAYMENTS_RESOURCE_SERVER_URL'] || 'localhost:3002';
 
 export class OpenPaymentsResourceServer {
+  private static logger: ILogger;
   private static server: FastifyInstance;
   private static palClient: PalClient;
   private static paymentsClient: PaymentsClient;
 
   static async start(): Promise<void> {
+    this.logger = new PinoLogger({
+      bcName: BC_NAME,
+      appName: APP_NAME,
+      instanceId: INSTANCE_ID
+    });
+
     this.palClient = new PalClient(PAL_GRPC_URL);
     await this.palClient.init();
     console.log(`Connected to PAL service at ${PAL_GRPC_URL}`);
@@ -37,7 +51,13 @@ export class OpenPaymentsResourceServer {
     await this.paymentsClient.init();
     console.log(`Connected to Payments service at ${PAYMENTS_GRPC_URL}`);
 
-    this.server = Fastify({ logger: true });
+    this.server = Fastify({
+      // If logger is not a PinoLogger, enable Fastify's default logging
+      logger: PinoLogger.isPinoLogger(this.logger) ? undefined : true,
+      loggerInstance: PinoLogger.isPinoLogger(this.logger)
+        ? (this.logger.internalLogger as FastifyBaseLogger)
+        : undefined
+    });
 
     const validator = new FastifyOpenApiValidator(
       resourceServerOpenApiJsonSchema

@@ -1,7 +1,12 @@
 import { after, before, test } from 'node:test';
 import { randomBytes } from 'node:crypto';
 import * as assert from 'node:assert/strict';
-import { PalClient, parseAddressToDomainAndPathName } from '../src';
+import {
+  IGetFxRateFromSourceAsset,
+  IGetFxRateToDestinationAsset,
+  PalClient,
+  parseAddressToDomainAndPathName
+} from '../src';
 import { IPalPeerDto } from 'pal-public-types-lib';
 
 let client: PalClient;
@@ -20,6 +25,11 @@ const ALIAS_DOMAIN = `${testPrefix}_domain.com`;
 const ALIAS_PATHNAME = `${testPrefix}_pedrobarreto`;
 const PUBLIC_NAME = 'Pedro Barreto';
 
+const FX_SOURCE_ASSET_CODE = 'USD';
+const FX_FROM_SOURCE_RATE = 1.2;
+const FX_DESTINATION_ASSET_CODE = 'XRP';
+const FX_TO_DESTINATION_RATE = 0.3;
+
 let createdWalletAddressId: string;
 let createdAssetLedgerAccountId: string;
 
@@ -29,6 +39,7 @@ before(async () => {
   client = new PalClient('0.0.0.0:50051');
   await client.init();
 });
+
 after(async () => {
   await client.disconnect();
 });
@@ -271,6 +282,51 @@ test('pal client - created peer must have an new set of ledger accounts', async 
 });
 
 /*
+ * Peer/ASE FX Tests
+ * */
+test('pal client - set fx rates from ase', async () => {
+  await client.setFxRate(
+    PEER_ONE_ID,
+    FX_SOURCE_ASSET_CODE,
+    ASSET_CODE,
+    FX_FROM_SOURCE_RATE,
+    null
+  );
+
+  await client.setFxRate(
+    PEER_ONE_ID,
+    ASSET_CODE,
+    FX_DESTINATION_ASSET_CODE,
+    FX_TO_DESTINATION_RATE,
+    null
+  );
+});
+
+test('pal client - get fx rates from ase - source asset to peer asset', async () => {
+  const request: IGetFxRateFromSourceAsset = {
+    peerId: PEER_ONE_ID,
+    sourceAssetCode: FX_SOURCE_ASSET_CODE
+  };
+
+  const resp = await client.getFxRate(request);
+
+  assert.ok(resp);
+  assert.equal(resp, FX_FROM_SOURCE_RATE);
+});
+
+test('pal client - get fx rates from ase - peer asset to destination asset', async () => {
+  const request: IGetFxRateToDestinationAsset = {
+    peerId: PEER_ONE_ID,
+    destinationAssetCode: FX_DESTINATION_ASSET_CODE
+  };
+
+  const resp = await client.getFxRate(request);
+
+  assert.ok(resp);
+  assert.equal(resp, FX_TO_DESTINATION_RATE);
+});
+
+/*
  * Wallet address tests
  * */
 
@@ -342,10 +398,6 @@ test('pal client - get non existing wallet should fail', async () => {
   assert.ok(walletAddress.length === 0);
 });
 
-after(async () => {
-  await client.disconnect();
-});
-
 test('pal client - create wallet address alias without domain', async () => {
   await client.createWalletAddressAlias(
     null,
@@ -353,6 +405,7 @@ test('pal client - create wallet address alias without domain', async () => {
     createdWalletAddressId
   );
 });
+
 test('pal client - create wallet address alias with domain', async () => {
   // Must use another domain as the create wallet address test
   // above automatically creates the alias with domain
@@ -371,6 +424,7 @@ test('pal client - resolve wallet address alias without domain', async () => {
   assert.equal(alias.domain, null);
   assert.equal(alias.pathName, ALIAS_PATHNAME);
 });
+
 test('pal client - resolve wallet address alias with domain', async () => {
   const address = await client.ResolveWalletAddressAlias(
     ALIAS_DOMAIN,

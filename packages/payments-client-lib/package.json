@@ -3,7 +3,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "node --import tsx --test test/*.test.ts",
+    "test": "tsc -p tsconfig.test.json && node --import tsx --test test/*.test.ts",
     "build": "tsc --build"
   },
   "keywords": [],

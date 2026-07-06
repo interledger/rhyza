@@ -11,7 +11,10 @@ import {
   PinoLogger
 } from 'implementations-lib';
 
-const INSTANCE_ID = `AUTH_API_SVC_${crypto.randomUUID()}`;
+const BC_NAME = 'AUTH';
+const APP_NAME = `${BC_NAME}_API_SVC`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
+
 const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9092';
 
 export class AuthApiService {
@@ -20,7 +23,11 @@ export class AuthApiService {
   private static msgConsumer: KafkaConsumer;
 
   static async start(): Promise<void> {
-    const logger = new PinoLogger();
+    const logger = new PinoLogger({
+      bcName: BC_NAME,
+      appName: APP_NAME,
+      instanceId: INSTANCE_ID
+    });
 
     const kafkaBuilder = new KafkaBuilder()
       .withLogger(logger)

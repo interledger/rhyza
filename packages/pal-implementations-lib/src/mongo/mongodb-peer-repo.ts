@@ -33,7 +33,8 @@ export class MongoDbPeerRepo implements IPalPeerRepository {
       assetCode: doc.assetCode,
       assetScale: doc.assetScale,
       communicationMethodDefinition: doc.communicationMethodDefinition,
-      ledgerAccounts: doc.ledgerAccounts
+      ledgerAccounts: doc.ledgerAccounts,
+      fxRates: doc.fxRates
     };
   }
 

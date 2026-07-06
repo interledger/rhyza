@@ -12,7 +12,10 @@ import {
 } from 'implementations-lib';
 import { MongoDbPaymentIntentRepo } from 'payments-implementations-lib';
 
-const INSTANCE_ID = `PAYMENTS_API_SVC_${crypto.randomUUID()}`;
+const BC_NAME = 'PAYMENTS';
+const APP_NAME = `${BC_NAME}_API_SVC`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
+
 const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9092';
 const MONGODB_URL = process.env['MONGODB_URL'] || 'mongodb://localhost:27017';
 
@@ -23,16 +26,20 @@ export class PaymentsApiService {
   private static repo: MongoDbPaymentIntentRepo;
 
   static async start(): Promise<void> {
-    const logger = new PinoLogger({ service: 'payments-api-service' });
+    const logger = new PinoLogger({
+      bcName: BC_NAME,
+      appName: APP_NAME,
+      instanceId: INSTANCE_ID
+    });
 
     this.repo = new MongoDbPaymentIntentRepo(
       MONGODB_URL,
-      logger.child({ component: 'payment-intent-repo' })
+      logger.child('payment-intent-repo')
     );
     await this.repo.init();
 
     const kafkaBuilder = new KafkaBuilder()
-      .withLogger(logger.child({ component: 'kafka' }))
+      .withLogger(logger.child('kafka'))
       .withBrokerList(KAFKA_URL)
       .withClientId(INSTANCE_ID)
       .withSerializerFactory(MessageSerializationFactory.instance());
@@ -53,7 +60,7 @@ export class PaymentsApiService {
       this.msgProducer,
       this.msgConsumer,
       this.repo,
-      logger.child({ component: 'grpc' })
+      logger.child('grpc')
     );
 
     await this.grpcService.start();

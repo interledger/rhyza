@@ -28,6 +28,11 @@ export interface IPendingQuote extends IBaseQuote {
   state: 'PENDING';
   debitAmount?: bigint;
   receiveAmount?: bigint;
+  peerId?: string;
+  peerAssetCode?: string;
+  peerAssetScale?: number;
+  sourceAmount?: bigint;
+  senderAssetCode?: string;
 }
 
 export interface ICompletedQuote extends IBaseQuote {
@@ -92,15 +97,27 @@ export interface IWalletAddress {
   assetScale: number;
 }
 
-export interface IWalletAddressService {
-  fetchByIds(ids: string[]): Promise<IWalletAddress[]>;
-}
-
 export interface IRatesService {
   getRate(
     sourceAssetCode: string,
     destinationAssetCode: string
   ): Promise<number | undefined>;
+}
+
+export type IFxRateRequest =
+  | { peerId: string; sourceAssetCode: string }
+  | { peerId: string; destinationAssetCode: string };
+
+export interface IPeer {
+  peerId: string;
+  assetCode: string;
+  assetScale: number;
+}
+
+export interface IPalService {
+  getWalletAddresses(ids: string[]): Promise<IWalletAddress[]>;
+  getPeerByIlpAddress(ilpAddress: string): Promise<IPeer | null>;
+  getRates(request: IFxRateRequest): Promise<number | null>;
 }
 
 export interface IRemotePaymentIntentDetails {

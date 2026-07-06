@@ -223,18 +223,22 @@ export class PaymentCompleteFailedEvent extends PaymentIntentDomainEvent {
   }
 }
 
+// TODO: audit payload fields for removal candidates:
+//   - senderWalletAddress/receiverWalletAddress and asset code/scale: not sure if ILP BC needs these or just peer
 export type RemoteQuoteRequestedPayload = {
   paymentIntentId: string;
   quoteId: string;
+  requestId: string;
   senderWalletAddress: string;
   receiverWalletAddress: string;
   senderAssetCode: string;
   senderAssetScale: number;
   receiverAssetCode: string;
   receiverAssetScale: number;
-  debitAmount?: string;
-  receiveAmount?: string;
-  destinationIlpAddress: string;
+  peerId: string;
+  peerAssetCode: string;
+  peerAssetScale: number;
+  sourceAmount: string;
 };
 
 export class RemoteQuoteRequestedEvent extends PaymentIntentDomainEvent {

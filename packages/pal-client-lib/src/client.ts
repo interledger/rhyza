@@ -1,6 +1,8 @@
 import * as grpc from '@grpc/grpc-js';
 import { ServiceError } from '@grpc/grpc-js';
 import {
+  IGetFxRateFromSourceAsset,
+  IGetFxRateToDestinationAsset,
   IGetWalletAddressResponse,
   IPalClientWalletAddress,
   PalClientPeerAlreadyExistsError,
@@ -32,7 +34,12 @@ import {
   PbSetPeerCommunicationMethodRequest,
   PbActivatePeerRequest,
   PbPeer,
-  PbDeactivatePeerRequest
+  PbDeactivatePeerRequest,
+  PbGetFxRateFromSourceAssetRequest,
+  PbGetFxRateToDestinationAssetRequest,
+  PbGetFxRateRequest,
+  PbGetFxRateResponse,
+  PbSetFxRateRequest
 } from 'pal-public-types-lib';
 import process from 'process';
 
@@ -372,7 +379,8 @@ export class PalClient {
       assetScale: pbPeer.getAssetScale(),
       active: pbPeer.getActive(),
       ledgerAccounts: null,
-      communicationMethodDefinition: null
+      communicationMethodDefinition: null,
+      fxRates: []
     };
 
     const pbAccounts = pbPeer.getLedgerAccounts();
@@ -384,6 +392,18 @@ export class PalClient {
         aseClearingAccId: pbAccounts.getAseClearingAccountId(),
         suspenseAccId: pbAccounts.getSuspenseAccountId()
       };
+    }
+
+    const pbFxRates = pbPeer.getFxRatesList();
+    if (pbFxRates) {
+      retPeerDto.fxRates = pbFxRates.map((pbFxRate) => ({
+        sourceAssetCode: pbFxRate.getSourceAssetCode(),
+        destinationAssetCode: pbFxRate.getDestinationAssetCode(),
+        expiresAt: pbFxRate.getExpiresAt(),
+        fetchedFromAse: pbFxRate.getFetchedFromAse(),
+        fetchedAt: pbFxRate.getFetchedAt() || null,
+        rate: pbFxRate.getRate()
+      }));
     }
 
     const commsMethod = pbPeer.getCommsMethodDefinition();
@@ -500,6 +520,80 @@ export class PalClient {
 
     return new Promise((resolve, reject) => {
       this._grpcClient.deactivatePeer(request, (error: ServiceError | null) => {
+        if (error) {
+          if (error.code == grpc.status.NOT_FOUND) {
+            return reject(new PalClientPeerNotFoundError(error.message));
+          }
+          return reject(new PalClientUnknownError(error.message));
+        }
+
+        return resolve();
+      });
+    });
+  }
+
+  async getFxRate(
+    request: IGetFxRateFromSourceAsset | IGetFxRateToDestinationAsset
+  ): Promise<number | null> {
+    const pbReq = new PbGetFxRateRequest();
+
+    if (Object.hasOwn(request, 'sourceAssetCode')) {
+      const subReq = new PbGetFxRateFromSourceAssetRequest();
+      subReq.setPeerId(request.peerId);
+      subReq.setSourceAssetCode(
+        (request as IGetFxRateFromSourceAsset).sourceAssetCode
+      );
+      pbReq.setFromSourceRequest(subReq);
+    } else if (Object.hasOwn(request, 'destinationAssetCode')) {
+      const subReq = new PbGetFxRateToDestinationAssetRequest();
+      subReq.setPeerId(request.peerId);
+      subReq.setDestinationAssetCode(
+        (request as IGetFxRateToDestinationAsset).destinationAssetCode
+      );
+      pbReq.setToDestinationRequest(subReq);
+    } else {
+      throw new PalClientUnknownError('Invalid request getFxRate request');
+    }
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.getFxRate(
+        pbReq,
+        (error: ServiceError | null, response: PbGetFxRateResponse) => {
+          if (error) {
+            if (error.code == grpc.status.NOT_FOUND) {
+              return reject(new PalClientPeerNotFoundError(error.message));
+            }
+            return reject(new PalClientUnknownError(error.message));
+          }
+          const rate = response.getRate();
+          if (!response.hasRate() || rate === undefined) {
+            return resolve(null);
+          }
+
+          return resolve(rate);
+        }
+      );
+    });
+  }
+
+  async setFxRate(
+    peerId: string,
+    sourceAssetCode: string,
+    destinationAsset: string,
+    rate: number,
+    rateTtlSecs: number | null
+  ): Promise<void> {
+    const pbReq = new PbSetFxRateRequest();
+    pbReq.setPeerId(peerId);
+    pbReq.setSourceAssetCode(sourceAssetCode);
+    pbReq.setDestinationAssetCode(destinationAsset);
+    pbReq.setRate(rate);
+    if (rateTtlSecs !== null) {
+      pbReq.setRateTtlSecs(rateTtlSecs);
+    }
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.setFxRate(pbReq, (error: ServiceError | null) => {
         if (error) {
           if (error.code == grpc.status.NOT_FOUND) {
             return reject(new PalClientPeerNotFoundError(error.message));

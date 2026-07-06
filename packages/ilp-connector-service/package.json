@@ -1,0 +1,21 @@
+{
+  "name": "ilp-connector-service",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "start": "node dist/src/index.js",
+    "build": "tsc --build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "common-types-lib": "workspace:*",
+    "ilp-domain-lib": "workspace:*",
+    "implementations-lib": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}

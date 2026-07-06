@@ -63,10 +63,9 @@ export class NotificationsEventHandler {
     message: IMessage,
     type: NotificationType
   ) {
-    console.log(`${message.msgName} received with id ${message.payload.id}`);
-    const { id, ...data } = message.payload;
+    console.log(`${message.msgName} received with id ${message.msgId}`);
     const cmd = new CreateNotificationCmd(
-      { id, type, data },
+      { id: message.msgId, type, data: message.payload },
       message.requestId
     );
     await this._msgProducer.send(cmd);

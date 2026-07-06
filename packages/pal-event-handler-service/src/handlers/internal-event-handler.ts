@@ -11,7 +11,8 @@ import {
   AssetCreatedEvent,
   LedgerAccountCreatedForAssetEvent,
   LedgerAccountsCreatedForPeerEvent,
-  PeerCreatedEvent
+  PeerCreatedEvent,
+  PeerFxCacheExpiredEvent
 } from 'pal-public-types-lib';
 import {
   AssetAggregate,
@@ -80,6 +81,8 @@ export class InternalEventHandler {
       await this._handleLedgerAccountCreatedForAssetEvent(
         evt as LedgerAccountCreatedForAssetEvent
       );
+    } else if (evt.msgName === PeerFxCacheExpiredEvent.name) {
+      await this._handlePeerFxCacheExpiredEvent(evt as PeerFxCacheExpiredEvent);
     } else {
       this._logger.debug(
         `Internal event handler - unhandled event type: ${evt.msgName}`
@@ -189,6 +192,21 @@ export class InternalEventHandler {
   }
 
   // endregion asset events saga
+
+  // peer fx cache pre-fetch of expires rates
+  private async _handlePeerFxCacheExpiredEvent(
+    event: PeerFxCacheExpiredEvent
+  ): Promise<void> {
+    this._logger.debug(
+      `_handlePeerFxCacheExpiredEvent: ${event.payload.peerId}`
+    );
+
+    await this._peerAggregate.notifyExpiredFxRate(
+      event.payload.peerId,
+      event.payload.sourceAssetCode,
+      event.payload.destinationAssetCode
+    );
+  }
 
   async init(): Promise<void> {
     this._msgConsumer.setTopics([

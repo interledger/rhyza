@@ -7,9 +7,9 @@ import { PaymentsClient, RemoteQuotingNotConfiguredError } from '../src';
 import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
 
 describe('Payments Client', () => {
-  async function createIncomingPayment(incomingAmount?: number) {
+  async function createPaymentIntent(incomingAmount?: number) {
     const id = randomUUID();
-    await paymentsClient.createIncomingPayment(
+    await paymentsClient.createPaymentIntent(
       id,
       receiverWalletAddressId,
       RECEIVER_WALLET_ADDRESS,
@@ -39,12 +39,7 @@ describe('Payments Client', () => {
 
     // Ensure asset exists
     try {
-      await palClient.createAsset(
-        ASSET_CODE,
-        ASSET_SCALE,
-        undefined,
-        undefined
-      );
+      await palClient.createAsset(ASSET_CODE, ASSET_SCALE);
     } catch {
       // already exists — fine for reruns
     }
@@ -106,9 +101,9 @@ describe('Payments Client', () => {
     await palClient.disconnect();
   });
 
-  test('create incoming payment (required fields only)', async () => {
+  test('create payment intent (required fields only)', async () => {
     const id = randomUUID();
-    const result = await paymentsClient.createIncomingPayment(
+    const result = await paymentsClient.createPaymentIntent(
       id,
       receiverWalletAddressId,
       RECEIVER_WALLET_ADDRESS
@@ -118,10 +113,10 @@ describe('Payments Client', () => {
     assert.equal(result.id, id);
   });
 
-  test('create incoming payment (all fields)', async () => {
+  test('create payment intent (all fields)', async () => {
     const id = randomUUID();
     const expiresAt = new Date(Date.now() + 1000 * 60 * 5).toISOString(); // 5 minutes
-    const result = await paymentsClient.createIncomingPayment(
+    const result = await paymentsClient.createPaymentIntent(
       id,
       receiverWalletAddressId,
       RECEIVER_WALLET_ADDRESS,
@@ -135,14 +130,14 @@ describe('Payments Client', () => {
 
   test('duplicate id is rejected', async () => {
     const id = randomUUID();
-    await paymentsClient.createIncomingPayment(
+    await paymentsClient.createPaymentIntent(
       id,
       receiverWalletAddressId,
       RECEIVER_WALLET_ADDRESS
     );
 
     try {
-      await paymentsClient.createIncomingPayment(
+      await paymentsClient.createPaymentIntent(
         id,
         receiverWalletAddressId,
         RECEIVER_WALLET_ADDRESS
@@ -155,7 +150,7 @@ describe('Payments Client', () => {
 
   test('invalid uuid is rejected immediately', async () => {
     try {
-      await paymentsClient.createIncomingPayment(
+      await paymentsClient.createPaymentIntent(
         'not-a-uuid',
         receiverWalletAddressId,
         RECEIVER_WALLET_ADDRESS
@@ -168,7 +163,7 @@ describe('Payments Client', () => {
 
   test('unknown wallet address id is rejected', async () => {
     try {
-      await paymentsClient.createIncomingPayment(
+      await paymentsClient.createPaymentIntent(
         randomUUID(),
         randomUUID(), // nonexistent wallet address id
         RECEIVER_WALLET_ADDRESS
@@ -181,11 +176,11 @@ describe('Payments Client', () => {
 
   describe('createQuote', () => {
     test('create quote with debitAmount', async () => {
-      const paymentId = await createIncomingPayment();
+      const paymentIntentId = await createPaymentIntent();
       const quoteId = randomUUID();
       const result = await paymentsClient.createQuote(
         quoteId,
-        { incomingPaymentId: paymentId },
+        { incomingPaymentId: paymentIntentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
         100
@@ -196,11 +191,11 @@ describe('Payments Client', () => {
     });
 
     test('create quote with receiveAmount', async () => {
-      const paymentId = await createIncomingPayment();
+      const paymentIntentId = await createPaymentIntent();
       const quoteId = randomUUID();
       const result = await paymentsClient.createQuote(
         quoteId,
-        { incomingPaymentId: paymentId },
+        { incomingPaymentId: paymentIntentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
         undefined,
@@ -212,11 +207,11 @@ describe('Payments Client', () => {
     });
 
     test('create quote using incomingAmount', async () => {
-      const paymentId = await createIncomingPayment(100);
+      const paymentIntentId = await createPaymentIntent(100);
       const quoteId = randomUUID();
       const result = await paymentsClient.createQuote(
         quoteId,
-        { incomingPaymentId: paymentId },
+        { incomingPaymentId: paymentIntentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS
       );
@@ -226,11 +221,11 @@ describe('Payments Client', () => {
     });
 
     test('duplicate quote id is rejected', async () => {
-      const paymentId = await createIncomingPayment();
+      const paymentIntentId = await createPaymentIntent();
       const quoteId = randomUUID();
       await paymentsClient.createQuote(
         quoteId,
-        { incomingPaymentId: paymentId },
+        { incomingPaymentId: paymentIntentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
         100
@@ -239,7 +234,7 @@ describe('Payments Client', () => {
       try {
         await paymentsClient.createQuote(
           quoteId,
-          { incomingPaymentId: paymentId },
+          { incomingPaymentId: paymentIntentId },
           senderWalletAddressId,
           SENDER_WALLET_ADDRESS,
           100
@@ -250,7 +245,7 @@ describe('Payments Client', () => {
       }
     });
 
-    test('unknown incoming payment id is rejected', async () => {
+    test('unknown payment intent id is rejected', async () => {
       try {
         await paymentsClient.createQuote(
           randomUUID(),
@@ -287,11 +282,11 @@ describe('Payments Client', () => {
     });
 
     test('unknown sender wallet address id is rejected', async () => {
-      const paymentId = await createIncomingPayment();
+      const paymentIntentId = await createPaymentIntent();
       try {
         await paymentsClient.createQuote(
           randomUUID(),
-          { incomingPaymentId: paymentId },
+          { incomingPaymentId: paymentIntentId },
           randomUUID(),
           SENDER_WALLET_ADDRESS,
           100
@@ -303,64 +298,64 @@ describe('Payments Client', () => {
     });
   });
 
-  describe('createOutgoingPayment', () => {
-    test('create outgoing payment with quoteId', async () => {
-      const incomingPaymentId = await createIncomingPayment(100);
+  describe('createPayment', () => {
+    test('create payment with quoteId', async () => {
+      const paymentIntentId = await createPaymentIntent(100);
       const quoteId = randomUUID();
       await paymentsClient.createQuote(
         quoteId,
-        { incomingPaymentId },
+        { incomingPaymentId: paymentIntentId },
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS
       );
 
-      const outgoingPaymentId = randomUUID();
-      const result = await paymentsClient.createOutgoingPayment(
-        outgoingPaymentId,
+      const paymentId = randomUUID();
+      const result = await paymentsClient.createPayment(
+        paymentId,
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
-        incomingPaymentId,
+        paymentIntentId,
         quoteId
       );
 
       assert.ok(result);
-      assert.equal(result.id, outgoingPaymentId);
+      assert.equal(result.id, paymentId);
     });
 
-    test('create outgoing payment with debitAmount', async () => {
-      const incomingPaymentId = await createIncomingPayment(100);
-      const outgoingPaymentId = randomUUID();
-      const result = await paymentsClient.createOutgoingPayment(
-        outgoingPaymentId,
+    test('create payment with debitAmount', async () => {
+      const paymentIntentId = await createPaymentIntent(100);
+      const paymentId = randomUUID();
+      const result = await paymentsClient.createPayment(
+        paymentId,
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
-        incomingPaymentId,
+        paymentIntentId,
         undefined,
         100
       );
 
       assert.ok(result);
-      assert.equal(result.id, outgoingPaymentId);
+      assert.equal(result.id, paymentId);
     });
 
     test('duplicate id is rejected', async () => {
-      const incomingPaymentId = await createIncomingPayment(100);
-      const outgoingPaymentId = randomUUID();
-      await paymentsClient.createOutgoingPayment(
-        outgoingPaymentId,
+      const paymentIntentId = await createPaymentIntent(100);
+      const paymentId = randomUUID();
+      await paymentsClient.createPayment(
+        paymentId,
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
-        incomingPaymentId,
+        paymentIntentId,
         undefined,
         100
       );
 
       try {
-        await paymentsClient.createOutgoingPayment(
-          outgoingPaymentId,
+        await paymentsClient.createPayment(
+          paymentId,
           senderWalletAddressId,
           SENDER_WALLET_ADDRESS,
-          incomingPaymentId,
+          paymentIntentId,
           undefined,
           100
         );
@@ -370,9 +365,9 @@ describe('Payments Client', () => {
       }
     });
 
-    test('unknown incoming payment id is rejected', async () => {
+    test('unknown payment intent id is rejected', async () => {
       try {
-        await paymentsClient.createOutgoingPayment(
+        await paymentsClient.createPayment(
           randomUUID(),
           senderWalletAddressId,
           SENDER_WALLET_ADDRESS,
@@ -387,13 +382,13 @@ describe('Payments Client', () => {
     });
 
     test('unknown wallet address id is rejected', async () => {
-      const incomingPaymentId = await createIncomingPayment(100);
+      const paymentIntentId = await createPaymentIntent(100);
       try {
-        await paymentsClient.createOutgoingPayment(
+        await paymentsClient.createPayment(
           randomUUID(),
           randomUUID(),
           SENDER_WALLET_ADDRESS,
-          incomingPaymentId,
+          paymentIntentId,
           undefined,
           100
         );
@@ -404,87 +399,75 @@ describe('Payments Client', () => {
     });
   });
 
-  describe('approveOutgoingPayment', () => {
-    test('approve outgoing payment', async () => {
-      const incomingPaymentId = await createIncomingPayment(100);
-      const outgoingPaymentId = randomUUID();
-      await paymentsClient.createOutgoingPayment(
-        outgoingPaymentId,
+  describe('approvePayment', () => {
+    test('approve payment', async () => {
+      const paymentIntentId = await createPaymentIntent(100);
+      const paymentId = randomUUID();
+      await paymentsClient.createPayment(
+        paymentId,
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
-        incomingPaymentId,
+        paymentIntentId,
         undefined,
         100
       );
 
-      const result = await paymentsClient.approveOutgoingPayment(
-        outgoingPaymentId,
-        incomingPaymentId
+      const result = await paymentsClient.approvePayment(
+        paymentIntentId,
+        paymentId
       );
 
       assert.ok(result);
-      assert.equal(result.id, outgoingPaymentId);
+      assert.equal(result.id, paymentId);
     });
 
     test('duplicate approval is rejected', async () => {
-      const incomingPaymentId = await createIncomingPayment(100);
-      const outgoingPaymentId = randomUUID();
-      await paymentsClient.createOutgoingPayment(
-        outgoingPaymentId,
+      const paymentIntentId = await createPaymentIntent(100);
+      const paymentId = randomUUID();
+      await paymentsClient.createPayment(
+        paymentId,
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
-        incomingPaymentId,
+        paymentIntentId,
         undefined,
         100
       );
 
-      await paymentsClient.approveOutgoingPayment(
-        outgoingPaymentId,
-        incomingPaymentId
-      );
+      await paymentsClient.approvePayment(paymentIntentId, paymentId);
 
       try {
-        await paymentsClient.approveOutgoingPayment(
-          outgoingPaymentId,
-          incomingPaymentId
-        );
+        await paymentsClient.approvePayment(paymentIntentId, paymentId);
         assert.fail('expected error for duplicate approval');
       } catch (e) {
         assert.ok(e instanceof Error);
       }
     });
 
-    test('unknown outgoing payment id is rejected', async () => {
-      const incomingPaymentId = await createIncomingPayment(100);
+    test('unknown payment id is rejected', async () => {
+      const paymentIntentId = await createPaymentIntent(100);
       try {
-        await paymentsClient.approveOutgoingPayment(
-          randomUUID(),
-          incomingPaymentId
-        );
-        assert.fail('expected error for unknown outgoing payment');
+        await paymentsClient.approvePayment(paymentIntentId, randomUUID());
+        assert.fail('expected error for unknown payment');
       } catch (e) {
         assert.ok(e instanceof Error);
       }
     });
 
-    test('unknown incoming payment id is rejected', async () => {
-      const incomingPaymentId = await createIncomingPayment(100);
-      const outgoingPaymentId = randomUUID();
-      await paymentsClient.createOutgoingPayment(
-        outgoingPaymentId,
+    test('unknown payment intent id is rejected', async () => {
+      const paymentIntentId = await createPaymentIntent(100);
+      const paymentId = randomUUID();
+      await paymentsClient.createPayment(
+        paymentId,
         senderWalletAddressId,
         SENDER_WALLET_ADDRESS,
-        incomingPaymentId,
+        paymentIntentId,
         undefined,
         100
       );
 
       try {
-        await paymentsClient.approveOutgoingPayment(
-          outgoingPaymentId,
-          randomUUID()
-        );
-        assert.fail('expected error for unknown incoming payment');
+        await paymentsClient.approvePayment(randomUUID(), paymentId);
+        assert.fail('expected error for unknown payment intent');
       } catch (e) {
         assert.ok(e instanceof Error);
       }

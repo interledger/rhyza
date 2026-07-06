@@ -12,8 +12,8 @@ post {
 
 body:json {
   {
-    "walletAddress": "https://test.com/receiver",
-    "receiver": "http://open-payments-svc:3000/incoming-payments/{{incomingPaymentId}}",
+    "walletAddress": "https://test.com/sender",
+    "receiver": "http://open-payments-svc:3002/incoming-payments/{{incomingPaymentId}}",
     "method": "ilp",
     "debitAmount": {
       "assetScale": 2,

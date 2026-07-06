@@ -4,30 +4,11 @@ import {
   IMessageConsumer,
   IMessageProducer
 } from 'common-types-lib';
+import { QuoteFailedEvent, RemoteQuoteReceivedEvent } from 'ilp-domain-lib';
 import {
   CompleteRemoteQuoteCmd,
   FailRemoteQuoteCmd
 } from 'payments-domain-lib';
-
-// TODO: replace with event classes from ILP BC once they're defined
-const ILP_QUOTE_DETERMINED_EVENT = 'QuoteDeterminedEvent';
-const ILP_QUOTE_FAILED_EVENT = 'QuoteFailedEvent';
-
-// TODO: finalize payload shapes with ILP BC
-interface IlpQuoteDeterminedPayload {
-  paymentIntentId: string;
-  quoteId: string;
-  maxSourceAmount: number;
-  minDeliveryAmount: number;
-  lowEstimatedExchangeRate: number;
-}
-
-interface IlpQuoteFailedPayload {
-  paymentIntentId: string;
-  quoteId: string;
-  errorName: string;
-  message: string;
-}
 
 export class PaymentsEventHandler {
   private _msgConsumer: IMessageConsumer;
@@ -56,29 +37,32 @@ export class PaymentsEventHandler {
 
   private async _handleEvent(message: IMessage): Promise<void> {
     switch (message.msgName) {
-      case ILP_QUOTE_DETERMINED_EVENT: {
-        const payload = message.payload as IlpQuoteDeterminedPayload;
+      case RemoteQuoteReceivedEvent.name: {
+        const { quoteId, paymentIntentId, destinationAmount } =
+          message.payload as RemoteQuoteReceivedEvent['payload'];
         const cmd = new CompleteRemoteQuoteCmd(
           {
-            quoteId: payload.quoteId,
-            paymentIntentId: payload.paymentIntentId,
-            maxSourceAmount: payload.maxSourceAmount,
-            minDeliveryAmount: payload.minDeliveryAmount,
-            lowEstimatedExchangeRate: payload.lowEstimatedExchangeRate
+            quoteId,
+            paymentIntentId,
+            receiveAmountValue: destinationAmount
           },
           message.requestId ?? ''
         );
         await this._msgProducer.send(cmd);
         break;
       }
-      case ILP_QUOTE_FAILED_EVENT: {
-        const payload = message.payload as IlpQuoteFailedPayload;
+      case QuoteFailedEvent.name: {
+        const payload = message.payload as QuoteFailedEvent['payload'];
         const cmd = new FailRemoteQuoteCmd(
           {
             quoteId: payload.quoteId,
             paymentIntentId: payload.paymentIntentId,
-            errorName: payload.errorName,
-            message: payload.message
+            errorName: payload.rejectCode ?? 'QuoteFailed',
+            message:
+              payload.rejectMessage ??
+              (payload.expired
+                ? 'Quote expired'
+                : 'Quote could not be determined')
           },
           message.requestId ?? ''
         );

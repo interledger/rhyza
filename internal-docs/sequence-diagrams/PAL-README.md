@@ -21,12 +21,22 @@ Note: Ledger high performance requests, such as posting transactions, are handle
 
 ## Ledger Command Handler Service
 
-This command handler service is responsible for handling ledger command messages, for as posting transactions and managing ledgers and ledger accounts. It uses a saga pattern style of communications to handle high performance requests.
-Commands are passed to the domain code for processing, the result is the publishing of domain/integration events (success or falure).
+This command handler service is responsible for handling ledger command messages, for as posting transactions and managing ledgers and ledger accounts. It uses a saga pattern style of communications to handle high-performance requests.
+Commands are passed to the domain code for processing, the result is the publishing of domain/integration events (success or failure).
 
-## BC Integration Diagrams
+The ledger is the only of PAL's aggregates that uses a command message pattern style of communications.
 
-### Saga Pattern for Asset Creation, including account creation in ledger
+## Event Handler Service
+
+This is BC wide event handler service, which handles three different types of events:
+
+- Internal events to integrate between internal BC aggregates (e.g. assets, liquidity, etc)
+- External events to integrate with external BCs (e.g. payments)
+- Ledger Snapshoter and Projector, which handles ledger snapshoting and projecting events to the ledger read storage
+
+# Intra BC Integration Diagrams
+
+## Saga Pattern for Asset Creation, including account creation in ledger
 
 When an asset is created, a ledger for that asset is automatically created for that asset code; Additionally, a ledger account (system account) is created for the asset.
 Only when both, the ledger and the ledger account, are created, the asset is marked as active.
@@ -69,7 +79,7 @@ sequenceDiagram
   PAL_API ->> PAL_Cli: Create Asset Response
 ```
 
-### Saga Pattern for Peer Creation, including account creation in ledger
+## Saga Pattern for Peer Creation, including account creation in ledger
 
 When an peer is created, the corresponding ledger accounts are created for that peer.
 When the accounts are created, the peer is updated with the ledger account ids and is marked as active.
@@ -110,7 +120,7 @@ sequenceDiagram
   PAL_EVT ->> ASSET_DOM: Associate Accounts and activate
   ASSET_DOM ->> ASSET_DOM: Publish<br>PeerActivatedEvent
 
-  PAL_API ->> ASSET_DOM: Reads<br>PeerActivatedEvent
+  PAL_API ->> ASSET_DOM: Reads<br>PeerCreationCompletedEvent
   PAL_API ->> PAL_Cli: Create Peer Response
 
 ```

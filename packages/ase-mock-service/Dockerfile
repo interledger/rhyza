@@ -26,7 +26,7 @@ COPY package.json pnpm-workspace.yaml ./
 COPY packages/common-types-lib/package.json ./packages/common-types-lib/package.json
 COPY packages/notifications-domain-lib/package.json ./packages/notifications-domain-lib/package.json
 COPY packages/payments-domain-lib/package.json ./packages/payments-domain-lib/package.json
-COPY packages/mock-webhook-integration-service/package.json ./packages/mock-webhook-integration-service/package.json
+COPY packages/ase-mock-service/package.json ./packages/ase-mock-service/package.json
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store BUILD_LIBRDKAFKA=0 pnpm install --recursive --prefer-offline --frozen-lockfile --prod
 
@@ -36,7 +36,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store BUILD_LIBRDKAFKA=0 pnpm instal
 RUN pnpm --filter common-types-lib build
 RUN pnpm --filter notifications-domain-lib build
 RUN pnpm --filter payments-domain-lib build
-RUN pnpm --filter mock-webhook-integration-service build
+RUN pnpm --filter ase-mock-service build
 
 FROM node:24-alpine AS runner
 RUN apk update && apk add --no-cache librdkafka
@@ -46,18 +46,18 @@ WORKDIR /workspace
 COPY --from=prod-deps /workspace/node_modules ./node_modules
 COPY --from=prod-deps /workspace/packages/notifications-domain-lib/node_modules ./packages/notifications-domain-lib/node_modules
 COPY --from=prod-deps /workspace/packages/payments-domain-lib/node_modules ./packages/payments-domain-lib/node_modules
-COPY --from=prod-deps /workspace/packages/mock-webhook-integration-service/node_modules ./packages/mock-webhook-integration-service/node_modules
+COPY --from=prod-deps /workspace/packages/ase-mock-service/node_modules ./packages/ase-mock-service/node_modules
 
 # package.json for each workspace dep
 COPY --from=prod-deps /workspace/packages/common-types-lib/package.json ./packages/common-types-lib/package.json
 COPY --from=prod-deps /workspace/packages/notifications-domain-lib/package.json ./packages/notifications-domain-lib/package.json
 COPY --from=prod-deps /workspace/packages/payments-domain-lib/package.json ./packages/payments-domain-lib/package.json
-COPY --from=prod-deps /workspace/packages/mock-webhook-integration-service/package.json ./packages/mock-webhook-integration-service/package.json
+COPY --from=prod-deps /workspace/packages/ase-mock-service/package.json ./packages/ase-mock-service/package.json
 
 # built dist from each workspace dep
 COPY --from=build /workspace/packages/common-types-lib/dist ./packages/common-types-lib/dist
 COPY --from=build /workspace/packages/notifications-domain-lib/dist ./packages/notifications-domain-lib/dist
 COPY --from=build /workspace/packages/payments-domain-lib/dist ./packages/payments-domain-lib/dist
-COPY --from=build /workspace/packages/mock-webhook-integration-service/dist ./packages/mock-webhook-integration-service/dist
+COPY --from=build /workspace/packages/ase-mock-service/dist ./packages/ase-mock-service/dist
 
-CMD ["node", "packages/mock-webhook-integration-service/dist/index.js"]
+CMD ["node", "packages/ase-mock-service/dist/index.js"]

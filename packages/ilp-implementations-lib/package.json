@@ -1,5 +1,5 @@
 {
-  "name": "mock-webhook-integration-service",
+  "name": "ilp-implementations-lib",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -10,9 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "fastify": "~5.3.3",
-    "notifications-domain-lib": "workspace:*",
-    "payments-domain-lib": "workspace:*"
+    "common-types-lib": "workspace:*",
+    "ilp-domain-lib": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.3"

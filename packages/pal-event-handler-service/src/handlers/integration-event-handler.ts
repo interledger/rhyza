@@ -69,10 +69,7 @@ export class IntegrationEventHandler {
   }
 
   async init(): Promise<void> {
-    this._msgConsumer.setTopics([
-      DomainEventTopics.PaymentEvents,
-      DomainEventTopics.IlpEvents
-    ]);
+    this._msgConsumer.setTopics([DomainEventTopics.PaymentEvents]);
     this._msgConsumer.setBatchCallbackFn(this._handleMessageBatch.bind(this));
     await this._msgConsumer.connect();
     await this._msgConsumer.startAndWaitForRebalance();

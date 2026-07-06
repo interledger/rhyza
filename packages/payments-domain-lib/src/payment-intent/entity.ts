@@ -6,6 +6,7 @@ import {
   InvalidQuoteAmountError,
   InvalidQuoteIdError,
   InvalidQuoteStateError,
+  MissingFxRateError,
   PaymentIntentExpired,
   PaymentIntentInvalidState,
   PaymentInvalidStateError,
@@ -28,7 +29,16 @@ const MAX_PAYMENT_INTENT_EXPIRY_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const QUOTE_EXPIRY_MS = 1000 * 60 * 10;
 
 type QuoteData =
-  | { state: 'PENDING'; debitAmount?: bigint; receiveAmount?: bigint }
+  | {
+      state: 'PENDING';
+      debitAmount?: bigint;
+      receiveAmount?: bigint;
+      peerId?: string;
+      peerAssetCode?: string;
+      peerAssetScale?: number;
+      sourceAmount?: bigint;
+      senderAssetCode?: string;
+    }
   | {
       state: 'COMPLETED';
       debitAmount: bigint;
@@ -60,11 +70,21 @@ class Quote implements IBaseQuote {
     id: string,
     senderWalletAddress: string,
     senderWalletAddressId: string,
+    peerId?: string,
+    peerAssetCode?: string,
+    peerAssetScale?: number,
+    sourceAmount?: bigint,
+    senderAssetCode?: string,
     debitAmount?: bigint,
     receiveAmount?: bigint
   ): Quote {
     return new Quote(id, senderWalletAddress, senderWalletAddressId, {
       state: 'PENDING',
+      peerId,
+      peerAssetCode,
+      peerAssetScale,
+      sourceAmount,
+      senderAssetCode,
       debitAmount,
       receiveAmount
     });
@@ -102,6 +122,11 @@ class Quote implements IBaseQuote {
         obj.senderWalletAddressId,
         {
           state: 'PENDING',
+          peerId: obj.peerId,
+          peerAssetCode: obj.peerAssetCode,
+          peerAssetScale: obj.peerAssetScale,
+          sourceAmount: obj.sourceAmount,
+          senderAssetCode: obj.senderAssetCode,
           debitAmount: obj.debitAmount,
           receiveAmount: obj.receiveAmount
         }
@@ -126,6 +151,93 @@ class Quote implements IBaseQuote {
       state: 'COMPLETED',
       debitAmount,
       receiveAmount,
+      exchangeRate,
+      expiresAt: new Date(
+        Math.min(paymentIntentExpiresAt.getTime(), Date.now() + QUOTE_EXPIRY_MS)
+      )
+    };
+  }
+
+  completeRemote(args: {
+    receiveAmountValue: bigint;
+    fxRate?: number;
+    paymentIntentExpiresAt: Date;
+  }): void {
+    if (this._data.state !== 'PENDING') {
+      throw new InvalidQuoteStateError(
+        `Quote ${this._id} is not in PENDING state, cannot complete`
+      );
+    }
+
+    const {
+      peerAssetCode,
+      sourceAmount,
+      senderAssetCode,
+      debitAmount: requestedDebit,
+      receiveAmount: requestedReceive
+    } = this._data;
+
+    if (!peerAssetCode || !sourceAmount || !senderAssetCode) {
+      throw new InvalidQuoteStateError(
+        `Pending quote ${this._id} is missing required remote peer fields`
+      );
+    }
+
+    const { receiveAmountValue, fxRate, paymentIntentExpiresAt } = args;
+    const peerToReceiverRate =
+      Number(receiveAmountValue) / Number(sourceAmount);
+    const isCrossAsset = senderAssetCode !== peerAssetCode;
+
+    let computedDebit: bigint;
+    let computedReceive: bigint;
+
+    if (!isCrossAsset) {
+      if (requestedDebit) {
+        computedDebit = requestedDebit;
+        computedReceive = BigInt(
+          Math.floor(Number(requestedDebit) * peerToReceiverRate)
+        );
+      } else if (requestedReceive !== undefined) {
+        computedReceive = requestedReceive;
+        computedDebit = BigInt(
+          Math.ceil(Number(requestedReceive) / peerToReceiverRate)
+        );
+      } else {
+        throw new InvalidQuoteStateError(
+          `Pending quote ${this._id} must have debit or receive amount`
+        );
+      }
+    } else {
+      if (fxRate == null) {
+        throw new MissingFxRateError(
+          `Cross-asset quote ${this._id} requires an fxRate (sender: ${senderAssetCode}, peer: ${peerAssetCode})`
+        );
+      }
+      if (requestedDebit) {
+        computedDebit = requestedDebit;
+        computedReceive = BigInt(
+          Math.floor(Number(requestedDebit) * fxRate * peerToReceiverRate)
+        );
+      } else if (requestedReceive !== undefined) {
+        computedReceive = requestedReceive;
+        computedDebit = BigInt(
+          Math.ceil(
+            Number(requestedReceive) * (1 / peerToReceiverRate) * fxRate
+          )
+        );
+      } else {
+        throw new InvalidQuoteStateError(
+          `Pending quote ${this._id} must have debit or receive amount`
+        );
+      }
+    }
+
+    const exchangeRate = Number(computedReceive) / Number(computedDebit);
+
+    this._data = {
+      state: 'COMPLETED',
+      debitAmount: computedDebit,
+      receiveAmount: computedReceive,
       exchangeRate,
       expiresAt: new Date(
         Math.min(paymentIntentExpiresAt.getTime(), Date.now() + QUOTE_EXPIRY_MS)
@@ -171,6 +283,11 @@ class Quote implements IBaseQuote {
     return {
       ...base,
       state: 'PENDING',
+      peerId: this._data.peerId,
+      peerAssetCode: this._data.peerAssetCode,
+      peerAssetScale: this._data.peerAssetScale,
+      sourceAmount: this._data.sourceAmount,
+      senderAssetCode: this._data.senderAssetCode,
       debitAmount: this._data.debitAmount,
       receiveAmount: this._data.receiveAmount
     };
@@ -470,11 +587,26 @@ export class PaymentIntent implements IPaymentIntent {
     senderWalletAddress: {
       id: string;
       address: string;
+      assetCode: string;
+      assetScale: number;
     };
+    peerId: string;
+    peerAssetCode: string;
+    peerAssetScale: number;
+    sourceAmount: bigint;
     debitAmount?: bigint;
     receiveAmount?: bigint;
   }): IPendingQuote {
-    const { id, senderWalletAddress, debitAmount } = args;
+    const {
+      id,
+      senderWalletAddress,
+      peerId,
+      peerAssetCode,
+      peerAssetScale,
+      sourceAmount,
+      debitAmount
+    } = args;
+    const senderAssetCode = senderWalletAddress.assetCode;
     const receiveAmount =
       args.receiveAmount ?? this._incomingAmount ?? undefined;
 
@@ -506,6 +638,11 @@ export class PaymentIntent implements IPaymentIntent {
       id,
       senderWalletAddress.address,
       senderWalletAddress.id,
+      peerId,
+      peerAssetCode,
+      peerAssetScale,
+      sourceAmount,
+      senderAssetCode,
       debitAmount,
       receiveAmount
     );
@@ -515,11 +652,10 @@ export class PaymentIntent implements IPaymentIntent {
 
   completeRemoteQuote(args: {
     id: string;
-    debitAmount: bigint;
-    receiveAmount: bigint;
-    exchangeRate: number;
+    receiveAmountValue: bigint;
+    fxRate?: number;
   }): ICompletedQuote {
-    const { id, debitAmount, receiveAmount, exchangeRate } = args;
+    const { id, receiveAmountValue, fxRate } = args;
 
     const quote = this._quotes.find((q) => q.id === id);
     if (!quote) {
@@ -534,10 +670,9 @@ export class PaymentIntent implements IPaymentIntent {
       );
     }
 
-    quote.complete({
-      debitAmount,
-      receiveAmount,
-      exchangeRate,
+    quote.completeRemote({
+      receiveAmountValue,
+      fxRate,
       paymentIntentExpiresAt: this.expiresAt
     });
     return quote.toObject() as ICompletedQuote;

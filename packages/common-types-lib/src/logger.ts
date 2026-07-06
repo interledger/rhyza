@@ -13,6 +13,8 @@ export interface ILogger {
   debug: ILoggerParams;
   trace: ILoggerParams;
 
+  child(componentName: string): ILogger;
+
   setLogLevel: (logLevel: any) => void;
 }
 
@@ -58,4 +60,9 @@ export class ConsoleLogger implements ILogger {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setLogLevel(logLevel: any): void {}
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  child(componentName: string): ILogger {
+    return this;
+  }
 }

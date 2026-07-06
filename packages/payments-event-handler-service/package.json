@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "common-types-lib": "workspace:*",
+    "ilp-domain-lib": "workspace:*",
     "implementations-lib": "workspace:*",
     "payments-domain-lib": "workspace:*"
   },

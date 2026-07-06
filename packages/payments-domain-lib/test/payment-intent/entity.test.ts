@@ -8,6 +8,7 @@ import {
   InvalidQuoteAmountError,
   InvalidQuoteIdError,
   InvalidQuoteStateError,
+  MissingFxRateError,
   PaymentIntentExpired,
   PaymentIntentInvalidState,
   QuoteExpiredError,
@@ -113,6 +114,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() - 1000),
         quotes: [],
         payments: []
@@ -247,6 +249,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'COMPLETED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000),
         quotes: [],
         payments: []
@@ -285,6 +288,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() - 1000), // in the past
         quotes: [],
         payments: []
@@ -323,6 +327,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000),
         quotes: [],
         payments: []
@@ -765,6 +770,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000 * 60),
         quotes: [
           {
@@ -788,6 +794,7 @@ describe('PaymentIntent Entity', () => {
             senderWalletAddressId,
             assetCode: 'USD',
             assetScale: 2,
+            createdAt: new Date(),
             debitAmount: 200n,
             receiveAmount: 100n,
             sentAmount: 0n
@@ -831,6 +838,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000 * 60),
         quotes: [
           {
@@ -877,6 +885,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000 * 60),
         quotes: [
           {
@@ -926,6 +935,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'COMPLETED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000 * 60),
         quotes: [],
         payments: []
@@ -964,6 +974,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() - 1000),
         quotes: [],
         payments: []
@@ -1003,6 +1014,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000),
         quotes: [
           {
@@ -1241,6 +1253,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'COMPLETED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000 * 60),
         quotes: [],
         payments: []
@@ -1269,6 +1282,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() - 1000),
         quotes: [],
         payments: []
@@ -1321,6 +1335,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000 * 60),
         quotes: [],
         payments: [
@@ -1332,6 +1347,7 @@ describe('PaymentIntent Entity', () => {
             senderWalletAddressId: crypto.randomUUID(),
             assetCode: 'USD',
             assetScale: 2,
+            createdAt: new Date(),
             debitAmount: 100n,
             receiveAmount: 100n,
             sentAmount: 100n
@@ -1369,7 +1385,16 @@ describe('PaymentIntent Entity', () => {
 
       paymentIntent.addPendingRemoteQuote({
         id: quoteId,
-        senderWalletAddress: { id: senderWalletAddressId, address: 'sender' },
+        senderWalletAddress: {
+          id: senderWalletAddressId,
+          address: 'sender',
+          assetCode: 'USD',
+          assetScale: 2
+        },
+        peerId: 'sender-peer',
+        peerAssetCode: 'USD',
+        peerAssetScale: 2,
+        sourceAmount: 100n,
         receiveAmount: 100n
       });
 
@@ -1395,7 +1420,16 @@ describe('PaymentIntent Entity', () => {
 
       const args = {
         id: crypto.randomUUID(),
-        senderWalletAddress: { id: crypto.randomUUID(), address: 'sender' },
+        senderWalletAddress: {
+          id: crypto.randomUUID(),
+          address: 'sender',
+          assetCode: 'USD',
+          assetScale: 2
+        },
+        peerId: 'sender-peer',
+        peerAssetCode: 'USD',
+        peerAssetScale: 2,
+        sourceAmount: 100n,
         receiveAmount: 100n
       };
 
@@ -1422,6 +1456,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'COMPLETED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() + 1000 * 60),
         quotes: [],
         payments: []
@@ -1431,7 +1466,16 @@ describe('PaymentIntent Entity', () => {
         () =>
           paymentIntent.addPendingRemoteQuote({
             id: crypto.randomUUID(),
-            senderWalletAddress: { id: crypto.randomUUID(), address: 'sender' }
+            senderWalletAddress: {
+              id: crypto.randomUUID(),
+              address: 'sender',
+              assetCode: 'USD',
+              assetScale: 2
+            },
+            peerId: 'sender-peer',
+            peerAssetCode: 'USD',
+            peerAssetScale: 2,
+            sourceAmount: 100n
           }),
         (err: Error) => {
           assert(err instanceof PaymentIntentInvalidState);
@@ -1451,6 +1495,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() - 1000),
         quotes: [],
         payments: []
@@ -1460,7 +1505,16 @@ describe('PaymentIntent Entity', () => {
         () =>
           paymentIntent.addPendingRemoteQuote({
             id: crypto.randomUUID(),
-            senderWalletAddress: { id: crypto.randomUUID(), address: 'sender' }
+            senderWalletAddress: {
+              id: crypto.randomUUID(),
+              address: 'sender',
+              assetCode: 'USD',
+              assetScale: 2
+            },
+            peerId: 'sender-peer',
+            peerAssetCode: 'USD',
+            peerAssetScale: 2,
+            sourceAmount: 100n
           }),
         (err: Error) => {
           assert(err instanceof PaymentIntentExpired);
@@ -1484,7 +1538,16 @@ describe('PaymentIntent Entity', () => {
         () =>
           paymentIntent.addPendingRemoteQuote({
             id: crypto.randomUUID(),
-            senderWalletAddress: { id: crypto.randomUUID(), address: 'sender' }
+            senderWalletAddress: {
+              id: crypto.randomUUID(),
+              address: 'sender',
+              assetCode: 'USD',
+              assetScale: 2
+            },
+            peerId: 'sender-peer',
+            peerAssetCode: 'USD',
+            peerAssetScale: 2,
+            sourceAmount: 100n
           }),
         (err: Error) => {
           assert(err instanceof InvalidQuoteAmountError);
@@ -1495,21 +1558,44 @@ describe('PaymentIntent Entity', () => {
   });
 
   describe('completeRemoteQuote', () => {
-    const makePaymentIntentWithPendingQuote = (expiresAt?: Date) => {
+    const makePaymentIntentWithPendingQuote = (
+      expiresAt?: Date,
+      overrides: Partial<{
+        peerAssetCode: string;
+        peerAssetScale: number;
+        senderAssetCode: string;
+        senderAssetScale: number;
+        sourceAmount: bigint;
+        debitAmount: bigint;
+        receiveAmount: bigint;
+        assetCode: string;
+        assetScale: number;
+      }> = {}
+    ) => {
       const quoteId = crypto.randomUUID();
       const paymentIntent = PaymentIntent.create(
         crypto.randomUUID(),
         crypto.randomUUID(),
         'receiver',
         PaymentIntentDestination.REMOTE,
-        'USD',
-        2,
+        overrides.assetCode ?? 'USD',
+        overrides.assetScale ?? 2,
         expiresAt?.toISOString() ?? null
       );
       paymentIntent.addPendingRemoteQuote({
         id: quoteId,
-        senderWalletAddress: { id: crypto.randomUUID(), address: 'sender' },
-        receiveAmount: 100n
+        senderWalletAddress: {
+          id: crypto.randomUUID(),
+          address: 'sender',
+          assetCode: overrides.senderAssetCode ?? 'USD',
+          assetScale: overrides.senderAssetScale ?? 2
+        },
+        peerId: 'peer-1',
+        peerAssetCode: overrides.peerAssetCode ?? 'USD',
+        peerAssetScale: overrides.peerAssetScale ?? 2,
+        sourceAmount: overrides.sourceAmount ?? 100n,
+        debitAmount: overrides.debitAmount,
+        receiveAmount: overrides.receiveAmount ?? 100n
       });
       return { paymentIntent, quoteId };
     };
@@ -1518,13 +1604,14 @@ describe('PaymentIntent Entity', () => {
       const now = Date.now();
       context.mock.timers.enable({ apis: ['Date'], now });
 
+      // same-asset receive: requestedReceive=100, sourceAmount=100,
+      // receiveAmountValue=50 -> peerToReceiverRate=0.5
+      // computedReceive=100, computedDebit=ceil(100/0.5)=200, exchangeRate=0.5
       const { paymentIntent, quoteId } = makePaymentIntentWithPendingQuote();
 
       paymentIntent.completeRemoteQuote({
         id: quoteId,
-        debitAmount: 200n,
-        receiveAmount: 100n,
-        exchangeRate: 0.5
+        receiveAmountValue: 50n
       });
 
       const quote = paymentIntent.quotes[0];
@@ -1545,9 +1632,7 @@ describe('PaymentIntent Entity', () => {
 
       paymentIntent.completeRemoteQuote({
         id: quoteId,
-        debitAmount: 200n,
-        receiveAmount: 100n,
-        exchangeRate: 0.5
+        receiveAmountValue: 50n
       });
 
       assert.equal(paymentIntent.quotes[0].state, 'COMPLETED');
@@ -1564,9 +1649,7 @@ describe('PaymentIntent Entity', () => {
         () => {
           paymentIntent.completeRemoteQuote({
             id: crypto.randomUUID(),
-            debitAmount: 200n,
-            receiveAmount: 100n,
-            exchangeRate: 0.5
+            receiveAmountValue: 50n
           });
         },
         (err: Error) => {
@@ -1581,18 +1664,14 @@ describe('PaymentIntent Entity', () => {
 
       paymentIntent.completeRemoteQuote({
         id: quoteId,
-        debitAmount: 200n,
-        receiveAmount: 100n,
-        exchangeRate: 0.5
+        receiveAmountValue: 50n
       });
 
       assert.throws(
         () => {
           paymentIntent.completeRemoteQuote({
             id: quoteId,
-            debitAmount: 200n,
-            receiveAmount: 100n,
-            exchangeRate: 0.5
+            receiveAmountValue: 50n
           });
         },
         (err: Error) => {
@@ -1614,6 +1693,7 @@ describe('PaymentIntent Entity', () => {
         incomingAmount: null,
         receivedAmount: 0n,
         state: 'CREATED',
+        createdAt: new Date(),
         expiresAt: new Date(Date.now() - 1000),
         quotes: [
           {
@@ -1630,9 +1710,7 @@ describe('PaymentIntent Entity', () => {
         () => {
           paymentIntent.completeRemoteQuote({
             id: quoteId,
-            debitAmount: 200n,
-            receiveAmount: 100n,
-            exchangeRate: 0.5
+            receiveAmountValue: 50n
           });
         },
         (err: Error) => {
@@ -1640,6 +1718,138 @@ describe('PaymentIntent Entity', () => {
           return true;
         }
       );
+    });
+
+    describe('FX calculation', () => {
+      it('same asset + debitAmount: uses peerToReceiverRate directly', () => {
+        const { paymentIntent, quoteId } = makePaymentIntentWithPendingQuote(
+          undefined,
+          { debitAmount: 500n, receiveAmount: undefined }
+        );
+
+        paymentIntent.completeRemoteQuote({
+          id: quoteId,
+          receiveAmountValue: 10000n
+        });
+
+        const quote = paymentIntent.quotes[0];
+        assert.equal(quote.state, 'COMPLETED');
+        // debitAmount = 500 USD
+        // receiveAmount = USD amount * (USD->receiver rate)
+        //              = 500 * (10000 / 100)
+        //              = 50000
+        assert.equal(quote.debitAmount, 500n);
+        assert.equal(quote.receiveAmount, 50000n);
+        assert.equal(quote.exchangeRate, 100);
+      });
+
+      it('same asset + receiveAmount: inverts peerToReceiverRate', () => {
+        const { paymentIntent, quoteId } = makePaymentIntentWithPendingQuote(
+          undefined,
+          { receiveAmount: 1000n }
+        );
+
+        paymentIntent.completeRemoteQuote({
+          id: quoteId,
+          receiveAmountValue: 10000n
+        });
+
+        const quote = paymentIntent.quotes[0];
+        assert.equal(quote.state, 'COMPLETED');
+        // receiveAmount = 1000 USD
+        // debitAmount = USD amount * (1 / receiver->USD rate)
+        //            = 1000 * (1 / (10000 / 100))
+        //            = 10
+        assert.equal(quote.debitAmount, 10n);
+        assert.equal(quote.receiveAmount, 1000n);
+        assert.equal(quote.exchangeRate, 100);
+      });
+
+      it('cross-asset + debitAmount: multiplies debit by fxRate and peerToReceiverRate', () => {
+        const { paymentIntent, quoteId } = makePaymentIntentWithPendingQuote(
+          undefined,
+          {
+            assetCode: 'XRP',
+            assetScale: 6,
+            senderAssetCode: 'USD',
+            peerAssetCode: 'EUR',
+            debitAmount: 1000n,
+            receiveAmount: undefined
+          }
+        );
+
+        paymentIntent.completeRemoteQuote({
+          id: quoteId,
+          receiveAmountValue: 10000n,
+          fxRate: 0.9
+        });
+
+        const quote = paymentIntent.quotes[0];
+        assert.equal(quote.state, 'COMPLETED');
+        // debitAmount = 1000 USD
+        // receiveAmount = USD amount * (USD->EUR rate) * (EUR->receiver rate)
+        //              = 1000 * (0.9) * (10000 / 100)
+        //              = 90000 XRP
+        assert.equal(quote.debitAmount, 1000n);
+        assert.equal(quote.receiveAmount, 90000n);
+        assert.equal(quote.exchangeRate, 90);
+      });
+
+      it('cross-asset + receiveAmount: divides receive by peerToReceiverRate and multiplies by fxRate', () => {
+        const { paymentIntent, quoteId } = makePaymentIntentWithPendingQuote(
+          undefined,
+          {
+            assetCode: 'XRP',
+            assetScale: 6,
+            senderAssetCode: 'USD',
+            peerAssetCode: 'EUR',
+            receiveAmount: 1000n
+          }
+        );
+
+        paymentIntent.completeRemoteQuote({
+          id: quoteId,
+          receiveAmountValue: 10000n,
+          fxRate: 1.1
+        });
+
+        const quote = paymentIntent.quotes[0];
+        assert.equal(quote.state, 'COMPLETED');
+        // receiveAmount = 1000 XRP
+        // debitAmount = XRP amount * (1 / XRP->EUR rate) * (EUR->USD rate)
+        //            = 1000 * (1 / (10000 / 100)) * (1.1)
+        //            = 11 USD
+        assert.equal(quote.debitAmount, 11n);
+        assert.equal(quote.receiveAmount, 1000n);
+        assert.equal(quote.exchangeRate, 1000 / 11);
+      });
+
+      it('throws MissingFxRateError when cross-asset and no fxRate provided', () => {
+        const { paymentIntent, quoteId } = makePaymentIntentWithPendingQuote(
+          undefined,
+          {
+            assetCode: 'XRP',
+            assetScale: 6,
+            senderAssetCode: 'USD',
+            peerAssetCode: 'EUR',
+            debitAmount: 1000n,
+            receiveAmount: undefined
+          }
+        );
+
+        assert.throws(
+          () => {
+            paymentIntent.completeRemoteQuote({
+              id: quoteId,
+              receiveAmountValue: 10000n
+            });
+          },
+          (err: Error) => {
+            assert(err instanceof MissingFxRateError);
+            return true;
+          }
+        );
+      });
     });
   });
 
@@ -1657,7 +1867,16 @@ describe('PaymentIntent Entity', () => {
       );
       paymentIntent.addPendingRemoteQuote({
         id: quoteId,
-        senderWalletAddress: { id: crypto.randomUUID(), address: 'sender' },
+        senderWalletAddress: {
+          id: crypto.randomUUID(),
+          address: 'sender',
+          assetCode: 'USD',
+          assetScale: 2
+        },
+        peerId: 'sender-peer',
+        peerAssetCode: 'USD',
+        peerAssetScale: 2,
+        sourceAmount: 100n,
         receiveAmount: 100n
       });
       return { paymentIntent, quoteId };

@@ -35,12 +35,31 @@ importers:
       fastify:
         specifier: ~5.3.3
         version: 5.3.3
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
       pal-client-lib:
         specifier: workspace:*
         version: link:../pal-client-lib
       payments-client-lib:
         specifier: workspace:*
         version: link:../payments-client-lib
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/ase-mock-service:
+    dependencies:
+      fastify:
+        specifier: ~5.3.3
+        version: 5.3.3
+      notifications-domain-lib:
+        specifier: workspace:*
+        version: link:../notifications-domain-lib
+      payments-domain-lib:
+        specifier: workspace:*
+        version: link:../payments-domain-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3
@@ -146,11 +165,62 @@ importers:
         specifier: ^4.19.3
         version: 4.19.3
 
+  packages/ilp-command-handler-service:
+    dependencies:
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
+      ilp-domain-lib:
+        specifier: workspace:*
+        version: link:../ilp-domain-lib
+      ilp-implementations-lib:
+        specifier: workspace:*
+        version: link:../ilp-implementations-lib
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
+    devDependencies:
+      ilp-connector-service:
+        specifier: workspace:*
+        version: link:../ilp-connector-service
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/ilp-connector-service:
+    dependencies:
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
+      ilp-domain-lib:
+        specifier: workspace:*
+        version: link:../ilp-domain-lib
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
   packages/ilp-domain-lib:
     dependencies:
       common-types-lib:
         specifier: workspace:*
         version: link:../common-types-lib
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/ilp-implementations-lib:
+    dependencies:
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
+      ilp-domain-lib:
+        specifier: workspace:*
+        version: link:../ilp-domain-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3
@@ -263,22 +333,6 @@ importers:
         specifier: ^4.19.3
         version: 4.19.3
 
-  packages/mock-webhook-integration-service:
-    dependencies:
-      fastify:
-        specifier: ~5.3.3
-        version: 5.3.3
-      notifications-domain-lib:
-        specifier: workspace:*
-        version: link:../notifications-domain-lib
-      payments-domain-lib:
-        specifier: workspace:*
-        version: link:../payments-domain-lib
-    devDependencies:
-      tsx:
-        specifier: ^4.19.3
-        version: 4.19.3
-
   packages/notifications-command-handler-service:
     dependencies:
       common-types-lib:
@@ -354,6 +408,9 @@ importers:
       fastify:
         specifier: ~5.3.3
         version: 5.3.3
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
       pal-client-lib:
         specifier: workspace:*
         version: link:../pal-client-lib
@@ -693,6 +750,9 @@ importers:
       common-types-lib:
         specifier: workspace:*
         version: link:../common-types-lib
+      ilp-domain-lib:
+        specifier: workspace:*
+        version: link:../ilp-domain-lib
       implementations-lib:
         specifier: workspace:*
         version: link:../implementations-lib

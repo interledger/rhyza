@@ -38,7 +38,10 @@ import {
   StateEventTopics
 } from 'common-types-lib';
 
-const INSTANCE_ID = `ES_LEDGER_POC_SVC__${crypto.randomUUID()}`;
+const BC_NAME = 'PAL';
+const APP_NAME = `${BC_NAME}_LEDGER_CMD_HANDLER_SVC`;
+const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
+
 const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379';
 
 // these params are for non-productive environments, by default we don't create topics
@@ -96,7 +99,11 @@ export class PalLedgerCommandHandlerService {
     consumer?: IMessageConsumer
   ): Promise<void> {
     if (!logger) {
-      logger = new PinoLogger();
+      logger = new PinoLogger({
+        bcName: BC_NAME,
+        appName: APP_NAME,
+        instanceId: INSTANCE_ID
+      });
     }
     this._logger = logger;
 
