@@ -742,20 +742,25 @@ export class PaymentIntentAggregate {
         paymentId
       );
 
-      return [
-        new PaymentIntentCompletedEvent(
-          {
-            id: paymentIntent.id,
-            createdAt: paymentIntent.createdAt,
-            expiresAt: paymentIntent.expiresAt,
-            receivedAmount: String(paymentIntent.receivedAmount),
-            incomingAmount: String(paymentIntent.incomingAmount),
-            state: paymentIntent.state,
-            assetCode: paymentIntent.assetCode,
-            assetScale: paymentIntent.assetScale
-          },
-          cmd.requestId
-        ),
+      const events = [];
+      if (paymentIntent.state === PaymentState.COMPLETED) {
+        events.push(
+          new PaymentIntentCompletedEvent(
+            {
+              id: paymentIntent.id,
+              createdAt: paymentIntent.createdAt,
+              expiresAt: paymentIntent.expiresAt,
+              receivedAmount: String(paymentIntent.receivedAmount),
+              incomingAmount: String(paymentIntent.incomingAmount),
+              state: paymentIntent.state,
+              assetCode: paymentIntent.assetCode,
+              assetScale: paymentIntent.assetScale
+            },
+            cmd.requestId
+          )
+        );
+      }
+      events.push(
         new PaymentCompletedEvent(
           {
             id: payment.id,
@@ -773,7 +778,8 @@ export class PaymentIntentAggregate {
           },
           cmd.requestId
         )
-      ];
+      );
+      return events;
     } catch (err) {
       return new PaymentCompleteFailedEvent(
         {
