@@ -743,7 +743,7 @@ export class PaymentIntentAggregate {
       );
 
       const events = [];
-      if (paymentIntent.state === PaymentState.COMPLETED) {
+      if (paymentIntent.state === 'COMPLETED') {
         events.push(
           new PaymentIntentCompletedEvent(
             {
