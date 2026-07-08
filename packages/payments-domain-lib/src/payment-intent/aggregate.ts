@@ -19,6 +19,7 @@ import {
   CreateQuoteCmd,
   CreatePaymentCmd,
   ApprovePaymentCmd,
+  CancelPaymentCmd,
   CompleteRemoteQuoteCmd,
   FailRemoteQuoteCmd
 } from '../commands';
@@ -44,7 +45,9 @@ import {
   PaymentCompleteFailedEvent,
   PaymentCreatedEvent,
   RemoteQuoteRequestedEvent,
-  PaymentIntentCompletedEvent
+  PaymentIntentCompletedEvent,
+  PaymentCancelFailedEvent,
+  PaymentCancelledEvent
 } from './events';
 
 const fxKey = (
@@ -58,6 +61,7 @@ export class PaymentIntentAggregate {
   private newPaymentIntentQuotes = new Map<string, string[]>(); // paymentIntentId, quoteIds
   private newPaymentsMap = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private completedLocalPayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
+  private cancelledPayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private finalizedRemoteQuotes = new Map<string, string[]>(); // paymentIntentId, quoteIds
   private paymentIntentMap = new Map<string, IPaymentIntent>();
   private walletAddressMap = new Map<string, IWalletAddress>();
@@ -102,6 +106,9 @@ export class PaymentIntentAggregate {
         paymentIntentIdsSet.add(payload.paymentIntentId);
       } else if (cmd.msgName === ApprovePaymentCmd.name) {
         const payload = (cmd as ApprovePaymentCmd).payload;
+        paymentIntentIdsSet.add(payload.paymentIntentId);
+      } else if (cmd.msgName === CancelPaymentCmd.name) {
+        const payload = (cmd as CancelPaymentCmd).payload;
         paymentIntentIdsSet.add(payload.paymentIntentId);
       } else if (cmd.msgName === CompleteRemoteQuoteCmd.name) {
         const payload = (cmd as CompleteRemoteQuoteCmd).payload;
@@ -189,6 +196,8 @@ export class PaymentIntentAggregate {
         event = await this.handleApprovePaymentCommand(
           cmd as ApprovePaymentCmd
         );
+      } else if (cmd.msgName === CancelPaymentCmd.name) {
+        event = await this.handleCancelPaymentCommand(cmd as CancelPaymentCmd);
       } else if (cmd.msgName === CompleteRemoteQuoteCmd.name) {
         event = await this.handleCompleteRemoteQuoteCommand(
           cmd as CompleteRemoteQuoteCmd
@@ -778,6 +787,38 @@ export class PaymentIntentAggregate {
     }
   }
 
+  private async handleCancelPaymentCommand(cmd: CancelPaymentCmd) {
+    this._logger.debug(
+      `handleCancelPaymentCommand — paymentId: ${cmd.payload.id} paymentIntentId: ${cmd.payload.paymentIntentId}`
+    );
+    const { id: paymentId, paymentIntentId, reason } = cmd.payload;
+
+    try {
+      const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
+      if (!paymentIntentObj) {
+        throw new PaymentIntentNotFoundError(
+          `Payment intent ${paymentIntentId} not found`
+        );
+      }
+
+      const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
+      paymentIntent.cancelPayment({ id: paymentId, reason });
+      this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
+      this._appendToMap(this.cancelledPayments, paymentIntent.id, paymentId);
+
+      return new PaymentCancelledEvent({ id: paymentId }, cmd.requestId);
+    } catch (err) {
+      return new PaymentCancelFailedEvent(
+        {
+          paymentIntentId: cmd.payload.paymentIntentId,
+          errorName: (err as Error).constructor.name,
+          message: (err as Error).message
+        },
+        cmd.requestId
+      );
+    }
+  }
+
   private async _importRemotePaymentIntents(
     remoteUrlByProposedId: Map<string, string>,
     existingByUrl: Array<{ id: string; remoteUrl: string }>
@@ -1035,6 +1076,43 @@ export class PaymentIntentAggregate {
       promises.push(this._repo.storeCompletedLocalPayments(updates));
     }
 
+    if (this.cancelledPayments.size > 0) {
+      const updates: {
+        payments: {
+          id: string;
+          state: PaymentState;
+          cancelledAt: Date;
+          cancelReason?: string;
+        }[];
+      }[] = [];
+
+      for (const [
+        paymentIntentId,
+        paymentIds
+      ] of this.cancelledPayments.entries()) {
+        const paymentIntent = this.paymentIntentMap.get(paymentIntentId);
+        if (!paymentIntent) {
+          this._logger.error(
+            `Payment intent ${paymentIntentId} missing from paymentIntentMap during flush (payments)`
+          );
+          continue;
+        }
+
+        updates.push({
+          payments: paymentIntent.payments
+            .filter((p) => paymentIds.includes(p.id))
+            .map((p) => ({
+              id: p.id,
+              state: p.state,
+              cancelledAt: p.cancelledAt ?? new Date(),
+              cancelReason: p.cancelReason
+            }))
+        });
+      }
+
+      promises.push(this._repo.storeCancelledPayments(updates));
+    }
+
     if (this.finalizedRemoteQuotes.size > 0) {
       const updates: FinalizedRemoteQuoteUpdate[] = [];
 
@@ -1095,6 +1173,7 @@ export class PaymentIntentAggregate {
       this.walletAddressMap.clear(); // TODO: wallet addresses are OK to be cached
       this.newPaymentsMap.clear();
       this.completedLocalPayments.clear();
+      this.cancelledPayments.clear();
       this.finalizedRemoteQuotes.clear();
       this.newPaymentIntentQuotes.clear();
       this.newPaymentIntentIds = [];

@@ -21,6 +21,10 @@ export interface IApprovePaymentResponse {
   id: string;
 }
 
+export interface ICancelPaymentResponse {
+  id: string;
+}
+
 export interface IGetPaymentIntentResponse {
   id: string;
   receiverWalletAddress: string;

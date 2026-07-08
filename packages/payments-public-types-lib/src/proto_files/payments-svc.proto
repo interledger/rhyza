@@ -15,6 +15,9 @@ service PaymentsGrpc {
   // Approves an existing payment.
   rpc ApprovePayment(ApprovePaymentRequest) returns (ApprovePaymentResponse);
 
+  // Cancel a payment.
+  rpc CancelPayment(CancelPaymentRequest) returns (CancelPaymentResponse);
+
   // Fetches a payment intent by ID.
   rpc GetPaymentIntent(GetPaymentIntentRequest) returns (GetPaymentIntentResponse);
 
@@ -95,6 +98,18 @@ message ApprovePaymentRequest {
 
 // Response confirming the approval of the payment.
 message ApprovePaymentResponse {
+  string id = 1;
+}
+
+// Request to cancel a payment.
+message CancelPaymentRequest {
+  string id = 1;
+  string payment_intent_id = 2;
+  optional string reason = 3;
+}
+
+// Response containing the ID of the cancelled payment.
+message CancelPaymentResponse {
   string id = 1;
 }
 

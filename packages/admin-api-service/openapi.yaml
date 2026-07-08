@@ -200,6 +200,38 @@ paths:
                 properties:
                   id:
                     type: string
+  /payment-intents/{intentId}/payments/{id}/cancel:
+    post:
+      operationId: Payments_cancelPayment
+      parameters:
+        - name: intentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCancel'
 components:
   schemas:
     ErrorResponse:
@@ -387,6 +419,11 @@ components:
         id:
           type: string
         paymentIntentId:
+          type: string
+    PaymentCancel:
+      type: object
+      properties:
+        reason:
           type: string
     Payment:
       type: object

@@ -95,4 +95,23 @@ export async function paymentRoutes(
       }
     }
   );
+
+  server.post<{
+    Params: { intentId: string; id: string };
+    Body: { reason?: string };
+  }>(
+    '/payment-intents/:intentId/payments/:id/cancel',
+    async (request, reply) => {
+      const { intentId, id } = request.params;
+      const { reason } = request.body ?? {};
+
+      try {
+        await paymentsClient.cancelPayment(intentId, id, reason);
+        return reply.status(200).send({ id });
+      } catch (err) {
+        server.log.error(err);
+        return reply.status(500).send({ error: (err as Error).message });
+      }
+    }
+  );
 }

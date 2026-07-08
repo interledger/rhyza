@@ -8,6 +8,10 @@
     "check:format": "prettier --check .",
     "docker": "docker compose -f ./docker/docker-compose.yaml",
     "docker:up": "docker compose -f ./docker/docker-compose.yaml down --volumes && docker compose -f ./docker/docker-compose.yaml up --build -d",
+    "docker:up:debug": "docker compose -f ./docker/docker-compose.yaml -f ./docker/docker-compose.debug.yaml down --volumes && docker compose -f ./docker/docker-compose.yaml -f ./docker/docker-compose.debug.yaml up --build -d",
+    "docker:stop": "docker compose -f ./docker/docker-compose.yaml down",
+    "docker:down": "docker compose -f ./docker/docker-compose.yaml down --volumes",
+    "docker:clean": "docker compose -f ./docker/docker-compose.yaml down --volumes --rmi all",
     "build": "pnpm -r  build",
     "format": "prettier --write .",
     "test": "pnpm -r test"

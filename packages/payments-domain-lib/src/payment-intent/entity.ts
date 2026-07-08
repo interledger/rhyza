@@ -18,10 +18,10 @@ import {
   ICompletedQuote,
   IPendingQuote,
   IPaymentIntent,
+  IPayment,
   IQuote,
   PaymentIntentDestination,
   PaymentIntentState,
-  PaymentState,
   QuoteState
 } from './interfaces';
 
@@ -310,21 +310,6 @@ class Quote implements IBaseQuote {
   }
 }
 
-interface Payment {
-  id: string;
-  state: PaymentState;
-  quoteId?: string;
-  paymentIntentId: string;
-  senderWalletAddress: string;
-  senderWalletAddressId: string;
-  assetScale: number;
-  assetCode: string;
-  createdAt: Date;
-  debitAmount: bigint;
-  receiveAmount: bigint;
-  sentAmount: bigint;
-}
-
 export class PaymentIntent implements IPaymentIntent {
   private _id: string;
   private _receiverWalletAddressId: string | undefined;
@@ -338,7 +323,7 @@ export class PaymentIntent implements IPaymentIntent {
   private _incomingAmount: bigint | null;
   private _receivedAmount: bigint;
   private _quotes: Quote[] = [];
-  private _payments: Payment[] = [];
+  private _payments: IPayment[] = [];
   private _destinationIlpAddress: string | undefined;
   private _remoteUrl: string | undefined;
 
@@ -355,7 +340,7 @@ export class PaymentIntent implements IPaymentIntent {
     receivedAmount: bigint = 0n,
     state: PaymentIntentState = PaymentIntentState.CREATED,
     quotes: Quote[] = [],
-    payments: Payment[] = [],
+    payments: IPayment[] = [],
     destinationIlpAddress?: string,
     remoteUrl?: string
   ) {
@@ -462,7 +447,9 @@ export class PaymentIntent implements IPaymentIntent {
         sentAmount: payment.sentAmount,
         state: payment.state,
         debitAmount: payment.debitAmount,
-        receiveAmount: payment.receiveAmount
+        receiveAmount: payment.receiveAmount,
+        cancelledAt: payment.cancelledAt,
+        cancelReason: payment.cancelReason
       })),
       obj.destinationIlpAddress,
       obj.remoteUrl
@@ -495,7 +482,9 @@ export class PaymentIntent implements IPaymentIntent {
         createdAt: payment.createdAt,
         debitAmount: payment.debitAmount,
         receiveAmount: payment.receiveAmount,
-        sentAmount: payment.sentAmount
+        sentAmount: payment.sentAmount,
+        cancelledAt: payment.cancelledAt,
+        cancelReason: payment.cancelReason
       })),
       destinationIlpAddress: this._destinationIlpAddress,
       remoteUrl: this._remoteUrl
@@ -706,7 +695,7 @@ export class PaymentIntent implements IPaymentIntent {
     };
     exchangeRate: number;
     debitAmount?: bigint;
-  }): Payment {
+  }): IPayment {
     const {
       id,
       senderWalletAddress,
@@ -796,7 +785,7 @@ export class PaymentIntent implements IPaymentIntent {
       );
     }
 
-    const payment: Payment = {
+    const payment: IPayment = {
       id,
       state: 'CREATED',
       senderWalletAddress: senderWalletAddress.address,
@@ -815,7 +804,7 @@ export class PaymentIntent implements IPaymentIntent {
     return payment;
   }
 
-  completeLocalPayment(args: { id: string }): Payment {
+  completeLocalPayment(args: { id: string }): IPayment {
     const { id } = args;
 
     if (this.state !== 'CREATED') {
@@ -837,6 +826,10 @@ export class PaymentIntent implements IPaymentIntent {
       );
     }
 
+    if (payment.state === 'CANCELLED') {
+      throw new PaymentInvalidStateError(`Payment ${id} was cancelled`);
+    }
+
     if (payment.state === 'COMPLETED') {
       throw new PaymentInvalidStateError(`Payment ${id} is already completed`);
     }
@@ -852,6 +845,31 @@ export class PaymentIntent implements IPaymentIntent {
     }
     payment.state = 'COMPLETED';
     return payment;
+  }
+
+  cancelPayment(args: { id: string; reason?: string }): void {
+    const { id, reason } = args;
+
+    const payment = this._payments.find((payment) => payment.id === id);
+    if (!payment) {
+      throw new PaymentNotFoundError(
+        `Payment ${id} not found for ${this.id} payment intent`
+      );
+    }
+
+    if (payment.state === 'CANCELLED') {
+      throw new PaymentInvalidStateError(`Payment ${id} is already cancelled`);
+    }
+
+    if (payment.state === 'COMPLETED') {
+      throw new PaymentInvalidStateError(`Payment ${id} is already complete`);
+    }
+
+    payment.state = 'CANCELLED';
+    payment.cancelledAt = new Date();
+    if (reason) {
+      payment.cancelReason = reason;
+    }
   }
 
   get id(): string {
@@ -906,7 +924,7 @@ export class PaymentIntent implements IPaymentIntent {
     return this._quotes.map((q) => q.toObject());
   }
 
-  get payments(): Payment[] {
+  get payments(): IPayment[] {
     return this._payments;
   }
 

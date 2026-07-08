@@ -200,6 +200,8 @@ services:
     depends_on:
       init-kafka:
         condition: service_completed_successfully
+    networks:
+      - rafiki-v2
   ase-mock-service:
     build:
       context: ../

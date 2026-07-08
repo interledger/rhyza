@@ -1,0 +1,72 @@
+# VS Code attach debugging override.
+# Usage: pnpm docker:up:debug
+
+x-node-debug: &node-debug
+  environment:
+    NODE_OPTIONS: --inspect=0.0.0.0:9229
+
+services:
+  admin-api-service:
+    <<: *node-debug
+    ports:
+      - '9230:9229'
+
+  open-payments-resource-service:
+    <<: *node-debug
+    ports:
+      - '9231:9229'
+
+  pal-api-service:
+    <<: *node-debug
+    ports:
+      - '9232:9229'
+
+  pal-ledger-command-handler-service:
+    <<: *node-debug
+    ports:
+      - '9233:9229'
+
+  pal-event-handler-service:
+    <<: *node-debug
+    ports:
+      - '9234:9229'
+
+  payments-api-service:
+    <<: *node-debug
+    ports:
+      - '9235:9229'
+
+  payments-command-handler-service:
+    <<: *node-debug
+    ports:
+      - '9236:9229'
+
+  payments-event-handler-service:
+    <<: *node-debug
+    ports:
+      - '9237:9229'
+
+  notifications-command-handler-service:
+    <<: *node-debug
+    ports:
+      - '9238:9229'
+
+  notifications-event-handler-service:
+    <<: *node-debug
+    ports:
+      - '9239:9229'
+
+  ilp-connector-service:
+    <<: *node-debug
+    ports:
+      - '9240:9229'
+
+  ase-mock-service:
+    <<: *node-debug
+    ports:
+      - '9241:9229'
+
+  ilp-command-handler-service:
+    <<: *node-debug
+    ports:
+      - '9242:9229'

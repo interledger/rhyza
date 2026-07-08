@@ -12,7 +12,8 @@ import {
   ICreatePaymentResponse,
   IApprovePaymentResponse,
   IGetPaymentIntentResponse,
-  IGetPaymentResponse
+  IGetPaymentResponse,
+  ICancelPaymentResponse
 } from './local-types';
 import {
   CreatePaymentIntentRequest,
@@ -27,7 +28,9 @@ import {
   GetPaymentIntentRequest,
   GetPaymentIntentResponse,
   GetPaymentRequest,
-  GetPaymentResponse
+  GetPaymentResponse,
+  CancelPaymentRequest,
+  CancelPaymentResponse
 } from 'payments-public-types-lib';
 
 type IncomingPaymentInput =
@@ -239,6 +242,35 @@ export class PaymentsClient {
       this._grpcClient.approvePayment(
         request,
         (error: ServiceError | null, response: ApprovePaymentResponse) => {
+          if (error) {
+            console.error(error);
+            return reject(error);
+          }
+
+          return resolve({
+            id: response.getId()
+          });
+        }
+      );
+    });
+  }
+
+  async cancelPayment(
+    paymentIntentId: string,
+    id: string,
+    reason?: string
+  ): Promise<ICancelPaymentResponse> {
+    const request = new CancelPaymentRequest();
+    request.setId(id);
+    request.setPaymentIntentId(paymentIntentId);
+    if (reason) {
+      request.setReason(reason);
+    }
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.cancelPayment(
+        request,
+        (error: ServiceError | null, response: CancelPaymentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);

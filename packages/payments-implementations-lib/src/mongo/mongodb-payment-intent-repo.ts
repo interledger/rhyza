@@ -459,4 +459,47 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
       );
     }
   }
+
+  async storeCancelledPayments(
+    paymentUpdates: {
+      payments: {
+        id: string;
+        state: PaymentState;
+        cancelledAt: Date;
+        cancelReason?: string;
+      }[];
+    }[]
+  ): Promise<void> {
+    this._checkInitialisedOrThrow();
+
+    if (paymentUpdates.length === 0) return;
+
+    try {
+      const paymentWrites = paymentUpdates.flatMap((update) =>
+        update.payments
+          .filter((p) => update.payments.map((p) => p.id).includes(p.id))
+          .map((payment) => ({
+            updateOne: {
+              filter: { id: payment.id },
+              update: {
+                $set: {
+                  state: payment.state,
+                  cancelledAt: payment.cancelledAt,
+                  ...(payment.cancelReason
+                    ? { cancelReason: payment.cancelReason }
+                    : {})
+                }
+              }
+            }
+          }))
+      );
+
+      await Promise.all([this._paymentCollection.bulkWrite(paymentWrites)]);
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to store payments - error: ${(e as Error).message}`
+      );
+    }
+  }
 }

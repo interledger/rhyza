@@ -110,6 +110,22 @@ export class ApprovePaymentCmd extends PaymentIntentCommand {
   }
 }
 
+export type CancelPaymentCmdPayload = {
+  id: string;
+  paymentIntentId: string;
+  reason?: string;
+};
+
+export class CancelPaymentCmd extends PaymentIntentCommand {
+  payload: CancelPaymentCmdPayload;
+
+  constructor(payload: CancelPaymentCmdPayload, requestId: string) {
+    super(payload.paymentIntentId);
+    this.requestId = requestId;
+    this.payload = payload;
+  }
+}
+
 export type CompleteRemoteQuoteCmdPayload = {
   quoteId: string;
   paymentIntentId: string;

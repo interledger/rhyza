@@ -1368,6 +1368,167 @@ describe('PaymentIntent Entity', () => {
     });
   });
 
+  describe('cancelPayment', () => {
+    it('cancels a created payment successfully', () => {
+      const paymentIntent = PaymentIntent.create(
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+        'receiver',
+        PaymentIntentDestination.LOCAL,
+        'USD',
+        2,
+        null
+      );
+
+      const paymentId = crypto.randomUUID();
+      const beforeCancel = Date.now();
+      paymentIntent.addLocalPayment({
+        id: paymentId,
+        exchangeRate: 1,
+        debitAmount: 100n,
+        senderWalletAddress: {
+          id: crypto.randomUUID(),
+          address: 'sender',
+          assetCode: 'USD',
+          assetScale: 2
+        }
+      });
+
+      paymentIntent.cancelPayment({ id: paymentId, reason: 'user requested' });
+      const afterCancel = Date.now();
+
+      const payment = paymentIntent.payments[0];
+      assert.equal(payment.state, 'CANCELLED');
+      assert.equal(payment.cancelReason, 'user requested');
+      assert.ok(payment.cancelledAt);
+      assert.ok(payment.cancelledAt.getTime() >= beforeCancel);
+      assert.ok(payment.cancelledAt.getTime() <= afterCancel);
+      assert.equal(payment.sentAmount, 0n);
+      assert.equal(paymentIntent.receivedAmount, 0n);
+      assert.equal(paymentIntent.state, 'CREATED');
+    });
+
+    it('fails if payment not found', () => {
+      const paymentIntent = PaymentIntent.create(
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+        'receiver',
+        PaymentIntentDestination.LOCAL,
+        'USD',
+        2,
+        null
+      );
+
+      assert.throws(
+        () => {
+          paymentIntent.cancelPayment({
+            id: crypto.randomUUID(),
+            reason: 'user requested'
+          });
+        },
+        (err: Error) => {
+          assert(err instanceof PaymentNotFoundError);
+          assert.match(err.message, /not found/);
+          return true;
+        }
+      );
+    });
+
+    it('fails if payment is already cancelled', () => {
+      const paymentIntentId = crypto.randomUUID();
+      const paymentIntent = PaymentIntent.fromObject({
+        id: paymentIntentId,
+        receiverWalletAddressId: crypto.randomUUID(),
+        receiverWalletAddress: 'receiver',
+        destination: PaymentIntentDestination.LOCAL,
+        assetCode: 'USD',
+        assetScale: 2,
+        incomingAmount: null,
+        receivedAmount: 0n,
+        state: 'CREATED',
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 1000 * 60),
+        quotes: [],
+        payments: [
+          {
+            id: 'payment-1',
+            state: 'CANCELLED',
+            paymentIntentId: paymentIntentId,
+            senderWalletAddress: 'sender',
+            senderWalletAddressId: crypto.randomUUID(),
+            assetCode: 'USD',
+            assetScale: 2,
+            createdAt: new Date(),
+            debitAmount: 100n,
+            receiveAmount: 100n,
+            sentAmount: 0n
+          }
+        ]
+      });
+
+      assert.throws(
+        () => {
+          paymentIntent.cancelPayment({
+            id: 'payment-1',
+            reason: 'user requested'
+          });
+        },
+        (err: Error) => {
+          assert(err instanceof PaymentInvalidStateError);
+          assert.match(err.message, /already cancelled/);
+          return true;
+        }
+      );
+    });
+
+    it('fails if payment is already completed', () => {
+      const paymentIntentId = crypto.randomUUID();
+      const paymentIntent = PaymentIntent.fromObject({
+        id: paymentIntentId,
+        receiverWalletAddressId: crypto.randomUUID(),
+        receiverWalletAddress: 'receiver',
+        destination: PaymentIntentDestination.LOCAL,
+        assetCode: 'USD',
+        assetScale: 2,
+        incomingAmount: null,
+        receivedAmount: 0n,
+        state: 'CREATED',
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 1000 * 60),
+        quotes: [],
+        payments: [
+          {
+            id: 'payment-1',
+            state: 'COMPLETED',
+            paymentIntentId: paymentIntentId,
+            senderWalletAddress: 'sender',
+            senderWalletAddressId: crypto.randomUUID(),
+            assetCode: 'USD',
+            assetScale: 2,
+            createdAt: new Date(),
+            debitAmount: 100n,
+            receiveAmount: 100n,
+            sentAmount: 100n
+          }
+        ]
+      });
+
+      assert.throws(
+        () => {
+          paymentIntent.cancelPayment({
+            id: 'payment-1',
+            reason: 'user requested'
+          });
+        },
+        (err: Error) => {
+          assert(err instanceof PaymentInvalidStateError);
+          assert.match(err.message, /already complete/);
+          return true;
+        }
+      );
+    });
+  });
+
   describe('addPendingRemoteQuote', () => {
     it('adds a quote in PENDING state', () => {
       const paymentIntent = PaymentIntent.create(
