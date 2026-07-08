@@ -20,13 +20,18 @@ export interface IGetWalletAddressResponse {
   isActive: boolean;
 }
 
-export type IGetFxRateFromSourceAsset = {
+export type IGetPeerFxRateFromSourceAsset = {
   peerId: string;
   sourceAssetCode: string;
 };
 
-export type IGetFxRateToDestinationAsset = {
+export type IGetPeerFxRateToDestinationAsset = {
   peerId: string;
+  destinationAssetCode: string;
+};
+
+export type IGetIntraAseFxRate = {
+  sourceAssetCode: string;
   destinationAssetCode: string;
 };
 

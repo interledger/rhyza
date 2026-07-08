@@ -42,9 +42,10 @@ export interface QuoteDispatch {
   paymentIntentId: string;
   quoteId: string;
   destinationIlpAddress: string;
-  sourceAmount: bigint;
+  sourceAmount: string;
   sourceAssetCode: string;
   sourceAssetScale: number;
+  expiresAt: string;
 }
 
 export interface PaymentDispatch {
@@ -54,7 +55,7 @@ export interface PaymentDispatch {
   paymentIntentId: string;
   paymentId: string;
   destinationIlpAddress: string;
-  amount: bigint;
+  amount: string;
   assetCode: string;
   assetScale: number;
   expiresAt: string;

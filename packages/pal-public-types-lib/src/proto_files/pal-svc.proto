@@ -168,21 +168,26 @@ message PbDeactivatePeerRequest{
 }
 
 // fx messages
-message PbGetFxRateFromSourceAssetRequest{
+message PbGetPeerFxRateFromSourceAssetRequest{
   string peer_id = 1;
   string source_asset_code = 2;
 }
 
-message PbGetFxRateToDestinationAssetRequest{
+message PbGetPeerFxRateToDestinationAssetRequest{
   string peer_id = 1;
   string destination_asset_code = 2;
 }
 
+message PbGetIntraAseFxRateRequest{
+  string source_asset_code = 1;
+  string destination_asset_code = 2;
+}
 
 message PbGetFxRateRequest{
   oneof request {
-    PbGetFxRateFromSourceAssetRequest from_source_request = 1;
-    PbGetFxRateToDestinationAssetRequest to_destination_request = 2;
+    PbGetPeerFxRateFromSourceAssetRequest from_source_request = 1;
+    PbGetPeerFxRateToDestinationAssetRequest to_destination_request = 2;
+    PbGetIntraAseFxRateRequest intra_ase_request = 3;
   };
 }
 
@@ -191,10 +196,10 @@ message PbGetFxRateResponse{
 }
 
 message PbSetFxRateRequest{
-  string peer_id = 1;
-  string source_asset_code = 2;
-  string destination_asset_code = 3;
-  double rate = 4;
+  string source_asset_code = 1;
+  string destination_asset_code = 2;
+  double rate = 3;
+  optional string peer_id = 4;
   optional int64 rate_ttl_secs = 5;
 }
 

@@ -2,8 +2,9 @@ import { after, before, test } from 'node:test';
 import { randomBytes } from 'node:crypto';
 import * as assert from 'node:assert/strict';
 import {
-  IGetFxRateFromSourceAsset,
-  IGetFxRateToDestinationAsset,
+  IGetIntraAseFxRate,
+  IGetPeerFxRateFromSourceAsset,
+  IGetPeerFxRateToDestinationAsset,
   PalClient,
   parseAddressToDomainAndPathName
 } from '../src';
@@ -13,7 +14,8 @@ let client: PalClient;
 const testPrefix = `TEST-${randomBytes(3).toString('hex')}`;
 
 // const assetCode = `USD`;
-const ASSET_CODE = `${testPrefix}_EUR`;
+const FIXED_ASSET_CODE = 'EUR';
+const ASSET_CODE = `${testPrefix}_${FIXED_ASSET_CODE}`;
 const ASSET_SCALE = 2;
 
 const PEER_ONE_ID = `${testPrefix}_peer1`;
@@ -25,10 +27,10 @@ const ALIAS_DOMAIN = `${testPrefix}_domain.com`;
 const ALIAS_PATHNAME = `${testPrefix}_pedrobarreto`;
 const PUBLIC_NAME = 'Pedro Barreto';
 
-const FX_SOURCE_ASSET_CODE = 'USD';
-const FX_FROM_SOURCE_RATE = 1.2;
-const FX_DESTINATION_ASSET_CODE = 'XRP';
-const FX_TO_DESTINATION_RATE = 0.3;
+const FX_SOURCE_ASSET_CODE = `${testPrefix}_USD`;
+const FX_DESTINATION_ASSET_CODE = `${testPrefix}_XRP`;
+const FX_PEER_RATE = 1.2;
+const FX_INTRAASE_RATE = 0.3;
 
 let createdWalletAddressId: string;
 let createdAssetLedgerAccountId: string;
@@ -50,6 +52,10 @@ after(async () => {
 
 test('pal client - create asset', async () => {
   await client.createAsset(ASSET_CODE, ASSET_SCALE);
+
+  // extra assets for fx tests
+  await client.createAsset(FX_SOURCE_ASSET_CODE, ASSET_SCALE);
+  await client.createAsset(FX_DESTINATION_ASSET_CODE, ASSET_SCALE);
   assert.ok(true);
 });
 
@@ -282,40 +288,50 @@ test('pal client - created peer must have an new set of ledger accounts', async 
 });
 
 /*
- * Peer/ASE FX Tests
+ * FX Tests
  * */
-test('pal client - set fx rates from ase', async () => {
+test('pal client - set fx intra ASE rates from ase', async () => {
   await client.setFxRate(
-    PEER_ONE_ID,
     FX_SOURCE_ASSET_CODE,
-    ASSET_CODE,
-    FX_FROM_SOURCE_RATE,
-    null
-  );
-
-  await client.setFxRate(
-    PEER_ONE_ID,
-    ASSET_CODE,
     FX_DESTINATION_ASSET_CODE,
-    FX_TO_DESTINATION_RATE,
+    FX_INTRAASE_RATE,
+    null,
     null
   );
 });
 
-test('pal client - get fx rates from ase - source asset to peer asset', async () => {
-  const request: IGetFxRateFromSourceAsset = {
-    peerId: PEER_ONE_ID,
-    sourceAssetCode: FX_SOURCE_ASSET_CODE
+test('pal client - get fx intra ASE rates from ase', async () => {
+  const request: IGetIntraAseFxRate = {
+    sourceAssetCode: FX_SOURCE_ASSET_CODE,
+    destinationAssetCode: FX_DESTINATION_ASSET_CODE
   };
 
   const resp = await client.getFxRate(request);
 
   assert.ok(resp);
-  assert.equal(resp, FX_FROM_SOURCE_RATE);
+  assert.equal(resp, FX_INTRAASE_RATE);
 });
 
-test('pal client - get fx rates from ase - peer asset to destination asset', async () => {
-  const request: IGetFxRateToDestinationAsset = {
+test('pal client - set fx peer rates from ase', async () => {
+  await client.setFxRate(
+    ASSET_CODE,
+    FX_DESTINATION_ASSET_CODE,
+    FX_PEER_RATE,
+    PEER_ONE_ID,
+    null
+  );
+
+  await client.setFxRate(
+    FX_SOURCE_ASSET_CODE,
+    ASSET_CODE,
+    FX_PEER_RATE,
+    PEER_ONE_ID,
+    null
+  );
+});
+
+test('pal client - get fx peer - peer asset to destination asset', async () => {
+  const request: IGetPeerFxRateToDestinationAsset = {
     peerId: PEER_ONE_ID,
     destinationAssetCode: FX_DESTINATION_ASSET_CODE
   };
@@ -323,7 +339,64 @@ test('pal client - get fx rates from ase - peer asset to destination asset', asy
   const resp = await client.getFxRate(request);
 
   assert.ok(resp);
-  assert.equal(resp, FX_TO_DESTINATION_RATE);
+  assert.equal(resp, FX_PEER_RATE);
+});
+
+test('pal client - get fx peer - source asset to peer asset', async () => {
+  const request: IGetPeerFxRateFromSourceAsset = {
+    peerId: PEER_ONE_ID,
+    sourceAssetCode: FX_SOURCE_ASSET_CODE
+  };
+
+  const resp = await client.getFxRate(request);
+
+  assert.ok(resp);
+  assert.equal(resp, FX_PEER_RATE);
+});
+
+test('pal client - set fx peer with inexistent source asset should fail', async () => {
+  try {
+    await client.setFxRate(
+      'NON_EXISTING_ASSET_CODE',
+      ASSET_CODE,
+      FX_PEER_RATE,
+      PEER_ONE_ID,
+      null
+    );
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof Error);
+  }
+});
+
+test('pal client - set fx peer with inexistent destiantion asset should fail', async () => {
+  try {
+    await client.setFxRate(
+      ASSET_CODE,
+      'NON_EXISTING_ASSET_CODE',
+      FX_PEER_RATE,
+      PEER_ONE_ID,
+      null
+    );
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof Error);
+  }
+});
+
+test('pal client - set fx peer with inexistent peer should fail', async () => {
+  try {
+    await client.setFxRate(
+      FX_SOURCE_ASSET_CODE,
+      FX_DESTINATION_ASSET_CODE,
+      FX_PEER_RATE,
+      'NON_EXISTING_PEER',
+      null
+    );
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof Error);
+  }
 });
 
 /*
@@ -506,7 +579,3 @@ test('pal client - parseAddressToDomainAndPathName should work with an odd FQDN 
   assert.equal(domain, null);
   assert.equal(pathName, '.path/name');
 });
-
-/*
- * pal client ledger low-level tests
- * */

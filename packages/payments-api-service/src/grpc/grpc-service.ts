@@ -454,12 +454,10 @@ export class PaymentsServiceServer {
         name: evt.payload.errorName || 'CommandError',
         metadata: new grpc.Metadata()
       });
-    } else if (PaymentIntentDomainEvent.isLocalPaymentCompletedEvent(evt)) {
+    } else if (PaymentIntentDomainEvent.isPaymentCompletedEvent(evt)) {
       const response = new ApprovePaymentResponse().setId(evt.payload.id);
       this._resolvePendingResponse(pending, requestId, null, response);
-    } else if (
-      PaymentIntentDomainEvent.isLocalPaymentCompleteFailedEvent(evt)
-    ) {
+    } else if (PaymentIntentDomainEvent.isPaymentCompleteFailedEvent(evt)) {
       this._resolvePendingResponse(pending, requestId, {
         code: grpc.status.INTERNAL,
         message: evt.payload.message || 'Command processing failed',

@@ -114,8 +114,6 @@ export type CompleteRemoteQuoteCmdPayload = {
   quoteId: string;
   paymentIntentId: string;
   receiveAmountValue: string;
-  receiveAssetCode: string;
-  receiveAssetScale: number;
 };
 
 export class CompleteRemoteQuoteCmd extends PaymentIntentCommand {

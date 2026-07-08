@@ -11,6 +11,9 @@ const HOST = process.env['HOST'] || '0.0.0.0';
 const PORT = parseInt(process.env['PORT'] || '3000', 10);
 const ADMIN_URL = process.env['ADMIN_URL'] || '127.0.0.1:3001';
 
+const ACCEPT_RATES_ENDSWITH_MATCH =
+  !!process.env['ACCEPT_RATES_ENDSWITH_MATCH'];
+
 interface Webhook {
   id: string;
   type: NotificationType;
@@ -60,6 +63,8 @@ export class MockWebhookIntegrationService {
         break;
       case NotificationType.PaymentIntentCreated:
       case NotificationType.PaymentIntentCompleted:
+      case NotificationType.PaymentCompleted:
+      case NotificationType.PaymentFailed:
         break;
       default:
         console.warn(`Webhook type ${webhook.type} is not supported`);
@@ -88,17 +93,27 @@ export class MockWebhookIntegrationService {
   }
 
   private static async handleGetRates(
-    request: FastifyRequest<{ Querystring: { base: string } }>,
+    request: FastifyRequest<{ Querystring: { base: string; peerId?: string } }>,
     reply: FastifyReply
   ): Promise<void> {
     const baseParam = request.query.base;
+    const peerParam = request.query.peerId;
 
     if (!baseParam) {
       reply.status(400).send('Missing mandatory query parameter: "base"');
       return;
     }
 
-    const rate = RATES.find((r) => r.base === baseParam);
+    const rate = RATES.find(
+      (r) =>
+        ((ACCEPT_RATES_ENDSWITH_MATCH && baseParam.endsWith(r.base)) ||
+          baseParam === r.base) &&
+        (!peerParam ||
+          (ACCEPT_RATES_ENDSWITH_MATCH &&
+            r.peerId &&
+            peerParam.endsWith(r.peerId)) ||
+          peerParam === r.peerId)
+    );
     if (!rate) {
       reply.status(404).send('Rate not found');
       return;

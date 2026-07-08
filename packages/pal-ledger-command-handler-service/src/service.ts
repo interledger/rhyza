@@ -57,7 +57,8 @@ const REQUIRED_TOPICS = [
   DomainEventTopics.LedgerEvents,
   DomainEventTopics.AssetEvents,
   DomainEventTopics.PeerEvents,
-  CommandTopics.LedgerCommands
+  CommandTopics.LedgerCommands,
+  DomainEventTopics.FxRateEvents
 ];
 
 // Message Consumer/Publisher

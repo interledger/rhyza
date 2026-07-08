@@ -17,13 +17,4 @@ export interface IPalPeerDto {
     aseClearingAccId: string;
     suspenseAccId: string;
   };
-
-  fxRates: {
-    sourceAssetCode: string;
-    destinationAssetCode: string;
-    rate: number;
-    fetchedFromAse: boolean;
-    fetchedAt: number | null; // null for set directly from ASe;
-    expiresAt: number | null;
-  }[];
 }

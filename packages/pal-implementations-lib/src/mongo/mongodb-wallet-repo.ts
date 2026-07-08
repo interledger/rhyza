@@ -4,7 +4,7 @@ import { IPalWalletAddressRepository } from 'pal-domain-lib';
 import { ILogger } from 'common-types-lib';
 
 const DB_NAME = 'pal';
-const WALLET_COLLECTION_NAME: string = 'walletAddresses';
+const COLLECTION_NAME: string = 'walletAddresses';
 const TIMEOUT_MS: number = 5_000;
 
 export class MongoDbWalletRepo implements IPalWalletAddressRepository {
@@ -40,18 +40,15 @@ export class MongoDbWalletRepo implements IPalWalletAddressRepository {
         | CollectionInfo
       )[] = await db.listCollections().toArray();
       const collectionExists: boolean = collections.some((collection) => {
-        return collection.name === WALLET_COLLECTION_NAME;
+        return collection.name === COLLECTION_NAME;
       });
 
       // load or create the collection (and add its indexes) - should check version and perform migrations
       if (collectionExists) {
-        this._collection = db.collection<IPalWalletAddressDto>(
-          WALLET_COLLECTION_NAME
-        );
+        this._collection = db.collection<IPalWalletAddressDto>(COLLECTION_NAME);
       } else {
-        this._collection = await db.createCollection<IPalWalletAddressDto>(
-          WALLET_COLLECTION_NAME
-        );
+        this._collection =
+          await db.createCollection<IPalWalletAddressDto>(COLLECTION_NAME);
         await this._collection.createIndex({ id: 1 }, { unique: true });
         await this._collection.createIndex({
           'aliases.domain': 1,

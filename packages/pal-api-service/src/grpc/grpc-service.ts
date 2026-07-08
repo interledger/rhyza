@@ -12,6 +12,7 @@ import { ReflectionService } from '@grpc/reflection';
 import {
   AssetAggregate,
   AssetNotFoundError,
+  FxAggregate,
   ILedgerReadSideRepository,
   PeerAggregate,
   PeerNotFoundError,
@@ -46,6 +47,7 @@ import { LedgerGrpcHandler } from './handlers/ledger-handler';
 import { EventHandlerRegistry } from './registries/event-handler-registry';
 import { RequestHandlerRegistry } from './registries/request-handler-registry';
 import { UnaryResponse } from './types';
+import { FxGrpcHandler } from './handlers/fx-handler';
 
 const PUBLIC_TYPES_LIB_PATH = require.resolve('pal-public-types-lib');
 
@@ -67,6 +69,7 @@ export class PalGrpcServer {
   private readonly _assetAggregate: AssetAggregate;
   private readonly _walletAddressAggregate: WalletAddressAggregate;
   private readonly _peerAggregate: PeerAggregate;
+  private readonly _fxAggregate: FxAggregate;
 
   private readonly _msgProducer: IMessageProducer;
   private readonly _msgConsumer: IMessageConsumer;
@@ -75,6 +78,7 @@ export class PalGrpcServer {
 
   private readonly _assetGrpcHandler: AssetGrpcHandler;
   private readonly _peerGrpcHandler: PeerGrpcHandler;
+  private readonly _fxGrpcHandler: FxGrpcHandler;
   private readonly _walletAddressGrpcHandler: WalletAddressGrpcHandler;
   private readonly _ledgerGrpcHandler: LedgerGrpcHandler;
 
@@ -94,6 +98,7 @@ export class PalGrpcServer {
     assetAggregate: AssetAggregate,
     walletAggregate: WalletAddressAggregate,
     peerAggregate: PeerAggregate,
+    fxAggregate: FxAggregate,
     producer: IMessageProducer,
     consumer: IMessageConsumer,
     ledgerReadSideRepo: ILedgerReadSideRepository,
@@ -104,6 +109,7 @@ export class PalGrpcServer {
     this._assetAggregate = assetAggregate;
     this._walletAddressAggregate = walletAggregate;
     this._peerAggregate = peerAggregate;
+    this._fxAggregate = fxAggregate;
     this._msgProducer = producer;
     this._msgConsumer = consumer;
     this._ledgerReadSideRepo = ledgerReadSideRepo;
@@ -131,6 +137,14 @@ export class PalGrpcServer {
       this._peerAggregate,
       this._responseRegistry,
       this._msgProducer,
+      this._logger
+    );
+
+    this._fxGrpcHandler = new FxGrpcHandler(
+      this._fxAggregate,
+      this._peerAggregate,
+      this._assetAggregate,
+      this._responseRegistry,
       this._logger
     );
 
@@ -332,14 +346,15 @@ export class PalGrpcServer {
       )
     );
 
+    // fx requests
     this._requestHandlerRegistry.register(
       PalGrpcService.getFxRate,
-      this._peerGrpcHandler.handleGetFxRateRequest.bind(this._peerGrpcHandler)
+      this._fxGrpcHandler.handleGetFxRateRequest.bind(this._fxGrpcHandler)
     );
 
     this._requestHandlerRegistry.register(
       PalGrpcService.setFxRate,
-      this._peerGrpcHandler.handleSetFxRateRequest.bind(this._peerGrpcHandler)
+      this._fxGrpcHandler.handleSetFxRateRequest.bind(this._fxGrpcHandler)
     );
 
     // ledger requests

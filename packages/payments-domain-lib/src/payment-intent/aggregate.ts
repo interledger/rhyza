@@ -32,8 +32,7 @@ import {
   MissingDestinationIlpAddressError,
   PeerNotFoundError,
   InvalidQuoteStateError,
-  InvalidQuoteIdError,
-  QuoteReceiveAssetMismatchError
+  InvalidQuoteIdError
 } from './errors';
 import {
   QuoteCompletedEvent,
@@ -41,8 +40,8 @@ import {
   PaymentIntentCreatedEvent,
   PaymentIntentCreateFailedEvent,
   PaymentCreateFailedEvent,
-  LocalPaymentCompletedEvent,
-  LocalPaymentCompleteFailedEvent,
+  PaymentCompletedEvent,
+  PaymentCompleteFailedEvent,
   PaymentCreatedEvent,
   RemoteQuoteRequestedEvent,
   PaymentIntentCompletedEvent
@@ -579,13 +578,7 @@ export class PaymentIntentAggregate {
     this._logger.debug(
       `handleCompleteRemoteQuoteCommand — quoteId: ${cmd.payload.quoteId} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
-    const {
-      quoteId,
-      paymentIntentId,
-      receiveAmountValue,
-      receiveAssetCode,
-      receiveAssetScale
-    } = cmd.payload;
+    const { quoteId, paymentIntentId, receiveAmountValue } = cmd.payload;
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -606,15 +599,6 @@ export class PaymentIntentAggregate {
         );
       }
       const pendingQuote = pendingQuoteObj as IPendingQuote;
-
-      if (
-        receiveAssetCode !== paymentIntent.assetCode ||
-        receiveAssetScale !== paymentIntent.assetScale
-      ) {
-        throw new QuoteReceiveAssetMismatchError(
-          `ILP quote response asset (${receiveAssetCode}/${receiveAssetScale}) does not match payment intent asset (${paymentIntent.assetCode}/${paymentIntent.assetScale}) for quote ${quoteId}`
-        );
-      }
 
       const {
         peerId,
@@ -741,7 +725,7 @@ export class PaymentIntentAggregate {
         );
       }
 
-      paymentIntent.completeLocalPayment({ id: paymentId });
+      const payment = paymentIntent.completeLocalPayment({ id: paymentId });
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
         this.completedLocalPayments,
@@ -763,11 +747,28 @@ export class PaymentIntentAggregate {
           },
           cmd.requestId
         ),
-        new LocalPaymentCompletedEvent({ id: paymentId }, cmd.requestId)
+        new PaymentCompletedEvent(
+          {
+            id: payment.id,
+            paymentIntentId: payment.paymentIntentId,
+            senderWalletAddress: payment.senderWalletAddress,
+            debitAmount: String(payment.debitAmount),
+            receiveAmount: String(payment.receiveAmount),
+            sentAmount: String(payment.sentAmount),
+            state: payment.state,
+            createdAt: payment.createdAt,
+            assetCode: payment.assetCode,
+            assetScale: payment.assetScale,
+            receiveAssetCode: paymentIntent.assetCode,
+            receiveAssetScale: paymentIntent.assetScale
+          },
+          cmd.requestId
+        )
       ];
     } catch (err) {
-      return new LocalPaymentCompleteFailedEvent(
+      return new PaymentCompleteFailedEvent(
         {
+          id: cmd.payload.id,
           paymentIntentId: cmd.payload.paymentIntentId,
           errorName: (err as Error).constructor.name,
           message: (err as Error).message

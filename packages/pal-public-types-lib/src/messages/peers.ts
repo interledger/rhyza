@@ -102,19 +102,3 @@ export class PeerDeactivatedEvent extends PeerDomainEvent {
 export type PeerDeactivatedEventPayload = {
   peerId: string;
 };
-
-// message published by the peer aggregate when a fx rate is expired
-export class PeerFxCacheExpiredEvent extends PeerDomainEvent {
-  payload: PeerFxCacheExpiredEventPayload;
-
-  constructor(payload: PeerFxCacheExpiredEventPayload) {
-    super(payload.peerId);
-    this.msgKey = payload.peerId;
-    this.payload = payload;
-  }
-}
-export type PeerFxCacheExpiredEventPayload = {
-  peerId: string;
-  sourceAssetCode: string;
-  destinationAssetCode: string;
-};

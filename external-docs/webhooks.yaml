@@ -39,6 +39,30 @@ webhooks:
       responses:
         '200':
           description: Payment created
+  paymentCompleted:
+    post:
+      summary: Payment completed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/paymentEvent'
+      responses:
+        '200':
+          description: Payment completed
+  paymentFailed:
+    post:
+      summary: Payment failed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/paymentEventError'
+      responses:
+        '200':
+          description: Payment failed
 
 components:
   schemas:
@@ -57,6 +81,8 @@ components:
           enum:
             - payment_intent.created
             - payment.created
+            - payment.completed
+            - payment.failed
         data:
           type: object
 
@@ -110,6 +136,7 @@ components:
               type: string
               enum:
                 - payment.created
+                - payment.completed
             data:
               type: object
               required:
@@ -132,6 +159,7 @@ components:
                   enum:
                     - CREATED
                     - COMPLETED
+                    - FAILED
                 paymentIntentId:
                   type: string
                   format: uri
@@ -144,6 +172,33 @@ components:
                 createdAt:
                   type: string
                   format: date-time
+    paymentEventError:
+      allOf:
+        - $ref: '#/components/schemas/webhookEvent'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - payment.failed
+            data:
+              type: object
+              required:
+                - id
+                - paymentIntentId
+                - errorName
+                - message
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                paymentIntentId:
+                  type: string
+                  format: uuid
+                errorName:
+                  type: string
+                message:
+                  type: string
     amount:
       type: object
       required:

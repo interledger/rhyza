@@ -17,8 +17,10 @@ import {
   IPalPeerRepository,
   IPalAssetRepository,
   AssetAggregate,
-  IPalPeerAseFxService,
-  PeerFxCacheExpiryService
+  IPalAseFxService,
+  FxCacheExpiryService,
+  FxAggregate,
+  IPalFxRepository
 } from 'pal-domain-lib';
 import {
   AseFxServiceAdapter,
@@ -31,6 +33,7 @@ import {
   LedgerSnapshotSerde,
   LedgerTransactionRecordedStateEventSerde,
   MongoDbAssetRepo,
+  MongoDbFxRepo,
   MongoDbLedgerReadSideRepo,
   MongoDbPeerRepo,
   PostTransactionCmdSerde
@@ -108,7 +111,8 @@ const REQUIRED_TOPICS = [
   DomainEventTopics.LedgerEvents,
   DomainEventTopics.AssetEvents,
   DomainEventTopics.PeerEvents,
-  CommandTopics.LedgerCommands
+  CommandTopics.LedgerCommands,
+  DomainEventTopics.FxRateEvents
 ];
 
 /**
@@ -131,8 +135,9 @@ export class PalLedgerEventHandlerService {
   private static _readSideRepo: ILedgerReadSideRepository;
   private static _assetRepo: IPalAssetRepository;
   private static _peerRepo: IPalPeerRepository;
-  private static _aseFxService: IPalPeerAseFxService;
-
+  private static _fxRepo: IPalFxRepository;
+  private static _aseFxService: IPalAseFxService;
+  private static _fxCacheExpiryService: FxCacheExpiryService;
   private static _stateEventHandler: LedgerStateEventHandler;
   private static _integrationEventHandler: IntegrationEventHandler;
   private static _internalEventHandler: InternalEventHandler;
@@ -148,7 +153,8 @@ export class PalLedgerEventHandlerService {
     internalEventsConsumer?: IMessageConsumer,
     producer?: IMessageProducer,
     peerRepo?: IPalPeerRepository,
-    aseFxService?: IPalPeerAseFxService,
+    fxRepo?: IPalFxRepository,
+    aseFxService?: IPalAseFxService,
     assetRepo?: IPalAssetRepository
   ): Promise<void> {
     if (!logger) {
@@ -312,16 +318,30 @@ export class PalLedgerEventHandlerService {
     }
     this._peerRepo = peerRepo;
 
-    const peerAggregate = new PeerAggregate(
-      this._peerRepo,
+    const peerAggregate = new PeerAggregate(this._peerRepo, this._logger);
+
+    if (!fxRepo) {
+      fxRepo = new MongoDbFxRepo(MONGO_URL, this._logger);
+      await (fxRepo as MongoDbFxRepo).init();
+    }
+    this._fxRepo = fxRepo;
+
+    this._fxCacheExpiryService = new FxCacheExpiryService(
+      this._producer,
+      this._logger
+    );
+
+    const fxAggregate = new FxAggregate(
+      this._fxRepo,
       this._aseFxService,
-      new PeerFxCacheExpiryService(this._producer, this._logger),
+      this._fxCacheExpiryService,
       this._logger
     );
 
     this._internalEventHandler = new InternalEventHandler(
       peerAggregate,
       assetAggregate,
+      fxAggregate,
       this._internalEventsConsumer,
       this._producer,
       this._logger
@@ -382,6 +402,10 @@ export class PalLedgerEventHandlerService {
 
     if (this._producer) {
       await this._producer.disconnect();
+    }
+
+    if (this._fxCacheExpiryService) {
+      this._fxCacheExpiryService.destroy();
     }
   }
 }

@@ -5,17 +5,20 @@ import {
   CannotCreateDuplicatePeerError,
   CannotCreateDuplicateWalletAddressAliasError,
   CannotCreateDuplicateWalletAddressError,
+  FxAggregate,
   IPalAssetRepository,
+  IPalFxRepository,
   IPalPeerRepository,
   IPalWalletAddressRepository,
   PeerAggregate,
   PeerAlreadyActiveError,
   PeerAlreadyInactiveError,
-  PeerFxCacheExpiryService,
+  FxCacheExpiryService,
   WalletAddressAggregate
 } from '../src';
 import {
   MockAssetRepo,
+  MockFxRepo,
   MockMessageProducer,
   MockPeerRepo,
   MockWalletRepo
@@ -44,6 +47,9 @@ let walletRepository: IPalWalletAddressRepository;
 let peerAggregate: PeerAggregate;
 let peerRepository: IPalPeerRepository;
 
+let fxAggregate: FxAggregate;
+let fxRepository: IPalFxRepository;
+
 const ASSET_CODE = 'EUR';
 const ASSET_SCALE = 2;
 
@@ -56,14 +62,13 @@ const PEER_ONE_NAME = 'Peer One';
 const PEER_ONE_ILP_ADDRESS = 'ilp://peerone.com/';
 
 const FX_SOURCE_ASSET_CODE = 'USD';
-const FX_FROM_SOURCE_RATE = 1.2;
 const FX_DESTINATION_ASSET_CODE = 'XRP';
-const FX_TO_DESTINATION_RATE = 0.3;
+const FX_PEER_RATE = 1.2;
 
 let createdWalletAddressInternalId: string;
 const mockAseFxSvc = new MockAseFxService();
 
-const fxCacheExpiryService = new PeerFxCacheExpiryService(msgPublisher, logger);
+const fxCacheExpiryService = new FxCacheExpiryService(msgPublisher, logger);
 
 before(async () => {
   assetRepository = new MockAssetRepo();
@@ -73,8 +78,12 @@ before(async () => {
   walletAggregate = new WalletAddressAggregate(walletRepository, logger);
 
   peerRepository = new MockPeerRepo();
-  peerAggregate = new PeerAggregate(
-    peerRepository,
+  peerAggregate = new PeerAggregate(peerRepository, logger);
+
+  fxRepository = new MockFxRepo();
+
+  fxAggregate = new FxAggregate(
+    fxRepository,
     mockAseFxSvc,
     fxCacheExpiryService,
     logger
@@ -116,6 +125,7 @@ test('PAL Asset Domain - get non existing asset should fail', async () => {
 });
 //endregion assets
 
+//region peers
 test('PAL Peer Domain - create peer', async () => {
   await peerAggregate.createPeer(
     PEER_ONE_ID,
@@ -259,99 +269,92 @@ test('PAL Peer Domain - update comms method address', async () => {
   assert.equal(peer.communicationMethod.staticAddress, newAddress);
 });
 
-test('PAL Peer Domain - get fx from source without fx set should fetch it from ase', async () => {
+//endregion peers
+
+//region fx
+
+// get system rate
+
+test('PAL Forex Domain - get peer rate without exising rate should fetch it from ase', async () => {
   // use mock to ensure that the fx is fetched from ASE
   mock.reset();
-  mock.method(mockAseFxSvc, 'getFxFromAse');
+  mock.method(mockAseFxSvc, 'getPeerFxFromAse');
 
-  const fx = await peerAggregate.getFxFromSourceAsset(
-    PEER_ONE_ID,
-    FX_SOURCE_ASSET_CODE
-  );
-
-  assert.equal(fx, mockAseFxSvc.defaultRate);
-  assert.equal(mockAseFxSvc.getFxFromAse.mock.calls.length, 1);
-});
-
-test('PAL Peer Domain - get fx from source should use locally cached fx', async () => {
-  // use mock to ensure that the fx is NOT fetched from ASE
-  mock.reset();
-  mock.method(mockAseFxSvc, 'getFxFromAse');
-
-  const fx = await peerAggregate.getFxFromSourceAsset(
-    PEER_ONE_ID,
-    FX_SOURCE_ASSET_CODE
-  );
-
-  assert.equal(fx, mockAseFxSvc.defaultRate);
-  assert.equal(mockAseFxSvc.getFxFromAse.mock.calls.length, 0);
-});
-
-test('PAL Peer Domain - get fx to destination without fx set should fetch it from ase', async () => {
-  // use mock to ensure that the fx is fetched from ASE
-  mock.reset();
-  mock.method(mockAseFxSvc, 'getFxFromAse');
-
-  const fx = await peerAggregate.getFxToDestinationAsset(
-    PEER_ONE_ID,
-    FX_DESTINATION_ASSET_CODE
-  );
-
-  assert.equal(fx, mockAseFxSvc.defaultRate);
-  assert.equal(mockAseFxSvc.getFxFromAse.mock.calls.length, 1);
-});
-
-test('PAL Peer Domain - get fx to destination should use locally cached fx', async () => {
-  // use mock to ensure that the fx is NOT fetched from ASE
-  mock.reset();
-  mock.method(mockAseFxSvc, 'getFxFromAse');
-
-  const fx = await peerAggregate.getFxToDestinationAsset(
-    PEER_ONE_ID,
-    FX_DESTINATION_ASSET_CODE
-  );
-
-  assert.equal(fx, mockAseFxSvc.defaultRate);
-  assert.equal(mockAseFxSvc.getFxFromAse.mock.calls.length, 0);
-});
-
-test('PAL Peer Domain - set both fx rates from ASE', async () => {
-  await peerAggregate.setFxRate(
+  const fx = await fxAggregate.getPeerFxRate(
     PEER_ONE_ID,
     FX_SOURCE_ASSET_CODE,
-    ASSET_CODE,
-    FX_FROM_SOURCE_RATE,
-    null
-  );
-
-  await peerAggregate.setFxRate(
-    PEER_ONE_ID,
-    ASSET_CODE,
-    FX_DESTINATION_ASSET_CODE,
-    FX_TO_DESTINATION_RATE,
-    null
-  );
-});
-
-test('PAL Peer Domain - get fx to destination should return rate set by ase', async () => {
-  const rate = await peerAggregate.getFxToDestinationAsset(
-    PEER_ONE_ID,
     FX_DESTINATION_ASSET_CODE
   );
 
-  assert.ok(rate);
-  assert.equal(rate, FX_TO_DESTINATION_RATE);
+  assert.equal(fx, mockAseFxSvc.defaultRate);
+  assert.equal(mockAseFxSvc.getPeerFxFromAse.mock.calls.length, 1);
 });
 
-test('PAL Peer Domain - get fx to destination should return rate set by ase', async () => {
-  const rate = await peerAggregate.getFxFromSourceAsset(
+test('PAL Forex Domain - get peer rate a second time should use locally cached fx', async () => {
+  // use mock to ensure that the fx is NOT fetched from ASE
+  mock.reset();
+  mock.method(mockAseFxSvc, 'getPeerFxFromAse');
+
+  const fx = await fxAggregate.getPeerFxRate(
     PEER_ONE_ID,
-    FX_SOURCE_ASSET_CODE
+    FX_SOURCE_ASSET_CODE,
+    FX_DESTINATION_ASSET_CODE
+  );
+
+  assert.equal(fx, mockAseFxSvc.defaultRate);
+  assert.equal(mockAseFxSvc.getPeerFxFromAse.mock.calls.length, 0);
+});
+
+test('PAL Forex Domain - get intra ase rate without exising rate should fetch it from ase', async () => {
+  // use mock to ensure that the fx is fetched from ASE
+  mock.reset();
+  mock.method(mockAseFxSvc, 'getIntraAseFxRate');
+
+  const fx = await fxAggregate.getIntraAseFxRate(
+    FX_SOURCE_ASSET_CODE,
+    FX_DESTINATION_ASSET_CODE
+  );
+
+  assert.equal(fx, mockAseFxSvc.defaultRate);
+  assert.equal(mockAseFxSvc.getIntraAseFxRate.mock.calls.length, 1);
+});
+
+test('PAL Forex Domain - get intra ase rate a second time should use locally cached fx', async () => {
+  // use mock to ensure that the fx is NOT fetched from ASE
+  mock.reset();
+  mock.method(mockAseFxSvc, 'getIntraAseFxRate');
+
+  const fx = await fxAggregate.getIntraAseFxRate(
+    FX_SOURCE_ASSET_CODE,
+    FX_DESTINATION_ASSET_CODE
+  );
+
+  assert.equal(fx, mockAseFxSvc.defaultRate);
+  assert.equal(mockAseFxSvc.getIntraAseFxRate.mock.calls.length, 0);
+});
+
+test('PAL Forex Domain - set peer fx rates from ASE', async () => {
+  await fxAggregate.setPeerFxRate(
+    FX_SOURCE_ASSET_CODE,
+    ASSET_CODE,
+    PEER_ONE_ID,
+    FX_PEER_RATE,
+    null
+  );
+});
+
+test('PAL Forex Domain - get peer rate should return rate set by ase', async () => {
+  const rate = await fxAggregate.getPeerFxRate(
+    PEER_ONE_ID,
+    FX_SOURCE_ASSET_CODE,
+    ASSET_CODE
   );
 
   assert.ok(rate);
-  assert.equal(rate, FX_FROM_SOURCE_RATE);
+  assert.equal(rate, FX_PEER_RATE);
 });
+
+// endregion fx
 
 //region wallet address
 test('PAL WalletAddress Domain - create wallet address', async () => {

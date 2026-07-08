@@ -165,6 +165,28 @@ importers:
         specifier: ^4.19.3
         version: 4.19.3
 
+  packages/ilp-command-handler-service:
+    dependencies:
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
+      ilp-domain-lib:
+        specifier: workspace:*
+        version: link:../ilp-domain-lib
+      ilp-implementations-lib:
+        specifier: workspace:*
+        version: link:../ilp-implementations-lib
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
+    devDependencies:
+      ilp-connector-service:
+        specifier: workspace:*
+        version: link:../ilp-connector-service
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
   packages/ilp-connector-service:
     dependencies:
       common-types-lib:
@@ -186,6 +208,19 @@ importers:
       common-types-lib:
         specifier: workspace:*
         version: link:../common-types-lib
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
+  packages/ilp-implementations-lib:
+    dependencies:
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
+      ilp-domain-lib:
+        specifier: workspace:*
+        version: link:../ilp-domain-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3

@@ -4,36 +4,11 @@ import {
   IMessageConsumer,
   IMessageProducer
 } from 'common-types-lib';
+import { QuoteFailedEvent, RemoteQuoteReceivedEvent } from 'ilp-domain-lib';
 import {
   CompleteRemoteQuoteCmd,
   FailRemoteQuoteCmd
 } from 'payments-domain-lib';
-import { QuoteDeterminedEvent, QuoteFailedEvent } from 'ilp-domain-lib';
-
-// TODO: QuoteDeterminedEvent -> RemoteQuoteReceivedEvent (pending ILP BC rename)
-// TODO: QuoteFailedEvent -> QuoteCreateFailedEvent (pending ILP BC rename)
-
-// TODO: once ILP BC updates events to new flow, replace these local interfaces
-interface IlpQuoteDeterminedPayload {
-  paymentIntentId: string;
-  quoteId: string;
-  // TODO: ILP BC should pass requestId through from RemoteQuoteRequestedEvent payload so
-  // Payments BC can correlate the API response back to the original request.
-  requestId: string;
-  receiveAmountValue: string;
-  receiveAssetCode: string;
-  receiveAssetScale: number;
-}
-
-interface IlpQuoteFailedPayload {
-  paymentIntentId: string;
-  quoteId: string;
-  // TODO: ILP BC should pass requestId through from RemoteQuoteRequestedEvent payload so
-  // Payments BC can correlate the API response back to the original request.
-  requestId: string;
-  errorName: string;
-  message: string;
-}
 
 export class PaymentsEventHandler {
   private _msgConsumer: IMessageConsumer;
@@ -62,31 +37,34 @@ export class PaymentsEventHandler {
 
   private async _handleEvent(message: IMessage): Promise<void> {
     switch (message.msgName) {
-      case QuoteDeterminedEvent.name: {
-        const payload = message.payload as IlpQuoteDeterminedPayload;
+      case RemoteQuoteReceivedEvent.name: {
+        const { quoteId, paymentIntentId, destinationAmount } =
+          message.payload as RemoteQuoteReceivedEvent['payload'];
         const cmd = new CompleteRemoteQuoteCmd(
           {
-            quoteId: payload.quoteId,
-            paymentIntentId: payload.paymentIntentId,
-            receiveAmountValue: payload.receiveAmountValue,
-            receiveAssetCode: payload.receiveAssetCode,
-            receiveAssetScale: payload.receiveAssetScale
+            quoteId,
+            paymentIntentId,
+            receiveAmountValue: destinationAmount
           },
-          payload.requestId
+          message.requestId ?? ''
         );
         await this._msgProducer.send(cmd);
         break;
       }
       case QuoteFailedEvent.name: {
-        const payload = message.payload as IlpQuoteFailedPayload;
+        const payload = message.payload as QuoteFailedEvent['payload'];
         const cmd = new FailRemoteQuoteCmd(
           {
             quoteId: payload.quoteId,
             paymentIntentId: payload.paymentIntentId,
-            errorName: payload.errorName,
-            message: payload.message
+            errorName: payload.rejectCode ?? 'QuoteFailed',
+            message:
+              payload.rejectMessage ??
+              (payload.expired
+                ? 'Quote expired'
+                : 'Quote could not be determined')
           },
-          payload.requestId
+          message.requestId ?? ''
         );
         await this._msgProducer.send(cmd);
         break;

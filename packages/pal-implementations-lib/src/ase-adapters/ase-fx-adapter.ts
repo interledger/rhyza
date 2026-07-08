@@ -2,11 +2,11 @@ import {
   AseExchangeServiceRateNotFoundError,
   AseExchangeServiceTimeoutError,
   AseExchangeServiceUnknownError,
-  IPalPeerAseFxService
+  IPalAseFxService
 } from 'pal-domain-lib';
 import { ILogger } from 'common-types-lib';
 
-export class AseFxServiceAdapter implements IPalPeerAseFxService {
+export class AseFxServiceAdapter implements IPalAseFxService {
   private _aseEndpointUrl: string;
   private _timeoutMs: number;
   private _rateTtlMs: number;
@@ -41,14 +41,24 @@ export class AseFxServiceAdapter implements IPalPeerAseFxService {
    *
    * */
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async _getDataFromAse(baseAssetCode: string): Promise<any> {
+  private async _getDataFromAse(
+    sourceAssetCode: string,
+    destinationAssetCode: string,
+    peerId?: string
+  ): Promise<{ rate: number; expiresAt: number }> {
     const controller: AbortController = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this._timeoutMs);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let respData: any;
+
     try {
       const url = new URL(this._aseEndpointUrl);
-      url.searchParams.append('base', baseAssetCode);
+      url.searchParams.append('base', sourceAssetCode);
+
+      if (peerId) {
+        url.searchParams.append('peerId', peerId);
+      }
 
       const response = await fetch(url.toString(), {
         method: 'GET',
@@ -65,9 +75,7 @@ export class AseFxServiceAdapter implements IPalPeerAseFxService {
         );
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data: any = await response.json();
-      return data;
+      respData = await response.json();
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         const msg = `Request to ASE rates endpoint timed out after ${this._timeoutMs}ms`;
@@ -78,16 +86,6 @@ export class AseFxServiceAdapter implements IPalPeerAseFxService {
     } finally {
       clearTimeout(timeoutId);
     }
-  }
-
-  async getFxFromAse(
-    sourceAssetCode: string,
-    destinationAssetCode: string
-  ): Promise<{ rate: number; expiresAt: number }> {
-    this._logger.info(
-      `Getting fx rate from ASE endpoint for ${sourceAssetCode} -> ${destinationAssetCode}...`
-    );
-    const respData = await this._getDataFromAse(sourceAssetCode);
 
     // Validate the response structure
     if (
@@ -119,5 +117,30 @@ export class AseFxServiceAdapter implements IPalPeerAseFxService {
       rate: respData.rates[key],
       expiresAt: Date.now() + this._rateTtlMs
     };
+  }
+
+  async getIntraAseFxRate(
+    sourceAssetCode: string,
+    destinationAssetCode: string
+  ): Promise<{ rate: number; expiresAt: number }> {
+    this._logger.info(
+      `Getting Intra ASE fx rate from ASE endpoint for ${sourceAssetCode} -> ${destinationAssetCode}...`
+    );
+    return await this._getDataFromAse(sourceAssetCode, destinationAssetCode);
+  }
+
+  async getPeerFxFromAse(
+    sourceAssetCode: string,
+    destinationAssetCode: string,
+    peerId: string
+  ): Promise<{ rate: number; expiresAt: number }> {
+    this._logger.info(
+      `Getting Peer fx rate from ASE endpoint for ${sourceAssetCode} -> ${destinationAssetCode}...`
+    );
+    return await this._getDataFromAse(
+      sourceAssetCode,
+      destinationAssetCode,
+      peerId
+    );
   }
 }

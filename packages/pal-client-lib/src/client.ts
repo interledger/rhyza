@@ -1,8 +1,9 @@
 import * as grpc from '@grpc/grpc-js';
 import { ServiceError } from '@grpc/grpc-js';
 import {
-  IGetFxRateFromSourceAsset,
-  IGetFxRateToDestinationAsset,
+  IGetIntraAseFxRate,
+  IGetPeerFxRateFromSourceAsset,
+  IGetPeerFxRateToDestinationAsset,
   IGetWalletAddressResponse,
   IPalClientWalletAddress,
   PalClientPeerAlreadyExistsError,
@@ -35,11 +36,12 @@ import {
   PbActivatePeerRequest,
   PbPeer,
   PbDeactivatePeerRequest,
-  PbGetFxRateFromSourceAssetRequest,
-  PbGetFxRateToDestinationAssetRequest,
   PbGetFxRateRequest,
   PbGetFxRateResponse,
-  PbSetFxRateRequest
+  PbSetFxRateRequest,
+  PbGetPeerFxRateFromSourceAssetRequest,
+  PbGetPeerFxRateToDestinationAssetRequest,
+  PbGetIntraAseFxRateRequest
 } from 'pal-public-types-lib';
 import process from 'process';
 
@@ -379,8 +381,7 @@ export class PalClient {
       assetScale: pbPeer.getAssetScale(),
       active: pbPeer.getActive(),
       ledgerAccounts: null,
-      communicationMethodDefinition: null,
-      fxRates: []
+      communicationMethodDefinition: null
     };
 
     const pbAccounts = pbPeer.getLedgerAccounts();
@@ -392,18 +393,6 @@ export class PalClient {
         aseClearingAccId: pbAccounts.getAseClearingAccountId(),
         suspenseAccId: pbAccounts.getSuspenseAccountId()
       };
-    }
-
-    const pbFxRates = pbPeer.getFxRatesList();
-    if (pbFxRates) {
-      retPeerDto.fxRates = pbFxRates.map((pbFxRate) => ({
-        sourceAssetCode: pbFxRate.getSourceAssetCode(),
-        destinationAssetCode: pbFxRate.getDestinationAssetCode(),
-        expiresAt: pbFxRate.getExpiresAt(),
-        fetchedFromAse: pbFxRate.getFetchedFromAse(),
-        fetchedAt: pbFxRate.getFetchedAt() || null,
-        rate: pbFxRate.getRate()
-      }));
     }
 
     const commsMethod = pbPeer.getCommsMethodDefinition();
@@ -533,23 +522,39 @@ export class PalClient {
   }
 
   async getFxRate(
-    request: IGetFxRateFromSourceAsset | IGetFxRateToDestinationAsset
+    request:
+      | IGetPeerFxRateFromSourceAsset
+      | IGetPeerFxRateToDestinationAsset
+      | IGetIntraAseFxRate
   ): Promise<number | null> {
     const pbReq = new PbGetFxRateRequest();
 
-    if (Object.hasOwn(request, 'sourceAssetCode')) {
-      const subReq = new PbGetFxRateFromSourceAssetRequest();
-      subReq.setPeerId(request.peerId);
-      subReq.setSourceAssetCode(
-        (request as IGetFxRateFromSourceAsset).sourceAssetCode
-      );
+    if (
+      Object.hasOwn(request, 'sourceAssetCode') &&
+      Object.hasOwn(request, 'destinationAssetCode')
+    ) {
+      const typedRequest = request as IGetIntraAseFxRate;
+      const subReq = new PbGetIntraAseFxRateRequest();
+      subReq.setSourceAssetCode(typedRequest.sourceAssetCode);
+      subReq.setDestinationAssetCode(typedRequest.destinationAssetCode);
+      pbReq.setIntraAseRequest(subReq);
+    } else if (
+      Object.hasOwn(request, 'peerId') &&
+      Object.hasOwn(request, 'sourceAssetCode')
+    ) {
+      const typedRequest = request as IGetPeerFxRateFromSourceAsset;
+      const subReq = new PbGetPeerFxRateFromSourceAssetRequest();
+      subReq.setPeerId(typedRequest.peerId);
+      subReq.setSourceAssetCode(typedRequest.sourceAssetCode);
       pbReq.setFromSourceRequest(subReq);
-    } else if (Object.hasOwn(request, 'destinationAssetCode')) {
-      const subReq = new PbGetFxRateToDestinationAssetRequest();
-      subReq.setPeerId(request.peerId);
-      subReq.setDestinationAssetCode(
-        (request as IGetFxRateToDestinationAsset).destinationAssetCode
-      );
+    } else if (
+      Object.hasOwn(request, 'peerId') &&
+      Object.hasOwn(request, 'destinationAssetCode')
+    ) {
+      const typedRequest = request as IGetPeerFxRateToDestinationAsset;
+      const subReq = new PbGetPeerFxRateToDestinationAssetRequest();
+      subReq.setPeerId(typedRequest.peerId);
+      subReq.setDestinationAssetCode(typedRequest.destinationAssetCode);
       pbReq.setToDestinationRequest(subReq);
     } else {
       throw new PalClientUnknownError('Invalid request getFxRate request');
@@ -577,19 +582,23 @@ export class PalClient {
   }
 
   async setFxRate(
-    peerId: string,
     sourceAssetCode: string,
     destinationAsset: string,
     rate: number,
+    peerId: string | null,
     rateTtlSecs: number | null
   ): Promise<void> {
     const pbReq = new PbSetFxRateRequest();
-    pbReq.setPeerId(peerId);
+
     pbReq.setSourceAssetCode(sourceAssetCode);
     pbReq.setDestinationAssetCode(destinationAsset);
     pbReq.setRate(rate);
     if (rateTtlSecs !== null) {
       pbReq.setRateTtlSecs(rateTtlSecs);
+    }
+
+    if (peerId !== null) {
+      pbReq.setPeerId(peerId);
     }
 
     return new Promise((resolve, reject) => {

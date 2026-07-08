@@ -4,7 +4,7 @@ import { IPalPeerRepository } from 'pal-domain-lib';
 import { IPalPeerDto } from 'pal-public-types-lib';
 
 const DB_NAME = 'pal';
-const WALLET_COLLECTION_NAME: string = 'peers';
+const COLLECTION_NAME: string = 'peers';
 const TIMEOUT_MS: number = 5_000;
 
 export class MongoDbPeerRepo implements IPalPeerRepository {
@@ -33,8 +33,7 @@ export class MongoDbPeerRepo implements IPalPeerRepository {
       assetCode: doc.assetCode,
       assetScale: doc.assetScale,
       communicationMethodDefinition: doc.communicationMethodDefinition,
-      ledgerAccounts: doc.ledgerAccounts,
-      fxRates: doc.fxRates
+      ledgerAccounts: doc.ledgerAccounts
     };
   }
 
@@ -53,16 +52,15 @@ export class MongoDbPeerRepo implements IPalPeerRepository {
         | CollectionInfo
       )[] = await db.listCollections().toArray();
       const collectionExists: boolean = collections.some((collection) => {
-        return collection.name === WALLET_COLLECTION_NAME;
+        return collection.name === COLLECTION_NAME;
       });
 
       // load or create the collection (and add its indexes) - should check version and perform migrations
       if (collectionExists) {
-        this._collection = db.collection<IPalPeerDto>(WALLET_COLLECTION_NAME);
+        this._collection = db.collection<IPalPeerDto>(COLLECTION_NAME);
       } else {
-        this._collection = await db.createCollection<IPalPeerDto>(
-          WALLET_COLLECTION_NAME
-        );
+        this._collection =
+          await db.createCollection<IPalPeerDto>(COLLECTION_NAME);
         await this._collection.createIndex({ id: 1 }, { unique: true });
         await this._collection.createIndex({
           'communicationMethod.type': 1,

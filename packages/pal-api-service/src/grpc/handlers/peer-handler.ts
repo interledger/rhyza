@@ -20,11 +20,6 @@ import {
   PbGetPeerRequest,
   PbPeerCommsMethodDefinition,
   PbPeerLedgerAccounts,
-  PbGetFxRateRequest,
-  PbGetFxRateResponse,
-  PbGetFxRateFromSourceAssetRequest,
-  PbGetFxRateToDestinationAssetRequest,
-  PbSetFxRateRequest,
   PeerCreationCompletedEvent
 } from 'pal-public-types-lib';
 import {
@@ -291,98 +286,6 @@ export class PeerGrpcHandler {
         return {
           error: {
             code: Status.FAILED_PRECONDITION,
-            message: msg
-          }
-        };
-      } else {
-        throw e;
-      }
-    }
-  }
-
-  async handleGetFxRateRequest(
-    call: ServerUnaryCall<PbGetFxRateRequest, PbGetFxRateResponse>
-  ): Promise<UnaryResponse<PbGetFxRateResponse>> {
-    let peerId;
-    let sourceReq: PbGetFxRateFromSourceAssetRequest | undefined;
-    let destinationReq: PbGetFxRateToDestinationAssetRequest | undefined;
-
-    if (call.request.hasFromSourceRequest()) {
-      sourceReq = call.request.getFromSourceRequest();
-    } else if (call.request.hasToDestinationRequest()) {
-      destinationReq = call.request.getToDestinationRequest();
-    }
-    if (!sourceReq && !destinationReq) {
-      throw new Error('Invalid GetFxRateRequest');
-    }
-
-    try {
-      let rate: number | null = null;
-      if (sourceReq) {
-        peerId = sourceReq.getPeerId();
-        rate = await this._peerAggregate.getFxFromSourceAsset(
-          peerId,
-          sourceReq.getSourceAssetCode()
-        );
-      } else if (destinationReq) {
-        peerId = destinationReq.getPeerId();
-        rate = await this._peerAggregate.getFxToDestinationAsset(
-          peerId,
-          destinationReq.getDestinationAssetCode()
-        );
-      }
-
-      const pbResp = new PbGetFxRateResponse();
-      if (rate) pbResp.setRate(rate);
-      return { resp: pbResp };
-    } catch (e) {
-      if (e instanceof PeerNotFoundError) {
-        const msg = `Peer with ID ${peerId} not found`;
-        this._logger.warn(msg);
-        return {
-          error: {
-            code: Status.NOT_FOUND,
-            message: msg
-          }
-        };
-      } else {
-        throw e;
-      }
-    }
-  }
-
-  async handleSetFxRateRequest(
-    call: ServerUnaryCall<PbSetFxRateRequest, Empty>
-  ): Promise<UnaryResponse<Empty>> {
-    const peerId = call.request.getPeerId();
-    const sourceAssetCode = call.request.getSourceAssetCode();
-    const destinationAssetCode = call.request.getDestinationAssetCode();
-    const rate = call.request.getRate();
-    const rateTtlSecs = call.request.hasRateTtlSecs()
-      ? call.request.getRateTtlSecs() || null
-      : null;
-
-    // We define the expiration timestamp here, the client proposes
-    // the ttl, we do the counting. This avoids clock difference issues.
-    const expiresAt = rateTtlSecs ? Date.now() + rateTtlSecs * 1000 : null;
-
-    try {
-      await this._peerAggregate.setFxRate(
-        peerId,
-        sourceAssetCode,
-        destinationAssetCode,
-        rate,
-        expiresAt
-      );
-
-      return { resp: new Empty() };
-    } catch (e) {
-      if (e instanceof PeerNotFoundError) {
-        const msg = `Peer with ID ${peerId} not found`;
-        this._logger.warn(msg);
-        return {
-          error: {
-            code: Status.NOT_FOUND,
             message: msg
           }
         };

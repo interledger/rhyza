@@ -4,6 +4,7 @@ services:
   redis:
     image: redis:latest
     container_name: redis
+    restart: unless-stopped
     ports:
       - '6379:6379'
 
@@ -28,6 +29,7 @@ services:
     image: apache/kafka:latest
     hostname: kafka-1
     container_name: kafka-1
+    restart: unless-stopped
     ports:
       - 29092:9092
     environment:
@@ -57,6 +59,7 @@ services:
     image: apache/kafka:latest
     hostname: kafka-2
     container_name: kafka-2
+    restart: unless-stopped
     ports:
       - 39092:9092
     environment:
@@ -87,6 +90,7 @@ services:
     image: apache/kafka:latest
     hostname: kafka-3
     container_name: kafka-3
+    restart: unless-stopped
     ports:
       - 49092:9092
     environment:
@@ -113,6 +117,39 @@ services:
       KAFKA_GROUP_CONSUMER_MIN_SESSION_TIMEOUT_MS: 10000
       KAFKA_GROUP_CONSUMER_MAX_HEARTBEAT_INTERVAL_MS: 5000
 
+  init-kafka:
+    image: apache/kafka:4.0.0
+    container_name: init-kafka
+    depends_on:
+      kafka-3:
+        condition: service_started
+    entrypoint: ['/bin/sh', '-c']
+    working_dir: /opt/kafka/bin/
+    command: |
+      "
+      # blocks until kafka is reachable
+      echo -e 'Existing kafka topics:'
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --list
+      echo -e '\nCreating kafka topics:'
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --topic audits
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --topic logs
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic payment-commands
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic payment-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic asset-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic peer-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ledger-commands
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ledger-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ledger-snapshot-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ledger-state-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic wallet-address-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic fxrate-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ilp-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ilp-commands
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ilp-connector-commands
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic notification-commands
+      echo -e '\nSuccessfully created the following topics:'
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --list
+      "
   redpanda-console:
     image: redpandadata/console
     container_name: redpanda-console

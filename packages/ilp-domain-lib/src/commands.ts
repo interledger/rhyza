@@ -8,7 +8,7 @@ export interface StartRemoteQuoteCmdPayload {
   paymentIntentId: string;
   quoteId: string;
   destinationIlpAddress: string;
-  sourceAmount: bigint;
+  sourceAmount: string;
   sourceAssetCode: string;
   sourceAssetScale: number;
 }
@@ -32,7 +32,7 @@ export interface StartRemotePaymentCmdPayload {
   paymentIntentId: string;
   paymentId: string;
   destinationIlpAddress: string;
-  amount: bigint;
+  amount: string;
   assetCode: string;
   assetScale: number;
   expiresAt: string;
@@ -108,9 +108,7 @@ export interface ProcessRejectPacketCmdPayload {
   rejectMessage: string;
   rejectedAt: string;
   // Only populated when this reject is destined as a quote response.
-  maxSourceAmount?: bigint;
-  minDeliveryAmount?: bigint;
-  lowEstimatedExchangeRate?: number;
+  destinationAmount?: string;
 }
 
 export class ProcessRejectPacketCmd extends CommandMsg {

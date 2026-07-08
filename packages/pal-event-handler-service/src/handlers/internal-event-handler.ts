@@ -12,13 +12,14 @@ import {
   LedgerAccountCreatedForAssetEvent,
   LedgerAccountsCreatedForPeerEvent,
   PeerCreatedEvent,
-  PeerFxCacheExpiredEvent
+  FxRateCacheExpiredEvent
 } from 'pal-public-types-lib';
 import {
   AssetAggregate,
   CreateLedgerAccountForAssetCmd,
   CreateLedgerAccountsForPeerCmd,
   CreateLedgerCmd,
+  FxAggregate,
   PeerAggregate
 } from 'pal-domain-lib';
 
@@ -32,10 +33,12 @@ export class InternalEventHandler {
   private readonly _pendingMessages: IMessage[] = [];
   private readonly _assetAggregate: AssetAggregate;
   private readonly _peerAggregate: PeerAggregate;
+  private readonly _fxAggregate: FxAggregate;
 
   constructor(
     peerAggregate: PeerAggregate,
     assetAggregate: AssetAggregate,
+    fxAggregate: FxAggregate,
     messageConsumer: IMessageConsumer,
     msgProducer: IMessageProducer,
     logger: ILogger
@@ -43,6 +46,7 @@ export class InternalEventHandler {
     this._logger = logger;
     this._peerAggregate = peerAggregate;
     this._assetAggregate = assetAggregate;
+    this._fxAggregate = fxAggregate;
     this._msgConsumer = messageConsumer;
     this._msgProducer = msgProducer;
   }
@@ -81,8 +85,8 @@ export class InternalEventHandler {
       await this._handleLedgerAccountCreatedForAssetEvent(
         evt as LedgerAccountCreatedForAssetEvent
       );
-    } else if (evt.msgName === PeerFxCacheExpiredEvent.name) {
-      await this._handlePeerFxCacheExpiredEvent(evt as PeerFxCacheExpiredEvent);
+    } else if (evt.msgName === FxRateCacheExpiredEvent.name) {
+      await this._handleFxRateCacheExpiredEvent(evt as FxRateCacheExpiredEvent);
     } else {
       this._logger.debug(
         `Internal event handler - unhandled event type: ${evt.msgName}`
@@ -194,17 +198,14 @@ export class InternalEventHandler {
   // endregion asset events saga
 
   // peer fx cache pre-fetch of expires rates
-  private async _handlePeerFxCacheExpiredEvent(
-    event: PeerFxCacheExpiredEvent
+  private async _handleFxRateCacheExpiredEvent(
+    event: FxRateCacheExpiredEvent
   ): Promise<void> {
-    this._logger.debug(
-      `_handlePeerFxCacheExpiredEvent: ${event.payload.peerId}`
-    );
+    this._logger.debug(`_handleFxRateCacheExpiredEvent: ${event.payload.id}`);
 
-    await this._peerAggregate.notifyExpiredFxRate(
-      event.payload.peerId,
-      event.payload.sourceAssetCode,
-      event.payload.destinationAssetCode
+    await this._fxAggregate.notifyExpiredFxRate(
+      event.payload.id,
+      event.msgTimestamp
     );
   }
 
@@ -212,7 +213,8 @@ export class InternalEventHandler {
     this._msgConsumer.setTopics([
       DomainEventTopics.PeerEvents,
       DomainEventTopics.AssetEvents,
-      DomainEventTopics.LedgerEvents
+      DomainEventTopics.LedgerEvents,
+      DomainEventTopics.FxRateEvents
     ]);
     this._msgConsumer.setBatchCallbackFn(this._handleMessageBatch.bind(this));
     await this._msgConsumer.connect();

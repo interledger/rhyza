@@ -9,6 +9,8 @@ import {
   NotificationType
 } from 'notifications-domain-lib';
 import {
+  PaymentCompletedEvent,
+  PaymentCompleteFailedEvent,
   PaymentCreatedEvent,
   PaymentIntentCompletedEvent,
   PaymentIntentCreatedEvent
@@ -44,7 +46,9 @@ export class NotificationsEventHandler {
       [PaymentIntentCreatedEvent.name]: NotificationType.PaymentIntentCreated,
       [PaymentIntentCompletedEvent.name]:
         NotificationType.PaymentIntentCompleted,
-      [PaymentCreatedEvent.name]: NotificationType.PaymentCreated
+      [PaymentCreatedEvent.name]: NotificationType.PaymentCreated,
+      [PaymentCompletedEvent.name]: NotificationType.PaymentCompleted,
+      [PaymentCompleteFailedEvent.name]: NotificationType.PaymentFailed
     };
 
   private async _handleEvent(message: IMessage) {

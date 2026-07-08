@@ -29,8 +29,8 @@ import { CreateQuoteCmd } from '../../src/commands';
 import { IPaymentIntent } from '../../src/payment-intent/interfaces';
 import { ApprovePaymentCmd } from '../../src/commands';
 import {
-  LocalPaymentCompletedEvent,
-  LocalPaymentCompleteFailedEvent,
+  PaymentCompletedEvent,
+  PaymentCompleteFailedEvent,
   RemoteQuoteRequestedEvent
 } from '../../src/payment-intent/events';
 
@@ -151,6 +151,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
   ): IPaymentIntent {
     return {
       id: crypto.randomUUID(),
+      createdAt: new Date(),
       receivedAmount: 0n,
       receiverWalletAddress: 'remote.domain.com/alice',
       assetCode: 'USD',
@@ -299,7 +300,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           expiresAt: new Date(Date.now() + 1000),
           incomingAmount: null,
           quotes: [],
-          payments: []
+          payments: [],
+          createdAt: new Date()
         };
         await repo.storeMany([paymentIntent]);
 
@@ -330,7 +332,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           expiresAt: new Date(Date.now() + 1000),
           incomingAmount: null,
           quotes: [],
-          payments: []
+          payments: [],
+          createdAt: new Date()
         };
         await repo.storeMany([paymentIntent]);
 
@@ -360,7 +363,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           incomingAmount: null,
           quotes: [],
           payments: [],
-          destinationIlpAddress: 'g.peer.123'
+          destinationIlpAddress: 'g.peer.123',
+          createdAt: new Date()
         };
         await repo.storeMany([paymentIntent]);
 
@@ -401,7 +405,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           expiresAt: new Date(Date.now() + 60_000),
           incomingAmount: null,
           quotes: [],
-          payments: []
+          payments: [],
+          createdAt: new Date()
         };
         await repo.storeMany([paymentIntent]);
 
@@ -421,17 +426,13 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           paymentIntentId: string;
           quoteId: string;
           receiveAmountValue: string;
-          receiveAssetCode: string;
-          receiveAssetScale: number;
         }> = {}
       ): CompleteRemoteQuoteCmd {
         return new CompleteRemoteQuoteCmd(
           {
             paymentIntentId: overrides.paymentIntentId ?? crypto.randomUUID(),
             quoteId: overrides.quoteId ?? crypto.randomUUID(),
-            receiveAmountValue: overrides.receiveAmountValue ?? '10000',
-            receiveAssetCode: overrides.receiveAssetCode ?? 'XRP',
-            receiveAssetScale: overrides.receiveAssetScale ?? 6
+            receiveAmountValue: overrides.receiveAmountValue ?? '10000'
           },
           crypto.randomUUID()
         );
@@ -444,9 +445,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
 
         const cmd = makeCompleteRemoteQuoteCmd({
           paymentIntentId: paymentIntent.id,
-          quoteId,
-          receiveAssetCode: 'USD',
-          receiveAssetScale: 2
+          quoteId
         });
         const { events } = await aggregate.handleBatch([cmd]);
 
@@ -485,44 +484,6 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         assert.equal(events[0].msgName, QuoteCreateFailedEvent.name);
         const payload = (events[0] as QuoteCreateFailedEvent).payload;
         assert.equal(payload.errorName, 'InvalidQuoteIdError');
-      });
-
-      it('fails with QuoteReceiveAssetMismatchError when receiveAssetCode does not match payment intent', async () => {
-        const quoteId = crypto.randomUUID();
-        const paymentIntent = makeRemotePaymentIntentWithPendingQuote(quoteId);
-        await repo.storeMany([paymentIntent]);
-
-        const cmd = makeCompleteRemoteQuoteCmd({
-          paymentIntentId: paymentIntent.id,
-          quoteId,
-          receiveAssetCode: 'XRP',
-          receiveAssetScale: paymentIntent.assetScale
-        });
-        const { events } = await aggregate.handleBatch([cmd]);
-
-        assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, QuoteCreateFailedEvent.name);
-        const payload = (events[0] as QuoteCreateFailedEvent).payload;
-        assert.equal(payload.errorName, 'QuoteReceiveAssetMismatchError');
-      });
-
-      it('fails with QuoteReceiveAssetMismatchError when receiveAssetScale does not match payment intent', async () => {
-        const quoteId = crypto.randomUUID();
-        const paymentIntent = makeRemotePaymentIntentWithPendingQuote(quoteId);
-        await repo.storeMany([paymentIntent]);
-
-        const cmd = makeCompleteRemoteQuoteCmd({
-          paymentIntentId: paymentIntent.id,
-          quoteId,
-          receiveAssetCode: paymentIntent.assetCode,
-          receiveAssetScale: paymentIntent.assetScale + 1
-        });
-        const { events } = await aggregate.handleBatch([cmd]);
-
-        assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, QuoteCreateFailedEvent.name);
-        const payload = (events[0] as QuoteCreateFailedEvent).payload;
-        assert.equal(payload.errorName, 'QuoteReceiveAssetMismatchError');
       });
 
       describe('FX calculation', () => {
@@ -753,7 +714,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           quotes: [],
           payments: [],
           destinationIlpAddress: 'g.peer.123',
-          remoteUrl: REMOTE_URL
+          remoteUrl: REMOTE_URL,
+          createdAt: new Date()
         };
         await repo.storeMany([existingPaymentIntent]);
 
@@ -844,7 +806,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           expiresAt: new Date(Date.now() + 1000),
           incomingAmount: null,
           quotes: [],
-          payments: []
+          payments: [],
+          createdAt: new Date()
         };
         await repo.storeMany([paymentIntent]);
 
@@ -875,7 +838,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           expiresAt: new Date(Date.now() + 1000),
           incomingAmount: null,
           quotes: [],
-          payments: []
+          payments: [],
+          createdAt: new Date()
         };
         await repo.storeMany([paymentIntent]);
 
@@ -901,8 +865,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         const { events } = await aggregate.handleBatch([cmd]);
 
         assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, LocalPaymentCompleteFailedEvent.name);
-        const payload = (events[0] as LocalPaymentCompleteFailedEvent).payload;
+        assert.equal(events[0].msgName, PaymentCompleteFailedEvent.name);
+        const payload = (events[0] as PaymentCompleteFailedEvent).payload;
         assert.equal(payload.errorName, 'PaymentIntentNotFoundError');
       });
 
@@ -934,7 +898,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
               createdAt: new Date(),
               debitAmount: 100n,
               receiveAmount: 100n,
-              sentAmount: 0n
+              sentAmount: 0n,
+              createdAt: new Date()
             }
           ]
         };
@@ -947,9 +912,9 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         const { events } = await aggregate.handleBatch([cmd]);
 
         assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, LocalPaymentCompletedEvent.name);
+        assert.equal(events[0].msgName, PaymentCompletedEvent.name);
         assert.equal(
-          (events[0] as LocalPaymentCompletedEvent).payload.id,
+          (events[0] as PaymentCompletedEvent).payload.id,
           paymentId
         );
       });
@@ -1013,17 +978,13 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           paymentIntentId: string;
           quoteId: string;
           receiveAmountValue: string;
-          receiveAssetCode: string;
-          receiveAssetScale: number;
         }> = {}
       ): CompleteRemoteQuoteCmd {
         return new CompleteRemoteQuoteCmd(
           {
             paymentIntentId: overrides.paymentIntentId ?? crypto.randomUUID(),
             quoteId: overrides.quoteId ?? crypto.randomUUID(),
-            receiveAmountValue: overrides.receiveAmountValue ?? '10000',
-            receiveAssetCode: overrides.receiveAssetCode ?? 'XRP',
-            receiveAssetScale: overrides.receiveAssetScale ?? 6
+            receiveAmountValue: overrides.receiveAmountValue ?? '10000'
           },
           crypto.randomUUID()
         );
@@ -1166,9 +1127,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         });
         const cmdB = makeCompleteRemoteQuoteCmd({
           paymentIntentId: intentB.id,
-          quoteId: quoteIdB,
-          receiveAssetCode: 'USD',
-          receiveAssetScale: 2
+          quoteId: quoteIdB
         });
         const { events } = await aggregate.handleBatch([cmdA, cmdB]);
 

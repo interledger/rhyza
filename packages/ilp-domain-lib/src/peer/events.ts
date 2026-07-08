@@ -3,22 +3,20 @@ import { DomainEvent, DomainEventTopics } from 'common-types-lib';
 const BOUNDED_CONTEXT_NAME = 'ilp';
 const AGGREGATE_NAME = 'ilp-peer';
 
-export interface QuoteDeterminedPayload {
+export interface RemoteQuoteReceivedPayload {
   peerId: string;
   paymentIntentId: string;
   quoteId: string;
-  maxSourceAmount: bigint;
-  minDeliveryAmount: bigint;
-  lowEstimatedExchangeRate: number;
+  destinationAmount: string;
 }
 
-export class QuoteDeterminedEvent extends DomainEvent {
+export class RemoteQuoteReceivedEvent extends DomainEvent {
   contextName: string = BOUNDED_CONTEXT_NAME;
   aggregateName: string = AGGREGATE_NAME;
   msgTopic: string = DomainEventTopics.IlpEvents;
-  payload: QuoteDeterminedPayload;
+  payload: RemoteQuoteReceivedPayload;
 
-  constructor(payload: QuoteDeterminedPayload) {
+  constructor(payload: RemoteQuoteReceivedPayload) {
     super(payload.peerId);
     this.msgKey = payload.peerId;
     this.payload = payload;
