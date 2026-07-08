@@ -44,7 +44,8 @@ import {
   LocalPaymentCompletedEvent,
   LocalPaymentCompleteFailedEvent,
   PaymentCreatedEvent,
-  RemoteQuoteRequestedEvent
+  RemoteQuoteRequestedEvent,
+  PaymentIntentCompletedEvent
 } from './events';
 
 const fxKey = (
@@ -176,7 +177,7 @@ export class PaymentIntentAggregate {
     ]);
 
     for (const cmd of cmds) {
-      let event: IMessage;
+      let event: IMessage | IMessage[];
       if (cmd.msgName === CreatePaymentIntentCmd.name) {
         event = this.handleCreatePaymentIntentCommand(
           cmd as CreatePaymentIntentCmd
@@ -198,8 +199,8 @@ export class PaymentIntentAggregate {
       } else {
         throw new Error('Unexpected command');
       }
-
-      outputEvents.push(event);
+      const events = Array.isArray(event) ? event : [event];
+      outputEvents.push(...events);
     }
 
     return { events: outputEvents };
@@ -748,7 +749,22 @@ export class PaymentIntentAggregate {
         paymentId
       );
 
-      return new LocalPaymentCompletedEvent({ id: paymentId }, cmd.requestId);
+      return [
+        new PaymentIntentCompletedEvent(
+          {
+            id: paymentIntent.id,
+            createdAt: paymentIntent.createdAt,
+            expiresAt: paymentIntent.expiresAt,
+            receivedAmount: String(paymentIntent.receivedAmount),
+            incomingAmount: String(paymentIntent.incomingAmount),
+            state: paymentIntent.state,
+            assetCode: paymentIntent.assetCode,
+            assetScale: paymentIntent.assetScale
+          },
+          cmd.requestId
+        ),
+        new LocalPaymentCompletedEvent({ id: paymentId }, cmd.requestId)
+      ];
     } catch (err) {
       return new LocalPaymentCompleteFailedEvent(
         {

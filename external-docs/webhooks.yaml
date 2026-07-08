@@ -15,6 +15,18 @@ webhooks:
       responses:
         '200':
           description: Payment intent created
+  paymentIntentCompleted:
+    post:
+      summary: Payment intent completed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/paymentIntentEvent'
+      responses:
+        '200':
+          description: Payment intent completed
   paymentCreated:
     post:
       summary: Payment created
@@ -57,6 +69,7 @@ components:
               type: string
               enum:
                 - payment_intent.created
+                - payment_intent.completed
             data:
               type: object
               required:

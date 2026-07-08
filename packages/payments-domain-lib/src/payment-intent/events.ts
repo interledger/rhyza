@@ -100,6 +100,28 @@ export class PaymentIntentCreateFailedEvent extends PaymentIntentDomainEvent {
   }
 }
 
+export type PaymentIntentCompletedPayload = {
+  id: string;
+  createdAt: Date;
+  expiresAt: Date;
+  incomingAmount: string | null;
+  receivedAmount: string | null;
+  state: PaymentIntentState;
+  receiverWalletAddressId?: string;
+  assetCode: string;
+  assetScale: number;
+};
+
+export class PaymentIntentCompletedEvent extends PaymentIntentDomainEvent {
+  payload: PaymentIntentCompletedPayload;
+
+  constructor(payload: PaymentIntentCompletedPayload, requestId?: string) {
+    super(payload.id);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
 export type QuoteCompletedPayload = {
   id: string;
   paymentIntentId: string;
