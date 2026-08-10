@@ -14,7 +14,8 @@ import {
   RevokeTokenCmd,
   AcceptInteractionCommand,
   RejectInteractionCommand,
-  GrantAggregate
+  GrantAggregate,
+  GetGrantCmd
 } from 'auth-domain-lib';
 
 export class AuthCommandHandler {
@@ -54,6 +55,7 @@ export class AuthCommandHandler {
     for (const msg of messages) {
       switch (msg.msgName) {
         case CreateGrantCmd.name:
+        case GetGrantCmd.name:
         case ContinueGrantCmd.name:
         case RevokeGrantCmd.name:
         case IntrospectTokenCmd.name:

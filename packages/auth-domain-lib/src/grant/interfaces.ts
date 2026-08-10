@@ -116,6 +116,7 @@ export interface IInteraction {
   interactRef: string;
   state: InteractionState;
   expiresInMs: number;
+  clientNonce: string;
 }
 
 export interface IGrant {

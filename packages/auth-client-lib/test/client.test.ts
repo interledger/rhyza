@@ -2,6 +2,9 @@
 
 import { after, before, describe, test } from 'node:test';
 import * as assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import * as grpc from '@grpc/grpc-js';
+import { ServiceError } from '@grpc/grpc-js';
 import {
   createHeaders,
   generateTestKeys
@@ -174,6 +177,49 @@ describe('Auth Client', () => {
         assert.fail('expected error for invalid signature');
       } catch (e) {
         assert.ok(e instanceof Error);
+      }
+    });
+  });
+
+  describe('getGrant', () => {
+    test('returns the grant for an existing id', async () => {
+      const keys = generateTestKeys();
+      const signatureData = await signedSignatureData(
+        keys.privateKey,
+        keys.publicKey.kid
+      );
+
+      const access = makeAccessItem({
+        type: 'INCOMING_PAYMENT',
+        actions: ['READ']
+      });
+      const createResult = await authClient.createGrant(
+        JSON.stringify(keys.publicKey),
+        signatureData,
+        { access: [access] }
+      );
+
+      const result = await authClient.getGrant(createResult.getId());
+
+      assert.ok(result);
+      assert.equal(result.getId(), createResult.getId());
+      assert.equal(result.getState(), 'FINALIZED');
+      assert.equal(result.getClient(), JSON.stringify(keys.publicKey));
+      assert.equal(result.getAccessesList().length, 1);
+      assert.equal(result.getAccessTokensList().length, 1);
+      assert.equal(
+        result.getAccessTokensList()[0].getValue(),
+        createResult.getAccessTokenValue()
+      );
+    });
+
+    test('rejects with NOT_FOUND for an id that does not exist', async () => {
+      try {
+        await authClient.getGrant(randomUUID());
+        assert.fail('expected error for an unknown grant id');
+      } catch (e) {
+        assert.ok(e instanceof Error);
+        assert.equal((e as ServiceError).code, grpc.status.NOT_FOUND);
       }
     });
   });

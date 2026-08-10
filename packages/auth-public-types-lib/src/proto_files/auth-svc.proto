@@ -39,14 +39,14 @@ message Interaction {
 
 message Grant {
 	string id = 1;
-	repeated string start = 2;
+	repeated string start_methods = 2;
 	string continue_token = 3;
 	string continue_id = 4;
 	string interaction_nonce = 5;
 	string state = 6;
-	string finalization = 7;
+	string finalization_reason = 7;
 	string client = 8;
-	repeated SubjectId sub_ids = 9;
+	repeated SubjectId subject_ids = 9;
 	repeated AccessItem accesses = 10;
 	string finish_method = 11;
 	string finish_uri = 12;

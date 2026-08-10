@@ -17,8 +17,11 @@ import {
 import {
   CreateGrantCmd,
   CreateGrantCmdPayload,
+  GetGrantCmd,
   GrantAggregate,
   GrantCreatedEvent,
+  GrantFoundEvent,
+  GrantNotFoundEvent,
   IGrant,
   IGrantRepository,
   IJsonWebKey,
@@ -165,5 +168,54 @@ describe('AuthCommandHandler — grant creation', () => {
     assert.ok(event, 'expected a GrantCreatedEvent');
     assert.equal(event.payload.id, commandPayloadId);
     assert.equal(event.requestId, requestId);
+  });
+});
+
+describe('AuthCommandHandler — get grant', () => {
+  test('GetGrantCmd for an existing grant yields GrantFoundEvent', async () => {
+    const { producer, consumer } = await startedHandler();
+    const keys = generateTestKeys();
+
+    const commandPayloadId = randomUUID();
+    await consumer.deliver([
+      new CreateGrantCmd(
+        {
+          id: commandPayloadId,
+          client: JSON.stringify(keys.publicKey),
+          signatureData: await signedSignatureData(
+            keys.privateKey,
+            keys.publicKey.kid
+          ),
+          access: [{ type: 'INCOMING_PAYMENT', actions: ['READ'] }]
+        },
+        randomUUID()
+      )
+    ]);
+
+    const requestId = randomUUID();
+    await consumer.deliver([
+      new GetGrantCmd({ id: commandPayloadId }, requestId)
+    ]);
+
+    const event = producer.sent.find(
+      (m) => m.msgName === GrantFoundEvent.name && m.requestId === requestId
+    ) as GrantFoundEvent;
+    assert.ok(event, 'expected a GrantFoundEvent');
+    assert.equal(event.payload.grant.id, commandPayloadId);
+  });
+
+  test('GetGrantCmd for a grant that does not exist yields GrantNotFoundEvent', async () => {
+    const { producer, consumer } = await startedHandler();
+
+    const unknownId = randomUUID();
+    const requestId = randomUUID();
+    await consumer.deliver([new GetGrantCmd({ id: unknownId }, requestId)]);
+
+    const event = producer.sent.find(
+      (m) => m.msgName === GrantNotFoundEvent.name && m.requestId === requestId
+    ) as GrantNotFoundEvent;
+    assert.ok(event, 'expected a GrantNotFoundEvent');
+    assert.equal(event.payload.grantId, unknownId);
+    assert.equal(event.payload.errorName, 'GrantNotFoundError');
   });
 });

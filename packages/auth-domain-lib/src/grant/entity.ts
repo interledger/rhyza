@@ -193,12 +193,13 @@ export class GrantEntity implements IGrant {
   }
 
   // Generates an interaction for the grant.
-  startInteraction(): IInteraction {
+  startInteraction(clientNonce: string): IInteraction {
     if (!this._startMethods) {
       throw new NonInteractiveGrantError();
     }
 
     this._interaction = {
+      clientNonce,
       interactRef: uuid(),
       expiresInMs: INTERACTION_EXPIRY_MS,
       state: InteractionState.PENDING

@@ -28,10 +28,13 @@ import {
   AccessItem,
   AccessLimits,
   SubjectId,
+  Interaction,
   ContinueGrantResponse,
   RevokeGrantResponse,
   IntrospectTokenResponse,
-  RotateTokenResponse
+  RotateTokenResponse,
+  Grant,
+  AccessToken
 } from 'auth-public-types-lib';
 
 import { IMessage, IMessageConsumer, IMessageProducer } from 'common-types-lib';
@@ -59,6 +62,7 @@ import {
   IAccessItem
 } from 'auth-domain-lib';
 import crypto from 'crypto';
+import { GrantFoundEvent, GrantNotFoundEvent } from 'auth-domain-lib/src';
 
 const PUBLIC_TYPES_LIB_PATH = require.resolve('auth-public-types-lib');
 const DEFAULT_RESPONSE_TIMEOUT_MS = 120_000;
@@ -127,7 +131,7 @@ export class AuthServiceServer {
       revokeToken: this._handleUnary.bind(this),
       startInteraction: this._handleUnary.bind(this),
       finishInteraction: this._handleUnary.bind(this),
-      getGrantDetails: this._handleUnary.bind(this),
+      getGrant: this._handleUnary.bind(this),
       acceptInteraction: this._handleUnary.bind(this),
       rejectInteraction: this._handleUnary.bind(this)
     });
@@ -229,6 +233,7 @@ export class AuthServiceServer {
       const commandId = crypto.randomUUID();
       this._storePendingResponse(commandId, call, callback);
 
+      // TODO: factor out getting access list from multiple handlers.
       const accessList = call.request.getAccessList().map((item: any) => ({
         type: item.getType().toString(),
         actions: item.getActionsList().map((a: any) => a.toString()),
@@ -503,6 +508,79 @@ export class AuthServiceServer {
         message: payload.message || 'Command processing failed',
         details: payload.message,
         name: payload.errorName || 'CommandError',
+        metadata: new grpc.Metadata()
+      });
+    } else if (GrantDomainEvent.isGrantFoundEvent(event)) {
+      const grant: GrantFoundEvent['payload']['grant'] = event.payload.grant;
+      const response = new Grant();
+      response.setId(grant.id);
+      response.setStartmethodsList(grant.startMethods);
+      response.setState(grant.state);
+
+      if (grant.continueToken) response.setContinueToken(grant.continueToken);
+
+      if (grant.continueId) response.setContinueId(grant.continueId);
+
+      if (grant.client) {
+        const serializedClient =
+          typeof grant.client === 'string'
+            ? grant.client
+            : JSON.stringify(grant.client);
+        response.setClient(serializedClient);
+      }
+
+      if (grant.subjectIds) {
+        for (const sub of grant.subjectIds) {
+          const subItem = new SubjectId();
+          subItem.setId(sub.id);
+          subItem.setFormat(sub.format);
+          response.addSubjectIds(subItem);
+        }
+      }
+
+      for (const access of grant.accesses || []) {
+        response.addAccesses(this.getAccessListResponse(access));
+      }
+
+      if (grant.finishNonce) response.setFinishNonce(grant.finishNonce);
+
+      if (grant.finishUri) response.setFinishUri(grant.finishUri);
+
+      if (grant.finishMethod) response.setFinishMethod(grant.finishMethod);
+
+      if (grant.interactionNonce)
+        response.setInteractionNonce(grant.interactionNonce);
+
+      if (grant.interaction) {
+        const interaction = new Interaction();
+        interaction.setClientNonce(grant.interaction.clientNonce);
+        interaction.setExpiresInMs(grant.interaction.expiresInMs);
+        interaction.setState(grant.interaction.state);
+        interaction.setInteractRef(grant.interaction.interactRef);
+        response.setInteraction(interaction);
+      }
+
+      for (const accessToken of grant.accessTokens.values()) {
+        const responseAccessToken = new AccessToken();
+        responseAccessToken.setValue(accessToken.value);
+        responseAccessToken.setManagementId(accessToken.managementId);
+        responseAccessToken.setExpiresIn(accessToken.expiresInMs);
+        if (accessToken.revokedAt)
+          responseAccessToken.setRevokedAt(
+            accessToken.revokedAt.toDateString()
+          );
+
+        response.addAccessTokens(responseAccessToken);
+      }
+
+      this._resolvePendingResponse(pending, requestId, null, response);
+    } else if (GrantDomainEvent.isGrantNotFoundEvent(event)) {
+      const payload: GrantNotFoundEvent['payload'] = event.payload;
+      this._resolvePendingResponse(pending, requestId, {
+        code: grpc.status.NOT_FOUND,
+        message: payload.message || 'Grant not found',
+        details: payload.message,
+        name: payload.errorName || 'GrantNotFoundError',
         metadata: new grpc.Metadata()
       });
     } else if (GrantDomainEvent.isGrantContinuedEvent(event)) {
