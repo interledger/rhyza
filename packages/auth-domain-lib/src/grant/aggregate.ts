@@ -1,4 +1,4 @@
-import { ConsoleLogger, ILogger, IMessage } from 'common-types-lib';
+import { ILogger, IMessage } from 'common-types-lib';
 import {
   GetGrantCmd,
   ContinueGrantCmd,
@@ -35,7 +35,6 @@ import {
   AccessAction,
   AccessType,
   GrantFinalization,
-  GrantState,
   IAccessItem,
   IAccessLimit,
   IFinishMethod,
