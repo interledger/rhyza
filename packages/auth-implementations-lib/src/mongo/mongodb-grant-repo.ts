@@ -103,19 +103,6 @@ export class MongoDbGrantRepo implements IGrantRepository {
     doc: WithId<GrantDoc>,
     tokenDocs: AccessTokenDoc[]
   ): IGrant {
-    const accessTokens = new Map<string, IAccessToken>(
-      tokenDocs.map((tokenDoc) => [
-        tokenDoc.value,
-        {
-          value: tokenDoc.value,
-          managementId: tokenDoc.managementId,
-          expiresInMs: tokenDoc.expiresInMs,
-          createdAt: tokenDoc.createdAt,
-          revokedAt: tokenDoc.revokedAt
-        }
-      ])
-    );
-
     return {
       id: doc.id,
       startMethods: doc.startMethods,
@@ -132,7 +119,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
       interactionNonce: doc.interactionNonce,
       interaction: doc.interaction,
       lastContinuedAt: doc.lastContinuedAt,
-      accessTokens
+      accessTokens: tokenDocs
     };
   }
 

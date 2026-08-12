@@ -135,7 +135,7 @@ export interface IGrant {
   interactionNonce?: string;
   interaction?: IInteraction;
   lastContinuedAt?: Date;
-  accessTokens: Map<string, IAccessToken>;
+  accessTokens: IAccessToken[];
 }
 
 export type NewAccessToken = Omit<IAccessToken, 'revokedAt'>;

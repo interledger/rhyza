@@ -53,6 +53,8 @@ import {
   IntrospectTokenCmd,
   GrantDomainEvent,
   GrantCreatedEvent,
+  GrantFoundEvent,
+  GrantNotFoundEvent,
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
@@ -62,7 +64,6 @@ import {
   IAccessItem
 } from 'auth-domain-lib';
 import crypto from 'crypto';
-import { GrantFoundEvent, GrantNotFoundEvent } from 'auth-domain-lib/src';
 
 const PUBLIC_TYPES_LIB_PATH = require.resolve('auth-public-types-lib');
 const DEFAULT_RESPONSE_TIMEOUT_MS = 120_000;
@@ -560,7 +561,8 @@ export class AuthServiceServer {
         response.setInteraction(interaction);
       }
 
-      for (const accessToken of grant.accessTokens.values()) {
+      console.log('grant.accessTokens=', grant.accessTokens);
+      for (const accessToken of grant.accessTokens) {
         const responseAccessToken = new AccessToken();
         responseAccessToken.setValue(accessToken.value);
         responseAccessToken.setManagementId(accessToken.managementId);

@@ -1,4 +1,4 @@
-import { ILogger, IMessage } from 'common-types-lib';
+import { ConsoleLogger, ILogger, IMessage } from 'common-types-lib';
 import {
   GetGrantCmd,
   ContinueGrantCmd,

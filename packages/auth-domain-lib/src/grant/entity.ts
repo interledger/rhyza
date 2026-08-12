@@ -44,6 +44,7 @@ interface IGrantInput {
   finishNonce?: string;
   interactionNonce?: string;
   lastContinuedAt?: Date;
+  accessTokens?: IAccessToken[];
 }
 
 export type CreateGrantInput = Omit<
@@ -131,6 +132,12 @@ export class GrantEntity implements IGrant {
     this._interactionNonce = input.interactionNonce;
     this._interaction = input.interaction;
     this._lastContinuedAt = input.lastContinuedAt;
+
+    if (input.accessTokens) {
+      for (const accessToken of input.accessTokens) {
+        this._accessTokens.set(accessToken.value, accessToken);
+      }
+    }
   }
 
   static fromObject(obj: IGrant): GrantEntity {
@@ -188,7 +195,7 @@ export class GrantEntity implements IGrant {
       finishMethod: this._finishMethod,
       finishUri: this._finishUri,
       lastContinuedAt: this._lastContinuedAt,
-      accessTokens: this._accessTokens
+      accessTokens: Array.from(this._accessTokens.values())
     };
   }
 
@@ -426,7 +433,7 @@ export class GrantEntity implements IGrant {
     return this._lastContinuedAt;
   }
 
-  get accessTokens(): Map<string, IAccessToken> {
-    return this._accessTokens;
+  get accessTokens(): IAccessToken[] {
+    return Array.from(this._accessTokens.values());
   }
 }
