@@ -514,7 +514,7 @@ export class AuthServiceServer {
       const grant: GrantFoundEvent['payload']['grant'] = event.payload.grant;
       const response = new Grant();
       response.setId(grant.id);
-      response.setStartmethodsList(grant.startMethods);
+      response.setStartMethodsList(grant.startMethods);
       response.setState(grant.state);
 
       if (grant.continueToken) response.setContinueToken(grant.continueToken);
