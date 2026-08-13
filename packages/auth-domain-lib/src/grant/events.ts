@@ -1,10 +1,5 @@
 import { DomainEventTopics, DomainEvent } from 'common-types-lib';
-import {
-  GrantFinalization,
-  IAccessItem,
-  IGrant,
-  ISubjectId
-} from './interfaces';
+import { GrantFinalization, IAccessItem, ISubjectId } from './interfaces';
 
 const BOUNDED_CONTEXT_NAME = 'auth';
 const AGGREGATE_NAME = 'grant';
