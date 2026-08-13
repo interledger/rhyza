@@ -73,25 +73,6 @@ export class CreateGrantCmd extends CommandMsg {
   }
 }
 
-export interface GetGrantCmdPayload {
-  id: string;
-}
-
-export class GetGrantCmd extends CommandMsg {
-  contextName: string = BOUNDED_CONTEXT_NAME;
-  aggregateName: string = GRANT_AGGREGATE_NAME;
-  msgKey: string;
-  msgTopic: string = CommandTopics.AuthCommands;
-  payload: GetGrantCmdPayload;
-
-  constructor(payload: GetGrantCmdPayload, requestId: string) {
-    super(payload.id);
-    this.requestId = requestId;
-    this.msgKey = payload.id;
-    this.payload = payload;
-  }
-}
-
 export interface RevokeGrantCmdPayload {
   id: string;
   continueId: string;

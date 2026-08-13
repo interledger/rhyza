@@ -290,6 +290,7 @@ services:
     restart: always
     environment:
       KAFKA_URL: kafka:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
     ports:
       - '50054:50054'
     depends_on:

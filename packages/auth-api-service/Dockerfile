@@ -28,6 +28,7 @@ COPY packages/implementations-lib/package.json ./packages/implementations-lib/pa
 COPY packages/auth-public-types-lib/package.json ./packages/auth-public-types-lib/package.json
 COPY packages/auth-domain-lib/package.json ./packages/auth-domain-lib/package.json
 COPY packages/auth-api-service/package.json ./packages/auth-api-service/package.json
+COPY packages/auth-implementations-lib/package.json ./packages/auth-implementations-lib/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store BUILD_LIBRDKAFKA=0 pnpm install --recursive --prefer-offline --frozen-lockfile --prod
 
 FROM base AS build
@@ -37,6 +38,7 @@ RUN pnpm --filter common-types-lib build
 RUN pnpm --filter implementations-lib build
 RUN pnpm --filter auth-public-types-lib build
 RUN pnpm --filter auth-domain-lib build
+RUN pnpm --filter auth-implementations-lib build
 RUN pnpm --filter auth-api-service build
 
 FROM node:24-alpine AS runner
@@ -48,6 +50,7 @@ COPY --from=prod-deps /workspace/node_modules ./node_modules
 COPY --from=prod-deps /workspace/packages/implementations-lib/node_modules ./packages/implementations-lib/node_modules
 COPY --from=prod-deps /workspace/packages/auth-public-types-lib/node_modules ./packages/auth-public-types-lib/node_modules
 COPY --from=prod-deps /workspace/packages/auth-domain-lib/node_modules ./packages/auth-domain-lib/node_modules
+COPY --from=prod-deps /workspace/packages/auth-implementations-lib/node_modules ./packages/auth-implementations-lib/node_modules
 COPY --from=prod-deps /workspace/packages/auth-api-service/node_modules ./packages/auth-api-service/node_modules
 
 # package.json for each workspace dep (Node resolution needs these)
@@ -55,6 +58,7 @@ COPY --from=prod-deps /workspace/packages/common-types-lib/package.json ./packag
 COPY --from=prod-deps /workspace/packages/implementations-lib/package.json ./packages/implementations-lib/package.json
 COPY --from=prod-deps /workspace/packages/auth-public-types-lib/package.json ./packages/auth-public-types-lib/package.json
 COPY --from=prod-deps /workspace/packages/auth-domain-lib/package.json ./packages/auth-domain-lib/package.json
+COPY --from=prod-deps /workspace/packages/auth-implementations-lib/package.json ./packages/auth-implementations-lib/package.json
 COPY --from=prod-deps /workspace/packages/auth-api-service/package.json ./packages/auth-api-service/package.json
 
 # built dist from each workspace dep
@@ -62,6 +66,7 @@ COPY --from=build /workspace/packages/common-types-lib/dist ./packages/common-ty
 COPY --from=build /workspace/packages/implementations-lib/dist ./packages/implementations-lib/dist
 COPY --from=build /workspace/packages/auth-public-types-lib/dist ./packages/auth-public-types-lib/dist
 COPY --from=build /workspace/packages/auth-domain-lib/dist ./packages/auth-domain-lib/dist
+COPY --from=build /workspace/packages/auth-implementations-lib/dist ./packages/auth-implementations-lib/dist
 COPY --from=build /workspace/packages/auth-api-service/dist ./packages/auth-api-service/dist
 
 CMD ["node", "packages/auth-api-service/dist/index.js"]

@@ -8,18 +8,8 @@ import {
 } from '@interledger/http-signature-utils';
 
 import { GrantAggregate } from '../src/grant/aggregate';
-import {
-  CreateGrantCmd,
-  CreateGrantCmdPayload,
-  GetGrantCmd,
-  GetGrantCmdPayload
-} from '../src/commands';
-import {
-  GrantCreatedEvent,
-  GrantCreateFailedEvent,
-  GrantFoundEvent,
-  GrantNotFoundEvent
-} from '../src/grant/events';
+import { CreateGrantCmd, CreateGrantCmdPayload } from '../src/commands';
+import { GrantCreatedEvent, GrantCreateFailedEvent } from '../src/grant/events';
 import { AccessAction, AccessType } from '../src/grant/interfaces';
 import { MockGrantRepo, MockWalletAddressService } from './mocks';
 import { PinoLogger } from 'implementations-lib';
@@ -75,13 +65,6 @@ function makeCreateGrantCmd(
     },
     requestId
   );
-}
-
-function makeGetGrantCmd(
-  payload: GetGrantCmdPayload,
-  requestId: string = randomUUID()
-): GetGrantCmd {
-  return new GetGrantCmd(payload, requestId);
 }
 
 describe('GrantAggregate.handleBatch', () => {
@@ -357,67 +340,6 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(events[0].msgName, GrantCreatedEvent.name);
         const payload = (events[0] as GrantCreatedEvent).payload;
         assert.deepEqual(payload.subjectIds, subjectIds);
-      });
-    });
-
-    describe('handleGetGrantCommand', async () => {
-      // Creates and flushes a non-interactive grant, mirroring how a real
-      // get-grant request arrives in a separate batch after the grant has
-      // already been persisted and evicted from the in-memory grantMap.
-      async function createAndFlushIssuedGrant(
-        access: CreateGrantCmdPayload['access'] = [
-          { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
-        ]
-      ): Promise<{ id: string }> {
-        const keys = generateTestKeys();
-        const createCmd = makeCreateGrantCmd({
-          client: JSON.stringify(keys.publicKey),
-          signatureData: await signedSignatureData(
-            keys.privateKey,
-            keys.publicKey.kid
-          ),
-          access
-        });
-        await aggregate.handleBatch([createCmd]);
-        await aggregate.flush();
-
-        return { id: createCmd.payload.id };
-      }
-
-      it('returns the grant via GrantFoundEvent when the grant exists', async () => {
-        const access = [
-          { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
-        ];
-        const { id } = await createAndFlushIssuedGrant(access);
-
-        const requestId = randomUUID();
-        const { events } = await aggregate.handleBatch([
-          makeGetGrantCmd({ id }, requestId)
-        ]);
-
-        assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, GrantFoundEvent.name);
-        assert.equal(events[0].requestId, requestId);
-        const payload = (events[0] as GrantFoundEvent).payload;
-        assert.equal(payload.grant.id, id);
-        assert.equal(payload.grant.state, 'FINALIZED');
-        assert.deepEqual(payload.grant.accesses, access);
-      });
-
-      it('fails with GrantNotFoundError when the grant does not exist', async () => {
-        const id = randomUUID();
-        const requestId = randomUUID();
-
-        const { events } = await aggregate.handleBatch([
-          makeGetGrantCmd({ id }, requestId)
-        ]);
-
-        assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, GrantNotFoundEvent.name);
-        assert.equal(events[0].requestId, requestId);
-        const payload = (events[0] as GrantNotFoundEvent).payload;
-        assert.equal(payload.errorName, 'GrantNotFoundError');
-        assert.equal(payload.grantId, id);
       });
     });
   });

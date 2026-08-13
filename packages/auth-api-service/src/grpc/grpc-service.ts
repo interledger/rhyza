@@ -49,12 +49,9 @@ import {
   GrantCreateFailedEvent,
   GrantContinuedEvent,
   GrantContinueFailedEvent,
-  GetGrantCmd,
   IntrospectTokenCmd,
   GrantDomainEvent,
   GrantCreatedEvent,
-  GrantFoundEvent,
-  GrantNotFoundEvent,
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
@@ -64,6 +61,7 @@ import {
   IAccessItem
 } from 'auth-domain-lib';
 import crypto from 'crypto';
+import { IGrantRepository } from 'auth-domain-lib/src';
 
 const PUBLIC_TYPES_LIB_PATH = require.resolve('auth-public-types-lib');
 const DEFAULT_RESPONSE_TIMEOUT_MS = 120_000;
@@ -79,6 +77,7 @@ export class AuthServiceServer {
   private readonly _server: grpc.Server;
   private readonly _msgProducer: IMessageProducer;
   private readonly _msgConsumer: IMessageConsumer;
+  private readonly _repo: IGrantRepository;
   private readonly _responseTimeoutMs: number;
   private readonly _responseMap: Map<string, PendingResponse> = new Map();
   private _startedAt: number = 0;
@@ -89,6 +88,7 @@ export class AuthServiceServer {
     serverUrl: string,
     msgProducer: IMessageProducer,
     msgConsumer: IMessageConsumer,
+    repo: IGrantRepository,
     responseTimeoutMs: number = DEFAULT_RESPONSE_TIMEOUT_MS
   ) {
     this._responseTimeoutMs = responseTimeoutMs;
@@ -96,6 +96,7 @@ export class AuthServiceServer {
     this._instanceId = instanceId;
     this._msgProducer = msgProducer;
     this._msgConsumer = msgConsumer;
+    this._repo = repo;
 
     this._msgConsumer.setBatchCallbackFn(this._handleBatch.bind(this));
 
@@ -132,7 +133,7 @@ export class AuthServiceServer {
       revokeToken: this._handleUnary.bind(this),
       startInteraction: this._handleUnary.bind(this),
       finishInteraction: this._handleUnary.bind(this),
-      getGrant: this._handleUnary.bind(this),
+      getGrant: this._handleGetGrant.bind(this),
       acceptInteraction: this._handleUnary.bind(this),
       rejectInteraction: this._handleUnary.bind(this)
     });
@@ -295,17 +296,6 @@ export class AuthServiceServer {
         commandId
       );
       await this._msgProducer.send(cmd);
-    } else if (call.request instanceof GetGrantRequest) {
-      const commandId = call.request.getId();
-      this._storePendingResponse(commandId, call, callback);
-
-      const cmd = new GetGrantCmd(
-        {
-          id: call.request.getId()
-        },
-        commandId
-      );
-      await this._msgProducer.send(cmd);
     } else if (call.request instanceof ContinueGrantRequest) {
       const commandId = crypto.randomUUID();
       this._storePendingResponse(commandId, call, callback);
@@ -416,6 +406,90 @@ export class AuthServiceServer {
     }
   }
 
+  private async _handleGetGrant(
+    call: ServerUnaryCall<GetGrantRequest, Grant>,
+    callback: sendUnaryData<Grant>
+  ): Promise<void> {
+    const id = call.request.getId();
+    try {
+      const [grant] = await this._repo.fetchByIds([id]);
+      if (!grant) {
+        callback({
+          code: grpc.status.NOT_FOUND,
+          message: `Grant '${id}' not found`
+        });
+        return;
+      }
+
+      const response = new Grant();
+      response.setId(grant.id);
+      response.setStartMethodsList(grant.startMethods);
+      response.setState(grant.state);
+
+      if (grant.continueToken) response.setContinueToken(grant.continueToken);
+
+      if (grant.continueId) response.setContinueId(grant.continueId);
+
+      if (grant.client) {
+        const serializedClient =
+          typeof grant.client === 'string'
+            ? grant.client
+            : JSON.stringify(grant.client);
+        response.setClient(serializedClient);
+      }
+
+      if (grant.subjectIds) {
+        for (const sub of grant.subjectIds) {
+          const subItem = new SubjectId();
+          subItem.setId(sub.id);
+          subItem.setFormat(sub.format);
+          response.addSubjectIds(subItem);
+        }
+      }
+
+      for (const access of grant.accesses || []) {
+        response.addAccesses(this.getAccessListResponse(access));
+      }
+
+      if (grant.finishNonce) response.setFinishNonce(grant.finishNonce);
+
+      if (grant.finishUri) response.setFinishUri(grant.finishUri);
+
+      if (grant.finishMethod) response.setFinishMethod(grant.finishMethod);
+
+      if (grant.interactionNonce)
+        response.setInteractionNonce(grant.interactionNonce);
+
+      if (grant.interaction) {
+        const interaction = new Interaction();
+        interaction.setClientNonce(grant.interaction.clientNonce);
+        interaction.setExpiresInMs(grant.interaction.expiresInMs);
+        interaction.setState(grant.interaction.state);
+        interaction.setInteractRef(grant.interaction.interactRef);
+        response.setInteraction(interaction);
+      }
+
+      for (const accessToken of grant.accessTokens) {
+        const responseAccessToken = new AccessToken();
+        responseAccessToken.setValue(accessToken.value);
+        responseAccessToken.setManagementId(accessToken.managementId);
+        responseAccessToken.setExpiresIn(accessToken.expiresInMs);
+        if (accessToken.revokedAt)
+          responseAccessToken.setRevokedAt(
+            accessToken.revokedAt.toDateString()
+          );
+
+        response.addAccessTokens(responseAccessToken);
+      }
+      callback(null, response);
+    } catch (err) {
+      callback({
+        code: grpc.status.INTERNAL,
+        message: (err as Error).message
+      });
+    }
+  }
+
   private _storePendingResponse(
     commandId: string,
     call: ServerUnaryCall<any, any>,
@@ -509,80 +583,6 @@ export class AuthServiceServer {
         message: payload.message || 'Command processing failed',
         details: payload.message,
         name: payload.errorName || 'CommandError',
-        metadata: new grpc.Metadata()
-      });
-    } else if (GrantDomainEvent.isGrantFoundEvent(event)) {
-      const grant: GrantFoundEvent['payload']['grant'] = event.payload.grant;
-      const response = new Grant();
-      response.setId(grant.id);
-      response.setStartMethodsList(grant.startMethods);
-      response.setState(grant.state);
-
-      if (grant.continueToken) response.setContinueToken(grant.continueToken);
-
-      if (grant.continueId) response.setContinueId(grant.continueId);
-
-      if (grant.client) {
-        const serializedClient =
-          typeof grant.client === 'string'
-            ? grant.client
-            : JSON.stringify(grant.client);
-        response.setClient(serializedClient);
-      }
-
-      if (grant.subjectIds) {
-        for (const sub of grant.subjectIds) {
-          const subItem = new SubjectId();
-          subItem.setId(sub.id);
-          subItem.setFormat(sub.format);
-          response.addSubjectIds(subItem);
-        }
-      }
-
-      for (const access of grant.accesses || []) {
-        response.addAccesses(this.getAccessListResponse(access));
-      }
-
-      if (grant.finishNonce) response.setFinishNonce(grant.finishNonce);
-
-      if (grant.finishUri) response.setFinishUri(grant.finishUri);
-
-      if (grant.finishMethod) response.setFinishMethod(grant.finishMethod);
-
-      if (grant.interactionNonce)
-        response.setInteractionNonce(grant.interactionNonce);
-
-      if (grant.interaction) {
-        const interaction = new Interaction();
-        interaction.setClientNonce(grant.interaction.clientNonce);
-        interaction.setExpiresInMs(grant.interaction.expiresInMs);
-        interaction.setState(grant.interaction.state);
-        interaction.setInteractRef(grant.interaction.interactRef);
-        response.setInteraction(interaction);
-      }
-
-      console.log('grant.accessTokens=', grant.accessTokens);
-      for (const accessToken of grant.accessTokens) {
-        const responseAccessToken = new AccessToken();
-        responseAccessToken.setValue(accessToken.value);
-        responseAccessToken.setManagementId(accessToken.managementId);
-        responseAccessToken.setExpiresIn(accessToken.expiresInMs);
-        if (accessToken.revokedAt)
-          responseAccessToken.setRevokedAt(
-            accessToken.revokedAt.toDateString()
-          );
-
-        response.addAccessTokens(responseAccessToken);
-      }
-
-      this._resolvePendingResponse(pending, requestId, null, response);
-    } else if (GrantDomainEvent.isGrantNotFoundEvent(event)) {
-      const payload: GrantNotFoundEvent['payload'] = event.payload;
-      this._resolvePendingResponse(pending, requestId, {
-        code: grpc.status.NOT_FOUND,
-        message: payload.message || 'Grant not found',
-        details: payload.message,
-        name: payload.errorName || 'GrantNotFoundError',
         metadata: new grpc.Metadata()
       });
     } else if (GrantDomainEvent.isGrantContinuedEvent(event)) {

@@ -1,6 +1,5 @@
 import { ILogger, IMessage } from 'common-types-lib';
 import {
-  GetGrantCmd,
   ContinueGrantCmd,
   CreateGrantCmd,
   AcceptInteractionCommand,
@@ -27,9 +26,7 @@ import {
   TokenIntrospectedEvent,
   TokenIntrospectionFailedEvent,
   TokenRotatedEvent,
-  TokenRotationFailedEvent,
-  GrantFoundEvent,
-  GrantNotFoundEvent
+  TokenRotationFailedEvent
 } from './events';
 import {
   AccessAction,
@@ -101,9 +98,6 @@ export class GrantAggregate {
             this.parseJWKJson(payload.client) as JWK
           );
         }
-      } else if (cmd.msgName === GetGrantCmd.name) {
-        const payload = (cmd as GetGrantCmd).payload;
-        grantIdSet.add(payload.id);
       } else if (cmd.msgName === ContinueGrantCmd.name) {
         const payload = (cmd as ContinueGrantCmd).payload;
         grantIdSet.add(payload.id);
@@ -145,8 +139,6 @@ export class GrantAggregate {
         let event: IMessage;
         if (cmd.msgName == CreateGrantCmd.name) {
           event = await this.handleCreateGrantCommand(cmd as CreateGrantCmd);
-        } else if (cmd.msgName === GetGrantCmd.name) {
-          event = this.handleGetGrantCommand(cmd as GetGrantCmd);
         } else if (cmd.msgName === ContinueGrantCmd.name) {
           event = this.handleContinueGrantCommand(cmd as ContinueGrantCmd);
         } else if (cmd.msgName === RevokeGrantCmd.name) {
@@ -276,31 +268,6 @@ export class GrantAggregate {
         `handleCreateGrantCommand — failed id: ${cmd.payload.id} error: ${(err as Error).message}`
       );
       return new GrantCreateFailedEvent(
-        {
-          grantId: cmd.payload.id,
-          errorName: (err as Error).constructor.name,
-          message: (err as Error).message
-        },
-        cmd.requestId
-      );
-    }
-  }
-
-  private handleGetGrantCommand(cmd: GetGrantCmd) {
-    try {
-      const { id } = cmd.payload;
-
-      // TODO: check conditions under which an existing grant should NOT be returned.
-      // In particular, check that grant finalization rejected also does not return this.
-      const grant = this.grantMap.get(id);
-      if (!grant || grant.finalizationReason === GrantFinalization.REVOKED) {
-        throw new GrantNotFoundError();
-      } else {
-        const grantObj = grant.toObject();
-        return new GrantFoundEvent({ grant: grantObj }, cmd.requestId);
-      }
-    } catch (err) {
-      return new GrantNotFoundEvent(
         {
           grantId: cmd.payload.id,
           errorName: (err as Error).constructor.name,

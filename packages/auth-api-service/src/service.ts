@@ -10,17 +10,20 @@ import {
   MessageSerializationFactory,
   PinoLogger
 } from 'implementations-lib';
+import { MongoDbGrantRepo } from 'auth-implementations-lib';
 
 const BC_NAME = 'AUTH';
 const APP_NAME = `${BC_NAME}_API_SVC`;
 const INSTANCE_ID = `${APP_NAME}_${crypto.randomUUID()}`;
 
 const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9092';
+const MONGODB_URL = process.env['MONGODB_URL'] || 'mongodb://localhost:27017';
 
 export class AuthApiService {
   private static grpcService: AuthServiceServer;
   private static msgProducer: KafkaProducer;
   private static msgConsumer: KafkaConsumer;
+  private static repo: MongoDbGrantRepo;
 
   static async start(): Promise<void> {
     const logger = new PinoLogger({
@@ -28,6 +31,9 @@ export class AuthApiService {
       appName: APP_NAME,
       instanceId: INSTANCE_ID
     });
+
+    this.repo = new MongoDbGrantRepo(MONGODB_URL, logger.child('grant-repo'));
+    await this.repo.init();
 
     const kafkaBuilder = new KafkaBuilder()
       .withLogger(logger)
@@ -49,7 +55,8 @@ export class AuthApiService {
       '1',
       '0.0.0.0:50054',
       this.msgProducer,
-      this.msgConsumer
+      this.msgConsumer,
+      this.repo
     );
 
     await this.grpcService.start();

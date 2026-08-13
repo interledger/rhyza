@@ -57,8 +57,13 @@ describe('GrantEntity', () => {
       assert.equal(accessToken.expiresInMs, 10_000); // Default access token expiry
       assert.ok(accessToken.createdAt instanceof Date);
 
-      assert.equal(entity.accessTokens.size, 1);
-      assert.equal(entity.accessTokens.get(accessToken.value), accessToken);
+      assert.equal(entity.accessTokens.length, 1);
+      assert.equal(
+        entity.accessTokens.find(
+          (entityAccessToken) => entityAccessToken.value === accessToken.value
+        ),
+        accessToken
+      );
 
       // Input fields are carried onto the created entity.
       assert.equal(entity.client, client);
@@ -105,7 +110,7 @@ describe('GrantEntity', () => {
       assert.equal(entity.interaction, undefined); // This should not be initalized until startInteraction is called on the entity.
 
       assert.equal(accessToken, undefined);
-      assert.equal(entity.accessTokens.size, 0);
+      assert.equal(entity.accessTokens.length, 0);
 
       // Input fields are carried onto the created entity.
       assert.equal(entity.client, client);

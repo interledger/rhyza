@@ -14,8 +14,7 @@ import {
   RevokeTokenCmd,
   AcceptInteractionCommand,
   RejectInteractionCommand,
-  GrantAggregate,
-  GetGrantCmd
+  GrantAggregate
 } from 'auth-domain-lib';
 
 export class AuthCommandHandler {
@@ -55,7 +54,6 @@ export class AuthCommandHandler {
     for (const msg of messages) {
       switch (msg.msgName) {
         case CreateGrantCmd.name:
-        case GetGrantCmd.name:
         case ContinueGrantCmd.name:
         case RevokeGrantCmd.name:
         case IntrospectTokenCmd.name:
@@ -77,13 +75,18 @@ export class AuthCommandHandler {
       );
     }
 
+    const eventsToPublish: IMessage[] = [];
+
     if (commandMessages.length > 0) {
       const { events } =
         await this._grantAggregate.handleBatch(commandMessages);
+      eventsToPublish.push(...events);
 
-      if (events.length > 0) {
-        await this._msgProducer.send(events);
-      }
+      await this._grantAggregate.flush();
+    }
+
+    if (eventsToPublish.length > 0) {
+      await this._msgProducer.send(eventsToPublish);
     }
   }
 }

@@ -28,14 +28,6 @@ export abstract class GrantDomainEvent extends DomainEvent {
     return evt.msgName === GrantCreateFailedEvent.name;
   }
 
-  static isGrantFoundEvent(evt: DomainEvent): evt is GrantFoundEvent {
-    return evt.msgName === GrantFoundEvent.name;
-  }
-
-  static isGrantNotFoundEvent(evt: DomainEvent): evt is GrantNotFoundEvent {
-    return evt.msgName === GrantNotFoundEvent.name;
-  }
-
   static isGrantContinuedEvent(evt: DomainEvent): evt is GrantContinuedEvent {
     return evt.msgName === GrantContinuedEvent.name;
   }
@@ -136,42 +128,6 @@ export class GrantCreateFailedEvent extends DomainEvent {
   constructor(payload: GrantCreateFailedPayload, requestId?: string) {
     super(payload.grantId);
     this.aggregateId = this.msgKey = payload.grantId;
-    this.payload = payload;
-    this.requestId = requestId;
-  }
-}
-
-export interface GrantFoundPayload {
-  grant: IGrant;
-}
-
-export class GrantFoundEvent extends GrantDomainEvent {
-  contextName: string = BOUNDED_CONTEXT_NAME;
-  aggregateName: string = AGGREGATE_NAME;
-  msgTopic: string = DomainEventTopics.AuthEvents;
-  payload: GrantFoundPayload;
-
-  constructor(payload: GrantFoundPayload, requestId?: string) {
-    super(payload.grant.id);
-    this.payload = payload;
-    this.requestId = requestId;
-  }
-}
-
-export interface GrantNotFoundPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
-
-export class GrantNotFoundEvent extends GrantDomainEvent {
-  contextName: string = BOUNDED_CONTEXT_NAME;
-  aggregateName: string = AGGREGATE_NAME;
-  msgTopic: string = DomainEventTopics.AuthEvents;
-  payload: GrantNotFoundPayload;
-
-  constructor(payload: GrantNotFoundPayload, requestId?: string) {
-    super(payload.grantId);
     this.payload = payload;
     this.requestId = requestId;
   }
