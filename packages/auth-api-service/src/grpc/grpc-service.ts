@@ -33,8 +33,7 @@ import {
   RevokeGrantResponse,
   IntrospectTokenResponse,
   RotateTokenResponse,
-  Grant,
-  AccessToken
+  Grant
 } from 'auth-public-types-lib';
 
 import { IMessage, IMessageConsumer, IMessageProducer } from 'common-types-lib';
@@ -469,18 +468,6 @@ export class AuthServiceServer {
         response.setInteraction(interaction);
       }
 
-      for (const accessToken of grant.accessTokens) {
-        const responseAccessToken = new AccessToken();
-        responseAccessToken.setValue(accessToken.value);
-        responseAccessToken.setManagementId(accessToken.managementId);
-        responseAccessToken.setExpiresIn(accessToken.expiresInMs);
-        if (accessToken.revokedAt)
-          responseAccessToken.setRevokedAt(
-            accessToken.revokedAt.toDateString()
-          );
-
-        response.addAccessTokens(responseAccessToken);
-      }
       callback(null, response);
     } catch (err) {
       callback({

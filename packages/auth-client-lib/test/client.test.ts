@@ -206,11 +206,6 @@ describe('Auth Client', () => {
       assert.equal(result.getState(), 'FINALIZED');
       assert.equal(result.getClient(), JSON.stringify(keys.publicKey));
       assert.equal(result.getAccessesList().length, 1);
-      assert.equal(result.getAccessTokensList().length, 1);
-      assert.equal(
-        result.getAccessTokensList()[0].getValue(),
-        createResult.getAccessTokenValue()
-      );
     });
 
     test('rejects with NOT_FOUND for an id that does not exist', async () => {

@@ -53,7 +53,6 @@ message Grant {
 	string finish_nonce = 13;
 	Interaction interaction = 14;
 	string last_continued_at = 15; // Date string
-	repeated AccessToken access_tokens = 16;
 }
 
 message AccessLimits {
