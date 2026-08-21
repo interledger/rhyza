@@ -6,11 +6,13 @@ import { LinkOut } from '@interledger/docs-design-system'
 
 ## Asset
 
-An asset is made up of a currency `code` and a `scale` that together represent a monetary value. An ISO4217 currency code should be used whenever possible. The `scale` represents the decimal units. For example, US dollars can be delineated as code: USD, with scale 2, where value 1000 represents $10.00.
+An asset is made up of a currency `code` and a `scale` that together represent a monetary value. An ISO4217 currency code should be used whenever possible. The `scale` represents the decimal units. For example, US dollars can be delineated as `code: USD`, with `scale: 2`, where value `1000` represents $10.00.
 
 ## Authorization server
 
-A server that grants delegated authorization and privileges, via [GNAP](#grant-negotiation-and-authorization-protocol-gnap), to a particular instance of client software in the form of access tokens, allowing the client to call the Open Payments APIs.
+A standalone service/server that implements the Open Payments authorization server specification.
+
+It grants delegated authorization and privileges, via [GNAP](#grant-negotiation-and-authorization-protocol-gnap), to a particular instance of client software in the form of access tokens, allowing the client to call the Open Payments APIs.
 
 We've provided an opinionated version of a GNAP authorization server via the `auth` service. This means that we've made certain decisions regarding the implementation and configuration of the server that may limit customization but ensure consistency and adherence to preferred practices.
 
@@ -20,7 +22,7 @@ An app or service, such as a mobile or web app, that interacts with the authoriz
 
 ## Financial service provider (FSP)
 
-An entity that provides and maintains a payment account for a payer and/or payee. An FSP is a regulated entity in the country or countries it operates. Examples include digital wallets, banks, and mobile money providers. Non-regulated entities shouldn't use Rhyza in production environments due to the potential legal and compliance risks involved.
+An entity that provides and maintains payment accounts for its customers. An FSP is a regulated entity in the country or countries it operates. Examples include digital wallets, banks, and mobile money providers. Non-regulated entities shouldn't use Rhyza in production environments due to the potential legal and compliance risks involved.
 
 ## Grant
 
@@ -44,19 +46,11 @@ An object created by the recipient's FSP, on their resource server, that represe
 
 ## Interledger Protocol (ILP)
 
-An open protocol stack designed to facilitate the transfer of value across different currencies, platforms, and payment networks. Rhyza is a reference implementation of the Interledger stack, allowing you to join the Interledger network and enable Interledger capabilities on your users' accounts. For more information, refer to the <LinkOut href="https://interledger.org/developers/get-started/">Interledger specification</LinkOut>.
+An open protocol stack designed to facilitate the transfer of value across different currencies, platforms, and payment networks. Rhyza is a reference implementation of the Interledger stack, allowing FSPs to join the Interledger network and enable Interledger capabilities on their users' accounts. For more information, refer to the <LinkOut href="https://interledger.org/developers/get-started/">Interledger specification</LinkOut>.
 
 ## Open Payments
 
-An API standard and a set of APIs that allows clients to securely retrieve account information and authorize payments from your customers' accounts with their consent. By adhering to this standard, Rhyza enables integration with external applications and supports the secure and uniform management of payments, quotes, and account data through the Open Payments APIs. For more information, visit the <LinkOut href="https://openpayments.dev">Open Payments documentation</LinkOut>.
-
-## Open Payments Auth Server
-
-A standalone service that implements the Open Payments authorization server specification. It manages grant authorization and authentication, allowing clients (for example, third-party applications) to request access to account information and initiate payments. It issues access tokens and manages client access rights using the Grant Negotiation and Authorization Protocol (GNAP).
-
-## Open Payments Resource Server
-
-A standalone service that hosts and manages access to protected Open Payments resources (such as incoming payments, quotes, and outgoing payments) as defined in the Open Payments specification. It acts as a gateway between external clients and Rhyza's backend.
+An API standard and a set of APIs that allows clients to securely retrieve account information and authorize payments from an FSP's customers' accounts with their consent. By adhering to this standard, Rhyza enables integration with external applications and supports the secure and uniform management of payments, quotes, and account data through the Open Payments APIs. For more information, visit the <LinkOut href="https://openpayments.dev">Open Payments documentation</LinkOut>.
 
 ## Outgoing payment
 
@@ -64,11 +58,17 @@ An object created by the sender's FSP, on their resource server, that represents
 
 ## Peer
 
-A counterparty with whom you transact with over the Interledger network. Your Rhyza instance holds liquidity accounts for each of your peers.
+A counterparty with whom an FSP transacts with over the Interledger network. An FSP's Rhyza instance holds liquidity accounts for each of their peers.
 
 ## Quote
 
 An object created by the sender's FSP, on their resource server, that represents the total cost for the sender to send a payment. When a quote is created, it serves as a commitment from the sender's FSP to deliver the amount to the recipient's FSP. Quotes are only valid for a limited time.
+
+## Resource server
+
+A standalone service/server that implements the Open Payments resource server specification.
+
+It hosts and manages access to protected Open Payments resources (such as incoming payments, quotes, and outgoing payments)and acts as a gateway between external clients and Rhyza's backend.
 
 ## Streaming Transport for the Real-Time Exchange of Assets and Messages (STREAM)
 
@@ -76,7 +76,7 @@ An Interledger transport layer protocol for sending and receiving authenticated 
 
 ## Wallet address
 
-A secure, unique URL that identifies an Open Payments-enabled account. It acts as an entry point to the Open Payments APIs, facilitating interactions like sending and receiving payments. Similar to how an email address serves as a public identifier for an email account, a wallet address is publicly shareable and used to interact with the underlying payment account without compromising its security. Wallet address URLs are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address will be recognized as identical.
+A secure, unique URL that identifies an Open Payments-enabled account. It acts as an entry point to the Open Payments APIs, facilitating interactions like sending and receiving payments. Similar to how an email address serves as a public identifier for an email account, a wallet address is publicly shareable and used to interact with the underlying payment account without compromising its security. Wallet address URLs are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address are recognized as identical.
 
 ## Web Monetization
 

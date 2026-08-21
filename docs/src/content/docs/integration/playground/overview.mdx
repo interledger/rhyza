@@ -1,16 +1,19 @@
 ---
 title: Local Playground
+next: Admin API Overview
 ---
 
-The local playground is a pre-configured [Docker Compose](https://docs.docker.com/compose/) environment that allows you to run the entire Rhyza stack on your local machine. This setup is ideal for development, testing, and exploring Rhyza's APIs.
+import { LinkOut } from '@interledger/docs-design-system'
+
+The local playground is a pre-configured [Docker Compose](https://docs.docker.com/compose/) environment that allows developers to run the entire Rhyza stack on their local machine. This setup is ideal for development, testing, and exploring Rhyza's APIs.
 
 ## Docker Compose Setup
 
 The Docker Compose file is located in the `docker` directory of the repository. It includes all necessary services, including:
 
-- **Core Services**: The services that run Rhyza's core logic, routing, and processing.
+- **Core services**: The services that run Rhyza's core logic, routing, and processing.
 - **Admin API**: The primary interface for administrative tasks.
-- **Open Payments Servers**: Standalone Auth and Resource servers for Open Payments functionality.
+- **Open Payments servers**: Standalone authorization and resource servers for Open Payments functionality.
 - **Infrastructure**: MongoDB, Kafka, and Redis.
 - **Observability**: Prometheus, Grafana, and Tempo for monitoring and tracing.
 
@@ -24,8 +27,10 @@ The playground also provides several web interfaces for monitoring and interacti
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
+- <LinkOut href='https://docs.docker.com/get-docker/'>Docker</LinkOut>
+- <LinkOut href='https://docs.docker.com/compose/install/'>
+    Docker Compose
+  </LinkOut>
 
 ### Getting Started
 
@@ -42,13 +47,13 @@ The playground also provides several web interfaces for monitoring and interacti
 
 ## Useful Commands
 
-Here are some common commands you might use while working with the local playground, which should be run from the root directory:
+Here are some common commands to use while working with the local playground. Run these commands from the root directory.
 
 | Command                              | Description                                                              |
 | :----------------------------------- | :----------------------------------------------------------------------- |
 | `pnpm docker up`                     | Starts all services in the background, rebuilding if necessary.          |
-| `pnpm docker up -d`                  | Starts all services (detached)                                           |
-| `pnpm docker up --build`             | Builds & starts all services                                             |
+| `pnpm docker up -d`                  | Starts all services (detached).                                          |
+| `pnpm docker up --build`             | Builds & starts all services.                                            |
 | `pnpm docker down`                   | Stops and removes all containers and networks.                           |
 | `pnpm docker down --volumes`         | Stops and removes all containers, networks, and persistent data volumes. |
 | `pnpm docker logs -f`                | Follow the logs of all running services.                                 |
@@ -56,7 +61,9 @@ Here are some common commands you might use while working with the local playgro
 
 ## Using Bruno
 
-[Bruno](https://www.usebruno.com/) is an open-source IDE for exploring and testing APIs. A collection of Bruno requests is provided in the repository to help you get started with Rhyza's APIs.
+<LinkOut href='https://www.usebruno.com/'>Bruno</LinkOut> is an open-source IDE
+for exploring and testing APIs. A collection of Bruno requests is provided in
+the repository to help you get started with Rhyza's APIs.
 
 ### Setup
 
@@ -66,8 +73,8 @@ Here are some common commands you might use while working with the local playgro
 
 ### Available Collections
 
-- **Admin API**: Requests for managing assets, wallet addresses, and payments. These requests are proxied through Nginx on port `80` by default.
-- **Open Payments**: Requests for interacting with the Open Payments Resource Server (running on port `3002`).
+- **Admin API** - Requests for managing assets, wallet addresses, and payments. These requests are proxied through Nginx on port `80` by default.
+- **Open Payments** - Requests for interacting with the Open Payments resource server (running on port `3002`).
 
 ### Connecting to Services
 
@@ -76,4 +83,4 @@ The Bruno environment is pre-configured with the following variables:
 - `adminApiUrl`: `localhost` (proxied to the Admin API Service).
 - `openPaymentsResourceServerUrl`: `localhost:3002`.
 
-You can use these requests to perform tasks such as creating assets, setting up wallet addresses, and initiating payments directly against your local Rhyza instance.
+Use these requests to perform tasks such as creating assets, setting up wallet addresses, and initiating payments directly against your local Rhyza instance.

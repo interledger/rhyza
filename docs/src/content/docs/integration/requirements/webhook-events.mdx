@@ -7,19 +7,19 @@ tableOfContents:
 import { Badge, Tabs, TabItem, Steps } from '@astrojs/starlight/components'
 import { Mermaid, LinkOut } from '@interledger/docs-design-system'
 
-The main communication channel between you and your Rhyza instance consists of the Admin API and webhook events sent by the `notifications` service.
+The main communication channel between an FSP and their Rhyza instance consists of the Admin API and webhook events sent by the `notifications` service.
 
 :::note
-Rhyza doesn't hold _user_ account balances. Instead, Rhyza keeps track of the liquidity in your instance's peer accounts in its own database.
+Rhyza doesn't hold account balances for an FSP's users/customers. Instead, it tracks the liquidity of the FSP's internal peer accounts in its own database.
 :::
 
-## Specify your webhook endpoint
+## Specify a webhook endpoint
 
-For Rhyza to notify you about webhook events, you must expose a webhook endpoint that listens for the events dispatched by Rhyza. These events notify your system of time-sensitive status updates, warnings, and errors so that you can react accordingly.
+For Rhyza to notify an FSP about webhook events, the FSP must expose a webhook endpoint that listens for the dispatched events. The events provide time-sensitive status updates, warnings, and errors so that the FSP can react accordingly.
 
-The webhook URL is configured using the `WEBHOOK_URL` environment variable.
+The webhook endpoint URL is configured using the `WEBHOOK_URL` environment variable.
 
-When an event occurs, the `notifications` service makes request to your configured webhook endpoint. This service expects a `200` status in return.
+When an event occurs, the `notifications` service makes request to the configured endpoint. The service expects a `200` status in return.
 
 <div class="overflow-table">
 
@@ -44,72 +44,18 @@ Each webhook event is sent as a JSON payload with the following structure in the
 </div>
 
 :::tip[Duplicate events]
-The `id` in the webhook event payload is unique. Your system can use the ID to determine whether the event was previously received, preventing duplicate event processing.
+The `id` in the webhook event payload is unique. An FSP can use the ID to determine whether the event was previously received, preventing duplicate event processing.
 :::
-
-<details>
-  <summary>Expand for example JSON payloads</summary>
-  <Tabs>
-    <TabItem label='payment_intent.created'>
-      ```json
-      {
-        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-        "type": "payment_intent.created",
-        "data": {
-          "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-          "walletAddressId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-          "receiveAmount": {
-            "value": "1000",
-            "assetCode": "USD",
-            "assetScale": 2
-          },
-          "createdAt": "2024-08-29T08:13:08.966Z",
-          "expiresAt": "2024-08-29T08:13:08.966Z"
-        }
-      }
-      ```
-    </TabItem>
-    <TabItem label='payment.created'>
-      ```json
-      {
-        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-        "type": "payment.created",
-        "data": {
-          "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-          "walletAddressId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-          "state": "CREATED",
-          "debitAmount": {
-            "value": "1200",
-            "assetCode": "USD",
-            "assetScale": 2
-          },
-          "sentAmount": {
-            "value": "0",
-            "assetCode": "USD",
-            "assetScale": 2
-          },
-          "receiveAmount": {
-            "value": "0",
-            "assetCode": "USD",
-            "assetScale": 2
-          },
-          "createdAt": "2024-08-29T11:07:56.090Z"
-        }
-      }
-      ```
-    </TabItem>
-  </Tabs>
-</details>
 
 We provide an <LinkOut href="https://github.com/interledger/rafiki-v2/blob/main/docs/openapi/webhooks.yaml">OpenAPI specification</LinkOut> for the webhook events fired by Rhyza.
 
-Additionally, the [Local Playground](/integration/playground/overview) contains example payloads in the <LinkOut href="https://github.com/interledger/rafiki-v2/blob/main/bruno/collections/rafiki-v2/Sample%20Webhook%20Events">Bruno collection</LinkOut> you can use to test your webhook service integration.
+Additionally, the [Local Playground](/integration/playground/overview) contains example payloads in the <LinkOut href="https://github.com/interledger/rafiki-v2/blob/main/bruno/collections/rafiki-v2/Sample%20Webhook%20Events">Bruno collection</LinkOut> that can be used to test an FSP's webhook service integration.
 
 ## Event handling
 
 ### Asynchronous handling
 
-If requests to credit/debit user accounts are lengthy processes, we recommend using a worker to process received events. The worker allows the server to process events at a rate suitable for your system and reduces the number of failed/retried events since your event listener can immediately reply with a successful `200` status.
+If requests to credit/debit user accounts are lengthy processes, we recommend using a worker to process received events. The worker allows the server to process events at a rate suitable for the FPS's system and reduces the number of failed/retried events since their event listener can immediately reply with a successful `200` status.
 
 ### Error handling
 
@@ -130,9 +76,10 @@ If a non-200 status is returned, indicating an error, or the request times out, 
 
 <div class="overflow-table">
 
-| Event type                                          | Description                   |
-| --------------------------------------------------- | ----------------------------- |
-| [`payment_intent.created`](#payment-intent-created) | A payment intent was created. |
+| Event type                                              | Description                   |
+| ------------------------------------------------------- | ----------------------------- |
+| [`payment_intent.created`](#payment-intent-created)     | A payment intent was created. |
+| [`payment_intent.completed`](#payment-intent-completed) | A payment intent completed.   |
 
 </div>
 
@@ -155,13 +102,21 @@ If a non-200 status is returned, indicating an error, or the request times out, 
 
 The `payment_intent.created` event indicates a payment intent was created. At this point, the payment intent hasn't received any funds.
 
+#### <mark>Payment intent completed</mark>
+
+<details>
+  <summary>Expand for event sequence</summary>
+</details>
+
 ### Payments
 
 <div class="overflow-table">
 
-| Event type                            | Description            |
-| ------------------------------------- | ---------------------- |
-| [`payment.created`](#payment-created) | A payment was created. |
+| Event type                                | Description            |
+| ----------------------------------------- | ---------------------- |
+| [`payment.created`](#payment-created)     | A payment was created. |
+| [`payment.completed`](#payment-completed) | A payment completed.   |
+| [`payment.failed`](#payment-failed)       | A payment failed.      |
 
 </div>
 
@@ -192,6 +147,18 @@ A payment for $12 was created.
 
 </details>
 
-The `payment.created` event indicates a payment was created and is awaiting approval. Verify the sender's account balance and perform any other necessary verifications before approving the payment.
+The `payment.created` event indicates a payment was created and is awaiting approval. The FSP should verify the sender's account balance and perform any other necessary verifications before approving the payment.
 
-If the sender has insufficient funds or if the payment should otherwise not be fulfilled, you can choose not to call the approve endpoint. Otherwise, put a hold on the sender's account and approve the payment in Rhyza via the Admin API.
+If the sender has insufficient funds or if the payment should otherwise not be fulfilled, the FSP can choose not to call the Approve Payment endpoint. Otherwise, the FSP should put a hold on the sender's account and approve the payment in Rhyza via the Admin API.
+
+#### <mark>Payment completed</mark>
+
+<details>
+  <summary>Expand for event sequence</summary>
+</details>
+
+#### <mark>Payment failed</mark>
+
+<details>
+  <summary>Expand for event sequence</summary>
+</details>

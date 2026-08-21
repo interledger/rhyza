@@ -10,7 +10,7 @@ import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://rafiki.dev',
+  site: 'https://rhyza.dev',
   outDir: './build',
   markdown: {
     remarkPlugins: [remarkMath],
@@ -29,7 +29,7 @@ export default defineConfig({
     starlight({
       title: 'Rhyza',
       description:
-        "Rhyza is open source software that allows a Financial Service Provider to enable Interledger functionality on its users' accounts.",
+        "Rhyza is open source software that allows a financial service provider to enable Interledger functionality on its users' accounts.",
       customCss: [
         './node_modules/@interledger/docs-design-system/src/styles/teal-theme.css',
         './node_modules/@interledger/docs-design-system/src/styles/ilf-docs.css',
@@ -78,7 +78,7 @@ export default defineConfig({
         {
           icon: 'github',
           label: 'GitHub',
-          href: 'https://github.com/interledger/rafiki/tree/main'
+          href: 'https://github.com/interledger/rafiki-v2'
         }
       ],
       sidebar: [
@@ -180,11 +180,15 @@ export default defineConfig({
           items: [
             {
               label: 'Overview',
-              link: '/apis/admin-api-overview'
+              link: '/apis/api-overview'
             },
             {
-              label: 'API Specification',
+              label: 'Admin API specification',
               link: '/apis/scalar/admin-api'
+            },
+            {
+              label: 'Webhooks API specification',
+              link: '/apis/scalar/webhooks'
             }
           ]
         },

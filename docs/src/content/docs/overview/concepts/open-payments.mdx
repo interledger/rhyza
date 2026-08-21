@@ -6,19 +6,27 @@ tableOfContents:
 
 import { LinkOut } from '@interledger/docs-design-system'
 
-Rhyza follows the <LinkOut href='https://openpayments.dev'>Open Payments</LinkOut> standard to enable third-party clients to securely retrieve account information and authorize payments from your customers' accounts with their consent. The standard describes a uniform way to create and manage grants and resources for <LinkOut href='https://openpayments.dev/concepts/resources/#resource-types'>incoming payments, quotes, and outgoing payments</LinkOut>.
+Rhyza follows the <LinkOut href='https://openpayments.dev'>Open Payments</LinkOut> standard to enable third-party clients to securely retrieve account information and authorize payments from an FSP's customers' accounts with the customer's consent. The standard describes a uniform way to create and manage grants and resources for <LinkOut href='https://openpayments.dev/concepts/resources/#resource-types'>incoming payments, quotes, and outgoing payments</LinkOut>.
 
 ## Rhyza's Open Payments services
 
 Rhyza provides Open Payments functionality through standalone services that expose the necessary APIs for clients to securely retrieve account information and initiate payments.
 
-### Open Payments Resource Server
+### Wallet addresses
 
-The Open Payments Resource Server is a standalone service that exposes the endpoints defined in the <LinkOut href="https://openpayments.dev/apis/resource-server/">Open Payments specification</LinkOut>. It acts as a stateless translation layer that validates incoming requests and interfaces with Rhyza's backend to manage resources like incoming payments, quotes, and outgoing payments.
+A wallet address is a unique URL that identifies an Open Payments-enabled account and is a service endpoint for gaining access to the Open Payments APIs. Rhyza will assign each customer account a wallet address on behalf of the FSP.
 
-### Open Payments Auth Server
+Wallet addresses must be a valid HTTPS URL (for example, `https://wallet.example.com/alice`).
 
-The Open Payments Auth Server is a standalone service that implements the Open Payments authorization server specification. It is responsible for delegating authorization (via grants) to clients, resolving public keys for authentication, and managing access tokens. Open Payments leverages the Grant Negotiation and Authorization Protocol (GNAP) for delegating authorization.
+See [Wallet addresses](/overview/concepts/wallet-addresses) for more information.
+
+### Open Payments resource server
+
+The Open Payments resource server is a standalone service that exposes the endpoints defined in the <LinkOut href="https://openpayments.dev/apis/resource-server/">Open Payments specification</LinkOut>. It acts as a stateless translation layer that validates incoming requests and interfaces with Rhyza's backend to manage resources like incoming payments, quotes, and outgoing payments.
+
+### Open Payments authorization server
+
+The Open Payments authorization server is a standalone service that implements the Open Payments authorization server specification. It's responsible for delegating authorization (via grants) to clients, resolving public keys for authentication, and managing access tokens. Open Payments leverages the Grant Negotiation and Authorization Protocol (GNAP) for delegating authorization.
 
 [Learn more about Rhyza's system architecture](/overview/overview#system-architecture)
 
@@ -26,15 +34,15 @@ The Open Payments Auth Server is a standalone service that implements the Open P
 
 ### Retrieving account information
 
-Your customer uses a third-party app that allows them to create budgets and monitor their spending. To get the information it needs, the app uses the Open Payments APIs to request your customer's transaction history.
+An FSP's customer uses a third-party app that allows them to create budgets and monitor their spending. To get the information it needs, the app uses the Open Payments APIs to request the customer's transaction history from their FSP.
 
 ### eCommerce payments
 
-Your customer begins a purchase from an online merchant. Since the merchant has implemented Open Payments, your customer can enter their wallet address into the merchant's checkout form instead of their credit card details. The merchant's server uses the Open Payments APIs to communicate with you to set up the payment and get your customer's consent for the purchase.
+An FSP's customer begins a purchase from an online merchant. Since the merchant has implemented Open Payments, the customer can enter their wallet address into the merchant's checkout form instead of their credit card details. The merchant's server uses the Open Payments APIs to communicate with the FSP to set up the payment and get the customer's consent for the purchase.
 
 ### Peer-to-peer payments (for example, remittances)
 
-Your customer uses a third-party remittance app to send money from the US to their family in Mexico. They want their father to receive an exact amount in Mexican pesos, regardless of how much it will cost in USD. Since the app developer has implemented Open Payments, your customer can enter the wallet address for themselves and their father instead of entering bank account details. The app uses the Open Payments APIs to communicate with you to set up the payment and get your customer's consent for the payment.
+An FSP's customer uses a third-party remittance app to send money from the US to their family in Mexico. They want their father to receive an exact amount in Mexican pesos, regardless of how much it will cost in USD. Since the app developer has implemented Open Payments, the customer can enter the wallet address for themselves and their father instead of entering bank account details. The app uses the Open Payments APIs to communicate with the customer's FSP to set up the payment and get their consent for the payment.
 
 ### Further reading
 

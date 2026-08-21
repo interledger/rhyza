@@ -7,12 +7,12 @@ tableOfContents:
 import { Tabs, TabItem } from '@astrojs/starlight/components'
 import { LinkOut } from '@interledger/docs-design-system'
 
-Each payment account belonging to your users (for example, your customers) must have at least one associated wallet address for the account to be able to send and receive payments over Interledger and Open Payments. A wallet address serves as a publicly shareable standardized ID for a payment account.
+Each payment account belonging to an FSP's customers must have at least one associated wallet address for the account to send and receive payments over Interledger and Open Payments. A wallet address serves as a publicly shareable standardized ID for a payment account.
 
 :::note[Wallet address requirements]
 
-- Your Rhyza instance must be set up with at least one asset before wallet addresses can be created as each wallet address must have an asset assigned to it.
-- Wallet address URLs are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address will be recognized as identical.
+- Rhyza must be set up with at least one asset before wallet addresses can be created as each wallet address must have an asset assigned to it.
+- Wallet address URLs are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address are recognized as identical.
 
 :::
 
@@ -20,13 +20,13 @@ Once the wallet address base (`WALLET_ADDRESS_URL`) is set, it can't be changed.
 
 ## Create wallet addresses
 
-Wallet addresses can be created using the `POST /wallet-addresses` route via the Admin API. However, an FSP can still create a script for bulk wallet address creation.
+Wallet addresses can be created using the <LinkOut href="/apis/scalar/admin-api#tag/wallet-addresses/POST/wallet-addresses">`POST /wallet-addresses`</LinkOut> route via the Admin API. However, an FSP can still create a script for bulk wallet address creation.
 
 ### Bulk creation via script
 
-Writing your own script that loops through your list of accounts is one way to batch-create wallet addresses for your existing account holders.
+One way to batch-create wallet addresses for existing account holders is to write a script that loops through the FSP's list of accounts.
 
-Ensure your script calls the `POST /wallet-addresses` endpoint of the Admin API.
+Ensure the script calls the `POST /wallet-addresses` endpoint of the Admin API.
 
 <Tabs>
   <TabItem label="Request">
@@ -38,7 +38,7 @@ Ensure your script calls the `POST /wallet-addresses` endpoint of the Admin API.
       "publicName": "Sarah Marshall"
     }
     ```
-    We strongly recommend you store at least the `address` in your internal database to be able to reference the account and wallet address later.
+    We strongly recommend storing at least the `address` in an internal database to be able to reference the account and wallet address later.
 
   </TabItem>
   <TabItem label="Response">

@@ -2,15 +2,18 @@
 title: Webhook event types
 ---
 
-Webhooks notify you of specific events that occur in your Rhyza instance, allowing you to integrate Interledger payments with your system and business processes. For example, Rhyza can notify you when one of your account holders has received an Interledger payment, at which point you would credit their account on your ledger.
+Webhooks notify an FSP when specific events occur in their Rhyza instance, allowing them to integrate Interledger payments with their system and business processes. For example, Rhyza will notify an FSP when one of their customers receives an Interledger payment, at which point the FSP would credit the customer's account on their ledger.
 
-The following is an enumeration of all Rhyza [webhook event](/integration/requirements/webhook-events) types along with their descriptions, which you must listen to and handle.
+The following is an enumeration of all Rhyza [webhook event](/integration/requirements/webhook-events) types along with their descriptions, which an FSP must listen to and handle.
 
 <div class="overflow-table">
 
-| Value                                                                                        | Description                   |
-| -------------------------------------------------------------------------------------------- | ----------------------------- |
-| [`payment_intent.created`](/integration/requirements/webhook-events/#payment-intent-created) | A payment intent was created. |
-| [`payment.created`](/integration/requirements/webhook-events/#payment-created)               | A payment was created.        |
+| Value                                                                                            | Description                   |
+| ------------------------------------------------------------------------------------------------ | ----------------------------- |
+| [`payment_intent.created`](/integration/requirements/webhook-events/#payment-intent-created)     | A payment intent was created. |
+| [`payment_intent.completed`](/integration/requirements/webhook-events/#payment-intent-completed) | A payment intent completed.   |
+| [`payment.created`](/integration/requirements/webhook-events/#payment-created)                   | A payment was created.        |
+| [`payment.completed`](/integration/requirements/webhook-events/#payment-completed)               | A payment was completed.      |
+| [`payment.failed`](/integration/requirements/webhook-events/#payment-failed)                     | A payment failed.             |
 
 </div>

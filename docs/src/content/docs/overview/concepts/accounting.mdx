@@ -1,25 +1,19 @@
 ---
 title: Accounting in Rhyza
-tableOfContents:
-  maxHeadingLevel: 3
 ---
 
-import {
-  LinkOut,
-  Mermaid,
-  StylishHeader
-} from '@interledger/docs-design-system'
+import { LinkOut } from '@interledger/docs-design-system'
 import { Steps } from '@astrojs/starlight/components'
 
 Rhyza uses <LinkOut href="https://en.wikipedia.org/wiki/Double-entry_bookkeeping">double-entry accounting</LinkOut> to record Interledger packet interactions. Every transaction—whether successful, failed, or rejected—is processed by Rhyza's internal ledger and converted into financial records with equal and opposite entries between internal accounts.
 
-Accounts in Rhyza are your internal [peer](#peer-liquidity) accounts used to fund payments, not the accounts that you service for your customers. This distinction is crucial for understanding how Rhyza handles transactions and settlements.
+Accounts within Rhyza are an FSP's internal [peer](#peer-liquidity) accounts used to fund payments, not the accounts of the FSP's customers. This distinction is crucial for understanding how Rhyza handles transactions and settlements.
 
 ## Assets
 
 An asset represents a transferrable item of value. Although the Interledger Protocol (ILP) supports the transfer of any asset deemed to have value, assets are generally denominated in a currency. For example fiat currencies, central bank digital currencies, and branded currencies (such as merchant reward points).
 
-Part of Rhyza's [integration requirements](/integration/requirements/assets) include adding one or more assets that you support.
+Part of Rhyza's [integration requirements](/integration/requirements/assets) include adding one or more supported assets.
 
 An asset is made up of the following properties.
 
@@ -35,7 +29,7 @@ An asset is made up of the following properties.
 
 While the `assetScale` is used for display purposes, Rhyza's internal ledger operates at a fixed high precision (**scale 20**). All accounting entries are stored at this scale to ensure consistent precision across all types of assets and transactions.
 
-To convert an asset’s value into an amount that’s easier to interpret, apply the following formula.
+To convert an asset's value into an amount that's easier to interpret, apply the following formula.
 
 $\frac{value}{10^{assetScale}}$ = _currencyAmount_
 
@@ -51,7 +45,7 @@ In Rhyza, liquidity is tracked exclusively for **peering relationships**.
 
 ### Peer liquidity
 
-Rhyza manages peer liquidity through a set of specialized accounts for each peering relationship within an asset-specific ledger. These accounts work together to track and enforce liquidity limits using a two-phase commit process.
+Rhyza manages peer liquidity through a set of specialized accounts for each peering relationship in an asset-specific ledger. These accounts work together to track and enforce liquidity limits using a two-phase commit process.
 
 #### Account types
 
@@ -62,7 +56,7 @@ Every peer relationship involves four primary ledger accounts (and their interna
 | **Liquidity**    | Tracks pre-funded capital or credit lines. This is where settlement deposits are recorded.                    |
 | **Clearing**     | Tracks the net balance of successful Interledger packet exchanges.                                            |
 | **Suspense**     | Temporarily holds funds during the two-phase commit (reservation) process.                                    |
-| **FSP Accounts** | Internal "Accounting System Entity" accounts that serve as counterparties to maintain double-entry integrity. |
+| **FSP accounts** | Internal "Accounting System Entity" accounts that serve as counterparties to maintain double-entry integrity. |
 
 #### Liquidity enforcement
 
@@ -70,12 +64,12 @@ When a transfer is initiated, Rhyza verifies that the peer has sufficient liquid
 
 $$Total Liquidity = Clearing Balance + Liquidity Balance$$
 
-A transfer is only processed if the $Total Liquidity$ is greater than or equal to the transfer amount. This allows a peer's clearing balance to become negative (representing a net obligation) as long as it is collateralized by a sufficient positive balance in their liquidity account.
+A transfer is only processed if the $Total Liquidity$ is greater than or equal to the transfer amount. This allows a peer's clearing balance to become negative (representing a net obligation) as long as it's collateralized by a sufficient positive balance in their liquidity account.
 
 #### Processing transfers
 
 Rhyza uses a two-phase commit to ensure ledger consistency:
 
-1.  **Reservation**: Funds are moved from the payer's **Clearing Account** to their **Suspense Account**.
-2.  **Commit**: If the payment is fulfilled, the reservation is released (moved from **Suspense** back to **Clearing**) and the final transfer is recorded from the payer's **Clearing Account** to the payee's **Clearing Account**.
-3.  **Reject**: If the payment fails or is rejected, the reserved funds are moved from the **Suspense Account** back to the payer's **Clearing Account**.
+1.  **Reservation**: Funds are moved from the sender's **Clearing Account** to their **Suspense Account**.
+2.  **Commit**: If the payment is fulfilled, the reservation is released (moved from **Suspense** back to **Clearing**) and the final transfer is recorded from the sender's **Clearing Account** to the receiver's **Clearing Account**.
+3.  **Reject**: If the payment fails or is rejected, the reserved funds are moved from the **Suspense Account** back to the sender's **Clearing Account**.

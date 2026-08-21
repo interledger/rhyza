@@ -6,38 +6,56 @@ tableOfContents:
 
 import { Tabs, TabItem } from '@astrojs/starlight/components'
 import { LinkOut } from '@interledger/docs-design-system'
-import { Badge } from '@astrojs/starlight/components'
 
-To join the Interledger network and be able to send and receive payments, you must add one or more peers to your Rhyza instance. Peering establishes the connections needed for your Rhyza instance to interact with another financial service provider (FSP). The purpose of this guide is to help you set up and manage peers.
-
-## Perform prerequisites
+An FSP must add one or more peers to their Rhyza instance before joining and transacting over the Interledger network. Peering establishes the connections needed for the Rhyza instance to interact with another FSP.
 
 :::note
-Peering isn't required unless you want to participate in transactions with another FSP on the Interledger network. For foundational peering concepts, refer to the Peers section of [Interledger Concepts](/overview/concepts/interledger/#peers).
+Peers are only required when an FSP wants to transact with another FSP on the Interledger network. If the FSP is using Rhyza solely for transfers between accounts on its own ledger, peers aren't required.
 :::
 
-Before adding a peer, you and the financial service provider you intend to peer with must both:
+## Prerequisites
 
-### Run an Interledger connector
+Before becoming peers, both FSPs must:
 
-Rhyza ILP connectors know how to speak to each other. It is recommended that both you and your peer use Rhyza.
+<details>
+  <summary>Run an Interledger connector</summary>
+  Rhyza ILP connectors know how to speak to each other. It's recommended that
+  both FSPs use Rhyza.
+</details>
 
-### Agree on an asset
+<details>
+  <summary>Agree on an asset</summary>
+Both FSPs must agree on an [asset](/overview/concepts/accounting#assets) to use for the peering relationship. Peers can set up multiple peering relationships with each another based on different assets.
 
-Both you and your peer must agree on an [asset](/overview/concepts/accounting#assets) for the peering relationship. You can set up multiple peering relationships with the same peer based on different assets. At least one asset shared by you and your peer must be added to your Rhyza instance before setting up the peering relationship. For more information, refer to [Assets](/integration/requirements/assets/).
+At least one common asset must be added to both FSPs' Rhyza instance before setting up the peering relationship. For more information, refer to [Assets](/integration/requirements/assets/).
 
-### Exchange static Interledger (ILP) addresses
+</details>
 
-Your <LinkOut href="https://interledger.org/developers/rfcs/ilp-addresses/">ILP address</LinkOut> is self-assigned during Rhyza setup and stored locally as the `ILP_ADDRESS` environment variable for the `backend` service.
+<details>
+  <summary>Exchange static Interledger (ILP) addresses</summary>
+  An FSP's{' '}
+  <LinkOut href='https://interledger.org/developers/rfcs/ilp-addresses/'>
+    ILP address
+  </LinkOut>{' '}
+  is self-assigned during Rhyza setup and stored locally as the `ILP_ADDRESS`
+  environment variable for the `backend` service.
+</details>
 
-### Communicate a connection endpoint
+<details>
+  <summary>Communicate a connection endpoint</summary>
+  The connection endpoint is a URL that the other peer will send packets to.
+</details>
 
-The connection endpoint will be a URL that the other peer will send packets to.
+<details>
+  <summary>Exchange auth tokens for the connection endpoint</summary>
+  Incoming and outgoing `authtokens` allow peered FSPs to authenticate packets
+  to ensure they originated from each peer's Interledger connector and weren't
+  tampered with en route.
+</details>
 
-### Exchange auth tokens for the connection endpoint
-
-Incoming `authtokens` allow you to authenticate that packets sent from your peer originated from your peer's Interledger connector and weren't tampered en route. The outgoing `authtoken` allows your peer to authenticate that received packets originated from your Interledger connector and weren't tampered with en route.
-
-### Agree on a settlement mechanism
-
-The settlement mechanism you both agree to use is what facilitates the transfer of actual funds between you and your peer. Neither Interledger nor Rhyza provide a settlement mechanism.
+<details>
+  <summary>Agree on a settlement mechanism</summary>
+  The settlement mechanism that two peers agree to use is what facilitates the
+  transfer of actual funds between them. Neither Interledger nor Rhyza provide a
+  settlement mechanism.
+</details>
