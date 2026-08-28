@@ -1,0 +1,17 @@
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  # Broker Topic Metrics
+  - pattern: 'kafka.server<type=BrokerTopicMetrics, name=(.+)><>Count'
+    name: 'kafka_server_brokertopicmetrics_$1_total'
+    type: COUNTER
+  # Replica Manager Metrics
+  - pattern: 'kafka.server<type=ReplicaManager, name=(.+)><>Value'
+    name: 'kafka_server_replicamanager_$1'
+    type: GAUGE
+  # JVM Garbage Collection and Memory
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>(CollectionCount|CollectionTime)'
+    name: 'jvm_gc_$2_total'
+    type: COUNTER
+    labels:
+      gc: "$1"
