@@ -33,19 +33,27 @@ const BgWhite = '\x1b[47m';
 const BgGray = '\x1b[100m';
 
 class CustomLoggerPrettifier extends Writable {
-  _write(chunk: any, encoding: BufferEncoding, callback: (error?: Error | null) => void ): void{
+  _write(
+    chunk: any,
+    encoding: BufferEncoding,
+    callback: (error?: Error | null) => void
+  ): void {
     // prep parts
     const strInput = chunk.toString();
     const inputLines = strInput.split(/\r?\n/);
     let linesStr = inputLines.join(',');
-    if(linesStr.length > 0){ linesStr = linesStr.slice(0, -1);}
+    if (linesStr.length > 0) {
+      linesStr = linesStr.slice(0, -1);
+    }
     const lines: any[] = JSON.parse(`[${linesStr}]`);
 
     const outputLines: string[] = [];
-    lines.forEach((line:any) => {
+    lines.forEach((line: any) => {
       const time = `${Dim}${new Date(line.time).toISOString().replace(/T/, ' ').replace(/Z/, '')}${Reset}`;
       const bcAndApp = `${FgGray}(${line.bcName}/${line.appName})${Reset}`;
-      const component = line.component ? `${Dim}${FgMagenta}[${line.component}]${Reset}` : `${Dim}[null component]${Reset}`;
+      const component = line.component
+        ? `${Dim}${FgMagenta}[${line.component}]${Reset}`
+        : `${Dim}[null component]${Reset}`;
 
       let levelLabel = pino.levels.labels[line.level];
       let levelColor = FgGray;
@@ -78,6 +86,6 @@ class CustomLoggerPrettifier extends Writable {
 
 // This is what pino transport expects, must return a WritableStream instance
 let stream = new CustomLoggerPrettifier();
-export default async (options:any) => {
+export default async (options: any) => {
   return stream;
 };
