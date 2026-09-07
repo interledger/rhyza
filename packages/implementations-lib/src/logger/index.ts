@@ -18,6 +18,12 @@ export class PinoLogger implements ILogger {
       base: { pid: process.pid, hostname: os.hostname() }
     };
 
+    if (process.env.LOGGER_PRETTY != undefined) {
+      loggerOptions.transport = {
+        target: './logger-pretty'
+      };
+    }
+
     if (options?.bcName) {
       (loggerOptions.base as any).bcName = options.bcName;
     }
