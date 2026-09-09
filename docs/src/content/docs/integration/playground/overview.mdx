@@ -95,6 +95,8 @@ Node B's services run on different ports than the default instance so both can r
 
 </div>
 
+See [Making a payment between two nodes](#making-a-payment-between-two-nodes) to make an ILP payment between Node A and Node B.
+
 ## Using Bruno
 
 <LinkOut href='https://www.usebruno.com/'>Bruno</LinkOut> is an open-source IDE
@@ -109,7 +111,7 @@ the repository to help you get started with Rhyza's APIs.
 
 ### Available collections
 
-- **Admin API** - Requests for managing assets, wallet addresses, and payments. These requests are proxied through Nginx on port `80` by default.
+- **Admin API** - Requests for managing assets, wallet addresses, and payments. These requests are proxied through nginx on port `80` by default.
 - **Open Payments** - Requests for interacting with the Open Payments resource server (running on port `3002`).
 - **Remote Payment** - Requests for making an ILP payment between two peered nodes. Requires [running two nodes](#running-two-nodes).
 
@@ -127,27 +129,28 @@ Use these requests to perform tasks such as creating assets, setting up wallet a
 The **Remote Payment** collection walks through a complete ILP payment between the sender (Node A) and the receiver (Node B), using the **Rafiki v2 Local Peers** environment. It's organized into three numbered folders, run in order:
 
 - **1. Setup** - Creates a USD asset, wallet address, and peer on each node (each node peers with the other's `ilp-connector-service`), then funds the sender's liquidity so it has funds to send.
-- **2. Flow** - Creates a payment intent on the receiver, a quote on the sender referencing that intent, and the payment itself on the sender. See the diagram below for this request sequence.
+- **2. Flow** - Creates a payment intent on the receiver, a quote on the sender referencing that intent, and the payment itself on the sender.
+
+  <details>
+    <summary>Expand for the 2. Flow sequence</summary>
+    <Mermaid
+      graph={`sequenceDiagram
+        participant Bruno as Bruno client
+        participant Receiver as Receiver (Node B)
+        participant Sender as Sender (Node A)
+
+        Bruno->>Receiver: POST /payment-intents<br/>walletAddress: test.com/receiver, incomingAmount: 1000
+        Receiver-->>Bruno: 201 Created<br/>id, openPaymentsUrl
+
+        Bruno->>Sender: POST /quotes<br/>walletAddress: test.com/sender, paymentIntentUrl, debitAmount: 1000
+        Sender-->>Bruno: 201 Created<br/>id, paymentIntentId
+
+        Bruno->>Sender: POST /payments<br/>walletAddress: test.com/sender, paymentIntentId, quoteId
+        Sender-->>Bruno: 201 Created<br/>id, paymentIntentId
+
+        Note over Sender,Receiver: Payment settles<br/>over ILP
+  `}
+    />
+  </details>
+
 - **3. Verify** - Checks the incoming payment on the receiver and the payment's status on the sender to confirm it completed.
-
-<details>
-  <summary>Expand for the 2. Flow sequence</summary>
-  <Mermaid
-    graph={`sequenceDiagram
-      participant Bruno as Bruno client
-      participant Receiver as Receiver (Node B)
-      participant Sender as Sender (Node A)
-
-      Bruno->>Receiver: POST /payment-intents<br/>walletAddress: test.com/receiver, incomingAmount: 1000
-      Receiver-->>Bruno: 201 Created<br/>id, openPaymentsUrl
-
-      Bruno->>Sender: POST /quotes<br/>walletAddress: test.com/sender, paymentIntentUrl, debitAmount: 1000
-      Sender-->>Bruno: 201 Created<br/>id, paymentIntentId
-
-      Bruno->>Sender: POST /payments<br/>walletAddress: test.com/sender, paymentIntentId, quoteId
-      Sender-->>Bruno: 201 Created<br/>id, paymentIntentId
-
-      Note over Sender,Receiver: Payment settles<br/>over ILP
-`}
-  />
-</details>
