@@ -1,8 +1,14 @@
-import { CommandTopics, IMessage, IMessageConsumer } from 'common-types-lib';
+import {
+  CommandTopics,
+  DomainRetryTopics,
+  IMessage,
+  IMessageConsumer
+} from 'common-types-lib';
 import {
   CreateNotificationCmd,
   NotificationAggregate,
-  NotificationStatus
+  NotificationStatus,
+  RetryNotificationTickCmd
 } from 'notifications-domain-lib';
 
 export class NotificationsCommandHandler {
@@ -18,7 +24,10 @@ export class NotificationsCommandHandler {
   }
 
   async start(): Promise<void> {
-    this._msgConsumer.setTopics([CommandTopics.NotificationCommands]);
+    this._msgConsumer.setTopics([
+      CommandTopics.NotificationCommands,
+      DomainRetryTopics.NotificationRetryCommands
+    ]);
     this._msgConsumer.setBatchCallbackFn(this._handleBatch.bind(this));
     await this._msgConsumer.connect();
     await this._msgConsumer.startAndWaitForRebalance();
@@ -51,6 +60,11 @@ export class NotificationsCommandHandler {
               `Notification NOT sent for command ${msg.msgName} — id ${notification.id}, type ${payload.type}, status ${notification.status} after ${notification.attempts} attempt(s). Skipping to avoid blocking the partition.`
             );
           }
+          break;
+        }
+        case RetryNotificationTickCmd.name: {
+          const payload = (msg as RetryNotificationTickCmd).payload;
+          await this._notificationAggregate.retryNotification(payload.id);
           break;
         }
         default: {

@@ -24,6 +24,7 @@ export class Notification implements INotification {
     status: NotificationStatus = NotificationStatus.CREATED,
     createdAt: Date = new Date(),
     sentAt: Date | null = null
+    // add maxattempts
   ) {
     this._id = id;
     this._type = type;
@@ -92,11 +93,14 @@ export class Notification implements INotification {
     this._sentAt = new Date();
   }
 
-  markAsFailed(): void {
-    this._status = NotificationStatus.FAILED;
-  }
-
   incrementAttempts(): void {
     this._attempts++;
+  }
+
+  markAsFailed(): void {
+    this._status =
+      this._attempts < this.maxAttempts
+        ? NotificationStatus.PENDING_RETRY
+        : NotificationStatus.FAILED;
   }
 }

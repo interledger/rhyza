@@ -12,6 +12,7 @@
   "dependencies": {
     "common-types-lib": "workspace:*",
     "implementations-lib": "workspace:*",
+    "ioredis": "~5.10.1",
     "notifications-domain-lib": "workspace:*",
     "notifications-implementations-lib": "workspace:*"
   },

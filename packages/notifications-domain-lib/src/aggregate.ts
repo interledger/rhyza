@@ -6,7 +6,7 @@ import {
   INotification,
   INotificationRepository,
   INotificationSenderService,
-  NotificationSendError,
+  NotificationStatus,
   NotificationType
 } from './interfaces';
 
@@ -49,49 +49,37 @@ export class NotificationAggregate {
     data: Record<string, unknown>
   ): Promise<INotification> {
     const notification = new Notification(id, type, data);
+    return await this.sendNotification(notification);
+  }
+
+  private async sendNotification(
+    notification: Notification
+  ): Promise<INotification> {
     await this._repo.store(notification.toObject());
-
-    while (notification.attempts < notification.maxAttempts) {
+    try {
+      await this._notificationSenderService.send(notification);
+      notification.markAsSent();
+    } catch (error) {
+      this._logger.error('error sending notification: ', error);
+      notification.markAsFailed();
+    } finally {
       notification.incrementAttempts();
-      try {
-        await this._notificationSenderService.send(notification);
-        notification.markAsSent();
-        await this._repo.store(notification.toObject());
-        return notification.toObject();
-      } catch (error) {
-        notification.markAsFailed();
-        await this._repo.store(notification.toObject());
-
-        const retryable =
-          error instanceof NotificationSendError ? error.retryable : true;
-
-        if (!retryable) {
-          this._logger.error(
-            `Notification ${id} (${type}) permanently failed (non-retryable) ` +
-              `after ${notification.attempts} attempt(s): ${(error as Error).message}`
-          );
-          return notification.toObject();
-        }
-
-        // Exponential backoff before the next attempt: base * 2^(attempt-1).
-        // For base=500ms, maxAttempts=3: backoff is 500ms, 1000ms, 2000ms, stop
-        if (notification.attempts < notification.maxAttempts) {
-          await this._delay(
-            this._retryBaseDelayMs * 2 ** (notification.attempts - 1)
-          );
-        }
-      }
+      await this._repo.store(notification.toObject());
     }
-
-    this._logger.error(
-      `Notification ${id} (${type}) permanently failed (retries exhausted) ` +
-        `after ${notification.attempts} attempt(s)`
-    );
     return notification.toObject();
   }
 
-  private _delay(ms: number): Promise<void> {
-    if (ms <= 0) return Promise.resolve();
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  async retryNotification(id: string): Promise<void> {
+    const notification = await this._repo.get(id);
+    if (!notification) {
+      throw new Error(`Notification not found: ${id}`);
+    }
+    if (notification.status === NotificationStatus.PENDING_RETRY) {
+      await this.sendNotification(Notification.fromObject(notification));
+    } else {
+      this._logger.error(
+        `Notification not in PENDING_RETRY state: ${notification.status}`
+      );
+    }
   }
 }

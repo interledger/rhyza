@@ -22,6 +22,7 @@ export class NotificationsCommandHandlerService {
   private static commandHandler: NotificationsCommandHandler;
 
   static async start(): Promise<void> {
+    const logger = new PinoLogger();
     this.repo = new MongoDbNotificationRepo(MONGODB_URL);
     await this.repo.init();
 
@@ -30,14 +31,14 @@ export class NotificationsCommandHandlerService {
     const aggregate = new NotificationAggregate(
       this.repo,
       notificationSenderService,
-      new PinoLogger()
+      logger
     );
 
     const kafkaBuilder = new KafkaBuilder()
       .withBrokerList(KAFKA_URL)
       .withClientId(`NOTIFICATIONS_CMD_HANDLER_SVC_${crypto.randomUUID()}`)
       .withSerializerFactory(MessageSerializationFactory.instance())
-      .withLogger(new PinoLogger());
+      .withLogger(logger);
 
     this.msgProducer = kafkaBuilder.buildProducer({});
 

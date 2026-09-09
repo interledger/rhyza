@@ -1,6 +1,7 @@
 import {
   INotification,
-  INotificationRepository
+  INotificationRepository,
+  NotificationStatus
 } from 'notifications-domain-lib';
 import { Collection, CollectionInfo, Db, MongoClient } from 'mongodb';
 
@@ -49,6 +50,14 @@ export class MongoDbNotificationRepo implements INotificationRepository {
           { id: 1 },
           { unique: true }
         );
+        await this._notificationCollection.createIndex(
+          { status: 1, createdAt: 1 },
+          {
+            partialFilterExpression: {
+              status: NotificationStatus.PENDING_RETRY
+            }
+          }
+        );
       }
     } catch (e: unknown) {
       if (e instanceof Error) {
@@ -69,6 +78,15 @@ export class MongoDbNotificationRepo implements INotificationRepository {
     await this._client.close();
   }
 
+  async get(id: string): Promise<INotification | null> {
+    this._checkInitialisedOrThrow();
+    try {
+      return await this._notificationCollection.findOne({ id });
+    } catch (e: unknown) {
+      this._handleError(e, 'get');
+    }
+  }
+
   async store(notification: INotification): Promise<void> {
     this._checkInitialisedOrThrow();
     try {
@@ -79,6 +97,24 @@ export class MongoDbNotificationRepo implements INotificationRepository {
       );
     } catch (e: unknown) {
       this._handleError(e, 'store');
+    }
+  }
+
+  async getFailedNotificationIds(limit: number): Promise<string[]> {
+    this._checkInitialisedOrThrow();
+    try {
+      const documents = await this._notificationCollection
+        .find({
+          status: NotificationStatus.PENDING_RETRY
+        })
+        .project({ _id: 1 })
+        .sort({ createdAt: 1 })
+        .limit(limit)
+        .toArray();
+
+      return documents.map((doc) => doc._id);
+    } catch (e: unknown) {
+      this._handleError(e, 'getFailedNotifications');
     }
   }
 

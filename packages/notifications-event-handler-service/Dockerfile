@@ -27,6 +27,7 @@ COPY packages/common-types-lib/package.json ./packages/common-types-lib/package.
 COPY packages/implementations-lib/package.json ./packages/implementations-lib/package.json
 COPY packages/payments-public-types-lib/package.json ./packages/payments-public-types-lib/package.json
 COPY packages/notifications-domain-lib/package.json ./packages/notifications-domain-lib/package.json
+COPY packages/notifications-implementations-lib/package.json ./packages/notifications-implementations-lib/package.json
 COPY packages/notifications-event-handler-service/package.json ./packages/notifications-event-handler-service/package.json
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store BUILD_LIBRDKAFKA=0 pnpm install --recursive --prefer-offline --frozen-lockfile --prod
@@ -37,6 +38,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store BUILD_LIBRDKAFKA=0 pnpm instal
 RUN pnpm --filter common-types-lib build
 RUN pnpm --filter implementations-lib build
 RUN pnpm --filter notifications-domain-lib build
+RUN pnpm --filter notifications-implementations-lib build
 RUN pnpm --filter payments-public-types-lib build
 RUN pnpm --filter notifications-event-handler-service build
 
@@ -48,6 +50,7 @@ WORKDIR /workspace
 COPY --from=prod-deps /workspace/node_modules ./node_modules
 COPY --from=prod-deps /workspace/packages/implementations-lib/node_modules ./packages/implementations-lib/node_modules
 COPY --from=prod-deps /workspace/packages/notifications-domain-lib/node_modules ./packages/notifications-domain-lib/node_modules
+COPY --from=prod-deps /workspace/packages/notifications-implementations-lib/node_modules ./packages/notifications-implementations-lib/node_modules
 COPY --from=prod-deps /workspace/packages/notifications-event-handler-service/node_modules ./packages/notifications-event-handler-service/node_modules
 COPY --from=prod-deps /workspace/packages/payments-public-types-lib/node_modules ./packages/payments-public-types-lib/node_modules
 
@@ -55,6 +58,7 @@ COPY --from=prod-deps /workspace/packages/payments-public-types-lib/node_modules
 COPY --from=prod-deps /workspace/packages/common-types-lib/package.json ./packages/common-types-lib/package.json
 COPY --from=prod-deps /workspace/packages/implementations-lib/package.json ./packages/implementations-lib/package.json
 COPY --from=prod-deps /workspace/packages/notifications-domain-lib/package.json ./packages/notifications-domain-lib/package.json
+COPY --from=prod-deps /workspace/packages/notifications-implementations-lib/package.json ./packages/notifications-implementations-lib/package.json
 COPY --from=prod-deps /workspace/packages/notifications-event-handler-service/package.json ./packages/notifications-event-handler-service/package.json
 COPY --from=prod-deps /workspace/packages/payments-public-types-lib/package.json ./packages/payments-public-types-lib/package.json
 
@@ -62,6 +66,7 @@ COPY --from=prod-deps /workspace/packages/payments-public-types-lib/package.json
 COPY --from=build /workspace/packages/common-types-lib/dist ./packages/common-types-lib/dist
 COPY --from=build /workspace/packages/implementations-lib/dist ./packages/implementations-lib/dist
 COPY --from=build /workspace/packages/notifications-domain-lib/dist ./packages/notifications-domain-lib/dist
+COPY --from=build /workspace/packages/notifications-implementations-lib/dist ./packages/notifications-implementations-lib/dist
 COPY --from=build /workspace/packages/notifications-event-handler-service/dist ./packages/notifications-event-handler-service/dist
 COPY --from=build /workspace/packages/payments-public-types-lib/dist ./packages/payments-public-types-lib/dist
 

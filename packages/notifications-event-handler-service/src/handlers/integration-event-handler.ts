@@ -16,7 +16,7 @@ import {
   PaymentIntentCreatedEvent
 } from 'payments-public-types-lib';
 
-export class NotificationsEventHandler {
+export class IntegrationEventHandler {
   private _msgConsumer: IMessageConsumer;
   private _msgProducer: IMessageProducer;
 
