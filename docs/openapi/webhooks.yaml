@@ -185,7 +185,7 @@ components:
                   type: string
                   format: date-time
     paymentEventError:
-        allOf:
+      allOf:
         - $ref: '#/components/schemas/webhookEvent'
         - type: object
           properties:
