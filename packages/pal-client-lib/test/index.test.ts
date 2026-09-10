@@ -548,8 +548,7 @@ test('pal client - parseAddressToDomainAndPathName should work with url missing 
 });
 
 test('pal client - parseAddressToDomainAndPathName should work without a FQDN and return null domain', async () => {
-  const { domain, pathName } =
-    parseAddressToDomainAndPathName('path/name');
+  const { domain, pathName } = parseAddressToDomainAndPathName('path/name');
 
   assert.equal(domain, null);
   assert.equal(pathName, 'path/name');
