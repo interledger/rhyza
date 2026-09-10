@@ -1,18 +1,15 @@
-/*****
- Copyright © 2026 & Interledger Foundation
- ----------------------------------------------
- Contributors
-
- * Cyberbones Digital Solutions
- - Pedro Sousa Barreto <pedrosousabarreto@gmail.com>
- ******/
-
-'use strict';
-
 export function parseAddressToDomainAndPathName(address: string): {
   domain: string | null;
   pathName: string;
 } {
+  // without path separator we assume it to be a name
+  if (!address.includes('/')) {
+    return {
+      domain: null,
+      pathName: address
+    };
+  }
+
   const toParseAddress = address.includes('://')
     ? address
     : 'http://' + address;
