@@ -39,8 +39,11 @@ export default defineConfig({
       },
       components: {
         PageSidebar: './src/components/PageSidebar.astro',
-        Footer: './src/components/Footer.astro'
+        Footer: './src/components/Footer.astro',
+        PageTitle: './src/components/PageTitle.astro',
+        LastUpdated: './src/components/LastUpdated.astro'
       },
+      lastUpdated: true,
       defaultLocale: 'root',
       locales: {
         root: {
