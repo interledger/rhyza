@@ -2,8 +2,8 @@ name: Stale docs check
 
 on:
   schedule:
-    - cron: '0 9 1 * *'  # 9am on the 1st of every month
-  workflow_dispatch:      # allows manual trigger from the Actions tab
+    - cron: '0 9 1 * *' # 9am on the 1st of every month
+  workflow_dispatch: # allows manual trigger from the Actions tab
 
 jobs:
   check-stale-docs:
