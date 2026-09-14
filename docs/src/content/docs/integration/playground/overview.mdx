@@ -139,16 +139,16 @@ The **Remote Payment** collection walks through a complete ILP payment between t
         participant Receiver as Receiver (Node B)
         participant Sender as Sender (Node A)
 
-        Bruno->>Receiver: POST /payment-intents<br/>walletAddress: test.com/receiver, incomingAmount: 1000
-        Receiver-->>Bruno: 201 Created<br/>id, openPaymentsUrl
+        Bruno->>Receiver: POST /payment-intents
+        Receiver-->>Bruno: 201 Created
 
-        Bruno->>Sender: POST /quotes<br/>walletAddress: test.com/sender, paymentIntentUrl, debitAmount: 1000
-        Sender-->>Bruno: 201 Created<br/>id, paymentIntentId
+        Bruno->>Sender: POST /quotes
+        Sender-->>Bruno: 201 Created
 
-        Bruno->>Sender: POST /payments<br/>walletAddress: test.com/sender, paymentIntentId, quoteId
-        Sender-->>Bruno: 201 Created<br/>id, paymentIntentId
+        Bruno->>Sender: POST /payments
+        Sender-->>Bruno: 201 Created
 
-        Note over Sender,Receiver: Payment settles<br/>over ILP
+        Note over Sender,Receiver: Payment sent<br/>over ILP
   `}
     />
   </details>
