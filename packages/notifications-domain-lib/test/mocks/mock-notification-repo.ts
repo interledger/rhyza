@@ -26,14 +26,11 @@ export class MockNotificationRepo implements INotificationRepository {
     return Promise.resolve(Array.from(this.notifications.values()));
   }
 
-  async getFailedNotificationIds(limit: number): Promise<string[]> {
+  async getPendingRetryNotificationIds(limit: number): Promise<string[]> {
     return Promise.resolve(
       Array.from(this.notifications.values())
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-        .filter(
-          (n) =>
-            n.status === NotificationStatus.FAILED && n.attempts < n.maxAttempts
-        )
+        .filter((n) => n.status === NotificationStatus.PENDING_RETRY)
         .map((n) => n.id)
         .slice(0, limit)
     );

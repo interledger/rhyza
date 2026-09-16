@@ -29,14 +29,16 @@ test('sends notification to webhook', async () => {
       randomUUID(),
       NotificationType.PaymentCreated,
       {
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date().toISOString(),
-        incomingAmount: '100',
-        receivedAmount: '0',
-        state: 'CREATED',
-        receiverWalletAddressId: '71e202a6-cde9-41f7-b5fd-b1137883dbb7',
-        assetCode: 'USD',
-        assetScale: 2
+        data: {
+          createdAt: new Date(),
+          expiresAt: new Date(),
+          incomingAmount: '100',
+          receivedAmount: '0',
+          state: 'CREATED',
+          receiverWalletAddressId: '71e202a6-cde9-41f7-b5fd-b1137883dbb7',
+          assetCode: 'USD',
+          assetScale: 2
+        }
       }
     );
 

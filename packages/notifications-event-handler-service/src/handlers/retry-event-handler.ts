@@ -32,7 +32,7 @@ export class RetryEventHandler {
     this.interval = setInterval(async () => {
       try {
         const notificationIds =
-          await this._notificationRepository.getFailedNotificationIds(
+          await this._notificationRepository.getPendingRetryNotificationIds(
             NOTIFICATION_BATCH_SIZE
           );
         const commands = notificationIds.map(

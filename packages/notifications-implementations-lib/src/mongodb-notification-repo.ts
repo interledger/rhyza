@@ -100,7 +100,7 @@ export class MongoDbNotificationRepo implements INotificationRepository {
     }
   }
 
-  async getFailedNotificationIds(limit: number): Promise<string[]> {
+  async getPendingRetryNotificationIds(limit: number): Promise<string[]> {
     this._checkInitialisedOrThrow();
     try {
       const documents = await this._notificationCollection

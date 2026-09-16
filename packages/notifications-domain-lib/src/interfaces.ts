@@ -29,7 +29,7 @@ export enum NotificationType {
 export interface INotificationRepository {
   get(id: string): Promise<INotification | null>;
   store(notification: INotification): Promise<void>;
-  getFailedNotificationIds(limit: number): Promise<string[]>;
+  getPendingRetryNotificationIds(limit: number): Promise<string[]>;
 }
 
 export interface INotificationSenderService {
