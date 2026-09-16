@@ -4,7 +4,7 @@ import {
   RetryNotificationTickCmd
 } from 'notifications-domain-lib';
 
-const RETRY_INTERVAL = Number(process.env.RETRY_INTERVAL || 10000);
+const RETRY_INTERVAL_MS = Number(process.env.RETRY_INTERVAL_MS || 10000);
 const NOTIFICATION_BATCH_SIZE = Number(
   process.env.NOTIFICATION_BATCH_SIZE || 10
 );
@@ -42,7 +42,7 @@ export class RetryEventHandler {
       } catch (err) {
         this._logger.error(`${this.constructor.name} error: ${err}`);
       }
-    }, RETRY_INTERVAL);
+    }, RETRY_INTERVAL_MS);
     this._logger.info(`${this.constructor.name} initialized`);
   }
 

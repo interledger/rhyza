@@ -151,7 +151,6 @@ services:
       KAFKA_URL: kafka:19092
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
       PAL_GRPC_URL: pal-api-service:50051
-      UV_THREADPOOL_SIZE: 128
       LOG_LEVEL: debug
     depends_on:
       mongodb:
@@ -200,7 +199,8 @@ services:
     environment:
       KAFKA_URL: kafka:19092
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017/
-      UV_THREADPOOL_SIZE: 128
+      NOTIFICATION_BATCH_SIZE: 10
+      RETRY_INTERVAL_MS: 20000
     depends_on:
       mongodb:
         condition: service_healthy
