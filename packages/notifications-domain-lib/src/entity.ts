@@ -6,11 +6,19 @@ import {
   NotificationType
 } from './interfaces';
 
+export interface NotificationOptions {
+  data?: Record<string, unknown>;
+  attempts?: number;
+  status?: NotificationStatus;
+  createdAt?: Date;
+  sentAt?: Date | null;
+  maxAttempts?: number;
+}
 export class Notification implements INotification {
   private _id: string;
   private readonly _type: NotificationType;
   private readonly _data: Record<string, unknown>;
-  readonly maxAttempts = 3;
+  readonly maxAttempts;
   private _attempts: number;
   private _status: NotificationStatus;
   private _createdAt: Date;
@@ -19,20 +27,26 @@ export class Notification implements INotification {
   constructor(
     id: string,
     type: NotificationType,
-    data: Record<string, unknown> = {},
-    attempts: number = 0,
-    status: NotificationStatus = NotificationStatus.CREATED,
-    createdAt: Date = new Date(),
-    sentAt: Date | null = null
-    // add maxattempts
+    options: NotificationOptions = {}
   ) {
     this._id = id;
     this._type = type;
+
+    const {
+      data = {},
+      attempts = 0,
+      status = NotificationStatus.SENDING,
+      createdAt = new Date(),
+      sentAt = null,
+      maxAttempts = 3
+    } = options;
+
     this._data = data;
     this._attempts = attempts;
     this._status = status;
     this._createdAt = createdAt;
     this._sentAt = sentAt;
+    this.maxAttempts = maxAttempts;
   }
 
   get id(): string {
@@ -77,15 +91,14 @@ export class Notification implements INotification {
   }
 
   static fromObject(obj: INotification): Notification {
-    return new Notification(
-      obj.id,
-      obj.type,
-      obj.data,
-      obj.attempts,
-      obj.status,
-      obj.createdAt,
-      obj.sentAt
-    );
+    return new Notification(obj.id, obj.type, {
+      data: obj.data,
+      attempts: obj.attempts,
+      status: obj.status,
+      createdAt: obj.createdAt,
+      sentAt: obj.sentAt,
+      maxAttempts: obj.maxAttempts
+    });
   }
 
   markAsSent(): void {

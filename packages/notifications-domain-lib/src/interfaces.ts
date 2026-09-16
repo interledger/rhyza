@@ -12,7 +12,7 @@ export interface INotification {
 }
 
 export enum NotificationStatus {
-  CREATED = 'CREATED',
+  SENDING = 'SENDING',
   PENDING_RETRY = 'PENDING_RETRY',
   SENT = 'SENT',
   FAILED = 'FAILED'

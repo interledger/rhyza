@@ -199,6 +199,7 @@ services:
     restart: always
     environment:
       KAFKA_URL: kafka:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb:27017/
       UV_THREADPOOL_SIZE: 128
     depends_on:
       mongodb:

@@ -50,6 +50,7 @@ export class NotificationsEventHandlerService {
     await this.integrationEventHandler.start();
 
     this.notificationRepository = new MongoDbNotificationRepo(MONGODB_URL);
+    await this.notificationRepository.init();
 
     this.retryEventHandler = new RetryEventHandler(
       this.msgProducer,

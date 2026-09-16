@@ -107,12 +107,12 @@ export class MongoDbNotificationRepo implements INotificationRepository {
         .find({
           status: NotificationStatus.PENDING_RETRY
         })
-        .project({ _id: 1 })
+        .project({ _id: 0, id: 1 })
         .sort({ createdAt: 1 })
         .limit(limit)
         .toArray();
 
-      return documents.map((doc) => doc._id);
+      return documents.map((doc) => doc.id);
     } catch (e: unknown) {
       this._handleError(e, 'getFailedNotifications');
     }

@@ -50,7 +50,8 @@ export class NotificationsCommandHandlerService {
 
     this.commandHandler = new NotificationsCommandHandler(
       this.msgConsumer,
-      aggregate
+      aggregate,
+      logger
     );
 
     await this.commandHandler.start();

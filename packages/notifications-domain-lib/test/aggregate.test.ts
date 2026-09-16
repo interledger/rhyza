@@ -1,12 +1,9 @@
-'use strict';
-
 import { afterEach, describe, mock, test } from 'node:test';
 import {
   NotificationAggregate,
   NotificationStatus,
   NotificationType
 } from '../src';
-import { NotificationSendError } from '../src/interfaces';
 import { ConsoleLogger } from 'common-types-lib';
 import { MockNotificationRepo } from './mocks';
 import { MockNotificationSenderService } from './mocks/mock-notification-sender-service';
@@ -18,8 +15,7 @@ const notificationSenderService = new MockNotificationSenderService();
 const notificationAggregate = new NotificationAggregate(
   notificationRepository,
   notificationSenderService,
-  new ConsoleLogger(),
-  { retryBaseDelayMs: 0 } // dont wait for tests
+  new ConsoleLogger()
 );
 
 describe('notification aggregate', () => {
@@ -28,62 +24,74 @@ describe('notification aggregate', () => {
     mock.restoreAll();
   });
 
+  const id = randomUUID();
   const type = NotificationType.PaymentCreated;
   const data = {};
 
-  describe('create and send notification', () => {
-    test('creates and sends notification successfully', async () => {
-      const id = randomUUID();
-      const notification =
-        await notificationAggregate.createAndSendNotification(id, type, data);
-      assert.equal(notification.id, id);
-      assert.equal(notification.status, NotificationStatus.SENT);
-      assert.equal(notification.attempts, 1);
-      assert.ok(notification.sentAt);
+  test('creates and sends notification successfully', async () => {
+    const notification = await notificationAggregate.createAndSendNotification(
+      id,
+      type,
+      data
+    );
+    assert.equal(notification.id, id);
+    assert.equal(notification.status, NotificationStatus.SENT);
+    assert.equal(notification.attempts, 1);
+    assert.ok(notification.sentAt);
+  });
+
+  describe('retry notification', () => {
+    test('throws error if notification is not found in repository', async () => {
+      mock.method(notificationRepository, 'get', async () => null);
+
+      await assert.rejects(
+        async () => notificationAggregate.retryNotification(id),
+        { message: `Notification not found: ${id}` }
+      );
     });
 
-    test('retries transient failures then gives up without throwing', async () => {
-      let calls = 0;
+    test('logs error and does not send if status is not PENDING_RETRY', async () => {
+      mock.method(notificationRepository, 'get', async () => ({
+        id,
+        type,
+        data,
+        status: NotificationStatus.SENT,
+        attempts: 1
+      }));
+
+      let sendCalls = 0;
       mock.method(notificationSenderService, 'send', async () => {
-        calls++;
-        throw new NotificationSendError('Service Unavailable', {
-          status: 503,
-          retryable: true
-        });
+        sendCalls++;
       });
 
-      const id = randomUUID();
-      const notification =
-        await notificationAggregate.createAndSendNotification(id, type, data);
+      await notificationAggregate.retryNotification(id);
 
-      assert.equal(notification.status, NotificationStatus.FAILED);
-      assert.equal(notification.attempts, notification.maxAttempts);
-      assert.equal(calls, notification.maxAttempts);
-      assert.ok(!notification.sentAt);
-
-      const stored = await notificationRepository.fetch(id);
-      assert.ok(stored);
-      assert.equal(stored.status, NotificationStatus.FAILED);
+      assert.equal(sendCalls, 0);
     });
 
-    test('does not retry permanent (non-retryable) failures', async () => {
-      let calls = 0;
-      mock.method(notificationSenderService, 'send', async () => {
-        calls++;
-        throw new NotificationSendError('Unauthorized', {
-          status: 401,
-          retryable: false
-        });
+    test('resends notification if status is PENDING_RETRY', async () => {
+      mock.method(notificationRepository, 'get', async () => ({
+        id,
+        type,
+        data,
+        status: NotificationStatus.PENDING_RETRY,
+        attempts: 1
+      }));
+
+      let storeCalls = 0;
+      mock.method(notificationRepository, 'store', async () => {
+        storeCalls++;
       });
 
-      const id = randomUUID();
-      const notification =
-        await notificationAggregate.createAndSendNotification(id, type, data);
+      let sendCalls = 0;
+      mock.method(notificationSenderService, 'send', async () => {
+        sendCalls++;
+      });
 
-      assert.equal(notification.status, NotificationStatus.FAILED);
-      assert.equal(notification.attempts, 1);
-      assert.equal(calls, 1);
-      assert.ok(!notification.sentAt);
+      await notificationAggregate.retryNotification(id);
+
+      assert.equal(sendCalls, 1);
+      assert.ok(storeCalls > 0);
     });
   });
 });
