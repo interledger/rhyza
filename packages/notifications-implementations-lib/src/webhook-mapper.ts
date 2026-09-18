@@ -90,14 +90,14 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
 
 function mapState(state: SentPaymentState): SentPaymentState {
   switch (state) {
-    case 'CREATED':
-    case 'PROCESSING':
-    case 'SENDING':
+    case SentPaymentState.CREATED:
+    case SentPaymentState.PROCESSING:
+    case SentPaymentState.SENDING:
       return SentPaymentState.CREATED;
-    case 'COMPLETED':
-    case 'CONFIRMED':
+    case SentPaymentState.COMPLETED:
+    case SentPaymentState.CONFIRMED:
       return SentPaymentState.COMPLETED;
-    case 'FAILED':
+    case SentPaymentState.FAILED:
     case 'CANCELLED':
     case 'REJECTED':
       return SentPaymentState.FAILED;
