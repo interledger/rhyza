@@ -171,7 +171,12 @@ components:
                   type: string
                   enum:
                     - CREATED
+                    - PROCESSING
+                    - SENDING
+                    - CONFIRMED
+                    - REJECTED
                     - COMPLETED
+                    - CANCELLED
                     - FAILED
                 paymentIntentId:
                   type: string

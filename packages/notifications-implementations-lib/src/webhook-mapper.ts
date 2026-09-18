@@ -30,17 +30,23 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
   switch (type) {
     case NotificationType.PaymentIntentCreated:
     case NotificationType.PaymentIntentCompleted: {
-      const intentData = data as PaymentIntentPayload;
+      const paymentIntentData = data as PaymentIntentPayload;
       return {
-        id: intentData.id,
-        walletAddressId: intentData.receiverWalletAddressId,
-        createdAt: intentData.createdAt,
-        expiresAt: intentData.expiresAt,
+        id: paymentIntentData.id,
+        walletAddressId: paymentIntentData.receiverWalletAddressId,
+        createdAt: paymentIntentData.createdAt,
+        expiresAt: paymentIntentData.expiresAt,
         receiveAmount: {
-          value: intentData.receivedAmount,
-          assetCode: intentData.assetCode,
-          assetScale: intentData.assetScale
-        }
+          value: paymentIntentData.receivedAmount,
+          assetCode: paymentIntentData.assetCode,
+          assetScale: paymentIntentData.assetScale
+        },
+        incomingAmount: {
+          value: paymentIntentData.incomingAmount,
+          assetCode: paymentIntentData.assetCode,
+          assetScale: paymentIntentData.assetScale
+        },
+        state: paymentIntentData.state
       };
     }
 
@@ -67,7 +73,7 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
           assetCode: paymentData.receiveAssetCode,
           assetScale: paymentData.receiveAssetScale
         },
-        state: mapState(paymentData.state)
+        state: paymentData.state
       };
     }
 
@@ -85,21 +91,5 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
 
     default:
       return {};
-  }
-}
-
-function mapState(state: SentPaymentState): SentPaymentState {
-  switch (state) {
-    case SentPaymentState.CREATED:
-    case SentPaymentState.PROCESSING:
-    case SentPaymentState.SENDING:
-      return SentPaymentState.CREATED;
-    case SentPaymentState.COMPLETED:
-    case SentPaymentState.CONFIRMED:
-      return SentPaymentState.COMPLETED;
-    case SentPaymentState.FAILED:
-    case 'CANCELLED':
-    case 'REJECTED':
-      return SentPaymentState.FAILED;
   }
 }
