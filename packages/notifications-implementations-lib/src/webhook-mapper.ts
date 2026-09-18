@@ -4,8 +4,7 @@ import {
   PaymentIntentCreatedPayload,
   PaymentIntentCompletedPayload,
   PaymentCreatedPayload,
-  PaymentCompletedPayload,
-  SentPaymentState
+  PaymentCompletedPayload
 } from 'payments-public-types-lib';
 
 type FailedPayload = {
