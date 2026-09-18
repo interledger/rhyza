@@ -778,6 +778,7 @@ export class PaymentIntentAggregate {
         {
           id: payment.id,
           paymentIntentId: payment.paymentIntentId,
+          senderWalletAddressId: payment.senderWalletAddressId,
           senderWalletAddress: payment.senderWalletAddress,
           debitAmount: String(payment.debitAmount),
           receiveAmount: String(payment.receiveAmount),
@@ -1045,6 +1046,7 @@ export class PaymentIntentAggregate {
             {
               id: payment.id,
               paymentIntentId: payment.paymentIntentId,
+              senderWalletAddressId: payment.senderWalletAddressId,
               senderWalletAddress: payment.senderWalletAddress,
               debitAmount: String(payment.debitAmount),
               receiveAmount: String(payment.receiveAmount),
@@ -1426,6 +1428,7 @@ export class PaymentIntentAggregate {
           {
             id: payment.id,
             paymentIntentId: payment.paymentIntentId,
+            senderWalletAddressId: payment.senderWalletAddressId,
             senderWalletAddress: payment.senderWalletAddress,
             debitAmount: String(payment.debitAmount),
             receiveAmount: String(payment.receiveAmount),

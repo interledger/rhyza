@@ -3,6 +3,7 @@ import {
   INotificationSenderService,
   NotificationSendError
 } from 'notifications-domain-lib';
+import { notificationToWebhookBody } from './webhook-mapper';
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:3000/webhooks';
 
@@ -11,11 +12,7 @@ export class WebhookSenderAdapter implements INotificationSenderService {
     const requestHeaders = {
       'Content-Type': 'application/json'
     };
-    const body = {
-      id: notification.id,
-      type: notification.type,
-      data: notification.data
-    };
+    const body = notificationToWebhookBody(notification);
 
     let response: Awaited<ReturnType<typeof fetch>>;
     try {

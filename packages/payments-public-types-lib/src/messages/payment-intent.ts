@@ -285,6 +285,7 @@ export type PaymentCreatedPayload = {
   id: string;
   paymentIntentId: string;
   senderWalletAddress: string;
+  senderWalletAddressId: string;
   debitAmount: string | null;
   receiveAmount: string | null;
   sentAmount: string | null;
@@ -325,6 +326,7 @@ export type PaymentCompletedPayload = {
   id: string;
   paymentIntentId: string;
   senderWalletAddress: string;
+  senderWalletAddressId: string;
   debitAmount: string | null;
   receiveAmount: string | null;
   sentAmount: string | null;

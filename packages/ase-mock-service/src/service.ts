@@ -5,7 +5,6 @@ import Fastify, {
   FastifyRequest
 } from 'fastify';
 import { NotificationType } from 'notifications-domain-lib';
-import { PaymentCreatedPayload } from 'payments-public-types-lib';
 import { RATES } from './rates-data';
 
 const HOST = process.env['HOST'] || '0.0.0.0';
@@ -80,12 +79,18 @@ export class MockWebhookIntegrationService {
   }
 
   private static async handlePaymentCreatedWebhook(webhook: Webhook) {
-    const payload = webhook.data as PaymentCreatedPayload;
+    const payload = webhook.data;
     if (!webhook.id) {
       throw new WebhookServiceError('Created payment id is missing', 400);
     }
-    if (!payload.paymentIntentId) {
+    if (
+      !payload.paymentIntentId ||
+      typeof payload.paymentIntentId !== 'string'
+    ) {
       throw new WebhookServiceError('Payment intent id is missing', 400);
+    }
+    if (!payload.id || typeof payload.id !== 'string') {
+      throw new WebhookServiceError('Payment id is missing', 400);
     }
 
     const response = await this.adminClient.payments.approvePaymentRaw({

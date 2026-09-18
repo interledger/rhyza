@@ -92,6 +92,7 @@ components:
           type: string
           enum:
             - payment_intent.created
+            - payment_intent.completed
             - payment.created
             - payment.completed
             - payment.failed
@@ -174,7 +175,7 @@ components:
                     - FAILED
                 paymentIntentId:
                   type: string
-                  format: uri
+                  format: uuid
                 debitAmount:
                   $ref: '#/components/schemas/amount'
                 sentAmount:

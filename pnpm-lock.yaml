@@ -160,9 +160,6 @@ importers:
       notifications-domain-lib:
         specifier: workspace:*
         version: link:../notifications-domain-lib
-      payments-public-types-lib:
-        specifier: workspace:*
-        version: link:../payments-public-types-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3
@@ -669,6 +666,9 @@ importers:
       notifications-domain-lib:
         specifier: 'workspace: *'
         version: link:../notifications-domain-lib
+      payments-public-types-lib:
+        specifier: workspace:*
+        version: link:../payments-public-types-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3
