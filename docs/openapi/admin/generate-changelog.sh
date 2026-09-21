@@ -1,8 +1,6 @@
 #!/bin/bash
 
 FILE_PATH="docs/openapi/admin/admin-api.yaml"
-# TODO: replace main path to admin-api spec after merge
-FILE_PATH_MAIN="packages/admin-api-service/openapi.yaml"
 BASE_BRANCH="main"
 MODE="changelog"
 
@@ -26,8 +24,8 @@ fi
 TEMP_BASE=$(mktemp)
 trap 'rm -f "$TEMP_BASE"' EXIT
 
-if ! git show "${MERGE_BASE}:${FILE_PATH_MAIN}" > "$TEMP_BASE" 2>/dev/null; then
-    echo "Error: Could not find '$FILE_PATH_MAIN' at the merge base ($MERGE_BASE)."
+if ! git show "${MERGE_BASE}:${FILE_PATH}" > "$TEMP_BASE" 2>/dev/null; then
+    echo "Error: Could not find '$FILE_PATH' at the merge base ($MERGE_BASE)."
     exit 1
 fi
 

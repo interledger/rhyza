@@ -4,10 +4,17 @@ import { GrantState, IAccessItem, ISubjectId } from './interfaces';
 const BOUNDED_CONTEXT_NAME = 'auth';
 const AGGREGATE_NAME = 'grant';
 
+interface GrantDomainErrorPayload {
+  grantId: string;
+  errorName: string;
+  message: string;
+}
+
 export abstract class AuthDomainEvent extends DomainEvent {
   contextName: string = BOUNDED_CONTEXT_NAME;
   aggregateName: string = AGGREGATE_NAME;
   aggregateId: string;
+  msgKey: string;
   msgTopic: string = DomainEventTopics.AuthEvents;
   isErrorEvent: boolean = false;
 
@@ -83,6 +90,18 @@ export abstract class AuthDomainEvent extends DomainEvent {
     evt: DomainEvent
   ): evt is GrantInteractionStartFailedEvent {
     return evt.msgName === GrantInteractionStartFailedEvent.name;
+  }
+
+  static isGrantInteractionFinishedEvent(
+    evt: DomainEvent
+  ): evt is GrantInteractionFinishedEvent {
+    return evt.msgName === GrantInteractionFinishedEvent.name;
+  }
+
+  static isGrantInteractionFinishFailedEvent(
+    evt: DomainEvent
+  ): evt is GrantInteractionFinishFailedEvent {
+    return evt.msgName === GrantInteractionFinishFailedEvent.name;
   }
 
   static isGrantInteractionChoiceHandledEvent(
@@ -316,6 +335,38 @@ export class TokenRevokeFailedEvent extends AuthDomainEvent {
   constructor(payload: TokenRevokeFailedPayload, requestId: string) {
     super(payload.grantId, requestId);
     this.isErrorEvent = true;
+    this.payload = payload;
+  }
+}
+
+export interface GrantInteractionFinishedPayload {
+  id: string;
+  interactNonce: string;
+  clientNonce: string;
+  interactRef: string;
+}
+
+export class GrantInteractionFinishedEvent extends AuthDomainEvent {
+  payload: GrantInteractionFinishedPayload;
+
+  constructor(payload: GrantInteractionFinishedPayload, requestId?: string) {
+    super(payload.id, requestId);
+    this.payload = payload;
+  }
+}
+
+export type GrantInteractionFinishFailedPayload = GrantDomainErrorPayload;
+
+export class GrantInteractionFinishFailedEvent extends AuthDomainEvent {
+  payload: GrantInteractionFinishFailedPayload;
+  isErrorEvent = true;
+
+  constructor(
+    payload: GrantInteractionFinishFailedPayload,
+    requestId?: string
+  ) {
+    super(payload.grantId, requestId);
+    this.aggregateId = this.msgKey = payload.grantId;
     this.payload = payload;
   }
 }

@@ -24,8 +24,10 @@ const PORT = parseInt(process.env['PORT'] || '3002', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
 const PAL_GRPC_URL = process.env['PAL_GRPC_URL'] || 'localhost:50051';
 const PAYMENTS_GRPC_URL = process.env['PAYMENTS_GRPC_URL'] || 'localhost:50052';
-const OPEN_PAYMENTS_RESOURCE_SERVER_URL =
-  process.env['OPEN_PAYMENTS_RESOURCE_SERVER_URL'] || 'localhost:3002';
+const OPEN_PAYMENTS_RESOURCE_SERVICE_URL =
+  process.env['OPEN_PAYMENTS_RESOURCE_SERVICE_URL'] || 'localhost:3002';
+const OPEN_PAYMENTS_AUTH_SERVICE_URL =
+  process.env['OPEN_PAYMENTS_AUTH_SERVICE_URL'] || 'localhost:3002';
 
 const STREAM_SERVER_SECRET_RAW =
   process.env['STREAM_SERVER_SECRET'] ||
@@ -52,7 +54,7 @@ export class OpenPaymentsResourceServer {
     this.paymentsClient = new PaymentsClient(
       PAYMENTS_GRPC_URL,
       5_000,
-      OPEN_PAYMENTS_RESOURCE_SERVER_URL
+      OPEN_PAYMENTS_RESOURCE_SERVICE_URL
     );
     await this.paymentsClient.init();
     console.log(`Connected to Payments service at ${PAYMENTS_GRPC_URL}`);
@@ -99,7 +101,8 @@ export class OpenPaymentsResourceServer {
 
     this.server.register(walletAddressRoutes, {
       palClient: this.palClient,
-      openPaymentsResourceServerUrl: OPEN_PAYMENTS_RESOURCE_SERVER_URL
+      openPaymentsResourceServiceUrl: OPEN_PAYMENTS_RESOURCE_SERVICE_URL,
+      openPaymentsAuthServiceUrl: OPEN_PAYMENTS_AUTH_SERVICE_URL
     });
 
     await this.server.listen({ port: PORT, host: HOST });

@@ -34,7 +34,8 @@ services:
     environment:
       PAL_GRPC_URL: pal-api-service:50051
       PAYMENTS_GRPC_URL: payments-api-service:50052
-      OPEN_PAYMENTS_RESOURCE_SERVER_URL: http://open-payments-resource-service:3002
+      OPEN_PAYMENTS_RESOURCE_SERVICE_URL: http://open-payments-resource-service:3002
+      OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:3003
       STREAM_SERVER_SECRET: cmFmaWtpLXYyLWRldi1zdHJlYW0tc2VjcmV0LTAwMDE
       ILP_ADDRESS: private.rafiki.a
     ports:
@@ -60,12 +61,25 @@ services:
     restart: always
     environment:
       AUTH_GRPC_URL: auth-api-service:50054
-      OPEN_PAYMENTS_AUTH_SERVER_URL: http://localhost:3003
+      OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:3003
     ports:
       - '3003:3003'
     depends_on:
       auth-api-service:
         condition: service_started
+    networks:
+      - rafiki-v2
+
+  http-signature-service:
+    build:
+      context: ../
+      dockerfile: ./packages/http-signature-service/Dockerfile
+    restart: always
+    environment:
+      HOST: http-signature-service
+      PORT: 3010
+    ports:
+      - '3010:3010'
     networks:
       - rafiki-v2
 
@@ -328,7 +342,7 @@ services:
       - rafiki-v2
 
   mongodb:
-    image: mongo
+    image: mongo:7
     restart: unless-stopped
     volumes:
       - mongodb-data:/data/db

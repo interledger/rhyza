@@ -13,6 +13,7 @@ service RafikiAuth {
 	rpc RevokeToken(RevokeTokenRequest) returns (RevokeTokenResponse) {}
 	// Interaction RPCs
 	rpc StartInteraction(StartInteractionRequest) returns (StartInteractionResponse) {}
+	rpc FinishInteraction(FinishInteractionRequest) returns (FinishInteractionResponse) {}
 	rpc AcceptInteraction(AcceptInteractionRequest)  returns (HandleInteractionChoiceResponse) {}
 	rpc RejectInteraction(RejectInteractionRequest) returns (HandleInteractionChoiceResponse) {}
 }
@@ -43,7 +44,7 @@ message Grant {
 	repeated string start_methods = 2;
 	string continue_token = 3;
 	string continue_id = 4;
-	string interaction_nonce = 5;
+	string interaction_nonce =5;
 	string state = 6;
 	string finalization_reason = 7;
 	string client = 8;
@@ -132,6 +133,7 @@ message RevokeGrantRequest {
 	string id = 1;
 	string continue_id = 2;
 	string continue_token = 3;
+	SignatureData signature_data = 4;
 }
 
 message RevokeGrantResponse {
@@ -183,6 +185,18 @@ message StartInteractionRequest {
 message StartInteractionResponse {
 	string id = 1;
 	string nonce = 2;
+}
+
+message FinishInteractionRequest {
+	string id = 1; // grant id
+	string nonce = 2;
+}
+
+message FinishInteractionResponse {
+	string id = 1; // grant id
+	string interact_nonce = 2;
+	string client_nonce = 3;
+	string interact_ref = 4;
 }
 
 message HandleInteractionChoiceResponse {

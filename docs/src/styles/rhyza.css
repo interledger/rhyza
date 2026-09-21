@@ -3,6 +3,12 @@
   text-decoration: none;
 }
 
+.site-title img {
+  height: 100px !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
 /* Header link styling */
 .sl-markdown-content :is(h1, h2, h3, h4, h5, h6) > a {
   color: inherit;
@@ -186,4 +192,33 @@
 /* Remove margin from elements immediately following summary */
 .sl-markdown-content.sl-markdown-content details > summary + * {
   margin-block-start: 0;
+}
+/* Dark mode colors. */
+:root {
+  --sl-color-accent-low: #0d282f;
+  --sl-color-accent: #00768c;
+  --sl-color-accent-high: #b0cfd7;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #eceef2;
+  --sl-color-gray-2: #c0c2c7;
+  --sl-color-gray-3: #888b96;
+  --sl-color-gray-4: #545861;
+  --sl-color-gray-5: #353841;
+  --sl-color-gray-6: #24272f;
+  --sl-color-black: #17181c;
+}
+/* Light mode colors. */
+:root[data-theme='light'] {
+  --sl-color-accent-low: #c4dce2;
+  --sl-color-accent: #00758b;
+  --sl-color-accent-high: #073943;
+  --sl-color-white: #17181c;
+  --sl-color-gray-1: #24272f;
+  --sl-color-gray-2: #353841;
+  --sl-color-gray-3: #545861;
+  --sl-color-gray-4: #888b96;
+  --sl-color-gray-5: #c0c2c7;
+  --sl-color-gray-6: #eceef2;
+  --sl-color-gray-7: #f5f6f8;
+  --sl-color-black: #ffffff;
 }

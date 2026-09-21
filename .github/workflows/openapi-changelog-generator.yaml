@@ -47,8 +47,6 @@ jobs:
     env:
       OPENAPI_SPEC_PATH: 'docs/openapi/admin/admin-api.yaml'
       OPENAPI_CHANGELOG_PATH: 'docs/openapi/admin/CHANGELOG.md'
-      # TODO: replace main path to admin-api spec after merge
-      OPENAPI_SPEC_PATH_MAIN: 'packages/admin-api-service/openapi.yaml'
 
     steps:
       - name: Checkout PR branch
@@ -63,7 +61,7 @@ jobs:
       - name: Check if version was updated
         run: |
           API_VERSION=$(yq '.info.version' $OPENAPI_SPEC_PATH)
-          API_VERSION_MAIN=$(git show origin/${{ github.base_ref }}:$OPENAPI_SPEC_PATH_MAIN | yq '.info.version')
+          API_VERSION_MAIN=$(git show origin/${{ github.base_ref }}:$OPENAPI_SPEC_PATH | yq '.info.version')
 
           if [ "$API_VERSION" <= "$API_VERSION_MAIN" ]; then
             echo "ERROR: The API version in the admin spec has not changed. Please update it to reflect the changes."
@@ -72,7 +70,7 @@ jobs:
       - name: Generate OpenAPI Changelog Text
         uses: oasdiff/oasdiff-action/changelog@v0
         with:
-          base: 'origin/${{ github.base_ref }}:${{ env.OPENAPI_SPEC_PATH_MAIN}}'
+          base: 'origin/${{ github.base_ref }}:${{ env.OPENAPI_SPEC_PATH}}'
           revision: '${{ env.OPENAPI_SPEC_PATH}}'
           format: markdown
           output-to-file: 'oasdiff-changes.txt'
@@ -99,7 +97,7 @@ jobs:
           changes_stripped = strip_whitespace(changes_raw)
           changelog_stripped = strip_whitespace(changelog_raw)
 
-          if not changes_stripped:
+          if not changes_stripped or changes_stripped.lower() == "nochangelogchanges":
               print("No changes detected. The changelog is up to date.")
               sys.exit(0)
 

@@ -1,13 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { GrantEntity } from '../src/grant/entity';
 import {
   InvalidGrantError,
   InvalidInteractionError,
   UnknownAccessTokenError,
-  NonInteractiveGrantError
+  NonInteractiveGrantError,
+  UnknownInteractionError
 } from '../src/grant/errors';
 import {
   AccessAction,
@@ -17,6 +18,10 @@ import {
   IGrant,
   InteractionState
 } from '../src/grant/interfaces';
+
+function generateNonce(): string {
+  return randomBytes(16).toString('hex').toUpperCase();
+}
 
 function makeCreateGrantInput(
   overrides: Partial<Parameters<typeof GrantEntity.create>[0]> = {}
@@ -56,7 +61,7 @@ function makeContinuableGrant(overrides: Partial<IGrant> = {}): GrantEntity {
 
 describe('GrantEntity', () => {
   describe('create', () => {
-    it('finalizes the grant and issues an access token if the grant is non-interactive', () => {
+    it('issues an access token and continue credentials if the grant is non-interactive', () => {
       const id = randomUUID();
       const client = 'https://wallet.example/alice';
       const subjectIds = [{ format: 'email', id: 'alice@example.com' }];
@@ -75,9 +80,9 @@ describe('GrantEntity', () => {
       const { entity, accessToken } = GrantEntity.create(input);
 
       assert.equal(entity.state, 'ISSUED');
-      assert.equal(entity.continueToken, undefined);
-      assert.equal(entity.continueId, undefined);
-      assert.equal(entity.lastContinuedAt, undefined);
+      assert.ok(entity.continueToken);
+      assert.ok(entity.continueId);
+      assert.ok(entity.lastContinuedAt instanceof Date);
 
       assert.equal(entity.interaction, undefined);
 
@@ -178,6 +183,59 @@ describe('GrantEntity', () => {
       assert.ok(entity.lastContinuedAt instanceof Date);
       assert.equal(entity.interaction, undefined); // This should not be initialized at this point.
       assert.equal(accessToken, undefined);
+    });
+  });
+
+  describe('stateTransition', () => {
+    function transition(entity: GrantEntity, newState: GrantState): void {
+      (
+        entity as unknown as {
+          stateTransition: (state: GrantState) => void;
+        }
+      ).stateTransition(newState);
+    }
+
+    it('allows valid transitions used by the grant lifecycle', () => {
+      const pending = makeContinuableGrant({ state: GrantState.PENDING });
+      transition(pending, GrantState.ISSUED);
+      assert.equal(pending.state, GrantState.ISSUED);
+
+      const approved = makeContinuableGrant({ state: GrantState.APPROVED });
+      transition(approved, GrantState.ISSUED);
+      assert.equal(approved.state, GrantState.ISSUED);
+
+      const issued = makeContinuableGrant({ state: GrantState.ISSUED });
+      transition(issued, GrantState.REVOKED);
+      assert.equal(issued.state, GrantState.REVOKED);
+    });
+
+    it('rejects impossible transitions', () => {
+      const issued = makeContinuableGrant({ state: GrantState.ISSUED });
+      assert.throws(
+        () => transition(issued, GrantState.REJECTED),
+        (err: Error) =>
+          err instanceof InvalidGrantError &&
+          err.message ===
+            `Invalid state transition from ${GrantState.ISSUED} to ${GrantState.REJECTED}`
+      );
+
+      const revoked = makeContinuableGrant({ state: GrantState.REVOKED });
+      assert.throws(
+        () => transition(revoked, GrantState.PENDING),
+        (err: Error) =>
+          err instanceof InvalidGrantError &&
+          err.message ===
+            `Invalid state transition from ${GrantState.REVOKED} to ${GrantState.PENDING}`
+      );
+
+      const rejected = makeContinuableGrant({ state: GrantState.REJECTED });
+      assert.throws(
+        () => transition(rejected, GrantState.ISSUED),
+        (err: Error) =>
+          err instanceof InvalidGrantError &&
+          err.message ===
+            `Invalid state transition from ${GrantState.REJECTED} to ${GrantState.ISSUED}`
+      );
     });
   });
 
@@ -298,6 +356,25 @@ describe('GrantEntity', () => {
       assert.equal(entity.accessTokens.length, 0);
     });
 
+    it('rotates the continue token when the grant is issued and no interact ref is provided', () => {
+      const { entity: created } = GrantEntity.create(makeCreateGrantInput());
+      const entity = GrantEntity.fromObject({
+        ...created.toObject(),
+        lastContinuedAt: new Date(0)
+      });
+      const prevToken = entity.continueToken!;
+      const prevId = entity.continueId!;
+
+      const accessToken = entity.continue(prevToken, prevId);
+
+      assert.equal(accessToken, undefined);
+      assert.equal(entity.state, GrantState.ISSUED);
+      assert.ok(entity.continueToken);
+      assert.notEqual(entity.continueToken, prevToken);
+      assert.notEqual(entity.continueId, prevId);
+      assert.equal(entity.accessTokens.length, 1);
+    });
+
     it('issues an access token and marks the grant issued when approved without an interact ref', () => {
       const entity = makeContinuableGrant({ state: GrantState.APPROVED });
       const token = entity.continueToken!;
@@ -306,6 +383,10 @@ describe('GrantEntity', () => {
       const accessToken = entity.continue(token, id);
 
       assert.equal(entity.state, GrantState.ISSUED);
+      assert.ok(entity.continueToken);
+      assert.ok(entity.continueId);
+      assert.notEqual(entity.continueToken, token);
+      assert.notEqual(entity.continueId, id);
       assert.ok(accessToken);
       assert.ok(accessToken.value);
       assert.ok(accessToken.managementId);
@@ -318,8 +399,8 @@ describe('GrantEntity', () => {
       );
     });
 
-    it('rejects continuation without an interact ref when the grant is not pending or approved', () => {
-      const entity = makeContinuableGrant({ state: GrantState.ISSUED });
+    it('rejects continuation without an interact ref when the grant is not pending, issued, or approved', () => {
+      const entity = makeContinuableGrant({ state: GrantState.PROCESSING });
 
       assert.throws(
         () => entity.continue(entity.continueToken!, entity.continueId!),
@@ -353,14 +434,20 @@ describe('GrantEntity', () => {
       const entity = makeContinuableGrant();
       const interaction = entity.startInteraction();
       entity.handleInteraction(InteractionState.APPROVED);
+      const prevToken = entity.continueToken!;
+      const prevId = entity.continueId!;
 
       const accessToken = entity.continue(
-        entity.continueToken!,
-        entity.continueId!,
+        prevToken,
+        prevId,
         interaction.interactRef
       );
 
       assert.equal(entity.state, GrantState.ISSUED);
+      assert.ok(entity.continueToken);
+      assert.ok(entity.continueId);
+      assert.notEqual(entity.continueToken, prevToken);
+      assert.notEqual(entity.continueId, prevId);
       assert.ok(accessToken);
       assert.equal(entity.accessTokens.length, 1);
       assert.equal(
@@ -384,6 +471,8 @@ describe('GrantEntity', () => {
 
       assert.equal(accessToken, undefined);
       assert.equal(entity.state, GrantState.REJECTED);
+      assert.equal(entity.continueToken, undefined);
+      assert.equal(entity.continueId, undefined);
       assert.equal(entity.accessTokens.length, 0);
     });
 
@@ -401,6 +490,96 @@ describe('GrantEntity', () => {
       assert.throws(
         () => entity.continue(token, id, interaction.interactRef),
         InvalidInteractionError
+      );
+    });
+  });
+
+  describe('revoke', () => {
+    it('finalizes the grant as revoked and clears continue credentials', () => {
+      const entity = makeContinuableGrant();
+      const token = entity.continueToken!;
+      const id = entity.continueId!;
+
+      const revokedTokens = entity.revoke(token, id);
+
+      assert.equal(entity.state, GrantState.REVOKED);
+      assert.equal(entity.continueToken, undefined);
+      assert.equal(entity.continueId, undefined);
+      assert.deepEqual(revokedTokens, []);
+    });
+
+    it('revokes an issued grant using its continue credentials', () => {
+      const { entity: created, accessToken } = GrantEntity.create(
+        makeCreateGrantInput()
+      );
+      assert.ok(accessToken);
+      const entity = GrantEntity.fromObject({
+        ...created.toObject(),
+        lastContinuedAt: new Date(0)
+      });
+
+      const revokedTokens = entity.revoke(
+        entity.continueToken!,
+        entity.continueId!
+      );
+
+      assert.equal(entity.state, GrantState.REVOKED);
+      assert.equal(entity.continueToken, undefined);
+      assert.equal(entity.continueId, undefined);
+      assert.equal(revokedTokens.length, 1);
+      assert.equal(revokedTokens[0].value, accessToken.value);
+    });
+
+    it('revokes active access tokens on the grant', () => {
+      const continuable = makeContinuableGrant();
+      const { accessToken } = GrantEntity.create(makeCreateGrantInput());
+      assert.ok(accessToken);
+
+      const entity = GrantEntity.fromObject({
+        ...continuable.toObject(),
+        accessTokens: [accessToken]
+      });
+
+      const revokedTokens = entity.revoke(
+        entity.continueToken!,
+        entity.continueId!
+      );
+
+      assert.equal(entity.state, GrantState.REVOKED);
+      assert.equal(entity.continueToken, undefined);
+      assert.equal(entity.continueId, undefined);
+      assert.equal(revokedTokens.length, 1);
+      assert.equal(revokedTokens[0].value, accessToken.value);
+      assert.ok(revokedTokens[0].revokedAt instanceof Date);
+    });
+
+    it('rejects an invalid continue token or continue id', () => {
+      const entity = makeContinuableGrant();
+
+      assert.throws(
+        () => entity.revoke('wrong-token', entity.continueId!),
+        (err: Error) =>
+          err instanceof InvalidGrantError &&
+          err.message === 'Invalid continue token or continue id'
+      );
+      assert.throws(
+        () => entity.revoke(entity.continueToken!, 'wrong-id'),
+        (err: Error) =>
+          err instanceof InvalidGrantError &&
+          err.message === 'Invalid continue token or continue id'
+      );
+    });
+
+    it('rejects revoking a grant that has already been finalized', () => {
+      const entity = makeContinuableGrant();
+      entity.revoke(entity.continueToken!, entity.continueId!);
+
+      assert.throws(
+        () => entity.revoke('token', 'id'),
+        (err: Error) =>
+          err instanceof InvalidGrantError &&
+          err.message ===
+            `Current state ${GrantState.REVOKED} is a finalized state and cannot be changed`
       );
     });
   });
@@ -474,7 +653,7 @@ describe('GrantEntity', () => {
     });
   });
   describe('startInteraction', () => {
-    it('creates a pending interaction and moves the grant to pending state', () => {
+    it('creates a pending interaction when the grant is pending', () => {
       const entity = makeContinuableGrant();
 
       const { nonce, ...interaction } = entity.startInteraction();
@@ -495,7 +674,7 @@ describe('GrantEntity', () => {
     it('throws NonInteractiveGrantError when the grant has no start methods', () => {
       const entity = GrantEntity.fromObject({
         id: randomUUID(),
-        state: GrantState.PROCESSING
+        state: GrantState.PENDING
       } as IGrant);
 
       assert.throws(
@@ -507,38 +686,29 @@ describe('GrantEntity', () => {
       );
     });
 
-    it('throws InvalidGrantError when the grant is already in final state', () => {
-      const entity = GrantEntity.fromObject({
-        id: randomUUID(),
-        startMethods: ['REDIRECT'],
-        interactionNonce: randomUUID(),
-        state: GrantState.ISSUED
-      } as IGrant);
+    it('throws InvalidGrantError when the grant is not pending', () => {
+      for (const state of [
+        GrantState.PROCESSING,
+        GrantState.APPROVED,
+        GrantState.ISSUED,
+        GrantState.REVOKED,
+        GrantState.REJECTED
+      ]) {
+        const entity = GrantEntity.fromObject({
+          id: randomUUID(),
+          startMethods: ['REDIRECT'],
+          interactionNonce: randomUUID(),
+          state
+        } as IGrant);
 
-      assert.throws(
-        () => entity.startInteraction(),
-        (err: Error) => {
-          assert(err instanceof InvalidGrantError);
-          return true;
-        }
-      );
-    });
-
-    it('throws InvalidGrantError when the grant is already approved', () => {
-      const entity = GrantEntity.fromObject({
-        id: randomUUID(),
-        startMethods: ['REDIRECT'],
-        interactionNonce: randomUUID(),
-        state: GrantState.APPROVED
-      } as IGrant);
-
-      assert.throws(
-        () => entity.startInteraction(),
-        (err: Error) => {
-          assert(err instanceof InvalidGrantError);
-          return true;
-        }
-      );
+        assert.throws(
+          () => entity.startInteraction(),
+          (err: Error) => {
+            assert(err instanceof InvalidGrantError);
+            return true;
+          }
+        );
+      }
     });
   });
 
@@ -710,6 +880,157 @@ describe('GrantEntity', () => {
       ]);
 
       assert.deepEqual(result, { active: false });
+    });
+    describe('finishInteraction', () => {
+      function makeGrant(overrides: Partial<IGrant> = {}): GrantEntity {
+        return GrantEntity.fromObject({
+          id: randomUUID(),
+          state: GrantState.PROCESSING,
+          startMethods: ['REDIRECT'],
+          ...overrides
+        } as IGrant);
+      }
+
+      it('transitions the grant to APPROVED when the interaction was approved', () => {
+        const createdAt = new Date();
+        const nonce = generateNonce();
+        const entity = makeGrant({
+          interactionNonce: nonce,
+          interaction: {
+            interactRef: randomUUID(),
+            createdAt,
+            expiresAt: new Date(createdAt.getTime() + 600_000),
+            state: InteractionState.APPROVED
+          }
+        });
+
+        const result = entity.finishInteraction(nonce);
+
+        assert.equal(entity.state, GrantState.APPROVED);
+        assert.equal(result.id, entity.id);
+        assert.equal(result.state, GrantState.APPROVED);
+      });
+
+      it('finalizes the grant as REJECTED when the interaction was rejected', () => {
+        const nonce = generateNonce();
+        const createdAt = new Date();
+        const entity = makeGrant({
+          interactionNonce: nonce,
+          interaction: {
+            interactRef: randomUUID(),
+            createdAt,
+            expiresAt: new Date(createdAt.getTime() + 600_000),
+            state: InteractionState.REJECTED
+          }
+        });
+
+        const result = entity.finishInteraction(nonce);
+
+        assert.equal(entity.state, GrantState.REJECTED);
+        assert.equal(result.state, GrantState.REJECTED);
+      });
+
+      it('throws InvalidInteractionError when the interaction is still pending', () => {
+        const createdAt = new Date();
+        const entity = makeGrant({
+          interaction: {
+            interactRef: randomUUID(),
+            createdAt,
+            expiresAt: new Date(createdAt.getTime() + 600_000),
+            state: InteractionState.PENDING
+          }
+        });
+
+        assert.throws(
+          () => entity.finishInteraction(entity.interactionNonce as string),
+          (err: Error) => {
+            console.log(err);
+            assert(err instanceof InvalidInteractionError);
+            return true;
+          }
+        );
+        assert.equal(entity.state, GrantState.PROCESSING);
+      });
+
+      it('throws UnknownInteractionError when there is no interaction on the grant', () => {
+        const entity = makeGrant();
+
+        assert.throws(
+          () => entity.finishInteraction('any-nonce'),
+          (err: Error) => {
+            assert(err instanceof UnknownInteractionError);
+            return true;
+          }
+        );
+      });
+
+      it('throws UnknownInteractionError when the provided nonce does not match', () => {
+        const createdAt = new Date();
+        const entity = makeGrant({
+          interactionNonce: generateNonce(),
+          interaction: {
+            interactRef: randomUUID(),
+            createdAt,
+            expiresAt: new Date(createdAt.getTime() + 600_000),
+            state: InteractionState.APPROVED
+          }
+        });
+
+        assert.throws(
+          () => entity.finishInteraction('wrong-nonce'),
+          (err: Error) => {
+            assert(err instanceof UnknownInteractionError);
+            return true;
+          }
+        );
+        assert.equal(entity.state, GrantState.PROCESSING);
+      });
+
+      it('throws InvalidGrantError when the grant is already FINALIZED', () => {
+        const nonce = generateNonce();
+        const createdAt = new Date();
+        const entity = makeGrant({
+          state: GrantState.ISSUED,
+          interactionNonce: nonce,
+          interaction: {
+            interactRef: randomUUID(),
+            createdAt,
+            expiresAt: new Date(createdAt.getTime() + 600_000),
+            state: InteractionState.APPROVED
+          }
+        });
+
+        assert.throws(
+          () => entity.finishInteraction(nonce),
+          (err: Error) => {
+            assert(err instanceof InvalidGrantError);
+            return true;
+          }
+        );
+      });
+
+      it('throws InvalidGrantError when the grant is already APPROVED', () => {
+        const nonce = generateNonce();
+        const createdAt = new Date();
+        const entity = makeGrant({
+          interactionNonce: nonce,
+          state: GrantState.APPROVED,
+          interaction: {
+            interactRef: randomUUID(),
+            createdAt,
+            expiresAt: new Date(createdAt.getTime() + 600_000),
+            state: InteractionState.APPROVED
+          }
+        });
+
+        assert.throws(
+          () => entity.finishInteraction(nonce),
+          (err: Error) => {
+            assert(err instanceof InvalidGrantError);
+            return true;
+          }
+        );
+      });
     });
   });
 });

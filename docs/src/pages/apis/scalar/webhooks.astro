@@ -1,0 +1,130 @@
+---
+/**
+ * Standalone Scalar API reference page for the Rhyza Webhooks API.
+ */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import RhyzaLogo from '../../../components/RhyzaLogo.astro'
+
+// Path relative to the project root (where astro.config.mjs is)
+const specPath = resolve('openapi', 'webhooks.yaml')
+const specContent = readFileSync(specPath, 'utf-8')
+
+const config = JSON.stringify({
+  content: specContent,
+  hideClientButton: true,
+  hideModels: true,
+  hideTestRequestButton: true,
+  isEditable: false,
+  defaultOpenAllTags: true,
+  mcp: { disabled: true }
+})
+
+const CDN = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.49.3'
+---
+
+<!doctype html>
+<html lang='en'>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1' />
+    <title>Webhooks API — Rhyza</title>
+  </head>
+  <body>
+    <header class='op-header'>
+      <a href='/' class='op-header__logo'>
+        <RhyzaLogo />
+      </a>
+      <a href='/apis/api-overview' class='op-header__back'>← Documentation</a>
+    </header>
+    <div id='app'></div>
+    <script is:inline src={CDN}></script>
+    <script
+      type='text/javascript'
+      set:html={`Scalar.createApiReference('#app', ${config})`}
+    />
+  </body>
+</html>
+
+<style is:global>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  :root {
+    --op-header-height: 4rem;
+    --op-header-bg: #f5f6f8;
+    --op-header-border: #e5e7eb;
+    --op-header-text: #111827;
+    --op-header-muted: #6b7280;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --op-header-bg: #0f172a;
+      --op-header-border: #1e293b;
+      --op-header-text: #f1f5f9;
+      --op-header-muted: #94a3b8;
+    }
+    .logo-text {
+      fill: var(--op-header-text) !important;
+    }
+  }
+
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
+  }
+
+  .op-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--op-header-height);
+    padding: 0 1.5rem;
+    background: var(--op-header-bg);
+    border-bottom: 1px solid var(--op-header-border);
+  }
+
+  .op-header__logo {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--op-header-text);
+  }
+
+  .op-header__logo svg {
+    width: auto;
+    height: 100px;
+  }
+
+  .op-header__back {
+    font-size: 0.875rem;
+    text-decoration: none;
+    color: var(--op-header-muted);
+  }
+
+  .op-header__back:hover {
+    color: var(--op-header-text);
+  }
+
+  #app {
+    flex: 1;
+    min-height: 0;
+  }
+</style>

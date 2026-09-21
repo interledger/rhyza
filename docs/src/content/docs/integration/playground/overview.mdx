@@ -1,13 +1,13 @@
 ---
-title: Local Playground
-next: Admin API Overview
+title: Local playground
+next: Admin API overview
 ---
 
-import { LinkOut } from '@interledger/docs-design-system'
+import { LinkOut, Mermaid } from '@interledger/docs-design-system'
 
 The local playground is a pre-configured [Docker Compose](https://docs.docker.com/compose/) environment that allows developers to run the entire Rhyza stack on their local machine. This setup is ideal for development, testing, and exploring Rhyza's APIs.
 
-## Docker Compose Setup
+## Docker Compose setup
 
 The Docker Compose file is located in the `docker` directory of the repository. It includes all necessary services, including:
 
@@ -17,7 +17,7 @@ The Docker Compose file is located in the `docker` directory of the repository. 
 - **Infrastructure**: MongoDB, Kafka, and Redis.
 - **Observability**: Prometheus, Grafana, and Tempo for monitoring and tracing.
 
-### Web Interfaces
+### Web interfaces
 
 The playground also provides several web interfaces for monitoring and interacting with the system:
 
@@ -32,7 +32,7 @@ The playground also provides several web interfaces for monitoring and interacti
     Docker Compose
   </LinkOut>
 
-### Getting Started
+### Getting started
 
 1. From the root directory, run the following command to start the services:
 
@@ -45,19 +45,57 @@ The playground also provides several web interfaces for monitoring and interacti
    pnpm docker ps
    ```
 
-## Useful Commands
+## Useful commands
 
 Here are some common commands to use while working with the local playground. Run these commands from the root directory.
 
-| Command                              | Description                                                              |
-| :----------------------------------- | :----------------------------------------------------------------------- |
-| `pnpm docker up`                     | Starts all services in the background, rebuilding if necessary.          |
-| `pnpm docker up -d`                  | Starts all services (detached).                                          |
-| `pnpm docker up --build`             | Builds & starts all services.                                            |
-| `pnpm docker down`                   | Stops and removes all containers and networks.                           |
-| `pnpm docker down --volumes`         | Stops and removes all containers, networks, and persistent data volumes. |
-| `pnpm docker logs -f`                | Follow the logs of all running services.                                 |
-| `pnpm docker logs -f [service_name]` | Follow logs for a specific service (e.g., `admin-api-service`).          |
+<div class="overflow-table">
+
+| Command                              | Description                                                             |
+| :----------------------------------- | :------------------------------------------------------------------------ |
+| `pnpm docker up`                     | Starts all services in the background, rebuilding if necessary          |
+| `pnpm docker up -d`                  | Starts all services (detached)                                          |
+| `pnpm docker up --build`             | Builds & starts all services                                            |
+| `pnpm docker down`                   | Stops and removes all containers and networks                           |
+| `pnpm docker down --volumes`         | Stops and removes all containers, networks, and persistent data volumes |
+| `pnpm docker logs -f`                | Follow the logs of all running services                                 |
+| `pnpm docker logs -f [service_name]` | Follow logs for a specific service (e.g., `admin-api-service`)          |
+
+</div>
+
+## Running two nodes
+
+The playground can also run a second, independent Rhyza instance ("Node B") alongside the default instance ("Node A"), pre-configured to peer with it. This is useful for testing ILP payments between two peered financial service providers (FSPs) without standing up separate infrastructure.
+
+### Commands
+
+Run these commands from the root directory, alongside the commands above.
+
+<div class="overflow-table">
+
+| Command                            | Description                                                                                              |
+| :---------------------------------- | :---------------------------------------------------------------------------------------------------------|
+| `pnpm docker:peers up -d --build`   | Starts both nodes (detached, rebuilding if necessary)                                                    |
+| `pnpm docker:peers down`            | Stops both nodes' containers and networks                                                                |
+| `pnpm docker:peers down --volumes`  | Stops both nodes and removes their containers, networks, and persistent data volumes - including the default instance's data |
+| `pnpm docker:peers:up`              | Rebuilds and restarts both nodes from a clean state, including all data (equivalent to `down --volumes` followed by `up --build -d`) |
+
+</div>
+
+### Node B ports
+
+Node B's services run on different ports than the default instance so both can run side by side:
+
+<div class="overflow-table">
+
+| Service                       | Node A (default) | Node B           |
+| :------------------------------| :------------------| :------------------|
+| Admin API                     | `localhost:3001`   | `localhost:4001`   |
+| Open Payments resource server | `localhost:3002`   | `localhost:4002`   |
+
+</div>
+
+See [Making a payment between two nodes](#making-a-payment-between-two-nodes) to make an ILP payment between Node A and Node B.
 
 ## Using Bruno
 
@@ -69,14 +107,15 @@ the repository to help you get started with Rhyza's APIs.
 
 1. Open Bruno and select **Open Collection**.
 2. Navigate to the `bruno/collections/rafiki-v2` directory in your local repository.
-3. Once the collection is loaded, select the **Rafiki v2** environment from the environment dropdown in the top right corner.
+3. Once the collection is loaded, select an environment from the dropdown in the top right corner: **Rafiki v2** for the default single-node setup, or **Rafiki v2 Local Peers** when running two nodes.
 
-### Available Collections
+### Available collections
 
-- **Admin API** - Requests for managing assets, wallet addresses, and payments. These requests are proxied through Nginx on port `80` by default.
+- **Admin API** - Requests for managing assets, wallet addresses, and payments. These requests are proxied through nginx on port `80` by default.
 - **Open Payments** - Requests for interacting with the Open Payments resource server (running on port `3002`).
+- **Remote Payment** - Requests for making an ILP payment between two peered nodes. Requires [running two nodes](#running-two-nodes).
 
-### Connecting to Services
+### Connecting to services
 
 The Bruno environment is pre-configured with the following variables:
 
@@ -84,3 +123,34 @@ The Bruno environment is pre-configured with the following variables:
 - `openPaymentsResourceServerUrl`: `localhost:3002`.
 
 Use these requests to perform tasks such as creating assets, setting up wallet addresses, and initiating payments directly against your local Rhyza instance.
+
+### Making a payment between two nodes
+
+The **Remote Payment** collection walks through a complete ILP payment between the sender (Node A) and the receiver (Node B), using the **Rafiki v2 Local Peers** environment. It's organized into three numbered folders, run in order:
+
+- **1. Setup** - Creates a USD asset, wallet address, and peer on each node (each node peers with the other's `ilp-connector-service`), then funds the sender's liquidity so it has funds to send.
+- **2. Flow** - Creates a payment intent on the receiver, a quote on the sender referencing that intent, and the payment itself on the sender.
+
+  <details>
+    <summary>Expand for the 2. Flow sequence</summary>
+    <Mermaid
+      graph={`sequenceDiagram
+        participant Bruno as Bruno client
+        participant Receiver as Receiver (Node B)
+        participant Sender as Sender (Node A)
+
+        Bruno->>Receiver: POST /payment-intents
+        Receiver-->>Bruno: 201 Created
+
+        Bruno->>Sender: POST /quotes
+        Sender-->>Bruno: 201 Created
+
+        Bruno->>Sender: POST /payments
+        Sender-->>Bruno: 201 Created
+
+        Note over Sender,Receiver: Payment sent<br/>over ILP
+  `}
+    />
+  </details>
+
+- **3. Verify** - Checks the incoming payment on the receiver and the payment's status on the sender to confirm it completed.

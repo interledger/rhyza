@@ -5,7 +5,7 @@ import remarkMath from 'remark-math'
 import rehypeMathjax from 'rehype-mathjax'
 import starlightLinksValidator from 'starlight-links-validator'
 import starlightFullViewMode from 'starlight-fullview-mode'
-import { rehypeHeadingIds } from '@astrojs/markdown-remark'
+import { unified, rehypeHeadingIds } from '@astrojs/markdown-remark'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 
 // https://astro.build/config
@@ -13,28 +13,26 @@ export default defineConfig({
   site: 'https://rhyza.dev',
   outDir: './build',
   markdown: {
-    remarkPlugins: [remarkMath],
-    rehypePlugins: [
-      rehypeMathjax,
-      rehypeHeadingIds,
-      [
-        rehypeAutolinkHeadings,
-        {
-          behavior: 'wrap'
-        }
+    processor: unified({
+      remarkPlugins: [remarkMath],
+      rehypePlugins: [
+        rehypeMathjax,
+        rehypeHeadingIds,
+        [
+          rehypeAutolinkHeadings,
+          {
+            behavior: 'wrap'
+          }
+        ]
       ]
-    ]
+    })
   },
   integrations: [
     starlight({
       title: 'Rhyza',
       description:
         "Rhyza is open source software that allows a financial service provider to enable Interledger functionality on its users' accounts.",
-      customCss: [
-        './node_modules/@interledger/docs-design-system/src/styles/teal-theme.css',
-        './node_modules/@interledger/docs-design-system/src/styles/ilf-docs.css',
-        './src/styles/rhyza.css'
-      ],
+      customCss: ['./src/styles/rhyza.css'],
       expressiveCode: {
         styleOverrides: {
           borderColor: 'transparent',
@@ -42,10 +40,12 @@ export default defineConfig({
         }
       },
       components: {
-        Header: './src/components/Header.astro',
         PageSidebar: './src/components/PageSidebar.astro',
-        Footer: './src/components/Footer.astro'
+        Footer: './src/components/Footer.astro',
+        PageTitle: './src/components/PageTitle.astro',
+        LastUpdated: './src/components/LastUpdated.astro'
       },
+      lastUpdated: true,
       defaultLocale: 'root',
       locales: {
         root: {
@@ -72,7 +72,9 @@ export default defineConfig({
         }
       ],
       logo: {
-        src: './public/img/icon.svg'
+        light: './src/assets/light-logo.svg',
+        dark: './src/assets/dark-logo.svg',
+        replacesTitle: true
       },
       social: [
         {
@@ -175,7 +177,7 @@ export default defineConfig({
           ]
         },
         {
-          label: 'Admin API',
+          label: 'Admin APIs',
           collapsed: true,
           items: [
             {
@@ -184,11 +186,21 @@ export default defineConfig({
             },
             {
               label: 'Admin API specification',
-              link: '/apis/scalar/admin-api'
+              link: '/apis/scalar/admin-api',
+              attrs: {
+                target: '_blank',
+                rel: 'noopener noreferrer',
+                'data-icon': 'external'
+              }
             },
             {
               label: 'Webhooks API specification',
-              link: '/apis/scalar/webhooks'
+              link: '/apis/scalar/webhooks',
+              attrs: {
+                target: '_blank',
+                rel: 'noopener noreferrer',
+                'data-icon': 'external'
+              }
             }
           ]
         },

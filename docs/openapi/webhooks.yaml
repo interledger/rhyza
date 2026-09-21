@@ -1,11 +1,14 @@
 openapi: 3.1.0
 info:
-  title: Rafiki Webhooks
+  title: Rhyza Webhooks API
   version: 0.0.0
 webhooks:
   paymentIntentCreated:
     post:
       summary: Payment intent created
+      description: >-
+        Sent when a payment intent is created. At this point, the payment
+        intent has not yet received any funds.
       requestBody:
         required: true
         content:
@@ -18,6 +21,8 @@ webhooks:
   paymentIntentCompleted:
     post:
       summary: Payment intent completed
+      description: >-
+        Sent when a payment intent has received its full incoming amount or if it was completed manually.
       requestBody:
         required: true
         content:
@@ -30,6 +35,10 @@ webhooks:
   paymentCreated:
     post:
       summary: Payment created
+      description: >-
+        Sent when a payment is created and is awaiting approval. The FSP
+        should do any necessary checks (like to verify the sender has sufficient funds) and approve or cancel
+        the payment via the Admin API.
       requestBody:
         required: true
         content:
@@ -42,6 +51,7 @@ webhooks:
   paymentCompleted:
     post:
       summary: Payment completed
+      description: Sent when a payment has completed successfully.
       requestBody:
         required: true
         content:
@@ -54,6 +64,8 @@ webhooks:
   paymentFailed:
     post:
       summary: Payment failed
+      description: >-
+        Sent when a payment failed to send. The FSP should release the sender's funds.
       requestBody:
         required: true
         content:

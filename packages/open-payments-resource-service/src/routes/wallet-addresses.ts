@@ -7,7 +7,8 @@ import { components } from '../types/generated/wallet-address-server-types';
 
 interface WalletAddressRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
-  openPaymentsResourceServerUrl: string;
+  openPaymentsResourceServiceUrl: string;
+  openPaymentsAuthServiceUrl: string;
 }
 
 export async function walletAddressRoutes(
@@ -48,12 +49,12 @@ export async function walletAddressRoutes(
     const walletAddress = walletAddresses[0];
 
     return reply.status(200).send({
-      id: `https://${opts.openPaymentsResourceServerUrl}/${alias.pathName}`,
+      id: `${opts.openPaymentsResourceServiceUrl}/${alias.pathName}`,
       publicName: walletAddress.publicName,
       assetCode: walletAddress.assetCode,
       assetScale: walletAddress.assetScale,
-      authServer: `https://auth.${opts.openPaymentsResourceServerUrl}/${alias.pathName}`,
-      resourceServer: `https://${opts.openPaymentsResourceServerUrl}`
+      resourceServer: opts.openPaymentsResourceServiceUrl,
+      authServer: opts.openPaymentsAuthServiceUrl
     });
   });
 }

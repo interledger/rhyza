@@ -1,0 +1,11 @@
+meta {
+  name: Get Payment Intent
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://{{adminApiUrl}}/payment-intents/{{paymentIntentId}}
+  body: json
+  auth: none
+}

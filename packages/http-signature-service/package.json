@@ -1,0 +1,20 @@
+{
+  "name": "http-signature-service",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "node --import tsx src/index.ts",
+    "build": "tsc --build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@interledger/http-signature-utils": "^2.0.3",
+    "fastify": "~5.3.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}

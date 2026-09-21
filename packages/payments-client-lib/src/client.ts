@@ -3,28 +3,35 @@ import { ServiceError, status } from '@grpc/grpc-js';
 import { randomUUID } from 'node:crypto';
 import { createServiceError } from './errors';
 import {
-  CreatePaymentIntentRequest,
-  CreatePaymentIntentResponse,
-  CompletePaymentIntentRequest,
-  CompletePaymentIntentResponse,
+  CreatePaymentIntentRequest as PbCreatePaymentIntentRequest,
+  CreatePaymentIntentResponse as PbCreatePaymentIntentResponse,
+  CompletePaymentIntentRequest as PbCompletePaymentIntentRequest,
+  CompletePaymentIntentResponse as PbCompletePaymentIntentResponse,
   PaymentsGrpcClient,
-  CreateQuoteRequest,
-  CreateQuoteResponse,
-  CreatePaymentRequest,
-  CreatePaymentResponse,
-  ApprovePaymentRequest,
-  ApprovePaymentResponse,
-  GetPaymentIntentRequest,
-  GetPaymentIntentResponse,
-  GetPaymentRequest,
-  GetPaymentResponse,
-  CancelPaymentRequest,
-  CancelPaymentResponse
+  CreateQuoteRequest as PbCreateQuoteRequest,
+  CreateQuoteResponse as PbCreateQuoteResponse,
+  CreatePaymentRequest as PbCreatePaymentRequest,
+  CreatePaymentResponse as PbCreatePaymentResponse,
+  ApprovePaymentRequest as PbApprovePaymentRequest,
+  ApprovePaymentResponse as PbApprovePaymentResponse,
+  GetPaymentIntentRequest as PbGetPaymentIntentRequest,
+  GetPaymentIntentResponse as PbGetPaymentIntentResponse,
+  GetPaymentRequest as PbGetPaymentRequest,
+  GetPaymentResponse as PbGetPaymentResponse,
+  CancelPaymentRequest as PbCancelPaymentRequest,
+  CancelPaymentResponse as PbCancelPaymentResponse
 } from 'payments-public-types-lib';
-
-type IncomingPaymentInput =
-  | { incomingPaymentId: string }
-  | { incomingPaymentUrl: string };
+import {
+  ApprovePaymentResult,
+  CancelPaymentResult,
+  CompletePaymentIntentResult,
+  CreatePaymentIntentResult,
+  CreatePaymentResult,
+  CreateQuoteResult,
+  GetPaymentIntentResult,
+  GetPaymentResult,
+  IncomingPaymentInput
+} from './local-types';
 
 export class PaymentsClient {
   private readonly _serverUrl: string;
@@ -80,8 +87,8 @@ export class PaymentsClient {
     incomingAmount?: number,
     expiresAt?: string,
     metadata?: string
-  ): Promise<CreatePaymentIntentResponse.AsObject> {
-    const request = new CreatePaymentIntentRequest();
+  ): Promise<CreatePaymentIntentResult> {
+    const request = new PbCreatePaymentIntentRequest();
     request.setId(id);
     request.setWalletAddressId(receiverWalletAddressId);
     request.setWalletAddress(receiverWalletAddress);
@@ -99,7 +106,10 @@ export class PaymentsClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.createPaymentIntent(
         request,
-        (error: ServiceError | null, response: CreatePaymentIntentResponse) => {
+        (
+          error: ServiceError | null,
+          response: PbCreatePaymentIntentResponse
+        ) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -115,8 +125,8 @@ export class PaymentsClient {
 
   async completePaymentIntent(
     id: string
-  ): Promise<CompletePaymentIntentResponse.AsObject> {
-    const request = new CompletePaymentIntentRequest();
+  ): Promise<CompletePaymentIntentResult> {
+    const request = new PbCompletePaymentIntentRequest();
     request.setId(id);
 
     return new Promise((resolve, reject) => {
@@ -124,7 +134,7 @@ export class PaymentsClient {
         request,
         (
           error: ServiceError | null,
-          response: CompletePaymentIntentResponse
+          response: PbCompletePaymentIntentResponse
         ) => {
           if (error) {
             console.error(error);
@@ -147,12 +157,7 @@ export class PaymentsClient {
     senderWalletAddress: string,
     debitAmount?: number,
     receiveAmount?: number
-  ): Promise<
-    Omit<CreateQuoteResponse.AsObject, 'debitAmount' | 'receiveAmount'> & {
-      debitAmount: bigint;
-      receiveAmount: bigint;
-    }
-  > {
+  ): Promise<CreateQuoteResult> {
     let paymentIntentId: string;
     let remoteUrl: string | undefined;
 
@@ -176,7 +181,7 @@ export class PaymentsClient {
       paymentIntentId = incomingPayment.incomingPaymentId;
     }
 
-    const request = new CreateQuoteRequest();
+    const request = new PbCreateQuoteRequest();
     request.setId(id);
     request.setWalletAddressId(senderWalletAddressId);
     request.setWalletAddress(senderWalletAddress);
@@ -195,7 +200,7 @@ export class PaymentsClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.createQuote(
         request,
-        (error: ServiceError | null, response: CreateQuoteResponse) => {
+        (error: ServiceError | null, response: PbCreateQuoteResponse) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -223,8 +228,8 @@ export class PaymentsClient {
     paymentIntentId: string,
     quoteId?: string,
     debitAmount?: number
-  ): Promise<CreatePaymentResponse.AsObject> {
-    const request = new CreatePaymentRequest();
+  ): Promise<CreatePaymentResult> {
+    const request = new PbCreatePaymentRequest();
     request.setId(id);
     request.setWalletAddressId(walletAddressId);
     request.setWalletAddress(walletAddress);
@@ -241,7 +246,7 @@ export class PaymentsClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.createPayment(
         request,
-        (error: ServiceError | null, response: CreatePaymentResponse) => {
+        (error: ServiceError | null, response: PbCreatePaymentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -258,15 +263,15 @@ export class PaymentsClient {
   async approvePayment(
     paymentIntentId: string,
     id: string
-  ): Promise<ApprovePaymentResponse.AsObject> {
-    const request = new ApprovePaymentRequest();
+  ): Promise<ApprovePaymentResult> {
+    const request = new PbApprovePaymentRequest();
     request.setId(id);
     request.setPaymentIntentId(paymentIntentId);
 
     return new Promise((resolve, reject) => {
       this._grpcClient.approvePayment(
         request,
-        (error: ServiceError | null, response: ApprovePaymentResponse) => {
+        (error: ServiceError | null, response: PbApprovePaymentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -274,7 +279,7 @@ export class PaymentsClient {
 
           return resolve({
             id: response.getId(),
-            state: response.getState()
+            state: response.getState() || undefined
           });
         }
       );
@@ -285,8 +290,8 @@ export class PaymentsClient {
     paymentIntentId: string,
     id: string,
     reason?: string
-  ): Promise<CancelPaymentResponse.AsObject> {
-    const request = new CancelPaymentRequest();
+  ): Promise<CancelPaymentResult> {
+    const request = new PbCancelPaymentRequest();
     request.setId(id);
     request.setPaymentIntentId(paymentIntentId);
     if (reason) {
@@ -296,7 +301,7 @@ export class PaymentsClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.cancelPayment(
         request,
-        (error: ServiceError | null, response: CancelPaymentResponse) => {
+        (error: ServiceError | null, response: PbCancelPaymentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -310,22 +315,14 @@ export class PaymentsClient {
     });
   }
 
-  async getPaymentIntent(id: string): Promise<
-    Omit<
-      GetPaymentIntentResponse.AsObject,
-      'receivedAmount' | 'incomingAmount'
-    > & {
-      receivedAmount: bigint;
-      incomingAmount: bigint | undefined;
-    }
-  > {
-    const request = new GetPaymentIntentRequest();
+  async getPaymentIntent(id: string): Promise<GetPaymentIntentResult> {
+    const request = new PbGetPaymentIntentRequest();
     request.setId(id);
 
     return new Promise((resolve, reject) => {
       this._grpcClient.getPaymentIntent(
         request,
-        (error: ServiceError | null, response: GetPaymentIntentResponse) => {
+        (error: ServiceError | null, response: PbGetPaymentIntentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);
@@ -355,20 +352,15 @@ export class PaymentsClient {
   async getPayment(
     paymentIntentId: string,
     id: string
-  ): Promise<
-    Omit<
-      GetPaymentResponse.AsObject,
-      'debitAmount' | 'receiveAmount' | 'sentAmount'
-    > & { debitAmount: bigint; receiveAmount: bigint; sentAmount: bigint }
-  > {
-    const request = new GetPaymentRequest();
+  ): Promise<GetPaymentResult> {
+    const request = new PbGetPaymentRequest();
     request.setId(id);
     request.setPaymentIntentId(paymentIntentId);
 
     return new Promise((resolve, reject) => {
       this._grpcClient.getPayment(
         request,
-        (error: ServiceError | null, response: GetPaymentResponse) => {
+        (error: ServiceError | null, response: PbGetPaymentResponse) => {
           if (error) {
             console.error(error);
             return reject(error);

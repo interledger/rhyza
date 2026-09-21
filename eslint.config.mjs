@@ -12,6 +12,7 @@ export default defineConfig(
     '**/.astro',
     '**/docs/public/*.js',
     'docs/**',
+    'bruno',
     'packages/admin-client-lib/src/generated/**'
   ]),
   eslint.configs.recommended,

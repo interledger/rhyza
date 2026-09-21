@@ -85,8 +85,12 @@ export async function grantRoutes(
         : undefined;
 
       const options: CreateGrantOptions = access?.length
-        ? { access, subjectIds, finish }
-        : { subjectIds: subjectIds ?? [], finish };
+        ? { access, subjectIds, finish, start: interact?.start || [] }
+        : {
+            subjectIds: subjectIds ?? [],
+            finish,
+            start: interact?.start || []
+          };
 
       const result = await authClient.createGrant(
         resolveClientIdentifier(client),
@@ -216,9 +220,9 @@ export async function grantRoutes(
 
       await authClient.revokeGrant(
         grantId,
+        extractSignatureData(request),
         continueId,
         continueToken
-        //TODO pass in http signature data
       );
 
       return reply.status(204).send();

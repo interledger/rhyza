@@ -530,7 +530,7 @@ test('pal client - resolve non existing wallet address alias without domain shou
  * */
 
 test('pal client - parseAddressToDomainAndPathName should work with full url', async () => {
-  const { domain, pathName } = await parseAddressToDomainAndPathName(
+  const { domain, pathName } = parseAddressToDomainAndPathName(
     'http://domain.com/path/name'
   );
 
@@ -539,7 +539,7 @@ test('pal client - parseAddressToDomainAndPathName should work with full url', a
 });
 
 test('pal client - parseAddressToDomainAndPathName should work with url missing protocol', async () => {
-  const { domain, pathName } = await parseAddressToDomainAndPathName(
+  const { domain, pathName } = parseAddressToDomainAndPathName(
     'domain.com/path/name'
   );
 
@@ -548,8 +548,7 @@ test('pal client - parseAddressToDomainAndPathName should work with url missing 
 });
 
 test('pal client - parseAddressToDomainAndPathName should work without a FQDN and return null domain', async () => {
-  const { domain, pathName } =
-    await parseAddressToDomainAndPathName('path/name');
+  const { domain, pathName } = parseAddressToDomainAndPathName('path/name');
 
   assert.equal(domain, null);
   assert.equal(pathName, 'path/name');
@@ -557,14 +556,14 @@ test('pal client - parseAddressToDomainAndPathName should work without a FQDN an
 
 test('pal client - parseAddressToDomainAndPathName should work with short FQDN', async () => {
   const { domain, pathName } =
-    await parseAddressToDomainAndPathName('a.io/path/name');
+    parseAddressToDomainAndPathName('a.io/path/name');
 
   assert.equal(domain, 'a.io');
   assert.equal(pathName, 'path/name');
 });
 
 test('pal client - parseAddressToDomainAndPathName should work with short FQDN with port and remove the port part', async () => {
-  const { domain, pathName } = await parseAddressToDomainAndPathName(
+  const { domain, pathName } = parseAddressToDomainAndPathName(
     'a.io:8080/path/name'
   );
 
@@ -578,4 +577,11 @@ test('pal client - parseAddressToDomainAndPathName should work with an odd FQDN 
 
   assert.equal(domain, null);
   assert.equal(pathName, '.path/name');
+});
+
+test('pal client - parseAddressToDomainAndPathName should work with only a name and return null domain', async () => {
+  const { domain, pathName } = parseAddressToDomainAndPathName('name');
+
+  assert.equal(domain, null);
+  assert.equal(pathName, 'name');
 });
