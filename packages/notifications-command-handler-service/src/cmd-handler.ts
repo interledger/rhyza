@@ -1,6 +1,5 @@
 import {
   CommandTopics,
-  DomainRetryTopics,
   ILogger,
   IMessage,
   IMessageConsumer
@@ -28,10 +27,7 @@ export class NotificationsCommandHandler {
   }
 
   async start(): Promise<void> {
-    this._msgConsumer.setTopics([
-      CommandTopics.NotificationCommands,
-      DomainRetryTopics.NotificationRetryCommands
-    ]);
+    this._msgConsumer.setTopics([CommandTopics.NotificationCommands]);
     this._msgConsumer.setBatchCallbackFn(this._handleBatch.bind(this));
     await this._msgConsumer.connect();
     await this._msgConsumer.startAndWaitForRebalance();

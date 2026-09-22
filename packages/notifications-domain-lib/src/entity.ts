@@ -101,6 +101,10 @@ export class Notification implements INotification {
     });
   }
 
+  markAsSending(): void {
+    this._status = NotificationStatus.SENDING;
+  }
+
   markAsSent(): void {
     this._status = NotificationStatus.SENT;
     this._sentAt = new Date();

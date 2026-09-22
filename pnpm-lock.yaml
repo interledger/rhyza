@@ -602,9 +602,6 @@ importers:
       implementations-lib:
         specifier: workspace:*
         version: link:../implementations-lib
-      ioredis:
-        specifier: ~5.10.1
-        version: 5.10.1
       notifications-domain-lib:
         specifier: workspace:*
         version: link:../notifications-domain-lib

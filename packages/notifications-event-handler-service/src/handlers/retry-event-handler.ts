@@ -35,6 +35,9 @@ export class RetryEventHandler {
           await this._notificationRepository.getPendingRetryNotificationIds(
             NOTIFICATION_BATCH_SIZE
           );
+        if (notificationIds.length === 0) {
+          return;
+        }
         const commands = notificationIds.map(
           (id) => new RetryNotificationTickCmd({ id }, this._instanceId)
         );

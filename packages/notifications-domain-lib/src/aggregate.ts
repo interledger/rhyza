@@ -35,7 +35,7 @@ export class NotificationAggregate {
     type: NotificationType,
     data: Record<string, unknown>
   ): Promise<INotification> {
-    const notification = new Notification(id, type, data);
+    const notification = new Notification(id, type, { data });
     return await this.sendNotification(notification);
   }
 
@@ -62,8 +62,9 @@ export class NotificationAggregate {
       throw new Error(`Notification not found: ${id}`);
     }
     if (notification.status === NotificationStatus.PENDING_RETRY) {
-      notification.status = NotificationStatus.SENDING;
-      await this.sendNotification(Notification.fromObject(notification));
+      const notificationEntity = Notification.fromObject(notification);
+      notificationEntity.markAsSending();
+      await this.sendNotification(notificationEntity);
     } else {
       this._logger.error(
         `Notification not in PENDING_RETRY state: ${notification.status}`

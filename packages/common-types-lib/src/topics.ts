@@ -31,7 +31,3 @@ export enum StateEventTopics {
 export enum SnapshotEventTopics {
   'LedgerSnapshotEvents' = 'ledger-snapshot-events'
 }
-
-export enum DomainRetryTopics {
-  'NotificationRetryCommands' = 'notification-retry-commdands'
-}

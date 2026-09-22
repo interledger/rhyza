@@ -60,6 +60,12 @@ describe('notification entity', () => {
   });
 
   describe('methods', () => {
+    test('should mark as sending', () => {
+      const notification = new Notification(id, type);
+      notification.markAsSending();
+      assert.strictEqual(notification.status, NotificationStatus.SENDING);
+    });
+
     test('should mark as sent and set sentAt to current date', () => {
       const notification = new Notification(id, type);
 
