@@ -40,11 +40,13 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
           assetCode: paymentIntentData.assetCode,
           assetScale: paymentIntentData.assetScale
         },
-        incomingAmount: {
-          value: paymentIntentData.incomingAmount,
-          assetCode: paymentIntentData.assetCode,
-          assetScale: paymentIntentData.assetScale
-        },
+        ...(paymentIntentData.incomingAmount && {
+          incomingAmount: {
+            value: paymentIntentData.incomingAmount,
+            assetCode: paymentIntentData.assetCode,
+            assetScale: paymentIntentData.assetScale
+          }
+        }),
         state: paymentIntentData.state
       };
     }
