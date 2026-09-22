@@ -1,6 +1,6 @@
 # Rafiki v2
 
-This repository contains Rafiki’s new architecture: a suite of performant, horizontally scalable services that enable Account Servicing Entities (ASEs) to provide Interledger and Open Payments functionality to their users.
+This repository contains Rafiki’s new architecture: a suite of performant, horizontally scalable services that enable financial service providers (FSPs) to provide Interledger and Open Payments functionality to their users.
 
 ## Project Architecture
 
