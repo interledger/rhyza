@@ -38,8 +38,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store BUILD_LIBRDKAFKA=0 pnpm instal
 RUN pnpm --filter common-types-lib build
 RUN pnpm --filter implementations-lib build
 RUN pnpm --filter notifications-domain-lib build
-RUN pnpm --filter notifications-implementations-lib build
 RUN pnpm --filter payments-public-types-lib build
+RUN pnpm --filter notifications-implementations-lib build
 RUN pnpm --filter notifications-event-handler-service build
 
 FROM node:24-alpine AS runner

@@ -1,0 +1,36 @@
+meta {
+  name: Payment Failed
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{webhookUrl}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "id": "{{$randomUUID}}",
+    "type": "payment.failed",
+    "data": {
+      "id": "{{$randomUUID}}",
+      "paymentIntentId": "{{$randomUUID}}",
+      "errorName": "Error",
+      "message": "Payment intent not found"
+    }
+  }
+}
+
+script:pre-request {
+  bru.setVar("now", new Date().toISOString())
+  bru.setVar("tomorrow", (new Date(new Date().setDate(new Date().getDate() + 1))).toISOString());
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+  forwardAuthorizationHeader: false
+}
