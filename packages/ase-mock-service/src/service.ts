@@ -74,9 +74,10 @@ export class MockWebhookIntegrationService {
       case NotificationType.PaymentFailed:
         console.log('Webhook received:', webhook);
         break;
-      default:
+      default: {
         const errorMessage = `Webhook type ${webhook.type} is not supported`;
         throw new WebhookServiceError(errorMessage, 400);
+      }
     }
   }
 
@@ -105,7 +106,7 @@ export class MockWebhookIntegrationService {
       if (err instanceof ResponseError) {
         const detail = (await err.response
           .json()
-          .catch(() => err.response.statusText)) as Record<string, any>;
+          .catch(() => err.response.statusText)) as Record<string, unknown>;
 
         throw new WebhookServiceError(
           `Failed to approve payment ${payload.id}: ${detail.error}`,
