@@ -657,6 +657,9 @@ importers:
 
   packages/notifications-event-handler-service:
     dependencies:
+      auth-domain-lib:
+        specifier: workspace:*
+        version: link:../auth-domain-lib
       common-types-lib:
         specifier: workspace:*
         version: link:../common-types-lib

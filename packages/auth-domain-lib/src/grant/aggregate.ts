@@ -500,7 +500,19 @@ export class GrantAggregate {
 
       return new GrantRevokedEvent(
         {
-          id
+          id,
+          createdAt: grant.createdAt,
+          status: grant.state,
+          access: grant.accesses,
+          client: grant.client,
+          clientName: grant.clientName,
+          subjectIds: grant.subjectIds,
+          ...(grant.interaction && {
+            interaction: {
+              state: grant.interaction.state,
+              createdAt: grant.interaction.createdAt
+            }
+          })
         },
         cmd.requestId
       );

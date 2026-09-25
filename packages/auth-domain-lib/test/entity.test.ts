@@ -87,6 +87,7 @@ describe('GrantEntity', () => {
       assert.ok(entity.continueToken);
       assert.ok(entity.continueId);
       assert.ok(entity.lastContinuedAt instanceof Date);
+      assert.ok(entity.createdAt instanceof Date);
 
       assert.equal(entity.interaction, undefined);
 
@@ -151,6 +152,8 @@ describe('GrantEntity', () => {
       assert.ok(entity.continueId);
       assert.ok(entity.lastContinuedAt instanceof Date);
       assert.ok(entity.lastContinuedAt!.getTime() <= Date.now());
+      assert.ok(entity.createdAt instanceof Date);
+      assert.ok(entity.createdAt.getTime() <= Date.now());
 
       assert.equal(entity.interaction, undefined); // This should not be initalized until startInteraction is called on the entity.
 

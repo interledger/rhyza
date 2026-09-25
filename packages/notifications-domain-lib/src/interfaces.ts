@@ -23,7 +23,8 @@ export enum NotificationType {
   PaymentIntentCompleted = 'payment_intent.completed',
   PaymentCreated = 'payment.created',
   PaymentCompleted = 'payment.completed',
-  PaymentFailed = 'payment.failed'
+  PaymentFailed = 'payment.failed',
+  GrantRevoked = 'grant.revoked'
 }
 
 export interface INotificationRepository {

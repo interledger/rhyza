@@ -120,6 +120,7 @@ export interface IInteraction {
 
 export interface IGrant {
   id: string;
+  createdAt: Date;
   startMethods?: IStartMethod[];
   continueToken?: string;
   continueId?: string;

@@ -98,6 +98,7 @@ function compareAccessItems(
 
 export class GrantEntity implements IGrant {
   private _id: string;
+  private _createdAt: Date;
   private _startMethods?: IStartMethod[];
   private _continueToken?: string;
   private _continueId?: string;
@@ -134,6 +135,7 @@ export class GrantEntity implements IGrant {
     this._finishUri = input.finishUri;
     this._interactionNonce = input.interactionNonce;
     this._interaction = input.interaction;
+    this._createdAt = input.createdAt;
 
     if (input.accessTokens) {
       for (const accessToken of input.accessTokens) {
@@ -156,11 +158,14 @@ export class GrantEntity implements IGrant {
       | 'continueId'
       | 'lastContinuedAt'
       | 'accessTokens'
+      | 'createdAt'
     >
   ): {
     entity: GrantEntity;
     accessToken?: IAccessToken;
   } {
+    const createdAt = new Date();
+
     const isInteractiveGrant = input.accesses?.some((access) =>
       InteractiveAccessType.includes(access.type)
     );
@@ -175,6 +180,7 @@ export class GrantEntity implements IGrant {
     if (isInteractiveGrant) {
       const entity = new GrantEntity({
         ...input,
+        createdAt,
         interactionNonce: generateNonce(),
         accessTokens: []
       });
@@ -185,6 +191,7 @@ export class GrantEntity implements IGrant {
     } else {
       const entity = new GrantEntity({
         ...input,
+        createdAt,
         accessTokens: []
       });
       entity.stateTransition(GrantState.ISSUED);
@@ -197,6 +204,7 @@ export class GrantEntity implements IGrant {
   toObject(): IGrant {
     return {
       id: this._id,
+      createdAt: this._createdAt,
       interactionNonce: this._interactionNonce,
       interaction: this._interaction,
       startMethods: this._startMethods,
@@ -520,6 +528,10 @@ export class GrantEntity implements IGrant {
 
   get id(): string {
     return this._id;
+  }
+
+  get createdAt(): Date {
+    return this._createdAt;
   }
 
   get startMethods(): IStartMethod[] | undefined {

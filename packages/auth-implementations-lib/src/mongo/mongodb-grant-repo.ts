@@ -113,6 +113,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
   ): IGrant {
     return {
       id: doc.id,
+      createdAt: doc.createdAt,
       startMethods: doc.startMethods,
       continueToken: doc.continueToken,
       continueId: doc.continueId,
@@ -147,6 +148,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
       await this._grantCollection.insertMany(
         grants.map((grant) => ({
           id: grant.id,
+          createdAt: grant.createdAt,
           startMethods: grant.startMethods,
           continueToken: grant.continueToken,
           continueId: grant.continueId,

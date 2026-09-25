@@ -2,6 +2,7 @@ import { DomainEventTopics, DomainEvent } from 'common-types-lib';
 import {
   GrantState,
   IAccessItem,
+  IJsonWebKey,
   ISubjectId,
   InteractionChoice
 } from './interfaces';
@@ -202,6 +203,16 @@ export class GrantContinueFailedEvent extends AuthDomainEvent {
 
 export interface GrantRevokedPayload {
   id: string;
+  createdAt: Date;
+  status: string;
+  access?: IAccessItem[];
+  client?: string | IJsonWebKey;
+  clientName?: string;
+  subjectIds?: ISubjectId[];
+  interaction?: {
+    state: GrantState;
+    createdAt: Date;
+  };
 }
 
 export class GrantRevokedEvent extends AuthDomainEvent {

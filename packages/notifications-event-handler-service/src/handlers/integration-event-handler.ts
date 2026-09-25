@@ -1,3 +1,4 @@
+import { GrantRevokedEvent } from 'auth-domain-lib';
 import {
   DomainEventTopics,
   IMessage,
@@ -26,7 +27,10 @@ export class IntegrationEventHandler {
   }
 
   async start(): Promise<void> {
-    this._msgConsumer.setTopics([DomainEventTopics.PaymentEvents]);
+    this._msgConsumer.setTopics([
+      DomainEventTopics.PaymentEvents,
+      DomainEventTopics.AuthEvents
+    ]);
     this._msgConsumer.setBatchCallbackFn(async (messages: IMessage[]) => {
       for (const message of messages) {
         await this._handleEvent(message);
@@ -48,14 +52,14 @@ export class IntegrationEventHandler {
         NotificationType.PaymentIntentCompleted,
       [PaymentCreatedEvent.name]: NotificationType.PaymentCreated,
       [PaymentCompletedEvent.name]: NotificationType.PaymentCompleted,
-      [PaymentCompleteFailedEvent.name]: NotificationType.PaymentFailed
+      [PaymentCompleteFailedEvent.name]: NotificationType.PaymentFailed,
+      [GrantRevokedEvent.name]: NotificationType.GrantRevoked
     };
 
   private async _handleEvent(message: IMessage) {
     const type = this.messageToNotificationType[message.msgName];
 
     if (!type) {
-      console.warn(`Unhandled message: ${message.msgName}`);
       return;
     }
 
