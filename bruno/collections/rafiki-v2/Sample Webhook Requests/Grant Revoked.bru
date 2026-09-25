@@ -1,0 +1,61 @@
+meta {
+  name: Grant Revoked
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{webhookUrl}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "id": "{{$randomUUID}}",
+    "type": "grant.revoked",
+    "data": {
+      "id": "{{$randomUUID}}",
+      "createdAt": "{{now}}",
+      "status": "PROCESSING",
+      "access": [
+        {
+          "type": "QUOTE",
+          "limits": {
+            "receiver": "{{$randomUrl}}",
+            "assetCode": "USD",
+            "assetScale": 2,
+            "debitAmount": "100"
+          },
+          "actions": [
+            "CREATE",
+            "COMPLETE"
+          ]
+        }
+      ],
+      "client": "{{$randomUrl}}",
+      "clientName": "client-name",
+      "subjectIds": [
+        {
+          "id": "{{$randomUrl}}",
+          "format": "url"
+        }
+      ],
+      "interaction": {
+        "state": "PENDING",
+        "createdAt": "{{now}}"
+      }
+    }
+  }
+}
+
+script:pre-request {
+  bru.setVar("now", new Date().toISOString())
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+  forwardAuthorizationHeader: false
+}

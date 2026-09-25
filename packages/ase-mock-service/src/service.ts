@@ -73,6 +73,7 @@ export class MockWebhookIntegrationService {
       case NotificationType.PaymentIntentCompleted:
       case NotificationType.PaymentCompleted:
       case NotificationType.PaymentFailed:
+      case NotificationType.GrantRevoked:
         console.log('Webhook received:', webhook);
         break;
       default: {

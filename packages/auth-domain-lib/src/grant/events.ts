@@ -4,7 +4,8 @@ import {
   IAccessItem,
   IJsonWebKey,
   ISubjectId,
-  InteractionChoice
+  InteractionChoice,
+  InteractionState
 } from './interfaces';
 
 const BOUNDED_CONTEXT_NAME = 'auth';
@@ -204,13 +205,13 @@ export class GrantContinueFailedEvent extends AuthDomainEvent {
 export interface GrantRevokedPayload {
   id: string;
   createdAt: Date;
-  status: string;
+  status: GrantState;
   access?: IAccessItem[];
   client?: string | IJsonWebKey;
   clientName?: string;
   subjectIds?: ISubjectId[];
   interaction?: {
-    state: GrantState;
+    state: InteractionState;
     createdAt: Date;
   };
 }
