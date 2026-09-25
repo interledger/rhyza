@@ -1,0 +1,175 @@
+openapi: 3.1.0
+info:
+  title: Identity Provider Service API
+  version: 0.0.1
+  description: >-
+    Internal API used by an identity provider (IDP) to look up grant details
+    for an in-progress interaction and to record the user's accept/reject
+    decision.
+  license:
+    name: ISC
+    identifier: ISC
+servers:
+  - url: /
+    description: Base URL is determined by the Rafiki deployment.
+security:
+  - IdpSecretAuth: []
+paths:
+  /grant/{id}:
+    get:
+      summary: Get Grant
+      description: >-
+        Retrieves the grant associated with the given id.
+      operationId: getGrant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The grant id.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The grant was found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Grant'
+        '401':
+          description: The x-idp-secret header is missing or invalid.
+  /interaction/{grantId}/accept:
+    post:
+      summary: Accept Interaction
+      description: Signals to Rhyza that the resource owner accepted the interaction.
+      operationId: acceptInteraction
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          description: The grant id.
+          schema:
+            type: string
+      responses:
+        '202':
+          description: The acceptance was recorded.
+        '401':
+          description: The x-idp-secret header is missing or invalid.
+  /interaction/{grantId}/reject:
+    post:
+      summary: Reject Interaction
+      description: Signals to Rhyza that the resource owner rejected the interaction.
+      operationId: rejectInteraction
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          description: The grant id.
+          schema:
+            type: string
+      responses:
+        '202':
+          description: The rejection was recorded.
+        '401':
+          description: The x-idp-secret header is missing or invalid.
+components:
+  securitySchemes:
+    IdpSecretAuth:
+      type: apiKey
+      in: header
+      name: x-idp-secret
+      description: >-
+        Shared secret used to authenticate requests from the identity
+        provider. Configured via the IDP_SECRET environment variable.
+  schemas:
+    Grant:
+      type: object
+      description: Details of a grant, for display to the user during an interaction.
+      required:
+        - id
+        - access
+        - state
+      properties:
+        id:
+          type: string
+          description: The grant id.
+        access:
+          type: array
+          description: The access the client is requesting.
+          items:
+            $ref: '#/components/schemas/AccessItem'
+        subject:
+          type: object
+          description: The subject identifiers requested by the client, if any.
+          required:
+            - sub_ids
+          properties:
+            sub_ids:
+              type: array
+              items:
+                $ref: '#/components/schemas/SubjectId'
+        state:
+          $ref: '#/components/schemas/GrantState'
+    GrantState:
+      type: string
+      description: The current state of the grant.
+      enum:
+        - PROCESSING
+        - PENDING
+        - APPROVED
+        - ISSUED
+        - REJECTED
+        - REVOKED
+    AccessItem:
+      type: object
+      description: A single access being requested by the client.
+      required:
+        - type
+        - actions
+      properties:
+        type:
+          type: string
+          description: The type of resource being requested, e.g. outgoing-payment.
+        actions:
+          type: array
+          items:
+            type: string
+        identifier:
+          type: string
+          description: The wallet address URL the access is limited to, if any.
+        limits:
+          $ref: '#/components/schemas/AccessLimits'
+    AccessLimits:
+      type: object
+      description: Limits further constraining the requested access.
+      properties:
+        receiver:
+          type: string
+        interval:
+          type: string
+        debitAmount:
+          $ref: '#/components/schemas/Amount'
+        receiveAmount:
+          $ref: '#/components/schemas/Amount'
+    Amount:
+      type: object
+      required:
+        - value
+        - assetCode
+        - assetScale
+      properties:
+        value:
+          type: string
+        assetCode:
+          type: string
+        assetScale:
+          type: integer
+    SubjectId:
+      type: object
+      required:
+        - format
+        - id
+      properties:
+        format:
+          type: string
+        id:
+          type: string

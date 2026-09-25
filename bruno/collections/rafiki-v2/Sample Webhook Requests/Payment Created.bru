@@ -1,0 +1,52 @@
+meta {
+  name: Payment Created
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{webhookUrl}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "id": "{{$randomUUID}}",
+    "type": "payment.created",
+    "data": {
+      "id": "{{$randomUUID}}",
+      "paymentIntentId": "{{$randomUUID}}",
+      "walletAddressId": "{{$randomUUID}}",
+      "createdAt": "{{now}}",
+      "debitAmount": {
+        "value": 100,
+        "assetCode": "USD",
+        "assetScale": 1
+      },
+      "sentAmount": {
+        "value": 100,
+        "assetCode": "USD",
+        "assetScale": 1
+      },
+      "receiveAmount": {
+        "value": 100,
+        "assetCode": "USD",
+        "assetScale": 1
+      },
+      "state": "CREATED"
+    }
+  }
+}
+
+script:pre-request {
+  bru.setVar("now", new Date().toISOString())
+  bru.setVar("tomorrow", (new Date(new Date().setDate(new Date().getDate() + 1))).toISOString());
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+  forwardAuthorizationHeader: false
+}

@@ -52,7 +52,7 @@ Here are some common commands to use while working with the local playground. Ru
 <div class="overflow-table">
 
 | Command                              | Description                                                             |
-| :----------------------------------- | :------------------------------------------------------------------------ |
+| :----------------------------------- | :---------------------------------------------------------------------- |
 | `pnpm docker up`                     | Starts all services in the background, rebuilding if necessary          |
 | `pnpm docker up -d`                  | Starts all services (detached)                                          |
 | `pnpm docker up --build`             | Builds & starts all services                                            |
@@ -73,12 +73,12 @@ Run these commands from the root directory, alongside the commands above.
 
 <div class="overflow-table">
 
-| Command                            | Description                                                                                              |
-| :---------------------------------- | :---------------------------------------------------------------------------------------------------------|
-| `pnpm docker:peers up -d --build`   | Starts both nodes (detached, rebuilding if necessary)                                                    |
-| `pnpm docker:peers down`            | Stops both nodes' containers and networks                                                                |
-| `pnpm docker:peers down --volumes`  | Stops both nodes and removes their containers, networks, and persistent data volumes - including the default instance's data |
-| `pnpm docker:peers:up`              | Rebuilds and restarts both nodes from a clean state, including all data (equivalent to `down --volumes` followed by `up --build -d`) |
+| Command                            | Description                                                                                                                          |
+| :--------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm docker:peers up -d --build`  | Starts both nodes (detached, rebuilding if necessary)                                                                                |
+| `pnpm docker:peers down`           | Stops both nodes' containers and networks                                                                                            |
+| `pnpm docker:peers down --volumes` | Stops both nodes and removes their containers, networks, and persistent data volumes - including the default instance's data         |
+| `pnpm docker:peers:up`             | Rebuilds and restarts both nodes from a clean state, including all data (equivalent to `down --volumes` followed by `up --build -d`) |
 
 </div>
 
@@ -89,9 +89,9 @@ Node B's services run on different ports than the default instance so both can r
 <div class="overflow-table">
 
 | Service                       | Node A (default) | Node B           |
-| :------------------------------| :------------------| :------------------|
-| Admin API                     | `localhost:3001`   | `localhost:4001`   |
-| Open Payments resource server | `localhost:3002`   | `localhost:4002`   |
+| :---------------------------- | :--------------- | :--------------- |
+| Admin API                     | `localhost:3001` | `localhost:4001` |
+| Open Payments resource server | `localhost:3002` | `localhost:4002` |
 
 </div>
 
@@ -132,12 +132,12 @@ The **Remote Payment** collection walks through a complete ILP payment between t
 - **2. Flow** - Creates a payment intent on the receiver, a quote on the sender referencing that intent, and the payment itself on the sender.
 
   <details>
-    <summary>Expand for the 2. Flow sequence</summary>
-    <Mermaid
-      graph={`sequenceDiagram
-        participant Bruno as Bruno client
-        participant Receiver as Receiver (Node B)
-        participant Sender as Sender (Node A)
+  <summary>Expand for the 2. Flow sequence</summary>
+  <Mermaid
+    graph={`sequenceDiagram
+      participant Bruno as Bruno client
+      participant Receiver as Receiver (Node B)
+      participant Sender as Sender (Node A)
 
         Bruno->>Receiver: POST /payment-intents
         Receiver-->>Bruno: 201 Created
@@ -149,8 +149,10 @@ The **Remote Payment** collection walks through a complete ILP payment between t
         Sender-->>Bruno: 201 Created
 
         Note over Sender,Receiver: Payment sent<br/>over ILP
+
   `}
-    />
+  />
+
   </details>
 
 - **3. Verify** - Checks the incoming payment on the receiver and the payment's status on the sender to confirm it completed.

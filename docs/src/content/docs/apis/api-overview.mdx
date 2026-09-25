@@ -4,7 +4,10 @@ title: Overview
 
 import { LinkOut } from '@interledger/docs-design-system'
 
-Rhyza provides a unified REST Admin API to manage your instance and its core resources.
+Rhyza provides:
+
+- A unified REST Admin API to manage your instance and its core resources.
+- A REST API for Identity Providers to manage Open Payments interactions with resource owners.
 
 ## Admin API
 
@@ -13,3 +16,7 @@ The <LinkOut href="/apis/scalar/admin-api">Admin API</LinkOut> provides comprehe
 ## Webhooks API
 
 The <LinkOut href="/apis/scalar/webhooks">Webhooks API</LinkOut> describes the events Rhyza sends to your configured [webhook endpoint](/integration/requirements/webhook-events/#specify-a-webhook-endpoint), such as payment intent and payment lifecycle updates.
+
+## Identity Provider API
+
+The <LinkOut href="/apis/scalar/idp-service-api">Identity Provider Service API</LinkOut> provides ways for your Identity Provider to signal to your Rhyza instance when and how interactions are completed during the Open Payments Authorization flow, as well as access to information to surface to resource owners during the interaction.
