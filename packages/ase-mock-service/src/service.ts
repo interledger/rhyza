@@ -42,6 +42,7 @@ export class MockWebhookIntegrationService {
 
     this.server.post<{ Body: Webhook }>('/webhooks', async (request, reply) => {
       try {
+        console.log('Webhook received:', request.body);
         await this.handleWebhook(request.body);
         reply
           .code(200)
