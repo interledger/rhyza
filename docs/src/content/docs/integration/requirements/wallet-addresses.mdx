@@ -9,12 +9,13 @@ import { LinkOut } from '@interledger/docs-design-system'
 
 Each payment account belonging to an FSP's customers must have at least one associated wallet address for the account to send and receive payments over Interledger and Open Payments. A wallet address serves as a publicly shareable standardized ID for a payment account.
 
-:::note[Wallet address requirements]
+Wallet addresses are created and hosted in Rhyza. However, the mapping of a wallet address to a customer account stays with the FSP and is never stored in Rhyza's database tables.
+
+## Wallet address requirements
 
 - Rhyza must be set up with at least one asset before wallet addresses can be created as each wallet address must have an asset assigned to it.
+- Wallet address structure is determined by the financial service provider (FSP). Consider whether a chosen naming convention could disclose personal data, such as issuing addresses using a first and last name.
 - Wallet address URLs are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address are recognized as identical.
-
-:::
 
 Once the wallet address base (`WALLET_ADDRESS_URL`) is set, it can't be changed.
 
