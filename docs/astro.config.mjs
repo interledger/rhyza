@@ -51,6 +51,9 @@ export default defineConfig({
         root: {
           label: 'English',
           lang: 'en'
+        },
+        es: {
+          label: 'Español'
         }
       },
       head: [
@@ -92,10 +95,12 @@ export default defineConfig({
           items: [
             {
               label: 'Introducing Rhyza',
+              translations: { es: 'Sobre Rhyza' },
               link: '/overview/overview'
             },
             {
               label: 'Concepts',
+              translations: { es: 'Conceptos' },
               collapsed: true,
               items: [
                 {
@@ -104,22 +109,27 @@ export default defineConfig({
                 },
                 {
                   label: 'Accounting',
+                  translations: { es: 'Transacciones en Rhyza' },
                   link: '/overview/concepts/accounting'
                 },
                 {
                   label: 'Clearing and settlement',
+                  translations: { es: 'Compensación y liquidación' },
                   link: '/overview/concepts/clearing-settlement'
                 },
                 {
                   label: 'Interledger',
+                  translations: { es: 'Interledger' },
                   link: '/overview/concepts/interledger'
                 },
                 {
                   label: 'Open Payments',
+                  translations: { es: 'Open Payments' },
                   link: '/overview/concepts/open-payments'
                 },
                 {
                   label: 'Wallet addresses',
+                  translations: { es: 'Wallet addresses' },
                   link: '/overview/concepts/wallet-addresses'
                 }
               ]
