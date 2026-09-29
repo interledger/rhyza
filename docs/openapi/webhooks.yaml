@@ -84,7 +84,7 @@ webhooks:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/grantRevokedEvent'
+              $ref: '#/components/schemas/grantEvent'
       responses:
         '200':
           description: Grant revoked
@@ -312,7 +312,7 @@ components:
         x:
           type: string
     grantState:
-      type: enum
+      type: string
       enum:
         - PROCESSING
         - PENDING
@@ -321,7 +321,7 @@ components:
         - REVOKED
         - REJECTED
     accessAction:
-      type: enum
+      type: string
       enum:
         - CREATE
         - COMPLETE
@@ -336,7 +336,7 @@ components:
         - actions
       properties:
         type:
-          type: enum
+          type: string
           enum:
             - INCOMING_PAYMENT
             - OUTGOING_PAYMENT
@@ -407,7 +407,7 @@ components:
                       type: string
                       format: date-time
                     state:
-                      type: enum
+                      type: string
                       enum:
                         - PENDING
                         - APPROVED
