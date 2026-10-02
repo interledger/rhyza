@@ -456,7 +456,8 @@ export class PaymentIntentAggregate {
           state: entity.state,
           receiverWalletAddressId: entity.receiverWalletAddressId,
           assetCode: entity.assetCode,
-          assetScale: entity.assetScale
+          assetScale: entity.assetScale,
+          metadata: entity.metadata
         },
         cmd.requestId
       );
@@ -781,7 +782,9 @@ export class PaymentIntentAggregate {
           assetCode: payment.assetCode,
           assetScale: payment.assetScale,
           receiveAssetCode: paymentIntent.assetCode,
-          receiveAssetScale: paymentIntent.assetScale
+          receiveAssetScale: paymentIntent.assetScale,
+          metadata: payment.metadata,
+          paymentIntentRemoteUrl: paymentIntent.remoteUrl
         },
         cmd.requestId
       );
@@ -1050,7 +1053,8 @@ export class PaymentIntentAggregate {
               assetCode: payment.assetCode,
               assetScale: payment.assetScale,
               receiveAssetCode: paymentIntent.assetCode,
-              receiveAssetScale: paymentIntent.assetScale
+              receiveAssetScale: paymentIntent.assetScale,
+              metadata: payment.metadata
             },
             cmd.requestId
           )
@@ -1423,7 +1427,8 @@ export class PaymentIntentAggregate {
             assetCode: payment.assetCode,
             assetScale: payment.assetScale,
             receiveAssetCode: paymentIntent.assetCode,
-            receiveAssetScale: paymentIntent.assetScale
+            receiveAssetScale: paymentIntent.assetScale,
+            metadata: payment.metadata
           },
           cmd.requestId
         )
@@ -1937,7 +1942,8 @@ export class PaymentIntentAggregate {
       destination: paymentIntent.destination,
       destinationIlpAddress: paymentIntent.destinationIlpAddress,
       assetCode: paymentIntent.assetCode,
-      assetScale: paymentIntent.assetScale
+      assetScale: paymentIntent.assetScale,
+      metadata: paymentIntent.metadata
     };
   }
 

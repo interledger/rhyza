@@ -743,6 +743,7 @@ export class PaymentIntent implements IPaymentIntent {
   private _destinationIlpAddress: string | undefined;
   private _remoteUrl: string | undefined;
   private _peerId: string | undefined;
+  private _metadata: Record<string, unknown> | undefined;
 
   private constructor(
     id: string,
@@ -761,7 +762,8 @@ export class PaymentIntent implements IPaymentIntent {
     inboundPayments: InboundPayment[] = [],
     destinationIlpAddress?: string,
     remoteUrl?: string,
-    peerId?: string
+    peerId?: string,
+    metadata?: Record<string, unknown>
   ) {
     this._id = id;
     this._receiverWalletAddressId = receiverWalletAddressId;
@@ -782,6 +784,7 @@ export class PaymentIntent implements IPaymentIntent {
     this._destinationIlpAddress = destinationIlpAddress;
     this._remoteUrl = remoteUrl;
     this._peerId = peerId;
+    this._metadata = metadata;
   }
 
   static create(
@@ -1692,5 +1695,9 @@ export class PaymentIntent implements IPaymentIntent {
 
   get peerId(): string | undefined {
     return this._peerId;
+  }
+
+  get metadata(): Record<string, unknown> | undefined {
+    return this._metadata;
   }
 }

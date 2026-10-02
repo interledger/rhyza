@@ -181,6 +181,7 @@ export type PaymentIntentCreatedPayload = {
   receiverWalletAddressId?: string;
   assetCode: string;
   assetScale: number;
+  metadata?: Record<string, unknown>;
 };
 
 export class PaymentIntentCreatedEvent extends PaymentIntentDomainEvent {
@@ -221,6 +222,7 @@ export type PaymentIntentCompletedPayload = {
   destinationIlpAddress?: string;
   assetCode: string;
   assetScale: number;
+  metadata?: Record<string, unknown>;
 };
 
 export class PaymentIntentCompletedEvent extends PaymentIntentDomainEvent {
@@ -299,6 +301,8 @@ export type PaymentCreatedPayload = {
   assetScale: number;
   receiveAssetScale: number;
   receiveAssetCode: string;
+  paymentIntentRemoteUrl?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export class PaymentCreatedEvent extends PaymentIntentDomainEvent {
@@ -340,6 +344,7 @@ export type PaymentCompletedPayload = {
   assetScale: number;
   receiveAssetScale: number;
   receiveAssetCode: string;
+  metadata?: Record<string, unknown>;
 };
 
 export class PaymentCompletedEvent extends PaymentIntentDomainEvent {

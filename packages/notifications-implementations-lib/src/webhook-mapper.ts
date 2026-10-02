@@ -1,16 +1,11 @@
 import { NotificationType, INotification } from 'notifications-domain-lib';
 import {
-  FailedMessagePayload,
   PaymentIntentCreatedPayload,
   PaymentIntentCompletedPayload,
   PaymentCreatedPayload,
-  PaymentCompletedPayload
+  PaymentCompletedPayload,
+  PaymentCompleteFailedPayload
 } from 'payments-public-types-lib';
-
-type FailedPayload = {
-  id?: string;
-  paymentIntentId?: string;
-} & FailedMessagePayload;
 
 type PaymentIntentPayload =
   | PaymentIntentCreatedPayload
@@ -47,14 +42,17 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
             assetScale: paymentIntentData.assetScale
           }
         }),
-        state: paymentIntentData.state
+        state: paymentIntentData.state,
+        ...(paymentIntentData.metadata && {
+          metadata: paymentIntentData.metadata
+        })
       };
     }
 
     case NotificationType.PaymentCreated:
     case NotificationType.PaymentCompleted: {
       const paymentData = data as PaymentPayload;
-      return {
+      const basePayment = {
         id: paymentData.id,
         paymentIntentId: paymentData.paymentIntentId,
         walletAddressId: paymentData.senderWalletAddressId,
@@ -74,20 +72,33 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
           assetCode: paymentData.receiveAssetCode,
           assetScale: paymentData.receiveAssetScale
         },
-        state: paymentData.state
+        state: paymentData.state,
+        ...(paymentData.metadata && {
+          metadata: paymentData.metadata
+        })
       };
+      if (type === NotificationType.PaymentCreated) {
+        return {
+          ...basePayment,
+          paymentIntentRemoteUrl: (data as PaymentCreatedPayload)
+            .paymentIntentRemoteUrl
+        };
+      }
+      return basePayment;
     }
 
     case NotificationType.PaymentFailed: {
-      const failedData = data as FailedPayload;
+      const failedData = data as PaymentCompleteFailedPayload;
       return {
-        ...(failedData.id && { id: failedData.id }),
-        ...(failedData.paymentIntentId && {
-          paymentIntentId: failedData.paymentIntentId
-        }),
+        id: failedData.id,
+        paymentIntentId: failedData.paymentIntentId,
         errorName: failedData.errorName,
         message: failedData.message
       };
+    }
+
+    case NotificationType.GrantRevoked: {
+      return data;
     }
 
     default:

@@ -181,6 +181,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
               peerId: p.peerId,
               quotes: p.quotes
             };
+          if (p.metadata != null) doc.metadata = p.metadata;
           if (p.remoteUrl != null) doc.remoteUrl = p.remoteUrl;
           return doc;
         })
@@ -248,7 +249,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         destinationIlpAddress: doc.destinationIlpAddress,
         remoteUrl: doc.remoteUrl,
         peerId: doc.peerId,
-        quotes: doc.quotes.map((quote) => ({ ...quote }))
+        quotes: doc.quotes.map((quote) => ({ ...quote })),
+        metadata: doc.metadata
       }));
     } catch (err) {
       this._logger.error(err);
@@ -294,6 +296,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         // Do NOT re-project by state — that silently drops fields (e.g. a
         // pending remote quote's peer/source/sender fields).
         quotes: doc.quotes.map((quote) => ({ ...quote })),
+        metadata: doc.metadata,
         sentPayments: paymentDocs
           .filter((p) => p.paymentIntentId === doc.id)
           .map((payment) => ({
@@ -312,7 +315,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
             ledgerTransferId: payment.ledgerTransferId,
             failReason: payment.failReason,
             cancelledAt: payment.cancelledAt,
-            cancelReason: payment.cancelReason
+            cancelReason: payment.cancelReason,
+            metadata: payment.metadata
           })),
         inboundPayments: inboundPaymentDocs
           .filter((rp) => rp.paymentIntentId === doc.id)
@@ -448,7 +452,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
           ledgerTransferId: payment.ledgerTransferId,
           failReason: payment.failReason,
           cancelledAt: payment.cancelledAt,
-          cancelReason: payment.cancelReason
+          cancelReason: payment.cancelReason,
+          metadata: payment.metadata
         }))
       };
     } catch (err) {
@@ -581,7 +586,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
           debitAmount: payment.debitAmount,
           quoteId: payment.quoteId ? payment.quoteId : undefined,
           receiveAmount: payment.receiveAmount,
-          sentAmount: payment.sentAmount
+          sentAmount: payment.sentAmount,
+          metadata: payment.metadata
         });
       }
     }
