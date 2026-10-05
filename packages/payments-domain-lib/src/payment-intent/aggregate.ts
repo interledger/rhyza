@@ -76,7 +76,8 @@ import {
   InboundPaymentAcceptedEvent,
   InboundPaymentFailedEvent,
   InboundPaymentFinalizedEvent,
-  PaymentIntentCompletedPayload
+  PaymentIntentCompletedPayload,
+  PaymentCompleteFailedAdditionalData
 } from 'payments-public-types-lib';
 
 const fxKey = (
@@ -1018,6 +1019,7 @@ export class PaymentIntentAggregate {
       `handleApprovePaymentCommand — paymentId: ${cmd.payload.id} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
     const { id: paymentId, paymentIntentId } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1031,6 +1033,12 @@ export class PaymentIntentAggregate {
 
       if (paymentIntent.destination === 'LOCAL') {
         const payment = paymentIntent.completeLocalPayment({ id: paymentId });
+        errorContext = {
+          sentAmount: payment.sentAmount.toString(),
+          walletAddressId: payment.senderWalletAddressId,
+          assetCode: payment.assetCode,
+          assetScale: payment.assetScale
+        };
         this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
         this._appendToMap(
           this.completedLocalPayments,
@@ -1080,6 +1088,12 @@ export class PaymentIntentAggregate {
       const payment = paymentIntent.approveRemotePaymentSend({
         id: paymentId
       });
+      errorContext = {
+        sentAmount: payment.sentAmount.toString(),
+        walletAddressId: payment.senderWalletAddressId,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale
+      };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
         this.approvedRemotePayments,
@@ -1108,6 +1122,7 @@ export class PaymentIntentAggregate {
         {
           id: cmd.payload.id,
           paymentIntentId: cmd.payload.paymentIntentId,
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1122,6 +1137,7 @@ export class PaymentIntentAggregate {
       `handlePrepareRemotePaymentCommand — paymentId: ${cmd.payload.paymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
     const { paymentIntentId, paymentId, ledgerTransferId } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1157,6 +1173,12 @@ export class PaymentIntentAggregate {
         id: paymentId,
         ledgerTransferId
       });
+      errorContext = {
+        sentAmount: payment.sentAmount.toString(),
+        walletAddressId: payment.senderWalletAddressId,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale
+      };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
         this.sendingRemotePayments,
@@ -1187,6 +1209,7 @@ export class PaymentIntentAggregate {
         {
           id: cmd.payload.paymentId,
           paymentIntentId,
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1199,6 +1222,7 @@ export class PaymentIntentAggregate {
       `handleFailRemotePaymentCommand — paymentId: ${cmd.payload.paymentId} paymentIntentId: ${cmd.payload.paymentIntentId} reason: ${cmd.payload.reason}`
     );
     const { paymentIntentId, paymentId, reason } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1213,6 +1237,12 @@ export class PaymentIntentAggregate {
         id: paymentId,
         reason
       });
+      errorContext = {
+        sentAmount: payment.sentAmount.toString(),
+        walletAddressId: payment.senderWalletAddressId,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale
+      };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(this.failedRemotePayments, paymentIntent.id, paymentId);
 
@@ -1239,6 +1269,7 @@ export class PaymentIntentAggregate {
         {
           id: cmd.payload.paymentId,
           paymentIntentId,
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1251,6 +1282,7 @@ export class PaymentIntentAggregate {
       `handleConfirmRemotePaymentCommand — paymentId: ${cmd.payload.paymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
     const { paymentIntentId, paymentId } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1269,6 +1301,12 @@ export class PaymentIntentAggregate {
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
       }
+      errorContext = {
+        sentAmount: existingPayment.sentAmount.toString(),
+        walletAddressId: existingPayment.senderWalletAddressId,
+        assetCode: existingPayment.assetCode,
+        assetScale: existingPayment.assetScale
+      };
       if (!existingPayment.ledgerTransferId) {
         throw new Error(
           `Payment ${paymentId} is missing ledgerTransferId at confirm time`
@@ -1307,6 +1345,7 @@ export class PaymentIntentAggregate {
         {
           id: cmd.payload.paymentId,
           paymentIntentId,
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1320,6 +1359,7 @@ export class PaymentIntentAggregate {
     );
     const { paymentIntentId, paymentId, reason, rejectCode, rejectMessage } =
       cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1338,6 +1378,12 @@ export class PaymentIntentAggregate {
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
       }
+      errorContext = {
+        sentAmount: existingPayment.sentAmount.toString(),
+        walletAddressId: existingPayment.senderWalletAddressId,
+        assetCode: existingPayment.assetCode,
+        assetScale: existingPayment.assetScale
+      };
       if (!existingPayment.ledgerTransferId) {
         throw new Error(
           `Payment ${paymentId} is missing ledgerTransferId at reject time`
@@ -1382,6 +1428,7 @@ export class PaymentIntentAggregate {
         {
           id: cmd.payload.paymentId,
           paymentIntentId,
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1394,6 +1441,7 @@ export class PaymentIntentAggregate {
       `handleCompleteRemotePaymentCommand — paymentId: ${cmd.payload.paymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
     const { paymentIntentId, paymentId } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1405,6 +1453,12 @@ export class PaymentIntentAggregate {
 
       const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
       const payment = paymentIntent.completeRemotePayment({ id: paymentId });
+      errorContext = {
+        sentAmount: payment.sentAmount.toString(),
+        walletAddressId: payment.senderWalletAddressId,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale
+      };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
         this.completedRemotePayments,
@@ -1447,6 +1501,7 @@ export class PaymentIntentAggregate {
         {
           id: cmd.payload.paymentId,
           paymentIntentId,
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId

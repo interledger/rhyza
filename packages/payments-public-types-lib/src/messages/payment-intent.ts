@@ -357,10 +357,18 @@ export class PaymentCompletedEvent extends PaymentIntentDomainEvent {
   }
 }
 
+export type PaymentCompleteFailedAdditionalData = {
+  walletAddressId?: string;
+  sentAmount?: string;
+  assetCode?: string;
+  assetScale?: number;
+};
+
 export type PaymentCompleteFailedPayload = {
   id: string;
   paymentIntentId: string;
-} & FailedMessagePayload;
+} & FailedMessagePayload &
+  PaymentCompleteFailedAdditionalData;
 
 export class PaymentCompleteFailedEvent extends PaymentIntentDomainEvent {
   payload: PaymentCompleteFailedPayload;

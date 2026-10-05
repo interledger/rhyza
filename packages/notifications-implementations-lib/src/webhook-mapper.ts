@@ -93,7 +93,13 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
         id: failedData.id,
         paymentIntentId: failedData.paymentIntentId,
         errorName: failedData.errorName,
-        message: failedData.message
+        message: failedData.message,
+        sentAmount: {
+          value: failedData.sentAmount,
+          assetCode: failedData.assetCode,
+          assetScale: failedData.assetScale
+        },
+        walletAddressId: failedData.walletAddressId
       };
     }
 

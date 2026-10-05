@@ -259,6 +259,11 @@ components:
                   type: string
                 message:
                   type: string
+                walletAddressId:
+                  type: string
+                  format: uuid
+                sentAmount:
+                  $ref: '#/components/schemas/amount'
     amount:
       type: object
       required:
