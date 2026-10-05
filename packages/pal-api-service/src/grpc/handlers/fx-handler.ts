@@ -73,10 +73,11 @@ export class FxGrpcHandler {
 
     const checkAssetPair = async (assetCodes: string[]) => {
       for (const assetCode of assetCodes) {
-        const asset = await this._assetAggregate.getAsset(assetCode);
-        if (!asset) {
+        const assets = await this._assetAggregate.getAssets([assetCode]);
+        if (!assets.length) {
           throw new Error('Invalid Asset with code: ' + assetCode);
         }
+        const asset = assets[0];
       }
     };
 

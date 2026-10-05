@@ -24,8 +24,8 @@ import {
   PbCreateWalletAddressAliasRequest,
   PbCreateWalletAddressRequest,
   PbCreateWalletAddressResponse,
-  PbGetAssetRequest,
-  PbGetAssetResponse,
+  PbGetAssetsRequest,
+  PbGetAssetsResponse,
   PbGetWalletAddressesRequest,
   PbGetWalletAddressesResponse,
   PalGrpcClient,
@@ -137,26 +137,24 @@ export class PalClient {
   }
 
   async getAsset(code: string): Promise<IPalAssetDto | null> {
-    const request = new PbGetAssetRequest();
-    request.setCode(code);
+    const request = new PbGetAssetsRequest();
+    request.setCodesList([code]);
 
     return new Promise((resolve, reject) => {
-      this._grpcClient.getAsset(
+      this._grpcClient.getAssets(
         request,
-        (error: ServiceError | null, response: PbGetAssetResponse) => {
+        (error: ServiceError | null, response: PbGetAssetsResponse) => {
           if (error) {
             console.error(error);
             return reject(new PalClientUnknownError(error.message));
           }
 
-          if (!response.hasAsset()) {
-            return resolve(null);
-          }
-          const respAsset = response.getAsset();
-          if (!respAsset) {
+          const respAssets = response.getAssetsList();
+          if (respAssets.length === 0) {
             return resolve(null);
           }
 
+          const respAsset = respAssets[0];
           const respObj: IPalAssetDto = {
             code: respAsset.getCode(),
             scale: respAsset.getScale(),
@@ -166,6 +164,36 @@ export class PalClient {
           };
 
           return resolve(respObj);
+        }
+      );
+    });
+  }
+
+  async getAssets(codes: string[]): Promise<IPalAssetDto[]> {
+    const request = new PbGetAssetsRequest();
+    request.setCodesList(codes);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.getAssets(
+        request,
+        (error: ServiceError | null, response: PbGetAssetsResponse) => {
+          if (error) {
+            console.error(error);
+            return reject(new PalClientUnknownError(error.message));
+          }
+          const resAssets = response.getAssetsList();
+
+          const respAssets = resAssets.map((asset) => {
+            return {
+              code: asset.getCode(),
+              scale: asset.getScale(),
+              ledgerAccountId: asset.hasLedgerAccountId()
+                ? asset.getLedgerAccountId()!
+                : null
+            };
+          });
+
+          return resolve(respAssets);
         }
       );
     });

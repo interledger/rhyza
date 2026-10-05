@@ -5,7 +5,7 @@ import "google/protobuf/empty.proto";
 
 service PalGrpc {
   rpc CreateAsset(PbCreateAssetRequest) returns (google.protobuf.Empty);
-  rpc GetAsset(PbGetAssetRequest) returns (PbGetAssetResponse);
+  rpc GetAssets(PbGetAssetsRequest) returns (PbGetAssetsResponse);
 
   rpc CreateWalletAddress(PbCreateWalletAddressRequest) returns (PbCreateWalletAddressResponse);
   rpc GetWalletAddresses(PbGetWalletAddressesRequest) returns (PbGetWalletAddressesResponse);
@@ -37,17 +37,20 @@ service PalGrpc {
 /*
 Asset messages
 */
+
 message PbCreateAssetRequest{
   string code = 1;
   uint32 scale = 2;
 }
 
-message PbGetAssetRequest{
-  string code = 1;
+message PbGetAssetsRequest{
+  repeated string codes = 1;
 }
-message PbGetAssetResponse{
-  optional PbAsset asset = 1;
+
+message PbGetAssetsResponse{
+  repeated PbAsset assets = 1;
 }
+
 message PbAsset{
   string code = 1;
   uint32 scale = 2;

@@ -11,8 +11,8 @@ import { PendingResponse, UnaryResponse } from '../types';
 import {
   IPalAssetDto,
   PbAsset,
-  PbGetAssetRequest,
-  PbGetAssetResponse
+  PbGetAssetsRequest,
+  PbGetAssetsResponse
 } from 'pal-public-types-lib';
 import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
 import crypto from 'crypto';
@@ -101,16 +101,18 @@ export class AssetGrpcHandler {
     this._responseRegistry.resolve(pendingResp, null, new Empty());
   }
 
-  async handleGetAssetRequest(
-    call: ServerUnaryCall<PbGetAssetRequest, PbGetAssetResponse>
-  ): Promise<UnaryResponse<PbGetAssetResponse>> {
-    const asset = await this._assetAggregate.getAsset(call.request.getCode());
-    const resp = new PbGetAssetResponse();
+  async handleGetAssetsRequest(
+    call: ServerUnaryCall<PbGetAssetsRequest, PbGetAssetsResponse>
+  ): Promise<UnaryResponse<PbGetAssetsResponse>> {
+    const assets = await this._assetAggregate.getAssets(
+      call.request.getCodesList()
+    );
+    const resp = new PbGetAssetsResponse();
 
-    if (asset) {
+    assets.map((asset) => {
       const pbAsset = this._createPbAssetFromAsset(asset);
-      resp.setAsset(pbAsset);
-    }
+      resp.addAssets(pbAsset);
+    });
 
     return { resp: resp };
   }

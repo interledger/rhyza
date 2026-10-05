@@ -57,11 +57,11 @@ export class WalletAddressGrpcHandler {
       PbCreateWalletAddressResponse
     >
   ): Promise<UnaryResponse<PbCreateWalletAddressResponse>> {
-    const asset = await this._assetAggregate.getAsset(
+    const assets = await this._assetAggregate.getAssets([
       call.request.getAssetCode()
-    );
+    ]);
 
-    if (!asset) {
+    if (!assets.length) {
       this._logger.warn(`Asset ${call.request.getAssetCode()} does not exist`);
       return {
         error: {
@@ -78,6 +78,7 @@ export class WalletAddressGrpcHandler {
       ? call.request.getDomain() || null
       : null;
 
+    const asset = assets[0];
     const id = await this._walletAddressAggregate.createWalletAddress(
       domain,
       call.request.getPathName(),

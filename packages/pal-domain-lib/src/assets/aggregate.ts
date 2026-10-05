@@ -29,9 +29,9 @@ export class AssetAggregate {
   }
 
   async createAsset(code: string, scale: number): Promise<void> {
-    const existing = await this._repo.fetch(code);
+    const existing = await this._repo.fetch([code]);
 
-    if (existing) {
+    if (existing.length > 0) {
       this._logger.warn(`Asset with code: ${code} already exists`);
       throw new CannotCreateDuplicateAssetError(
         'Asset with code: ' + code + ' already exists'
@@ -53,13 +53,13 @@ export class AssetAggregate {
     assetCode: string,
     ledgerAccountId: string
   ): Promise<void> {
-    const found = await this._repo.fetch(assetCode);
-    if (!found) {
+    const found = await this._repo.fetch([assetCode]);
+    if (found.length === 0) {
       throw new AssetNotFoundError(
         `Asset with code ${assetCode} does not exist`
       );
     }
-    const asset = PalAsset.fromDto(found);
+    const asset = PalAsset.fromDto(found[0]);
     asset.associateLedgerAccount(ledgerAccountId);
     await this._repo.store(asset.toDto());
 
@@ -68,11 +68,7 @@ export class AssetAggregate {
     );
   }
 
-  async getAsset(code: string): Promise<IPalAssetDto | null> {
-    const found = await this._repo.fetch(code);
-
-    if (!found) return null;
-
-    return found;
+  async getAssets(codes: string[]): Promise<IPalAssetDto[]> {
+    return await this._repo.fetch(codes);
   }
 }

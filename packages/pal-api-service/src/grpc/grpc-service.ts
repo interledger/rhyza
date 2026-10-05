@@ -323,7 +323,7 @@ export class PalGrpcServer {
     );
     this._requestHandlerRegistry.register(
       PalGrpcService.getAsset,
-      this._assetGrpcHandler.handleGetAssetRequest.bind(this._assetGrpcHandler)
+      this._assetGrpcHandler.handleGetAssetsRequest.bind(this._assetGrpcHandler)
     );
 
     // wallet address requests

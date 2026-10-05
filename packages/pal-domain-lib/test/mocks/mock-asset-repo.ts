@@ -9,7 +9,11 @@ export class MockAssetRepo implements IPalAssetRepository {
     return Promise.resolve();
   }
 
-  fetch(code: string): Promise<IPalAssetDto | null> {
-    return Promise.resolve(this._data.get(code) ?? null);
+  fetch(codes: string[]): Promise<IPalAssetDto[]> {
+    return Promise.resolve(
+      codes
+        .map((code) => this._data.get(code) ?? null)
+        .filter((asset) => asset !== null)
+    );
   }
 }
