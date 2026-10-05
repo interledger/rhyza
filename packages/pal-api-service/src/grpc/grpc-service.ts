@@ -237,7 +237,7 @@ export class PalGrpcServer {
     // all unary calls are handled by the same handler, which distributes requests
     this._server.addService(PalGrpcService, {
       createAsset: this._handleUnary.bind(this),
-      getAsset: this._handleUnary.bind(this),
+      getAssets: this._handleUnary.bind(this),
       createWalletAddress: this._handleUnary.bind(this),
       getWalletAddresses: this._handleUnary.bind(this),
       addWalletAddressKey: this._handleUnary.bind(this),
@@ -322,7 +322,7 @@ export class PalGrpcServer {
       true
     );
     this._requestHandlerRegistry.register(
-      PalGrpcService.getAsset,
+      PalGrpcService.getAssets,
       this._assetGrpcHandler.handleGetAssetsRequest.bind(this._assetGrpcHandler)
     );
 
