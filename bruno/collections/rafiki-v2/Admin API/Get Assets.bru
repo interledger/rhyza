@@ -1,0 +1,27 @@
+meta {
+  name: Get Assets
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://{{adminApiUrl}}/assets?codes=USD&codes=EUR
+  body: none
+  auth: inherit
+}
+
+query {
+  codes: USD
+  codes: EUR
+}
+
+docs {
+  Fetch assets by code. Repeat `codes` for more than one asset.
+
+  Returns 400 when no codes are given, and 404 when none of the codes match an asset.
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
