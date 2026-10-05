@@ -36,4 +36,21 @@ export async function assetRoutes(
 
     return reply.status(201).send({ code });
   });
+
+  server.get<{
+    Querystring: { codes: string[] };
+  }>('/assets', async (request, reply) => {
+    const { codes } = request.query;
+    const assetCodes = codes.filter((code): code is string => Boolean(code));
+
+    try {
+      const assets = await palClient.getAssets(assetCodes);
+      if (assets.length === 0) {
+        return reply.status(404).send({ error: 'Assets not found' });
+      }
+      return reply.status(200).send({ assets });
+    } catch (err) {
+      throw err;
+    }
+  });
 }

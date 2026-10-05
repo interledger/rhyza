@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.5
+  version: 0.0.6
   license:
     name: ISC
     identifier: ISC
@@ -93,6 +93,41 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AssetCreate'
+    get:
+      summary: Get Assets
+      description: >-
+        Fetch assets by code. Assets that do not exist are omitted. The
+        response is 404 when none of the requested codes match an asset.
+      tags:
+        - assets
+      operationId: getAssets
+      parameters:
+        - name: codes
+          in: query
+          required: true
+          description: >-
+            Asset codes to fetch. Repeat the parameter for more than one code,
+            for example `?codes=USD&codes=EUR`.
+          schema:
+            type: array
+            items:
+              type: string
+            minItems: 1
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetsResponse'
+        '404':
+          description: None of the requested assets were found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /wallet-addresses:
     post:
       summary: Create Wallet Address
@@ -697,6 +732,35 @@ components:
         code:
           type: string
           description: The unique code of the created asset.
+    Asset:
+      type: object
+      description: An asset known to the node.
+      required:
+        - code
+        - scale
+        - ledgerAccountId
+      properties:
+        code:
+          type: string
+          description: The asset code (e.g., "USD", "EUR", "BTC").
+        scale:
+          type: number
+          description: The number of decimal places for the asset.
+        ledgerAccountId:
+          type:
+            - string
+            - 'null'
+          description: The ledger account id associated with the asset, or null if none is associated.
+    AssetsResponse:
+      type: object
+      description: Response schema for fetching assets.
+      required:
+        - assets
+      properties:
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Asset'
     PeerHttpOutgoing:
       type: object
       description: Connector settings for sending ILP packets to this peer.
