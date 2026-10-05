@@ -9,12 +9,14 @@ apis/index.ts
 index.ts
 models/Amount.ts
 models/ApprovePayment200Response.ts
+models/Asset.ts
 models/AssetCreate.ts
 models/AssetCreateResponse.ts
+models/AssetsResponse.ts
 models/CancelPayment200Response.ts
 models/ErrorResponse.ts
-models/LiquidityDeposit200Response.ts
 models/JsonWebKey.ts
+models/LiquidityDeposit200Response.ts
 models/LiquidityDepositRequest.ts
 models/PageInfo.ts
 models/Payment.ts

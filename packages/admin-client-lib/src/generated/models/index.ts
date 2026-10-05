@@ -2,8 +2,10 @@
 /* eslint-disable */
 export * from './Amount';
 export * from './ApprovePayment200Response';
+export * from './Asset';
 export * from './AssetCreate';
 export * from './AssetCreateResponse';
+export * from './AssetsResponse';
 export * from './CancelPayment200Response';
 export * from './ErrorResponse';
 export * from './JsonWebKey';

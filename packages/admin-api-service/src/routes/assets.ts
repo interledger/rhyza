@@ -2,7 +2,7 @@
 
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient } from 'pal-client-lib';
-import { AssetCreate } from 'admin-client-lib';
+import { AssetCreate, GetAssetsRequest } from 'admin-client-lib';
 
 interface AssetRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
@@ -38,10 +38,18 @@ export async function assetRoutes(
   });
 
   server.get<{
-    Querystring: { codes: string[] };
+    Querystring: GetAssetsRequest;
   }>('/assets', async (request, reply) => {
     const { codes } = request.query;
-    const assetCodes = codes.filter((code): code is string => Boolean(code));
+    const assetCodes = (codes ?? []).filter((code): code is string =>
+      Boolean(code)
+    );
+
+    if (assetCodes.length === 0) {
+      return reply.status(400).send({
+        error: 'At least one asset code is required'
+      });
+    }
 
     try {
       const assets = await palClient.getAssets(assetCodes);
