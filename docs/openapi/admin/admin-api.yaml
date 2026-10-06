@@ -104,15 +104,16 @@ paths:
       parameters:
         - name: codes
           in: query
-          required: true
+          required: false
           description: >-
-            Asset codes to fetch. Repeat the parameter for more than one code,
-            for example `?codes=USD&codes=EUR`.
+            Asset codes to fetch. One code is `?codes=USD`. Repeat the
+            parameter for more than one code, for example `?codes=USD&codes=EUR`.
           schema:
-            type: array
+            type:
+              - string
+              - array
             items:
               type: string
-            minItems: 1
           style: form
           explode: true
       responses:
@@ -122,6 +123,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AssetsResponse'
+        '400':
+          description: At least one asset code is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: None of the requested assets were found.
           content:

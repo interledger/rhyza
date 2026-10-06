@@ -41,9 +41,9 @@ export async function assetRoutes(
     Querystring: GetAssetsRequest;
   }>('/assets', async (request, reply) => {
     const { codes } = request.query;
-    const assetCodes = (codes ?? []).filter((code): code is string =>
-      Boolean(code)
-    );
+    const assetCodes = [codes]
+      .flat()
+      .filter((code): code is string => Boolean(code));
 
     if (assetCodes.length === 0) {
       return reply.status(400).send({

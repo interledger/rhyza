@@ -8,6 +8,7 @@ export * from './AssetCreateResponse';
 export * from './AssetsResponse';
 export * from './CancelPayment200Response';
 export * from './ErrorResponse';
+export * from './GetAssetsCodesParameter';
 export * from './JsonWebKey';
 export * from './LiquidityDeposit200Response';
 export * from './LiquidityDepositRequest';

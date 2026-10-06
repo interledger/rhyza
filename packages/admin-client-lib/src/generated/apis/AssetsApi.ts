@@ -33,13 +33,18 @@ import {
     ErrorResponseFromJSON,
     ErrorResponseToJSON,
 } from '../models/ErrorResponse';
+import {
+    type GetAssetsCodesParameter,
+    GetAssetsCodesParameterFromJSON,
+    GetAssetsCodesParameterToJSON,
+} from '../models/GetAssetsCodesParameter';
 
 export interface CreateAssetRequest {
     assetCreate: AssetCreate;
 }
 
 export interface GetAssetsRequest {
-    codes: Array<string>;
+    codes?: GetAssetsCodesParameter;
 }
 
 /**
@@ -100,13 +105,6 @@ export class AssetsApi extends runtime.BaseAPI {
      * Creates request options for getAssets without sending the request
      */
     async getAssetsRequestOpts(requestParameters: GetAssetsRequest): Promise<runtime.RequestOpts> {
-        if (requestParameters['codes'] == null) {
-            throw new runtime.RequiredError(
-                'codes',
-                'Required parameter "codes" was null or undefined when calling getAssets().'
-            );
-        }
-
         const queryParameters: any = {};
 
         if (requestParameters['codes'] != null) {
@@ -141,7 +139,7 @@ export class AssetsApi extends runtime.BaseAPI {
      * Fetch assets by code. Assets that do not exist are omitted. The response is 404 when none of the requested codes match an asset.
      * Get Assets
      */
-    async getAssets(codes: Array<string>, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AssetsResponse> {
+    async getAssets(codes?: GetAssetsCodesParameter, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<AssetsResponse> {
         const response = await this.getAssetsRaw({ codes: codes }, initOverrides);
         return await response.value();
     }
