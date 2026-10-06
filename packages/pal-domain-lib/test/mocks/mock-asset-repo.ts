@@ -4,13 +4,13 @@ import { IPalAssetRepository } from '../../src';
 export class MockAssetRepo implements IPalAssetRepository {
   private _data: Map<string, IPalAssetDto> = new Map<string, IPalAssetDto>();
 
-  store(asset: IPalAssetDto): Promise<void> {
+  store(asset: IPalAssetDto): Promise<IPalAssetDto> {
     const storedAsset: IPalAssetDto = {
       ...asset,
       code: asset.code.toUpperCase()
     };
     this._data.set(storedAsset.code, storedAsset);
-    return Promise.resolve();
+    return Promise.resolve(storedAsset);
   }
 
   fetch(codes: string[]): Promise<IPalAssetDto[]> {

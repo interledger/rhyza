@@ -42,9 +42,9 @@ export class AssetAggregate {
 
     const newAsset = new PalAsset(code, scale);
 
-    await this._repo.store(newAsset.toDto());
+    const storedAsset = await this._repo.store(newAsset.toDto());
     this._uncommittedDomainEvents.push(
-      new AssetCreatedEvent({ assetCode: code })
+      new AssetCreatedEvent({ assetCode: storedAsset.code })
     );
     this._logger.debug(`Asset with code: ${code} created`);
   }
