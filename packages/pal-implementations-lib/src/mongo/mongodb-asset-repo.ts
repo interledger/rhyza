@@ -75,10 +75,15 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
   async store(asset: IPalAssetDto): Promise<void> {
     this._checkInitialisedOrThrow();
 
+    const storedAsset: IPalAssetDto = {
+      ...asset,
+      code: asset.code.toUpperCase()
+    };
+
     try {
       await this._collection.updateOne(
-        { code: asset.code },
-        { $set: asset },
+        { code: storedAsset.code },
+        { $set: storedAsset },
         { upsert: true }
       );
       return;
@@ -96,8 +101,9 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
     }
 
     try {
+      const upperCaseCodes = codes.map((code) => code.toUpperCase());
       const docs = await this._collection
-        .find({ code: { $in: codes } })
+        .find({ code: { $in: upperCaseCodes } })
         .toArray();
       return docs.map((doc) => ({
         code: doc.code,

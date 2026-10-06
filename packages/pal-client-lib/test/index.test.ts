@@ -57,20 +57,30 @@ after(async () => {
  * */
 
 test('pal client - create asset', async () => {
-  await client.createAsset(ASSET_CODE, ASSET_SCALE);
+  await client.createAsset(ASSET_CODE.toLowerCase(), ASSET_SCALE);
 
   // extra assets for fx tests
-  await client.createAsset(FX_SOURCE_ASSET_CODE, ASSET_SCALE);
-  await client.createAsset(FX_DESTINATION_ASSET_CODE, ASSET_SCALE);
+  await client.createAsset(FX_SOURCE_ASSET_CODE.toLowerCase(), ASSET_SCALE);
+  await client.createAsset(FX_DESTINATION_ASSET_CODE.toLowerCase(), ASSET_SCALE);
   assert.ok(true);
 });
 
 test('pal client - created asset must exist', async () => {
-  const asset = await client.getAsset(ASSET_CODE);
+  const asset = await client.getAsset(ASSET_CODE.toLowerCase());
 
   assert.ok(asset);
-  assert.equal(asset.code, ASSET_CODE);
+  assert.equal(asset.code, ASSET_CODE.toUpperCase());
   assert.equal(asset.scale, ASSET_SCALE);
+
+  const sourceAsset = await client.getAsset(FX_SOURCE_ASSET_CODE.toLowerCase());
+  assert.ok(sourceAsset);
+  assert.equal(sourceAsset.code, FX_SOURCE_ASSET_CODE.toUpperCase());
+
+  const destinationAsset = await client.getAsset(
+    FX_DESTINATION_ASSET_CODE.toLowerCase()
+  );
+  assert.ok(destinationAsset);
+  assert.equal(destinationAsset.code, FX_DESTINATION_ASSET_CODE.toUpperCase());
 
   assert.ok(asset.ledgerAccountId);
   createdAssetLedgerAccountId = asset.ledgerAccountId;
@@ -85,7 +95,7 @@ test('pal client - created asset must exist and have an new ledger in the liquid
 
   assert.ok(assetAccount);
   assert.ok(assetAccount.id, createdAssetLedgerAccountId);
-  assert.equal(assetAccount.assetCode, ASSET_CODE);
+  assert.equal(assetAccount.assetCode, ASSET_CODE.toLowerCase());
   // asset id is the code (and that's the ext id for the ledger account
   assert.equal(assetAccount.creditedAmount, '0');
   assert.equal(assetAccount.debitedAmount, '0');

@@ -5,14 +5,18 @@ export class MockAssetRepo implements IPalAssetRepository {
   private _data: Map<string, IPalAssetDto> = new Map<string, IPalAssetDto>();
 
   store(asset: IPalAssetDto): Promise<void> {
-    this._data.set(asset.code, asset);
+    const storedAsset: IPalAssetDto = {
+      ...asset,
+      code: asset.code.toUpperCase()
+    };
+    this._data.set(storedAsset.code, storedAsset);
     return Promise.resolve();
   }
 
   fetch(codes: string[]): Promise<IPalAssetDto[]> {
     return Promise.resolve(
       codes
-        .map((code) => this._data.get(code) ?? null)
+        .map((code) => this._data.get(code.toUpperCase()) ?? null)
         .filter((asset) => asset !== null)
     );
   }
