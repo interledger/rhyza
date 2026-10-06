@@ -31,12 +31,6 @@ export interface Asset {
      * @memberof Asset
      */
     scale: number;
-    /**
-     * The ledger account id associated with the asset, or null if none is associated.
-     * @type {string}
-     * @memberof Asset
-     */
-    ledgerAccountId: string | null;
 }
 
 /**
@@ -45,7 +39,6 @@ export interface Asset {
 export function instanceOfAsset(value: object): value is Asset {
     if (!('code' in value) || value['code'] === undefined) return false;
     if (!('scale' in value) || value['scale'] === undefined) return false;
-    if (!('ledgerAccountId' in value) || value['ledgerAccountId'] === undefined) return false;
     return true;
 }
 
@@ -61,7 +54,6 @@ export function AssetFromJSONTyped(json: any, ignoreDiscriminator: boolean): Ass
         
         'code': json['code'],
         'scale': json['scale'],
-        'ledgerAccountId': json['ledgerAccountId'],
     };
 }
 
@@ -78,7 +70,6 @@ export function AssetToJSONTyped(value?: Asset | null, ignoreDiscriminator: bool
         
         'code': value['code'],
         'scale': value['scale'],
-        'ledgerAccountId': value['ledgerAccountId'],
     };
 }
 

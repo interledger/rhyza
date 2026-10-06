@@ -2,7 +2,13 @@
 
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient } from 'pal-client-lib';
-import { AssetCreate, GetAssetsRequest } from 'admin-client-lib';
+import {
+  AssetCreate,
+  GetAssetsRequest,
+  AssetCreateResponse,
+  AssetsResponse,
+  ErrorResponse
+} from 'admin-client-lib';
 
 interface AssetRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
@@ -16,6 +22,7 @@ export async function assetRoutes(
 
   server.post<{
     Body: AssetCreate;
+    Reply: AssetCreateResponse | ErrorResponse;
   }>('/assets', async (request, reply) => {
     const { code, scale } = request.body;
 
@@ -39,6 +46,7 @@ export async function assetRoutes(
 
   server.get<{
     Querystring: GetAssetsRequest;
+    Reply: AssetsResponse | ErrorResponse;
   }>('/assets', async (request, reply) => {
     const { codes } = request.query;
     const assetCodes = [codes]
@@ -52,7 +60,9 @@ export async function assetRoutes(
     }
 
     try {
-      const assets = await palClient.getAssets(assetCodes);
+      const assets = (await palClient.getAssets(assetCodes)).map(
+        ({ code, scale }) => ({ code, scale })
+      );
       if (assets.length === 0) {
         return reply.status(404).send({ error: 'Assets not found' });
       }
