@@ -1,8 +1,10 @@
 # API Changelog 0.0.7 vs. 0.0.8
 
-### GET /assets
 
-- endpoint added
+## API Changes
+
+### GET /assets
+-  endpoint added
 
 # API Changelog 0.0.6 vs. 0.0.7
 
