@@ -20,7 +20,7 @@ import {
   LedgerNotFoundEvent
 } from 'pal-public-types-lib';
 
-const INTERNAL_ASSET_SCALE = 20;
+export const LEDGER_INTERNAL_ASSET_SCALE = 20;
 const COMMANDS_HISTOGRAM_NAME = 'PalLedgerAggregate_Commands';
 
 export class LedgerAggregate {
@@ -98,14 +98,14 @@ export class LedgerAggregate {
 
     const newLedger = Ledger.CreateNewLedger(
       cmd.aggregateId,
-      INTERNAL_ASSET_SCALE,
+      LEDGER_INTERNAL_ASSET_SCALE,
       this._logger
     );
 
     this._ledgers.set(cmd.aggregateId, newLedger);
 
     this._uncommittedStateEvents.push(
-      new LedgerCreatedStateEvent(cmd.aggregateId, INTERNAL_ASSET_SCALE)
+      new LedgerCreatedStateEvent(cmd.aggregateId, LEDGER_INTERNAL_ASSET_SCALE)
     );
 
     const domainEvent = new LedgerCreatedEvent({ assetCode: cmd.aggregateId });

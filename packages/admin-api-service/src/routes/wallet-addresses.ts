@@ -7,6 +7,8 @@ import {
   PalClientInvalidWalletAddressJwkError,
   PalClientWalletAddressKeyAlreadyRevokedError,
   PalClientWalletAddressKeyNotFoundError,
+  PalClientWalletAddressAlreadyActiveError,
+  PalClientWalletAddressAlreadyInactiveError,
   PalClientWalletAddressNotFoundError,
   parseAddressToDomainAndPathName
 } from 'pal-client-lib';
@@ -57,6 +59,40 @@ export async function walletAddressRoutes(
         ? `${result.domain}/${result.pathName}`
         : result.pathName
     });
+  });
+
+  server.post<{
+    Params: { id: string };
+  }>('/wallet-addresses/:id/activate', async (request, reply) => {
+    try {
+      await palClient.activateWalletAddress(request.params.id);
+      return reply.status(204).send();
+    } catch (err) {
+      if (err instanceof PalClientWalletAddressNotFoundError) {
+        return reply.status(404).send({ error: err.message });
+      }
+      if (err instanceof PalClientWalletAddressAlreadyActiveError) {
+        return reply.status(409).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
+
+  server.post<{
+    Params: { id: string };
+  }>('/wallet-addresses/:id/deactivate', async (request, reply) => {
+    try {
+      await palClient.deactivateWalletAddress(request.params.id);
+      return reply.status(204).send();
+    } catch (err) {
+      if (err instanceof PalClientWalletAddressNotFoundError) {
+        return reply.status(404).send({ error: err.message });
+      }
+      if (err instanceof PalClientWalletAddressAlreadyInactiveError) {
+        return reply.status(409).send({ error: err.message });
+      }
+      throw err;
+    }
   });
 
   server.post<{

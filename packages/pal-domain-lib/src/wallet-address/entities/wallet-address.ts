@@ -12,7 +12,7 @@ export class PalWalletAddress implements IPalWalletAddressDto {
   private readonly _publicName: string;
   private readonly _assetCode: string;
   private readonly _assetScale: number;
-  private readonly _isActive: boolean;
+  private _isActive: boolean;
   private readonly _aliases: PalWalletAddressAlias[];
   private readonly _keys: PalWalletAddressKey[];
 
@@ -79,6 +79,14 @@ export class PalWalletAddress implements IPalWalletAddressDto {
 
   get isActive(): boolean {
     return this._isActive;
+  }
+
+  activate(): void {
+    this._isActive = true;
+  }
+
+  deactivate(): void {
+    this._isActive = false;
   }
 
   get aliases(): PalWalletAddressAlias[] {

@@ -9,6 +9,8 @@ service PalGrpc {
 
   rpc CreateWalletAddress(PbCreateWalletAddressRequest) returns (PbCreateWalletAddressResponse);
   rpc GetWalletAddresses(PbGetWalletAddressesRequest) returns (PbGetWalletAddressesResponse);
+  rpc DeactivateWalletAddress(PbDeactivateWalletAddressRequest) returns (google.protobuf.Empty);
+  rpc ActivateWalletAddress(PbActivateWalletAddressRequest) returns (google.protobuf.Empty);
   rpc AddWalletAddressKey(PbAddWalletAddressKeyRequest) returns (PbAddWalletAddressKeyResponse);
   rpc GetWalletAddressKeys(PbGetWalletAddressKeysRequest) returns (PbGetWalletAddressKeysResponse);
   rpc RevokeWalletAddressKey(PbRevokeWalletAddressKeyRequest) returns (google.protobuf.Empty);
@@ -92,6 +94,14 @@ message PbSingleWalletAddressResponse {
   string asset_code = 3;
   uint32 asset_scale = 4;
   bool is_active = 5;
+}
+
+message PbDeactivateWalletAddressRequest {
+  string wallet_address_id = 1;
+}
+
+message PbActivateWalletAddressRequest {
+  string wallet_address_id = 1;
 }
 
 /*

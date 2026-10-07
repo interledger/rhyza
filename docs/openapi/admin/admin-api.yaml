@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.6
+  version: 0.0.8
   license:
     name: ISC
     identifier: ISC
@@ -163,6 +163,69 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/WalletAddressCreate'
+  /wallet-addresses/{id}/activate:
+    post:
+      summary: Activate Wallet Address
+      description: >-
+        Activate a wallet address that was previously deactivated. Once
+        active, the Open Payments wallet address document becomes reachable again.
+      tags:
+        - wallet-addresses
+      operationId: activateWalletAddress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal Rhyza id of the wallet address.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The wallet address is activated.
+        '404':
+          description: Wallet address not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The wallet address is already active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /wallet-addresses/{id}/deactivate:
+    post:
+      summary: Deactivate Wallet Address
+      description: >-
+        Deactivate a wallet address. While inactive, the Open Payments wallet
+        address document is not found, and no resources can be created against
+        it. Deactivating a wallet address that is already inactive returns 409.
+      tags:
+        - wallet-addresses
+      operationId: deactivateWalletAddress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal Rhyza id of the wallet address.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The wallet address is deactivated.
+        '404':
+          description: Wallet address not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The wallet address is already inactive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /wallet-addresses/{id}/keys:
     post:
       summary: Register Wallet Address Key

@@ -85,6 +85,14 @@ export async function walletAddressRoutes(
 
     const walletAddress = walletAddresses[0];
 
+    if (!walletAddress.isActive) {
+      throw new OpenPaymentsResourceServerRouteError(
+        404,
+        'Wallet address not found',
+        'not_found'
+      );
+    }
+
     return reply.status(200).send({
       id: `${opts.openPaymentsResourceServiceUrl}/${alias.pathName}`,
       publicName: walletAddress.publicName,

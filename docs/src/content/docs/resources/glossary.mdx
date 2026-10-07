@@ -10,15 +10,15 @@ An asset is made up of a currency `code` and a `scale` that together represent a
 
 ## Authorization server
 
-A standalone service/server that implements the Open Payments authorization server specification.
+A standalone service that implements the Open Payments authorization server specification.
 
 It grants delegated authorization and privileges, via [GNAP](#grant-negotiation-and-authorization-protocol-gnap), to a particular instance of client software in the form of access tokens, allowing the client to call the Open Payments APIs.
 
-We've provided an opinionated version of a GNAP authorization server via the `auth` service. This means that we've made certain decisions regarding the implementation and configuration of the server that may limit customization but ensure consistency and adherence to preferred practices.
+We provide an opinionated version of a GNAP authorization server. This means that we've made certain decisions regarding the implementation and configuration of the server that may limit customization but ensure consistency and adherence to preferred practices.
 
 ## Client
 
-An app or service, such as a mobile or web app, that interacts with the authorization server to obtain grants and access tokens. Clients use tokens to access resource servers and perform actions, such as retrieving transaction history and setting up payments, on behalf of a user or system.
+An app or service, such as a mobile or web app, that interacts with an Open Payments authorization server to obtain grants and access tokens. Clients use tokens to access resource servers and perform actions, such as retrieving transaction history and setting up payments on behalf of a user or system.
 
 ## Financial service provider (FSP)
 
@@ -38,7 +38,7 @@ A system or service that stores and manages user identity information, authentic
 
 ## ILP packet
 
-A unit of data that carries payment information through the Interledger network. A single payment can be broken into smaller packets of value which are then routed across the network.
+A unit of data that carries payment information through the Interledger network. A single payment can be broken into multiple ILP packets which are then routed across the network.
 
 ## Incoming payment
 
@@ -66,9 +66,9 @@ An object created by the sender's FSP, on their resource server, that represents
 
 ## Resource server
 
-A standalone service/server that implements the Open Payments resource server specification.
+A standalone service that implements the Open Payments resource server specification.
 
-It hosts and manages access to protected Open Payments resources (such as incoming payments, quotes, and outgoing payments)and acts as a gateway between external clients and Rhyza's backend.
+It hosts and manages access to protected Open Payments resources (such as incoming payments, quotes, and outgoing payments) and acts as a gateway between external clients and Rhyza's backend.
 
 ## Streaming Transport for the Real-Time Exchange of Assets and Messages (STREAM)
 
@@ -77,7 +77,3 @@ An Interledger transport layer protocol for sending and receiving authenticated 
 ## Wallet address
 
 A secure, unique URL that identifies an Open Payments-enabled account. It acts as an entry point to the Open Payments APIs, facilitating interactions like sending and receiving payments. Similar to how an email address serves as a public identifier for an email account, a wallet address is publicly shareable and used to interact with the underlying payment account without compromising its security. Wallet address URLs are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address are recognized as identical.
-
-## Web Monetization
-
-A browser API that allows websites to signal their ability to receive Web Monetization payments from their site visitors. Rhyza supports Web Monetization payment flows natively, enabling seamless integration for websites looking to implement the feature and monetize their content via the Interledger network. For more details, visit the <LinkOut href="https://webmonetization.org/">Web Monetization</LinkOut> website.

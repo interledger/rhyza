@@ -34,6 +34,7 @@ import crypto from 'crypto';
 import { PendingResponseRegistry } from '../registries/pending-response-registry';
 import { Status } from '@grpc/grpc-js/build/src/constants';
 import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
+import { amountFromBigIntOfSize } from 'pal-domain-lib/dist/liquidity/utils';
 
 /**
  * Ledger related request and event handlers (only low-level API not SAGA based)
@@ -43,6 +44,7 @@ export class LedgerGrpcHandler {
   private readonly _ledgerReadSideRepo: ILedgerReadSideRepository;
   private readonly _msgProducer: IMessageProducer;
   private readonly _responseRegistry: PendingResponseRegistry;
+  private readonly _perLedgerInternalAssetScales: Map<string, number>;
   private readonly _telemetryService: ITelemetryService;
 
   constructor(
@@ -57,7 +59,24 @@ export class LedgerGrpcHandler {
     this._msgProducer = msgProducer;
     this._logger = logger.child(this.constructor.name);
     this._telemetryService = telemetryService;
+    this._perLedgerInternalAssetScales = new Map<string, number>();
     this._logger.info('LedgerGrpcHandler created');
+  }
+
+  private async _getLedgerInternalAssetScale(
+    ledgerId: string
+  ): Promise<number> {
+    const scale = this._perLedgerInternalAssetScales.get(ledgerId);
+    if (scale) {
+      return scale;
+    }
+
+    const ledger = await this._ledgerReadSideRepo.fetchLedgers([ledgerId]);
+    if (!ledger.length) {
+      throw new Error(`Ledger with id ${ledgerId} not found`);
+    }
+    this._perLedgerInternalAssetScales.set(ledgerId, ledger[0].assetScale);
+    return ledger[0].assetScale;
   }
 
   async handleGetLedgerAccountsRequest(
@@ -72,23 +91,38 @@ export class LedgerGrpcHandler {
 
     const resp = new PbGetLedgerAccountsResponse();
 
-    resp.setAccountsList(
-      accounts.map((account) => {
-        const pbAcc = new PbLedgerAccount()
-          .setId(account.id)
-          .setType(account.type)
-          .setAssetCode(account.assetCode)
-          .setName(account.name)
-          .setDebitedAmount(account.debitedAmount.toString())
-          .setCreditedAmount(account.creditedAmount.toString())
-          .setAssetDisplayScale(account.assetDisplayScale);
-        if (account.peerId) {
-          pbAcc.setPeerId(account.peerId);
-        }
-        return pbAcc;
-      })
-    );
+    const pbList: PbLedgerAccount[] = [];
+    for (const account of accounts) {
+      const internalScale = await this._getLedgerInternalAssetScale(
+        account.assetCode
+      );
 
+      const debitedAmount = amountFromBigIntOfSize(
+        BigInt(account.debitedAmount),
+        internalScale,
+        account.assetDisplayScale
+      );
+      const creditedAmount = amountFromBigIntOfSize(
+        BigInt(account.creditedAmount),
+        internalScale,
+        account.assetDisplayScale
+      );
+
+      const pbAcc = new PbLedgerAccount()
+        .setId(account.id)
+        .setType(account.type)
+        .setAssetCode(account.assetCode)
+        .setName(account.name)
+        .setDebitedAmount(debitedAmount.toString())
+        .setCreditedAmount(creditedAmount.toString())
+        .setAssetDisplayScale(account.assetDisplayScale);
+      if (account.peerId) {
+        pbAcc.setPeerId(account.peerId);
+      }
+      pbList.push(pbAcc);
+    }
+
+    resp.setAccountsList(pbList);
     return { resp: resp };
   }
 

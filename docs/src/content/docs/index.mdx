@@ -7,7 +7,7 @@ hero:
   tagline: Rhyza is open source software that provides an efficient solution for a financial service provider (FSP) to enable Interledger functionality on its users' accounts.
   actions:
     - text: Read the docs
-      link: /overview/overview
+      link: /overview
       icon: open-book
       variant: primary
       attrs:
@@ -17,13 +17,13 @@ hero:
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
 
 <CardGrid>
-  <a class='card-link' href='/integration/playground/overview'>
+  <a class='card-link' href='/integration/testlocal'>
     <Card title='Try it out!' icon='document'>
       Test Rhyza by running two mock FSPs that automatically peer with one
       another.
     </Card>
   </a>
-  <a class='card-link' href='/integration/requirements/checklist'>
+  <a class='card-link' href='/integration/checklist'>
     <Card title='Integration requirements' icon='document'>
       Review the requirements for deploying Rhyza to a production environment.
     </Card>

@@ -9,7 +9,7 @@ Implementing and maintaining the [Interledger Protocol (ILP)](#interledger) stac
 Rhyza is open-source software maintained by a dedicated team and freely available to any licensed (FSP) wanting to implement Interledger and [Open Payments](#open-payments) on its users' accounts.
 
 :::tip[Try it out]
-The [Local Playground](/integration/playground/overview) allows you to test Rhyza by running two mock FSPs that automatically peer with one another.
+The [Local Playground](/integration/testlocal) allows you to test Rhyza by running two mock FSPs that automatically peer with one another.
 :::
 
 ## Use cases
@@ -32,7 +32,7 @@ The Interledger network is a network of nodes that have implemented the Interled
 
 Interledger is designed to be a network on top of existing payment networks that serves as the interoperability layer between them all, forwarding payment messages (packets) while also taking care of currency conversion. Interledger ensures that packets take the fastest and cheapest route from one Interledger node to another.
 
-[Learn more about Interledger](/overview/concepts/interledger)
+[Learn more about Interledger](/concepts/interledger)
 
 ## Open Payments
 
@@ -42,18 +42,4 @@ By following the Open Payments standard, Rhyza allows FSP customers' accounts to
 
 Clients, such as mobile apps, can call the standalone Open Payments resource server to securely retrieve transaction data and initiate payments from the customers' accounts after being authorized by the standalone Open Payments authoritzation server.
 
-[Learn more about Open Payments](/overview/concepts/open-payments)
-
-## System architecture
-
-Rhyza's architecture consists of three primary areas:
-
-- **Core System**: The central logic and storage engine that manages assets, wallet addresses, quotes, payment routing, peering, and webhooks. Rhyza's APIs call this core system to execute actions.
-- **Admin API**: The internal REST interface used by the FSP to call the core system for administrative tasks, such as configuring assets, managing peering relationships, and initiating payments.
-- **Open Payments APIs**: The external-facing API endpoints (authorization and resource servers) that allow third-party applications to request client authorization and access account resources.
-
-### Infrastructure
-
-Rhyza uses Kafka and MongoDB as its main infrastructure components.
-
-[Learn more about the infrastructure requirements](/integration/requirements/checklist).
+[Learn more about Open Payments](/concepts/open-payments)

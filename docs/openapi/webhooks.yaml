@@ -397,7 +397,7 @@ components:
                       - id
                       - format
                     properties:
-                      id: 
+                      id:
                         type: string
                       format:
                         type: string

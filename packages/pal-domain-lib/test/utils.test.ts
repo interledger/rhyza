@@ -22,6 +22,20 @@ test('PAL Ledger - amount conversion - from string to bigint', async () => {
   assert.equal(resp, 12300000000n);
 
   try {
+    assert.equal(amountToBigIntOfSize('12', 3, 3), 12n);
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof LedgerPrecisionLossError);
+  }
+
+  try {
+    assert.equal(amountToBigIntOfSize('123', 2, 1), 123n);
+    assert.fail();
+  } catch (e) {
+    assert.ok(e instanceof LedgerPrecisionLossError);
+  }
+
+  try {
     assert.equal(amountToBigIntOfSize('123', 4, 2), 12300n);
     assert.fail();
   } catch (e) {

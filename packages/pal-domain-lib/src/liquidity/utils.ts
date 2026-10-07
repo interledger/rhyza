@@ -21,7 +21,7 @@ export function bigintToString(bigintValue: bigint, decimals: number): string {
 */
 
 /**
- * Converts a string-represented amount with a given source scale into a BigInt scaled to DEFAULT_DISPLAY_ASSET_SCALE.
+ * Converts a string-represented amount with a given source scale into a BigInt scaled to targetScale.
  *
  * @param sourceAmount - Integer amount string (e.g., "123456", "-1", "100")
  * @param sourceScale - Decimal precision of sourceAmount (e.g., 2 if "123.45" represents 123.456)
@@ -34,13 +34,15 @@ export function amountToBigIntOfSize(
   sourceScale: number,
   targetScale: number
 ): bigint {
+  if (sourceAmount === '0') return 0n;
+
   const trimmed = sourceAmount.trim();
   const isNegative = trimmed.startsWith('-');
   const absoluteAmount = isNegative ? trimmed.slice(1) : trimmed;
 
   if (absoluteAmount.length < sourceScale) {
     throw new LedgerPrecisionLossError(
-      `Loss of precision: sourceAmount (${sourceAmount}) is smaller than sourceScale (${sourceScale}).`
+      `Amount input error: sourceAmount (${sourceAmount}) is smaller than sourceScale (${sourceScale}).`
     );
   }
 
@@ -84,6 +86,8 @@ export function amountFromBigIntOfSize(
   sourceScale: number,
   targetScale: number
 ): string {
+  if (sourceAmount === 0n) return '0';
+
   const scaleDiff = targetScale - sourceScale;
 
   if (scaleDiff < 0) {
@@ -105,4 +109,19 @@ export function amountFromBigIntOfSize(
   }
 
   return sourceAmount.toString();
+}
+
+export function convertAmountScale(
+  sourceAmount: bigint,
+  sourceScale: number,
+  targetScale: number
+): bigint {
+  if (sourceAmount === 0n) return 0n;
+  const scaleDiff = BigInt(targetScale - sourceScale);
+  if (scaleDiff < 0n) {
+    throw new LedgerPrecisionLossError(
+      `Precision loss error: Cannot convert amount ${sourceAmount} from scale ${sourceScale} to ${targetScale} without discarding non-zero digits.`
+    );
+  }
+  return sourceAmount * 10n ** scaleDiff;
 }

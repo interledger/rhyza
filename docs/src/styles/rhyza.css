@@ -21,6 +21,18 @@
   color: var(--sl-color-accent-high);
 }
 
+/* Temporary style to fix spacing before external link icon */
+.icon:where(.astro-abnnfd7w) {
+  margin-left: 3px !important;
+}
+
+/* Temporary style to change the color of the Steps component */
+.sl-steps > li::before {
+  background-color: #00758b;
+  box-shadow: 0 0 0 0;
+  color: white;
+}
+
 /* API table styling */
 .content details ~ table tbody tr td:first-of-type strong,
 .content details ~ table tbody tr td:nth-of-type(2) a {
@@ -29,47 +41,6 @@
 
 .content details ~ table tbody tr td:nth-of-type(3):not(:empty) {
   width: 50%;
-}
-
-/* Accounting table styles */
-.accounting-table,
-.accounting-table table {
-  box-shadow: none;
-}
-
-.accounting-table.accounting-table {
-  border-spacing: var(--space-s) 0;
-  border-collapse: separate;
-}
-
-.accounting-table table {
-  border-collapse: collapse;
-  padding-top: var(--space-xs);
-  margin-top: -2px;
-}
-
-.accounting-table.accounting-table .header-row th {
-  text-align: center;
-  border-bottom: 2px solid var(--sl-color-text-accent);
-  padding-bottom: var(--space-2xs);
-}
-
-.accounting-table.accounting-table .header-row:not(:first-of-type) th {
-  padding-top: var(--space-s);
-}
-
-.accounting-table table tr th {
-  padding-top: var(--space-2xs);
-}
-
-.accounting-table table tr th:first-of-type,
-.accounting-table table tr td:first-of-type {
-  border-right: 2px solid var(--sl-color-text-accent);
-}
-
-.accounting-table.accounting-table tr th,
-.accounting-table.accounting-table tr td {
-  text-align: center;
 }
 
 /* Table styling */

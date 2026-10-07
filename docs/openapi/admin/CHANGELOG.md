@@ -1,23 +1,38 @@
-# API Changelog 0.0.5 vs. 0.0.6
-
-## API Changes
+# API Changelog 0.0.7 vs. 0.0.8
 
 ### GET /assets
 
 - endpoint added
+
+# API Changelog 0.0.6 vs. 0.0.7
+
+## API Changes
+
+### POST /wallet-addresses/{id}/activate
+-  endpoint added
+
+# API Changelog 0.0.5 vs. 0.0.6
+
+## API Changes
+
+### POST /wallet-addresses/{id}/deactivate
+-  endpoint added
 
 # API Changelog 0.0.4 vs. 0.0.5
 
 ## API Changes
 
 ### POST /liquidity/deposit
+
 - :warning: added the new required request property `amountScale`
 - :warning: removed the success response with the status `202`
--  added the success response with the status `200`
+- added the success response with the status `200`
 
 ## Info
--  a breaking change was detected but the major version did not increase, from `0.0.4` to `0.0.5`
+
+- a breaking change was detected but the major version did not increase, from `0.0.4` to `0.0.5`
 -
+
 # API Changelog 0.0.3 vs. 0.0.4
 
 ## API Changes
@@ -152,6 +167,7 @@
 ## API Changes
 
 ### POST /liquidity/deposit
+
 - :warning: added the new required request property `amountScale`
 - :warning: removed the success response with the status `202`
--  added the success response with the status `200`
+- added the success response with the status `200`

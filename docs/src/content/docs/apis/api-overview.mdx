@@ -4,19 +4,14 @@ title: Overview
 
 import { LinkOut } from '@interledger/docs-design-system'
 
-Rhyza provides:
-
-- A unified REST Admin API to manage your instance and its core resources.
-- A REST API for Identity Providers to manage Open Payments interactions with resource owners.
-
 ## Admin API
 
-The <LinkOut href="/apis/#tag/admin-api-overview">Admin API</LinkOut> provides comprehensive capabilities to manage your Rhyza instance. Core capabilities include managing assets, wallet addresses, and peering relationships, as well as liquidity management through deposits and withdrawals. It also allows you to manage payment intents, quotes, and payments. The Admin API must be private, accessible only by the FSP.
-
-## Webhooks API
-
-The <LinkOut href="/apis/#tag/webhooks-api-overview">Webhooks API</LinkOut> describes the events Rhyza sends to your configured [webhook endpoint](/integration/requirements/webhook-events/#specify-a-webhook-endpoint), such as payment intent and payment lifecycle updates.
+The <LinkOut href="/apis/#tag/admin-api-overview">Admin API</LinkOut> is a unified REST API for managing Rhyza and its core resources. Capabilities include managing assets, wallet addresses, and peering relationships, as well as liquidity management through deposits and withdrawals. It also allows for management of payment intents, quotes, and payments. The Admin API must be private, accessible only by the financial service provider.
 
 ## Identity Provider Service API
 
-The <LinkOut href="/apis/#tag/identity-provider-service-api-overview">Identity Provider Service API</LinkOut> provides ways for your Identity Provider to signal to your Rhyza instance when and how interactions are completed during the Open Payments Authorization flow, as well as access to information to surface to resource owners during the interaction. The Identity Provider Service API must be private, accessible only by the FSP's identity provider.
+The <LinkOut href="/apis/#tag/identity-provider-service-api-overview">Identity Provider Service API</LinkOut> is a REST API for a financial service provider's <abbr title="identity provider">IdP</abbr>. It allows the IdP to access information to surface to resource owners during Open Payments interactions and to signal to Rhyza when and how interactions are completed during the Open Payments authorization flow. The Identity Provider Service API must be private, accessible only by the financial service provider's IdP.
+
+## Webhooks API
+
+The <LinkOut href="/apis/#tag/webhooks-api-overview">Webhooks API</LinkOut> is a REST API that describes the events Rhyza sends to the financial service provider's configured [webhook endpoint](/integration/checklist/#webhooks), such as payment intent and payment lifecycle updates.
