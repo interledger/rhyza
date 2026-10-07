@@ -77,7 +77,6 @@ export class FxGrpcHandler {
         if (!assets.length) {
           throw new Error('Invalid Asset with code: ' + assetCode);
         }
-        const asset = assets[0];
       }
     };
 

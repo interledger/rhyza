@@ -59,16 +59,12 @@ export async function assetRoutes(
       });
     }
 
-    try {
-      const assets = (await palClient.getAssets(assetCodes)).map(
-        ({ code, scale }) => ({ code, scale })
-      );
-      if (assets.length === 0) {
-        return reply.status(404).send({ error: 'Assets not found' });
-      }
-      return reply.status(200).send({ assets });
-    } catch (err) {
-      throw err;
+    const assets = (await palClient.getAssets(assetCodes)).map(
+      ({ code, scale }) => ({ code, scale })
+    );
+    if (assets.length === 0) {
+      return reply.status(404).send({ error: 'Assets not found' });
     }
+    return reply.status(200).send({ assets });
   });
 }
