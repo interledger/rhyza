@@ -23,6 +23,7 @@ import {
   FinishInteractionResponse as PbFinishInteractionResponse,
   ContinueGrantRequest as PbContinueGrantRequest,
   RevokeGrantRequest as PbRevokeGrantRequest,
+  AdminRevokeGrantRequest as PbAdminRevokeGrantRequest,
   IntrospectTokenResponse as PbIntrospectTokenResponse,
   IntrospectTokenRequest as PbIntrospectTokenRequest,
   RotateTokenRequest as PbRotateTokenRequest,
@@ -49,7 +50,7 @@ import {
   StartInteractionResult,
   SubjectId
 } from './types';
-import { AuthClientUnknownError } from './errors';
+import { AuthClientUnknownError, clientErrorFromGrpcError } from './errors';
 
 export class AuthClient {
   private readonly _serverUrl: string;
@@ -135,7 +136,7 @@ export class AuthClient {
         request,
         (error: ServiceError | null, response: PbCreateGrantResponse) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve(fromPbCreateGrantResponse(response));
           }
@@ -163,7 +164,7 @@ export class AuthClient {
         request,
         (error: ServiceError | null, response: PbContinueGrantResponse) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve(fromPbContinueGrantResponse(response));
           }
@@ -201,7 +202,25 @@ export class AuthClient {
         request,
         (error: ServiceError | null, response: PbRevokeGrantResponse) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
+          } else {
+            resolve({ id: response.getId() });
+          }
+        }
+      );
+    });
+  }
+
+  adminRevokeGrant(id: string): Promise<RevokeGrantResult> {
+    const request = new PbAdminRevokeGrantRequest();
+    request.setId(id);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.adminRevokeGrant(
+        request,
+        (error: ServiceError | null, response: PbRevokeGrantResponse) => {
+          if (error) {
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve({ id: response.getId() });
           }
@@ -225,7 +244,7 @@ export class AuthClient {
         request,
         (error: ServiceError | null, response: PbIntrospectTokenResponse) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve(fromPbIntrospectTokenResponse(response));
           }
@@ -251,7 +270,7 @@ export class AuthClient {
         request,
         (error: ServiceError | null, response: PbRotateTokenResponse) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve(fromPbRotateTokenResponse(response));
           }
@@ -277,7 +296,7 @@ export class AuthClient {
         request,
         (error: ServiceError | null, response: PbRevokeTokenResponse) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve({ id: response.getId() });
           }
@@ -295,7 +314,7 @@ export class AuthClient {
         request,
         (error: ServiceError | null, response: PbStartInteractionResponse) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve(fromPbStartInteractionResponse(response));
           }
@@ -317,7 +336,7 @@ export class AuthClient {
         request,
         (error: ServiceError | null, response: PbFinishInteractionResponse) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve({
               id: response.getId(),
@@ -344,7 +363,7 @@ export class AuthClient {
           response: PbHandleInteractionChoiceResponse
         ) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve({ success: response.getSuccess() });
           }
@@ -365,7 +384,7 @@ export class AuthClient {
           response: PbHandleInteractionChoiceResponse
         ) => {
           if (error) {
-            reject(new AuthClientUnknownError(error.message));
+            reject(clientErrorFromGrpcError(error));
           } else {
             resolve({ success: response.getSuccess() });
           }

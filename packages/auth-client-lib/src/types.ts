@@ -1,10 +1,3 @@
-export interface IClientErrorResponse {
-  error: {
-    code: string;
-    description: string;
-  };
-}
-
 export interface SignatureRequestData {
   url: string;
   method: string;

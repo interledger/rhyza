@@ -1,20 +1,4 @@
-import { Metadata, ServiceError, status } from '@grpc/grpc-js';
-import { IClientErrorResponse } from './types';
-
-export function createServiceError(
-  code: status,
-  message: string,
-  name = 'AuthServiceError'
-): ServiceError {
-  return {
-    code,
-    message,
-    details: message,
-    name,
-    metadata: new Metadata()
-  };
-}
-
+import { ServiceError, status } from '@grpc/grpc-js';
 export function isGrpcServiceError(err: unknown): err is ServiceError {
   return (
     typeof err === 'object' &&
@@ -24,49 +8,51 @@ export function isGrpcServiceError(err: unknown): err is ServiceError {
   );
 }
 
-export function toClientApiErrorResponse(err: unknown): IClientErrorResponse {
-  if (isGrpcServiceError(err)) {
-    return {
-      error: {
-        code: status[err.code] ?? 'INTERNAL',
-        description: err.details || err.message
-      }
-    };
-  }
+export class AuthClientError extends Error {}
+export class AuthClientUnknownError extends AuthClientError {}
+export class AuthClientPermissionDeniedError extends AuthClientError {}
+export class AuthClientInvalidInputError extends AuthClientError {}
+export class AuthClientNotFoundError extends AuthClientError {}
+export class AuthClientInvalidGrantError extends AuthClientError {}
 
-  const fallbackError = err as Error;
-  return {
-    error: {
-      code: fallbackError.name || 'Error',
-      description: fallbackError.message
-    }
-  };
+export function isAuthClientError(err: unknown): err is AuthClientError {
+  return err instanceof AuthClientError;
 }
 
-export function httpStatusFromGrpcError(err: unknown): number {
+export function clientErrorFromGrpcError(err: unknown): AuthClientError {
   if (!isGrpcServiceError(err)) {
-    return 500;
+    return new AuthClientUnknownError(
+      `Unknown error occurred: ${err instanceof Error ? err.message : err}`
+    );
   }
 
   switch (err.code) {
-    case status.INVALID_ARGUMENT:
-      return 400;
-    case status.NOT_FOUND:
-      return 404;
-    case status.ALREADY_EXISTS:
-      return 409;
     case status.PERMISSION_DENIED:
-      return 403;
+      return new AuthClientPermissionDeniedError(err.message);
+    case status.INVALID_ARGUMENT:
+      return new AuthClientInvalidInputError(err.message);
+    case status.NOT_FOUND:
+      return new AuthClientNotFoundError(err.message);
     case status.FAILED_PRECONDITION:
+      return new AuthClientInvalidGrantError(err.message);
+    default:
+      return new AuthClientUnknownError(err.message);
+  }
+}
+
+export function httpStatusFromClientError(err: unknown): number {
+  if (!isAuthClientError(err)) return 500;
+  switch (err.constructor.name) {
+    case AuthClientPermissionDeniedError.constructor.name:
+      return 401;
+    case AuthClientInvalidInputError.constructor.name:
+      return 400;
+    case AuthClientNotFoundError.constructor.name:
+      return 404;
+    case AuthClientInvalidGrantError.constructor.name:
       return 409;
-    case status.ABORTED:
-      return 409;
-    case status.UNAVAILABLE:
-      return 503;
-    case status.INTERNAL:
+    case AuthClientUnknownError.constructor.name:
     default:
       return 500;
   }
 }
-
-export class AuthClientUnknownError extends Error {}

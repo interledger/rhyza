@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.9
+  version: 0.0.10
   license:
     name: ISC
     identifier: ISC
@@ -753,6 +753,39 @@ paths:
                 $ref: '#/components/schemas/Grant'
         '404':
           description: Grant not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Revoke grant
+      description: >-
+        Revoke the grant associated with the provided id.
+        tags:
+        - payments
+      operationId: revokeGrant
+      parameters:
+        - name: id
+          in: path
+          description: Unique identifier for the grant
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Grant'
+        '404':
+          description: Grant not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The grant could not be revoked.
           content:
             application/json:
               schema:

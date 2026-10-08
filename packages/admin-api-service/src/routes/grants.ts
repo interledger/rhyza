@@ -4,8 +4,8 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import {
   AuthClient,
   GetGrantResult,
-  httpStatusFromGrpcError,
-  toClientApiErrorResponse
+  httpStatusFromClientError,
+  isAuthClientError
 } from 'auth-client-lib';
 import { GetGrantRequest } from 'admin-client-lib';
 
@@ -52,11 +52,32 @@ export async function grantRoutes(
         return reply.status(404);
       }
       return reply.status(200).send(toAdminApiGrant(grant));
-    } catch (err) {
-      server.log.error(err);
-      const httpStatus = httpStatusFromGrpcError(err);
-      const { error } = toClientApiErrorResponse(err);
-      return reply.status(httpStatus).send({ error: error.description });
+    } catch (error) {
+      server.log.error(error);
+      const httpStatus = httpStatusFromClientError(error);
+      return reply
+        .status(httpStatus)
+        .send(isAuthClientError(error) ? { error: error.message } : { error });
+    }
+  });
+
+  server.post<{
+    Params: {
+      id: string;
+    };
+  }>('/grants/:id/revoke', async (request, reply) => {
+    const { id } = request.params;
+
+    try {
+      const result = await authClient.adminRevokeGrant(id);
+
+      return reply.status(200).send(result);
+    } catch (error) {
+      server.log.error(error);
+      const httpStatus = httpStatusFromClientError(error);
+      return reply
+        .status(httpStatus)
+        .send(isAuthClientError(error) ? { error: error.message } : { error });
     }
   });
 }

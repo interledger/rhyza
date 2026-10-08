@@ -7,6 +7,7 @@ service RafikiAuth {
 	rpc GetGrant(GetGrantRequest) returns (Grant) {}
 	rpc ContinueGrant(ContinueGrantRequest) returns (ContinueGrantResponse) {}
 	rpc RevokeGrant(RevokeGrantRequest) returns (RevokeGrantResponse) {}
+	rpc AdminRevokeGrant(AdminRevokeGrantRequest) returns (RevokeGrantResponse) {}
 	// Access Token RPCs
 	rpc IntrospectToken(IntrospectTokenRequest) returns (IntrospectTokenResponse) {}
 	rpc RotateToken(RotateTokenRequest) returns (RotateTokenResponse) {}
@@ -133,6 +134,10 @@ message RevokeGrantRequest {
 	string continue_id = 2;
 	string continue_token = 3;
 	SignatureData signature_data = 4;
+}
+
+message AdminRevokeGrantRequest {
+	string id = 1;
 }
 
 message RevokeGrantResponse {

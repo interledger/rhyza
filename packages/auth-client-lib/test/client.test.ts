@@ -815,6 +815,85 @@ describe('Auth Client', () => {
     });
   });
 
+  describe('adminRevokeGrant', () => {
+    test('revokes an issued grant', async () => {
+      const keys = generateTestKeys();
+      const signatureData = await signedSignatureData(
+        keys.privateKey,
+        keys.publicKey.kid
+      );
+      const created = await authClient.createGrant(
+        JSON.stringify(keys.publicKey),
+        signatureData,
+        {
+          access: [
+            makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
+          ],
+          start: ['redirect']
+        }
+      );
+
+      const result = await authClient.adminRevokeGrant(created.id);
+
+      assert.ok(result);
+      assert.equal(result.id, created.id);
+
+      const grant = await authClient.getGrant(created.id);
+      assert.equal(grant.state, 'REVOKED');
+    });
+
+    test('revokes a pending interactive grant without a signature or continue credentials', async () => {
+      const keys = generateTestKeys();
+      const created = await createInteractiveGrant(keys);
+      assert.ok(created.continueId);
+      assert.ok(created.continueToken);
+
+      const result = await authClient.adminRevokeGrant(created.id);
+
+      assert.ok(result);
+      assert.equal(result.id, created.id);
+
+      const grant = await authClient.getGrant(created.id);
+      assert.equal(grant.state, 'REVOKED');
+    });
+
+    test('rejects revoking an unknown grant id', async () => {
+      try {
+        await authClient.adminRevokeGrant(randomUUID());
+        assert.fail('expected error for unknown grant');
+      } catch (e) {
+        assert.ok(e instanceof Error);
+      }
+    });
+
+    test('rejects revoking an already-revoked grant', async () => {
+      const keys = generateTestKeys();
+      const signatureData = await signedSignatureData(
+        keys.privateKey,
+        keys.publicKey.kid
+      );
+      const created = await authClient.createGrant(
+        JSON.stringify(keys.publicKey),
+        signatureData,
+        {
+          access: [
+            makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
+          ],
+          start: ['redirect']
+        }
+      );
+
+      await authClient.adminRevokeGrant(created.id);
+
+      try {
+        await authClient.adminRevokeGrant(created.id);
+        assert.fail('expected error revoking an already-revoked grant');
+      } catch (e) {
+        assert.ok(e instanceof Error);
+      }
+    });
+  });
+
   describe('getGrant', () => {
     test('returns the grant for an existing id', async () => {
       const keys = generateTestKeys();

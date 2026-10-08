@@ -1,3 +1,15 @@
+# API Changelog 0.0.8 vs. 0.0.10
+
+
+## API Changes
+
+### GET /grant/{id}
+-  endpoint added
+
+
+### POST /grant/{id}
+-  endpoint added
+
 # API Changelog 0.0.8 vs. 0.0.9
 
 
