@@ -46,7 +46,8 @@ function toOutgoingPaymentBody(
     debitAmount: toAmountBody(payment.debitAmount),
     receiveAmount: toAmountBody(payment.receiveAmount),
     sentAmount: toAmountBody(payment.sentAmount),
-    createdAt: payment.createdAt
+    createdAt: payment.createdAt,
+    ...(payment.metadata ? { metadata: payment.metadata } : {})
   };
 }
 

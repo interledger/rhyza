@@ -1002,8 +1002,9 @@ components:
           format: date-time
           description: The date and time when the payment intent expires.
         metadata:
-          type: string
+          type: object
           description: Additional arbitrary data associated with the payment intent.
+          additionalProperties: true
     PaymentIntentCreateResponse:
       type: object
       description: Response schema after creating a payment intent.
@@ -1171,8 +1172,9 @@ components:
           type: number
           description: The amount to debit from the sender.
         metadata:
-          type: string
+          type: object
           description: Additional arbitrary data associated with the payment intent.
+          additionalProperties: true
     PaymentCreateResponse:
       type: object
       description: Response schema after initiating a payment.

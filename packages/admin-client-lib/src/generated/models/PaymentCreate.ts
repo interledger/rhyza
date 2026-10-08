@@ -51,10 +51,10 @@ export interface PaymentCreate {
     debitAmount?: number;
     /**
      * Additional arbitrary data associated with the payment intent.
-     * @type {string}
+     * @type {{ [key: string]: any; }}
      * @memberof PaymentCreate
      */
-    metadata?: string;
+    metadata?: { [key: string]: any; };
 }
 
 /**

@@ -56,6 +56,10 @@ export function toIncomingPaymentBody(
     body.expiresAt = paymentIntent.expiresAt;
   }
 
+  if ('metadata' in paymentIntent && paymentIntent.metadata) {
+    body.metadata = paymentIntent.metadata;
+  }
+
   return body;
 }
 
@@ -134,7 +138,7 @@ export async function incomingPaymentRoutes(
           domain ? `${domain}/${pathName}` : pathName,
           incomingAmount ? Number(incomingAmount.value) : undefined,
           expiresAt,
-          JSON.stringify(metadata)
+          metadata
         );
       } catch (err) {
         const httpStatus = httpStatusFromGrpcError(err);

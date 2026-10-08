@@ -45,10 +45,10 @@ export interface PaymentIntentCreate {
     expiresAt?: Date;
     /**
      * Additional arbitrary data associated with the payment intent.
-     * @type {string}
+     * @type {{ [key: string]: any; }}
      * @memberof PaymentIntentCreate
      */
-    metadata?: string;
+    metadata?: { [key: string]: any; };
 }
 
 /**

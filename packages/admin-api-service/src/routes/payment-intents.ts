@@ -75,7 +75,7 @@ function toPaymentIntentBody(
   }
 
   if (paymentIntent.metadata) {
-    body.metadata = JSON.parse(paymentIntent.metadata);
+    body.metadata = paymentIntent.metadata;
   }
 
   return body;

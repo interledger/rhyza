@@ -74,7 +74,7 @@ function toPaymentBody(payment: GetPaymentResult): PaymentBody {
   }
 
   if (payment.metadata) {
-    body.metadata = JSON.parse(payment.metadata);
+    body.metadata = payment.metadata;
   }
 
   return body;
@@ -110,6 +110,7 @@ export async function paymentRoutes(
         paymentIntentId,
         quoteId,
         debitAmount ? Number(debitAmount) : undefined,
+        undefined,
         metadata
       );
 
