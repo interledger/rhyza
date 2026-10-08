@@ -1,3 +1,10 @@
+# API Changelog 0.0.8 vs. 0.0.9
+
+## API Changes
+
+### POST /payments
+-  added the new optional request property `metadata`
+
 # API Changelog 0.0.7 vs. 0.0.8
 
 
