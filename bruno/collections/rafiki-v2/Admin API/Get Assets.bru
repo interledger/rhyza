@@ -5,20 +5,13 @@ meta {
 }
 
 get {
-  url: http://{{adminApiUrl}}/assets?codes=USD&codes=EUR
+  url: http://{{adminApiUrl}}/assets
   body: none
   auth: inherit
 }
 
-query {
-  codes: USD
-  codes: EUR
-}
-
 docs {
-  Fetch assets by code. Repeat `codes` for more than one asset and remove `codes` to get all assets.
-
-  Returns 400 when no codes are given, and 404 when none of the codes match an asset.
+  Fetch every asset. When the node has no assets, `assets` is an empty array.
 }
 
 settings {

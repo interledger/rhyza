@@ -17,7 +17,6 @@ models/AssetsResponse.ts
 models/CancelPayment200Response.ts
 models/ErrorResponse.ts
 models/FxRateSet.ts
-models/GetAssetsCodesParameter.ts
 models/JsonWebKey.ts
 models/LiquidityDeposit200Response.ts
 models/LiquidityDepositRequest.ts

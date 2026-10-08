@@ -4,7 +4,6 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient } from 'pal-client-lib';
 import {
   AssetCreate,
-  GetAssetsRequest,
   AssetCreateResponse,
   AssetsResponse,
   ErrorResponse
@@ -45,20 +44,12 @@ export async function assetRoutes(
   });
 
   server.get<{
-    Querystring: GetAssetsRequest;
-    Reply: AssetsResponse | ErrorResponse;
-  }>('/assets', async (request, reply) => {
-    const { codes } = request.query;
-    const assetCodes = [codes]
-      .flat()
-      .filter((code): code is string => Boolean(code));
-
-    const assets = (
-      await palClient.getAssets(assetCodes.length > 0 ? assetCodes : undefined)
-    ).map(({ code, scale }) => ({ code, scale }));
-    if (assetCodes.length > 0 && assets.length === 0) {
-      return reply.status(404).send({ error: 'Assets not found' });
-    }
+    Reply: AssetsResponse;
+  }>('/assets', async (_request, reply) => {
+    const assets = (await palClient.getAssets([])).map(({ code, scale }) => ({
+      code,
+      scale
+    }));
     return reply.status(200).send({ assets });
   });
 }

@@ -97,43 +97,18 @@ paths:
               $ref: '#/components/schemas/AssetCreate'
     get:
       summary: Get Assets
-      description: >-
-        Fetch assets. When `codes` is omitted or empty, every asset is returned. When
-        `codes` is set, assets that do not exist are omitted. The response is
-        404 when codes were requested and none of them match an asset.
+      description: Fetch every asset. When the node has no assets, `assets` is an empty array.
       tags:
         - assets
       operationId: getAssets
-      parameters:
-        - name: codes
-          in: query
-          required: false
-          description: >-
-            Asset codes to fetch. Omit this parameter to fetch every asset.
-            One code is `?codes=USD`. Repeat the parameter for more than one
-            code, for example `?codes=USD&codes=EUR`.
-          schema:
-            type:
-              - string
-              - array
-            items:
-              type: string
-          style: form
-          explode: true
+      parameters: []
       responses:
         '200':
-          description: >-
-            The request has succeeded.
+          description: The request has succeeded.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AssetsResponse'
-        '404':
-          description: None of the requested asset codes were found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
   /wallet-addresses:
     post:
       summary: Create Wallet Address
