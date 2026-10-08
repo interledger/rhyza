@@ -13,7 +13,11 @@ export class MockAssetRepo implements IPalAssetRepository {
     return Promise.resolve(storedAsset);
   }
 
-  fetch(codes: string[]): Promise<IPalAssetDto[]> {
+  fetch(codes?: string[]): Promise<IPalAssetDto[]> {
+    if (!codes || codes.length === 0) {
+      return Promise.resolve([...this._data.values()]);
+    }
+
     return Promise.resolve(
       codes
         .map((code) => this._data.get(code.toUpperCase()) ?? null)

@@ -53,16 +53,10 @@ export async function assetRoutes(
       .flat()
       .filter((code): code is string => Boolean(code));
 
-    if (assetCodes.length === 0) {
-      return reply.status(400).send({
-        error: 'At least one asset code is required'
-      });
-    }
-
-    const assets = (await palClient.getAssets(assetCodes)).map(
-      ({ code, scale }) => ({ code, scale })
-    );
-    if (assets.length === 0) {
+    const assets = (
+      await palClient.getAssets(assetCodes.length > 0 ? assetCodes : undefined)
+    ).map(({ code, scale }) => ({ code, scale }));
+    if (assetCodes.length > 0 && assets.length === 0) {
       return reply.status(404).send({ error: 'Assets not found' });
     }
     return reply.status(200).send({ assets });

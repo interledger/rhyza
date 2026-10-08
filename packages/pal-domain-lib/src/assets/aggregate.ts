@@ -68,7 +68,7 @@ export class AssetAggregate {
     );
   }
 
-  async getAssets(codes: string[]): Promise<IPalAssetDto[]> {
+  async getAssets(codes?: string[]): Promise<IPalAssetDto[]> {
     return await this._repo.fetch(codes);
   }
 }

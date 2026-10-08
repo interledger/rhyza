@@ -93,18 +93,16 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
     }
   }
 
-  async fetch(codes: string[]): Promise<IPalAssetDto[]> {
+  async fetch(codes?: string[]): Promise<IPalAssetDto[]> {
     this._checkInitialisedOrThrow();
 
-    if (codes.length === 0) {
-      return [];
-    }
+    const filter =
+      codes && codes.length > 0
+        ? { code: { $in: codes.map((code) => code.toUpperCase()) } }
+        : {};
 
     try {
-      const upperCaseCodes = codes.map((code) => code.toUpperCase());
-      const docs = await this._collection
-        .find({ code: { $in: upperCaseCodes } })
-        .toArray();
+      const docs = await this._collection.find(filter).toArray();
       return docs.map((doc) => ({
         code: doc.code,
         scale: doc.scale,

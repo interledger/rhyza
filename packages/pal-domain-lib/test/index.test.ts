@@ -123,6 +123,12 @@ test('PAL Asset Domain - created duplicate asset should fail', async () => {
   }
 });
 
+test('PAL Asset Domain - get assets without codes returns all assets', async () => {
+  const assets = await assetAggregate.getAssets();
+
+  assert.ok(assets.some((asset) => asset.code === ASSET_CODE));
+});
+
 test('PAL Asset Domain - get non existing asset should fail', async () => {
   const assets = await assetAggregate.getAssets(['NON EXISTING']);
 

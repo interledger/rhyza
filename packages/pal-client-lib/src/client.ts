@@ -173,9 +173,11 @@ export class PalClient {
     });
   }
 
-  async getAssets(codes: string[]): Promise<IPalAssetDto[]> {
+  async getAssets(codes?: string[]): Promise<IPalAssetDto[]> {
     const request = new PbGetAssetsRequest();
-    request.setCodesList(codes);
+    if (codes && codes.length > 0) {
+      request.setCodesList(codes);
+    }
 
     return new Promise((resolve, reject) => {
       this._grpcClient.getAssets(

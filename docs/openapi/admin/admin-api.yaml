@@ -96,8 +96,9 @@ paths:
     get:
       summary: Get Assets
       description: >-
-        Fetch assets by code. Assets that do not exist are omitted. The
-        response is 404 when none of the requested codes match an asset.
+        Fetch assets. When `codes` is omitted, every asset is returned. When
+        `codes` is set, assets that do not exist are omitted. The response is
+        404 when codes were requested and none of them match an asset.
       tags:
         - assets
       operationId: getAssets
@@ -106,8 +107,9 @@ paths:
           in: query
           required: false
           description: >-
-            Asset codes to fetch. One code is `?codes=USD`. Repeat the
-            parameter for more than one code, for example `?codes=USD&codes=EUR`.
+            Asset codes to fetch. Omit this parameter to fetch every asset.
+            One code is `?codes=USD`. Repeat the parameter for more than one
+            code, for example `?codes=USD&codes=EUR`.
           schema:
             type:
               - string
@@ -118,19 +120,15 @@ paths:
           explode: true
       responses:
         '200':
-          description: The request has succeeded.
+          description: >-
+            The request has succeeded. When `codes` is omitted and the node
+            has no assets, `assets` is an empty array.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AssetsResponse'
-        '400':
-          description: At least one asset code is required.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: None of the requested assets were found.
+          description: None of the requested asset codes were found.
           content:
             application/json:
               schema:
