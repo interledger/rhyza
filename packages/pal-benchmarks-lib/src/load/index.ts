@@ -266,7 +266,9 @@ export class LoadTests extends EventEmitter<ILoadTestEvents> {
         this._settings.assetCode,
         DEFAULT_ASSET_SCALE
       );
-      const [asset] = await this._apiClient.getAssets([this._settings.assetCode]);
+      const [asset] = await this._apiClient.getAssets([
+        this._settings.assetCode
+      ]);
       this._asset = asset ?? null;
       this._log(
         `Asset created: ${this._asset?.code} scale: ${this._asset?.scale}`
