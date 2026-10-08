@@ -266,7 +266,8 @@ export class LoadTests extends EventEmitter<ILoadTestEvents> {
         this._settings.assetCode,
         DEFAULT_ASSET_SCALE
       );
-      this._asset = await this._apiClient.getAsset(this._settings.assetCode);
+      const [asset] = await this._apiClient.getAssets([this._settings.assetCode]);
+      this._asset = asset ?? null;
       this._log(
         `Asset created: ${this._asset?.code} scale: ${this._asset?.scale}`
       );
@@ -552,7 +553,8 @@ export class LoadTests extends EventEmitter<ILoadTestEvents> {
   private async _fetchAssetAndPeerFromApi(): Promise<void> {
     const accountIds: string[] = [];
 
-    this._asset = await this._apiClient.getAsset(this._settings.assetCode);
+    const [asset] = await this._apiClient.getAssets([this._settings.assetCode]);
+    this._asset = asset ?? null;
     if (this._asset) {
       this._log(`Got asset data for assetCode: ${this._asset.code}`);
 

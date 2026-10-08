@@ -74,19 +74,21 @@ test('pal client - create asset', async () => {
 });
 
 test('pal client - created asset must exist', async () => {
-  const asset = await client.getAsset(ASSET_CODE.toLowerCase());
+  const [asset] = await client.getAssets([ASSET_CODE.toLowerCase()]);
 
   assert.ok(asset);
   assert.equal(asset.code, STORED_ASSET_CODE);
   assert.equal(asset.scale, ASSET_SCALE);
 
-  const sourceAsset = await client.getAsset(FX_SOURCE_ASSET_CODE.toLowerCase());
+  const [sourceAsset] = await client.getAssets([
+    FX_SOURCE_ASSET_CODE.toLowerCase()
+  ]);
   assert.ok(sourceAsset);
   assert.equal(sourceAsset.code, STORED_FX_SOURCE_ASSET_CODE);
 
-  const destinationAsset = await client.getAsset(
+  const [destinationAsset] = await client.getAssets([
     FX_DESTINATION_ASSET_CODE.toLowerCase()
-  );
+  ]);
   assert.ok(destinationAsset);
   assert.equal(destinationAsset.code, STORED_FX_DESTINATION_ASSET_CODE);
 
@@ -122,9 +124,9 @@ test('pal client - created duplicate asset should fail', async () => {
 });
 
 test('pal client - get non existing asset should fail', async () => {
-  const asset = await client.getAsset('NON EXISTING');
+  const assets = await client.getAssets(['NON EXISTING']);
 
-  assert.ok(asset === null);
+  assert.equal(assets.length, 0);
 });
 
 /*

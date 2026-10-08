@@ -31,8 +31,8 @@ await client.init();
 // Create an asset
 await client.createAsset('EUR', 2, BigInt(100000), BigInt(10_000_000));
 
-// Retrieve an asset - will return null if not found
-const retrievedAsset = await client.getAsset('EUR');
+// Retrieve an asset - the list is empty when the code does not exist
+const [retrievedAsset] = await client.getAssets(['EUR']);
 console.log(retrievedAsset);
 
 // Create a wallet

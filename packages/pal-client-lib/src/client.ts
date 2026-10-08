@@ -140,39 +140,6 @@ export class PalClient {
     });
   }
 
-  async getAsset(code: string): Promise<IPalAssetDto | null> {
-    const request = new PbGetAssetsRequest();
-    request.setCodesList([code]);
-
-    return new Promise((resolve, reject) => {
-      this._grpcClient.getAssets(
-        request,
-        (error: ServiceError | null, response: PbGetAssetsResponse) => {
-          if (error) {
-            console.error(error);
-            return reject(new PalClientUnknownError(error.message));
-          }
-
-          const respAssets = response.getAssetsList();
-          if (respAssets.length === 0) {
-            return resolve(null);
-          }
-
-          const respAsset = respAssets[0];
-          const respObj: IPalAssetDto = {
-            code: respAsset.getCode(),
-            scale: respAsset.getScale(),
-            ledgerAccountId: respAsset.hasLedgerAccountId()
-              ? respAsset.getLedgerAccountId()!
-              : null
-          };
-
-          return resolve(respObj);
-        }
-      );
-    });
-  }
-
   async getAssets(codes?: string[]): Promise<IPalAssetDto[]> {
     const request = new PbGetAssetsRequest();
     if (codes && codes.length > 0) {
