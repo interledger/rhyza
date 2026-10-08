@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.8
+  version: 0.0.9
   license:
     name: ISC
     identifier: ISC
@@ -729,6 +729,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /grant/{id}:
+    get:
+      summary: Get grant
+      description: >-
+        Get the grant associated with the provided id.
+        tags:
+        - grants
+      operationId: getGrant
+      parameters:
+        - name: id
+          in: path
+          description: Unique identifier for the grant
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Grant'
+        '404':
+          description: Grant not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /rates:
     post:
       summary: Set Exchange Rate
@@ -1296,3 +1324,177 @@ components:
         - COMPLETED
         - CANCELLED
         - FAILED
+    Grant:
+      type: object
+      description: Represents an Open Payments grant.
+      required:
+        - id
+        - state
+      properties:
+        id:
+          type: string
+          description: The unique identifier for the grant.
+        interactionNonce:
+          type: string
+          description: The nonce used by the client to verify an interaction hash.
+        state:
+          $ref: '#/components/schemas/GrantState'
+          description: The current state of the grant.
+        client:
+          $ref: '#/components/schemas/Client' 
+          description: The client's wallet address, or a JWK if directed identity was used.
+        subjectIds:
+          type: array
+          description: The subject identifiers requested by the client.
+          items:
+            $ref: '#/components/schemas/SubjectId'
+        accesses:
+          type: array
+          description: The accesses requested in the grant.
+          items:
+            $ref: '#/components/schemas/AccessItem'
+        interaction:
+          $ref: '#/components/schemas/Interaction'
+          description: The grant's interaction session.
+    GrantState:
+      type: string
+      description: The current state of a grant.
+      enum:
+        - PROCESSING
+        - PENDING
+        - APPROVED
+        - ISSUED
+        - REJECTED
+        - REVOKED
+    Client:
+      description: Client identification for grant requests.
+      oneOf:
+        - title: Wallet address object
+          type: object
+          required: [walletAddress]
+          properties:
+            walletAddress:
+              type: string
+              format: uri
+              description: Wallet address of the client instance that is making this request.
+          additionalProperties: false
+        - title: Directed identity (JWK)
+          type: object
+          required: [jwk]
+          properties:
+            jwk:
+              $ref: '#/components/schemas/json-web-key'
+          additionalProperties: false
+        - title: Wallet address string (deprecated)
+          type: string
+          format: uri
+          description: 'DEPRECATED: This string format of the client wallet address is maintained only for backwards compatibility. Migrate to the object form with `jwk` or `walletAddress`.'
+          deprecated: true
+    json-web-key:
+      type: object
+      properties:
+        kid:
+          type: string
+        alg:
+          type: string
+          description: 'The cryptographic algorithm family used with the key. The only allowed value is `EdDSA`. '
+          enum:
+            - EdDSA
+        use:
+          type: string
+          enum:
+            - sig
+        kty:
+          type: string
+          enum:
+            - OKP
+        crv:
+          description: 'The cryptographic curve used with the key. This parameter identifies the elliptic curve (for EC keys) or the Edwards curve (for OKP keys). The only allowed value is `Ed25519`.'
+          type: string
+          enum:
+            - Ed25519
+        x:
+          type: string
+          pattern: '^[a-zA-Z0-9-_]+$'
+          description: The base64 url-encoded public key.
+      required:
+        - kid
+        - alg
+        - kty
+        - crv
+        - x
+      title: Ed25519 Public Key
+      description: A JWK representation of an Ed25519 Public Key
+      examples:
+        - kid: key-1
+          alg: EdDSA
+          use: sig
+          kty: OKP
+          crv: Ed25519
+          x: 11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo
+    AccessItem:
+      type: object
+      description: A single access item requested by a grant.
+      required:
+        - type
+        - actions
+      properties:
+        type:
+          type: string
+          description: The type of resource being requested.
+        actions:
+          type: array
+          items:
+            type: string
+        identifier:
+          type: string
+          description: The wallet address URL the access is referring to, if applicable.
+        limits:
+          $ref: '#/components/schemas/AccessLimits'
+    AccessLimits:
+      type: object
+      description: Limits imposed on an access item requested by a grant.
+      properties:
+        receiver:
+          type: string
+        interval:
+          type: string
+        debitAmount:
+          $ref: '#/components/schemas/Amount'
+        receiveAmount:
+          $ref: '#/components/schemas/Amount'
+    SubjectId:
+      type: object
+      description: A single subject id requested by a grant.
+      required:
+        - format
+        - id
+      properties:
+        format:
+          type: string
+        id:
+          type: string
+    Interaction:
+      type: object
+      description: An interaction on a grant.
+      required:
+        - interactRef
+        - state
+      properties:
+        interactRef:
+          type: string
+          description: The reference identifying this interaction.
+        clientNonce:
+          type: string
+          description: The nonce the client provided when starting the interaction.
+        state:
+          type: string
+          description: The current state of the interaction.
+          enum:
+            - PENDING
+            - APPROVED
+            - REJECTED
+        expiresAt:
+          type: integer
+          format: int64
+          description: When the interaction expires, as a Unix timestamp.

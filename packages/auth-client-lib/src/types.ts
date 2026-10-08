@@ -1,3 +1,10 @@
+export interface IClientErrorResponse {
+  error: {
+    code: string;
+    description: string;
+  };
+}
+
 export interface SignatureRequestData {
   url: string;
   method: string;
@@ -62,7 +69,6 @@ export interface GetGrantResult {
   continueId: string;
   interactionNonce: string;
   state: string;
-  finalizationReason: string;
   client: string;
   subjectIds: SubjectId[];
   accesses: AccessItem[];

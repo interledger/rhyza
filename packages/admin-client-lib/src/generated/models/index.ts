@@ -1,12 +1,19 @@
 /* tslint:disable */
 /* eslint-disable */
+export * from './AccessItem';
+export * from './AccessLimits';
 export * from './Amount';
 export * from './ApprovePayment200Response';
 export * from './AssetCreate';
 export * from './AssetCreateResponse';
 export * from './CancelPayment200Response';
+export * from './Client';
+export * from './DirectedIdentityJWK';
 export * from './ErrorResponse';
 export * from './FxRateSet';
+export * from './Grant';
+export * from './GrantState';
+export * from './Interaction';
 export * from './JsonWebKey';
 export * from './LiquidityDeposit200Response';
 export * from './LiquidityDepositRequest';
@@ -30,6 +37,8 @@ export * from './PeerHttpIncoming';
 export * from './PeerHttpOutgoing';
 export * from './Quote';
 export * from './QuoteCreate';
+export * from './SubjectId';
 export * from './WalletAddressCreate';
 export * from './WalletAddressCreateResponse';
 export * from './WalletAddressKeyCreateResponse';
+export * from './WalletAddressObject';

@@ -46,15 +46,14 @@ message Grant {
 	string continue_id = 4;
 	string interaction_nonce =5;
 	string state = 6;
-	string finalization_reason = 7;
-	string client = 8;
-	repeated SubjectId subject_ids = 9;
-	repeated AccessItem accesses = 10;
-	string finish_method = 11;
-	string finish_uri = 12;
-	string finish_nonce = 13;
-	Interaction interaction = 14;
-	string last_continued_at = 15; // Date string
+	string client = 7;
+	repeated SubjectId subject_ids = 8;
+	repeated AccessItem accesses = 9;
+	string finish_method = 10;
+	string finish_uri = 11;
+	string finish_nonce = 12;
+	Interaction interaction = 13;
+	string last_continued_at = 14; // Date string
 }
 
 message AccessLimits {

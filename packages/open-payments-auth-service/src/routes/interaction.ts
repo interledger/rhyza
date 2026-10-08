@@ -38,6 +38,7 @@ export async function interactionRoutes(
     const { authClient } = opts;
     const { grantId } = request.params;
     const grant = await authClient.getGrant(grantId);
+    if (!grant) return reply.status(404).send();
     if (request.session.interactionSessionId !== grant.interactionNonce) {
       return reply.status(401).send();
     }
