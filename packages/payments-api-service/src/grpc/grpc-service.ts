@@ -305,7 +305,8 @@ export class PaymentsServiceServer {
           senderWalletAddress: call.request.getWalletAddress(),
           paymentIntentId: call.request.getPaymentIntentId(),
           quoteId: call.request.getQuoteId(),
-          debitAmount: call.request.getDebitAmount() || undefined
+          debitAmount: call.request.getDebitAmount() || undefined,
+          grantId: call.request.getGrantId() || undefined
         },
         commandId
       );
@@ -722,7 +723,21 @@ export class PaymentsServiceServer {
     const evt = message as PaymentIntentDomainEvent;
 
     if (PaymentIntentDomainEvent.isPaymentIntentCreatedEvent(evt)) {
-      const response = new CreatePaymentIntentResponse().setId(evt.payload.id);
+      const response = new CreatePaymentIntentResponse();
+      response.setId(evt.payload.id);
+      response.setReceiverWalletAddress(evt.payload.receiverWalletAddress);
+      response.setState(evt.payload.state);
+      response.setDestination(evt.payload.destination);
+      response.setReceivedAmount(Number(evt.payload.receivedAmount));
+      response.setAssetCode(evt.payload.assetCode);
+      response.setAssetScale(evt.payload.assetScale);
+      response.setCreatedAt(new Date(evt.payload.createdAt).toISOString());
+      if (evt.payload.incomingAmount != null) {
+        response.setIncomingAmount(Number(evt.payload.incomingAmount));
+      }
+      if (evt.payload.expiresAt) {
+        response.setExpiresAt(new Date(evt.payload.expiresAt).toISOString());
+      }
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (PaymentIntentDomainEvent.isPaymentIntentCreateFailedEvent(evt)) {
       this._resolvePendingResponse(

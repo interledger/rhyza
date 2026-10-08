@@ -304,6 +304,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
             senderWalletAddress: payment.senderWalletAddress,
             senderWalletAddressId: payment.senderWalletAddressId,
             quoteId: payment.quoteId,
+            grantId: payment.grantId,
             assetCode: payment.assetCode,
             assetScale: payment.assetScale,
             debitAmount: payment.debitAmount,
@@ -440,6 +441,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
           senderWalletAddress: payment.senderWalletAddress,
           senderWalletAddressId: payment.senderWalletAddressId,
           quoteId: payment.quoteId,
+          grantId: payment.grantId,
           assetCode: payment.assetCode,
           assetScale: payment.assetScale,
           debitAmount: payment.debitAmount,
@@ -580,6 +582,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
           assetScale: payment.assetScale,
           debitAmount: payment.debitAmount,
           quoteId: payment.quoteId ? payment.quoteId : undefined,
+          grantId: payment.grantId,
           receiveAmount: payment.receiveAmount,
           sentAmount: payment.sentAmount
         });

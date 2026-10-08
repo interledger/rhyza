@@ -4,6 +4,7 @@ apis/PaymentIntentsApi.ts
 apis/PaymentsApi.ts
 apis/PeersApi.ts
 apis/QuotesApi.ts
+apis/RatesApi.ts
 apis/WalletAddressesApi.ts
 apis/index.ts
 index.ts
@@ -15,6 +16,7 @@ models/AssetCreateResponse.ts
 models/AssetsResponse.ts
 models/CancelPayment200Response.ts
 models/ErrorResponse.ts
+models/FxRateSet.ts
 models/GetAssetsCodesParameter.ts
 models/JsonWebKey.ts
 models/LiquidityDeposit200Response.ts

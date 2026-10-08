@@ -250,7 +250,8 @@ test('pal client - re-activating peer', async () => {
 });
 
 test('pal client - created peer must have an new set of ledger accounts', async () => {
-  // Peer account projection is applied after the ledger is reloaded from events.
+  // we have to wait for the ledger acount to be created in the read side of the ledger
+  await new Promise((resolve) => setTimeout(resolve, 10000));
   const accountIds: string[] = Object.values(peerOneDto.ledgerAccounts);
   const deadline = Date.now() + 20_000;
   let accounts = await client.getLedgerAccounts(accountIds);

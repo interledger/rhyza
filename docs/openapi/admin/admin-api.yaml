@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.8
+  version: 0.0.9
   license:
     name: ISC
     identifier: ISC
@@ -24,6 +24,8 @@ tags:
     x-displayName: Peers
   - name: liquidity
     x-displayName: Liquidity
+  - name: rates
+    x-displayName: Rates
 paths:
   /peers:
     post:
@@ -96,7 +98,7 @@ paths:
     get:
       summary: Get Assets
       description: >-
-        Fetch assets. When `codes` is omitted, every asset is returned. When
+        Fetch assets. When `codes` is omitted or empty, every asset is returned. When
         `codes` is set, assets that do not exist are omitted. The response is
         404 when codes were requested and none of them match an asset.
       tags:
@@ -121,8 +123,7 @@ paths:
       responses:
         '200':
           description: >-
-            The request has succeeded. When `codes` is omitted and the node
-            has no assets, `assets` is an empty array.
+            The request has succeeded.
           content:
             application/json:
               schema:
@@ -767,8 +768,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /rates:
+    post:
+      summary: Set Exchange Rate
+      description: >-
+        Store an exchange rate for payments between wallet addresses on this Rhyza instance, 
+        or a peer's rate used for payments sent to or received from that peer.
+      tags:
+        - rates
+      operationId: setFxRate
+      parameters: []
+      requestBody:
+        description: Exchange rate to store
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FxRateSet'
+      responses:
+        '204':
+          description: The exchange rate has been stored.
+        '400':
+          description: >-
+            sourceAssetCode, destinationAssetCode, rate, or rateTtlSecs is missing,
+            or rate or rateTtlSecs is not greater than 0.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to set the exchange rate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
+    FxRateSet:
+      type: object
+      description: Exchange rate to store.
+      required:
+        - sourceAssetCode
+        - destinationAssetCode
+        - rate
+        - peerId
+        - rateTtlSecs
+      properties:
+        sourceAssetCode:
+          type: string
+          description: Asset code the rate converts from.
+          example: USD
+        destinationAssetCode:
+          type: string
+          description: Asset code the rate converts to.
+          example: EUR
+        rate:
+          type: number
+          exclusiveMinimum: 0
+          description: Units of destination asset per one unit of source asset.
+          example: 0.92
+        peerId:
+          type: ['string', 'null']
+          description: >-
+            Peer whose rate this is. Null stores an intra-ASE rate.
+        rateTtlSecs:
+          type: number
+          exclusiveMinimum: 0
+          description: Seconds until the stored rate expires.
+          example: 60
     ErrorResponse:
       type: object
       description: Response schema for API errors.

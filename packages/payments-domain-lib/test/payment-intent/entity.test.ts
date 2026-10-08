@@ -723,6 +723,7 @@ describe('PaymentIntent Entity', () => {
       paymentIntent.addLocalPayment({
         id: paymentId,
         quoteId,
+        grantId: 'grant-1',
         exchangeRate: 1, // won't be used since quoteId is provided
         senderWalletAddress: {
           id: senderWalletAddressId,
@@ -736,6 +737,7 @@ describe('PaymentIntent Entity', () => {
       const payment = paymentIntent.sentPayments[0];
       assert.equal(payment.id, paymentId);
       assert.equal(payment.quoteId, quoteId);
+      assert.equal(payment.grantId, 'grant-1');
       assert.equal(payment.debitAmount, 200n);
       assert.equal(payment.receiveAmount, 100n);
     });

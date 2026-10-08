@@ -6,24 +6,38 @@ import { IWalletAddressService } from 'auth-domain-lib';
 
 export class WalletAddressAdapter implements IWalletAddressService {
   async getWalletAddressKeys(walletAddressUrl: string): Promise<JWK[]> {
-    const client = await createUnauthenticatedClient({});
+    try {
+      const client = await createUnauthenticatedClient({});
 
-    const { keys } = await client.walletAddress.getKeys({
-      url: walletAddressUrl
-    });
+      const { keys } = await client.walletAddress.getKeys({
+        url: walletAddressUrl
+      });
 
-    return keys;
+      return keys;
+    } catch (err) {
+      console.error(
+        `Failed to retrieve wallet address keys: ${walletAddressUrl}, error: ${err}`
+      );
+      return [];
+    }
   }
 
   async getWalletAddressPublicName(
     walletAddressUrl: string
   ): Promise<string | undefined> {
-    const client = await createUnauthenticatedClient({});
+    try {
+      const client = await createUnauthenticatedClient({});
 
-    const { publicName } = await client.walletAddress.get({
-      url: walletAddressUrl
-    });
+      const { publicName } = await client.walletAddress.get({
+        url: walletAddressUrl
+      });
 
-    return publicName;
+      return publicName;
+    } catch (err) {
+      console.error(
+        `Failed to retrieve wallet address public name: ${walletAddressUrl}, error: ${err}`
+      );
+      return undefined;
+    }
   }
 }

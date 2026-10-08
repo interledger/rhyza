@@ -98,6 +98,15 @@ message CreatePaymentIntentRequest {
 // Response containing the ID of the created payment intent.
 message CreatePaymentIntentResponse {
   string id = 1;
+  string receiver_wallet_address = 2;
+  string state = 3;
+  string destination = 4;
+  optional uint64 incoming_amount = 5;
+  uint64 received_amount = 6;
+  string asset_code = 7;
+  uint32 asset_scale = 8;
+  optional string expires_at = 9;
+  string created_at = 10;
 }
 
 // Request to complete a payment intent.
@@ -159,6 +168,7 @@ message CreatePaymentRequest {
   string payment_intent_id = 4;
   optional string quote_id = 5;
   optional uint64 debit_amount = 6;
+  optional string grant_id = 7;
 }
 
 // Response containing the ID of the created payment.

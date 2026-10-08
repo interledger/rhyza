@@ -9,9 +9,10 @@ import {
 } from '@interledger/http-signature-utils';
 
 import { GrantAggregate } from '../src/grant/aggregate';
-import { GrantEntity } from '../src/grant/entity';
+import { GRANT_POLL_MS, GrantEntity } from '../src/grant/entity';
 import {
   AcceptInteractionCmd,
+  ContinueGrantCmd,
   CreateGrantCmd,
   CreateGrantCmdPayload,
   IntrospectTokenCmd,
@@ -26,6 +27,8 @@ import {
 import {
   GrantCreatedEvent,
   GrantCreateFailedEvent,
+  GrantContinuedEvent,
+  GrantContinueFailedEvent,
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
@@ -429,12 +432,290 @@ describe('GrantAggregate.handleBatch', () => {
       });
     });
 
+    describe('handleContinueGrantCommand', () => {
+      async function createContinuableInteractiveGrant() {
+        const keys = generateTestKeys();
+        const walletAddress = `https://wallet.example/${randomUUID()}`;
+        walletAddressService.setKeys(walletAddress, [keys.publicKey]);
+        walletAddressService.setPublicName(walletAddress, 'Test Client');
+
+        const createCmd = await makeCreateGrantCmd({
+          client: walletAddress,
+          signatureData: await signedSignatureData(
+            keys.privateKey,
+            keys.publicKey.kid
+          ),
+          access: [
+            {
+              type: AccessType.OUTGOING_PAYMENT,
+              actions: [AccessAction.CREATE]
+            }
+          ],
+          interact: { start: ['REDIRECT'] }
+        });
+        const { events } = await aggregate.handleBatch([createCmd]);
+        await aggregate.flush();
+
+        assert.equal(events[0].msgName, GrantCreatedEvent.name);
+        const payload = (events[0] as GrantCreatedEvent).payload;
+
+        return {
+          keys,
+          grantId: payload.id,
+          continueToken: payload.continueToken!,
+          continueId: payload.continueId!
+        };
+      }
+
+      async function approveInteraction(grantId: string): Promise<string> {
+        await aggregate.handleBatch([
+          new StartInteractionCmd({ id: grantId }, randomUUID())
+        ]);
+        await aggregate.flush();
+
+        await aggregate.handleBatch([
+          new AcceptInteractionCmd({ id: grantId }, randomUUID())
+        ]);
+        await aggregate.flush();
+
+        const stored = await repo.fetchById(grantId);
+        return stored!.interaction!.interactRef;
+      }
+
+      it('issues an access token when continued with an approved interact ref', async (context) => {
+        context.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+
+        const { keys, grantId, continueToken, continueId } =
+          await createContinuableInteractiveGrant();
+        const interactRef = await approveInteraction(grantId);
+
+        context.mock.timers.tick(GRANT_POLL_MS + 1);
+
+        const { events } = await aggregate.handleBatch([
+          new ContinueGrantCmd(
+            {
+              id: grantId,
+              continueToken,
+              continueId,
+              interactRef,
+              signatureData: await signedSignatureData(
+                keys.privateKey,
+                keys.publicKey.kid
+              )
+            },
+            randomUUID()
+          )
+        ]);
+        await aggregate.flush();
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, GrantContinuedEvent.name);
+        const payload = (events[0] as GrantContinuedEvent).payload;
+        assert.equal(payload.id, grantId);
+        assert.equal(payload.state, GrantState.ISSUED);
+        assert.ok(payload.accessTokenValue);
+        assert.ok(payload.accessTokenManagementId);
+        assert.equal(payload.accessTokenExpiresIn, 10_000);
+        assert.ok(payload.continueToken);
+        assert.ok(payload.continueId);
+
+        const stored = await repo.fetchById(grantId);
+        assert.equal(stored?.state, GrantState.ISSUED);
+        assert.equal(stored?.accessTokens.length, 1);
+      });
+
+      it('rotates the continue token and issues no access token when polled without an interact ref', async (context) => {
+        context.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+
+        const { keys, grantId, continueToken, continueId } =
+          await createContinuableInteractiveGrant();
+
+        context.mock.timers.tick(GRANT_POLL_MS + 1);
+
+        const { events } = await aggregate.handleBatch([
+          new ContinueGrantCmd(
+            {
+              id: grantId,
+              continueToken,
+              continueId,
+              signatureData: await signedSignatureData(
+                keys.privateKey,
+                keys.publicKey.kid
+              )
+            },
+            randomUUID()
+          )
+        ]);
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, GrantContinuedEvent.name);
+        const payload = (events[0] as GrantContinuedEvent).payload;
+        assert.equal(payload.id, grantId);
+        assert.equal(payload.state, GrantState.PENDING);
+        assert.equal(payload.accessTokenValue, undefined);
+        assert.ok(payload.continueToken);
+        assert.ok(payload.continueId);
+        assert.notEqual(payload.continueToken, continueToken);
+        assert.notEqual(payload.continueId, continueId);
+      });
+
+      it('fails with GrantNotFoundError when the grant does not exist', async () => {
+        const { events } = await aggregate.handleBatch([
+          new ContinueGrantCmd(
+            {
+              id: randomUUID(),
+              continueToken: 'any-token',
+              continueId: 'any-id',
+              signatureData: await signedSignatureData(
+                generateTestKeys().privateKey,
+                randomUUID()
+              )
+            },
+            randomUUID()
+          )
+        ]);
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, GrantContinueFailedEvent.name);
+        const payload = (events[0] as GrantContinueFailedEvent).payload;
+        assert.equal(payload.errorName, 'GrantNotFoundError');
+      });
+
+      it('fails with UnauthorizedRequestError for an invalid signature', async (context) => {
+        context.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+
+        const { grantId, continueToken, continueId } =
+          await createContinuableInteractiveGrant();
+        const wrongKeys = generateTestKeys();
+
+        context.mock.timers.tick(GRANT_POLL_MS + 1);
+
+        const { events } = await aggregate.handleBatch([
+          new ContinueGrantCmd(
+            {
+              id: grantId,
+              continueToken,
+              continueId,
+              signatureData: await signedSignatureData(
+                wrongKeys.privateKey,
+                wrongKeys.publicKey.kid
+              )
+            },
+            randomUUID()
+          )
+        ]);
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, GrantContinueFailedEvent.name);
+        const payload = (events[0] as GrantContinueFailedEvent).payload;
+        assert.equal(payload.errorName, 'UnauthorizedRequestError');
+        assert.equal(payload.grantId, grantId);
+      });
+
+      it('fails with InvalidGrantError for an invalid continue token', async (context) => {
+        context.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+
+        const { keys, grantId, continueId } =
+          await createContinuableInteractiveGrant();
+
+        context.mock.timers.tick(GRANT_POLL_MS + 1);
+
+        const { events } = await aggregate.handleBatch([
+          new ContinueGrantCmd(
+            {
+              id: grantId,
+              continueToken: 'invalid-continue-token',
+              continueId,
+              signatureData: await signedSignatureData(
+                keys.privateKey,
+                keys.publicKey.kid
+              )
+            },
+            randomUUID()
+          )
+        ]);
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, GrantContinueFailedEvent.name);
+        const payload = (events[0] as GrantContinueFailedEvent).payload;
+        assert.equal(payload.errorName, 'InvalidGrantError');
+        assert.equal(payload.message, 'Invalid continue token or continue id');
+        assert.equal(payload.grantId, grantId);
+      });
+
+      it('fails with InvalidGrantError when continued too soon after the last continuation', async () => {
+        const { keys, grantId, continueToken, continueId } =
+          await createContinuableInteractiveGrant();
+
+        const { events } = await aggregate.handleBatch([
+          new ContinueGrantCmd(
+            {
+              id: grantId,
+              continueToken,
+              continueId,
+              signatureData: await signedSignatureData(
+                keys.privateKey,
+                keys.publicKey.kid
+              )
+            },
+            randomUUID()
+          )
+        ]);
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, GrantContinueFailedEvent.name);
+        const payload = (events[0] as GrantContinueFailedEvent).payload;
+        assert.equal(payload.errorName, 'InvalidGrantError');
+        assert.equal(payload.message, 'Cannot continue grant too soon');
+        assert.equal(payload.grantId, grantId);
+      });
+
+      it('fails with InvalidInteractionError when the interact ref does not match', async (context) => {
+        context.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+
+        const { keys, grantId, continueToken, continueId } =
+          await createContinuableInteractiveGrant();
+        await approveInteraction(grantId);
+
+        context.mock.timers.tick(GRANT_POLL_MS + 1);
+
+        const { events } = await aggregate.handleBatch([
+          new ContinueGrantCmd(
+            {
+              id: grantId,
+              continueToken,
+              continueId,
+              interactRef: randomUUID(),
+              signatureData: await signedSignatureData(
+                keys.privateKey,
+                keys.publicKey.kid
+              )
+            },
+            randomUUID()
+          )
+        ]);
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, GrantContinueFailedEvent.name);
+        const payload = (events[0] as GrantContinueFailedEvent).payload;
+        assert.equal(payload.errorName, 'InvalidInteractionError');
+        assert.equal(payload.grantId, grantId);
+      });
+    });
+
     describe('handleRotateTokenCommand', async () => {
       async function createIssuedGrant(
-        keys: ReturnType<typeof generateTestKeys>
+        keys: ReturnType<typeof generateTestKeys>,
+        { useWalletAddress = false }: { useWalletAddress?: boolean } = {}
       ) {
+        let client = JSON.stringify(keys.publicKey);
+        if (useWalletAddress) {
+          client = `https://wallet.example/${randomUUID()}`;
+          walletAddressService.setKeys(client, [keys.publicKey]);
+        }
+
         const createCmd = await makeCreateGrantCmd({
-          client: JSON.stringify(keys.publicKey),
+          client,
           signatureData: await signedSignatureData(
             keys.privateKey,
             keys.publicKey.kid
@@ -455,6 +736,39 @@ describe('GrantAggregate.handleBatch', () => {
         const keys = generateTestKeys();
         const { grantId, tokenValue, managementId } =
           await createIssuedGrant(keys);
+
+        const cmd = new RotateTokenCmd(
+          {
+            id: grantId,
+            value: tokenValue,
+            managementId,
+            signatureData: await signedSignatureData(
+              keys.privateKey,
+              keys.publicKey.kid
+            )
+          },
+          randomUUID()
+        );
+
+        const { events } = await aggregate.handleBatch([cmd]);
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, TokenRotatedEvent.name);
+        const payload = (events[0] as TokenRotatedEvent).payload;
+        assert.equal(payload.id, grantId);
+        assert.ok(payload.newAccessTokenValue);
+        assert.ok(payload.newAccessTokenManagementId);
+        assert.notEqual(payload.newAccessTokenValue, tokenValue);
+        assert.notEqual(payload.newAccessTokenManagementId, managementId);
+        assert.equal(payload.newAccessTokenExpiresIn, 10_000);
+      });
+
+      it('rotates the token when the client key is hosted at a wallet address', async () => {
+        const keys = generateTestKeys();
+        const { grantId, tokenValue, managementId } = await createIssuedGrant(
+          keys,
+          { useWalletAddress: true }
+        );
 
         const cmd = new RotateTokenCmd(
           {
@@ -605,10 +919,18 @@ describe('GrantAggregate.handleBatch', () => {
     });
 
     describe('handleRevokeTokenCommand', () => {
-      async function createIssuedGrant() {
+      async function createIssuedGrant({
+        useWalletAddress = false
+      }: { useWalletAddress?: boolean } = {}) {
         const keys = generateTestKeys();
+        let client = JSON.stringify(keys.publicKey);
+        if (useWalletAddress) {
+          client = `https://wallet.example/${randomUUID()}`;
+          walletAddressService.setKeys(client, [keys.publicKey]);
+        }
+
         const createCmd = await makeCreateGrantCmd({
-          client: JSON.stringify(keys.publicKey),
+          client,
           signatureData: await signedSignatureData(
             keys.privateKey,
             keys.publicKey.kid
@@ -675,6 +997,36 @@ describe('GrantAggregate.handleBatch', () => {
           (after.events[0] as TokenIntrospectedEvent).payload.active,
           false
         );
+      });
+
+      it('revokes a valid token when the client key is hosted at a wallet address', async () => {
+        const { keys, grantId, tokenValue, managementId } =
+          await createIssuedGrant({ useWalletAddress: true });
+
+        const { events } = await aggregate.handleBatch([
+          new RevokeTokenCmd(
+            {
+              id: grantId,
+              value: tokenValue,
+              managementId,
+              signatureData: await signedSignatureData(
+                keys.privateKey,
+                keys.publicKey.kid
+              )
+            },
+            randomUUID()
+          )
+        ]);
+        await aggregate.flush();
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, TokenRevokedEvent.name);
+        assert.equal((events[0] as TokenRevokedEvent).payload.id, grantId);
+
+        const stored = await repo.fetchById(grantId);
+        assert.ok(stored);
+        const revoked = stored.accessTokens.find((t) => t.value === tokenValue);
+        assert.ok(revoked?.revokedAt);
       });
 
       it('fails with UnauthorizedRequestError for an invalid signature', async () => {
@@ -779,10 +1131,18 @@ describe('GrantAggregate.handleBatch', () => {
     });
 
     describe('handleRevokeGrantCommand', () => {
-      async function createRevocableGrant() {
+      async function createRevocableGrant({
+        useWalletAddress = false
+      }: { useWalletAddress?: boolean } = {}) {
         const keys = generateTestKeys();
+        let client = JSON.stringify(keys.publicKey);
+        if (useWalletAddress) {
+          client = `https://wallet.example/${randomUUID()}`;
+          walletAddressService.setKeys(client, [keys.publicKey]);
+        }
+
         const createCmd = await makeCreateGrantCmd({
-          client: JSON.stringify(keys.publicKey),
+          client,
           signatureData: await signedSignatureData(
             keys.privateKey,
             keys.publicKey.kid
@@ -807,6 +1167,37 @@ describe('GrantAggregate.handleBatch', () => {
       it('revokes a continuable grant and clears continue credentials', async () => {
         const { keys, grantId, continueToken, continueId } =
           await createRevocableGrant();
+
+        const { events } = await aggregate.handleBatch([
+          new RevokeGrantCmd(
+            {
+              id: grantId,
+              continueToken,
+              continueId,
+              signatureData: await signedSignatureData(
+                keys.privateKey,
+                keys.publicKey.kid
+              )
+            },
+            randomUUID()
+          )
+        ]);
+        await aggregate.flush();
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, GrantRevokedEvent.name);
+        assert.equal((events[0] as GrantRevokedEvent).payload.id, grantId);
+
+        const stored = await repo.fetchById(grantId);
+        assert.ok(stored);
+        assert.equal(stored.state, GrantState.REVOKED);
+        assert.equal(stored.continueToken, undefined);
+        assert.equal(stored.continueId, undefined);
+      });
+
+      it('revokes a continuable grant when the client key is hosted at a wallet address', async () => {
+        const { keys, grantId, continueToken, continueId } =
+          await createRevocableGrant({ useWalletAddress: true });
 
         const { events } = await aggregate.handleBatch([
           new RevokeGrantCmd(

@@ -64,6 +64,7 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
           senderWalletAddress: payment.senderWalletAddress,
           senderWalletAddressId: payment.senderWalletAddressId,
           quoteId: payment.quoteId,
+          grantId: payment.grantId,
           assetCode: payment.assetCode,
           assetScale: payment.assetScale,
           debitAmount: payment.debitAmount,

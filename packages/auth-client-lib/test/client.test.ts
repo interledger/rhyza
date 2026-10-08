@@ -273,7 +273,9 @@ describe('Auth Client', () => {
   });
 
   describe('rotateToken', () => {
-    async function createIssuedGrant() {
+    async function createIssuedGrant({
+      useWalletAddress = false
+    }: { useWalletAddress?: boolean } = {}) {
       const keys = generateTestKeys();
       const signatureData = await signedSignatureData(
         keys.privateKey,
@@ -283,11 +285,13 @@ describe('Auth Client', () => {
         type: 'INCOMING_PAYMENT',
         actions: ['READ']
       });
-      const result = await authClient.createGrant(
-        JSON.stringify(keys.publicKey),
-        signatureData,
-        { access: [access], start: ['redirect'] }
-      );
+      const client = useWalletAddress
+        ? registerWalletAddress(keys.publicKey, `Test Client ${randomUUID()}`)
+        : JSON.stringify(keys.publicKey);
+      const result = await authClient.createGrant(client, signatureData, {
+        access: [access],
+        start: ['redirect']
+      });
       return {
         keys,
         grantId: result.id,
@@ -299,6 +303,32 @@ describe('Auth Client', () => {
     test('rotates a valid token and returns a new value and managementId', async () => {
       const { keys, grantId, tokenValue, managementId } =
         await createIssuedGrant();
+      const signatureData = await signedSignatureData(
+        keys.privateKey,
+        keys.publicKey.kid
+      );
+
+      assert.ok(tokenValue);
+      assert.ok(managementId);
+
+      const result = await authClient.rotateToken(
+        grantId,
+        signatureData,
+        tokenValue,
+        managementId
+      );
+
+      assert.ok(result);
+      assert.ok(result.newAccessTokenValue);
+      assert.ok(result.newAccessTokenManagementId);
+      assert.notEqual(result.newAccessTokenValue, tokenValue);
+      assert.notEqual(result.newAccessTokenManagementId, managementId);
+      assert.ok(result.newAccessTokenExpiresIn > 0);
+    });
+
+    test('rotates a valid token when the client key is hosted at a wallet address', async () => {
+      const { keys, grantId, tokenValue, managementId } =
+        await createIssuedGrant({ useWalletAddress: true });
       const signatureData = await signedSignatureData(
         keys.privateKey,
         keys.publicKey.kid
@@ -403,7 +433,9 @@ describe('Auth Client', () => {
   });
 
   describe('revokeToken', () => {
-    async function createIssuedGrant() {
+    async function createIssuedGrant({
+      useWalletAddress = false
+    }: { useWalletAddress?: boolean } = {}) {
       const keys = generateTestKeys();
       const signatureData = await signedSignatureData(
         keys.privateKey,
@@ -413,11 +445,13 @@ describe('Auth Client', () => {
         type: 'INCOMING_PAYMENT',
         actions: ['READ']
       });
-      const result = await authClient.createGrant(
-        JSON.stringify(keys.publicKey),
-        signatureData,
-        { access: [access], start: ['redirect'] }
-      );
+      const client = useWalletAddress
+        ? registerWalletAddress(keys.publicKey, `Test Client ${randomUUID()}`)
+        : JSON.stringify(keys.publicKey);
+      const result = await authClient.createGrant(client, signatureData, {
+        access: [access],
+        start: ['redirect']
+      });
       return {
         keys,
         grantId: result.id,
@@ -429,6 +463,43 @@ describe('Auth Client', () => {
     test('revokes a valid token', async () => {
       const { keys, grantId, tokenValue, managementId } =
         await createIssuedGrant();
+      const access = [
+        makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
+      ];
+
+      const before = await authClient.introspectToken(
+        grantId,
+        tokenValue,
+        access
+      );
+      assert.equal(before.active, true);
+
+      const signatureData = await signedSignatureData(
+        keys.privateKey,
+        keys.publicKey.kid
+      );
+
+      const result = await authClient.revokeToken(
+        grantId,
+        signatureData,
+        tokenValue,
+        managementId
+      );
+
+      assert.ok(result);
+      assert.equal(result.id, grantId);
+
+      const after = await authClient.introspectToken(
+        grantId,
+        tokenValue,
+        access
+      );
+      assert.equal(after.active, false);
+    });
+
+    test('revokes a valid token when the client key is hosted at a wallet address', async () => {
+      const { keys, grantId, tokenValue, managementId } =
+        await createIssuedGrant({ useWalletAddress: true });
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
@@ -606,27 +677,9 @@ describe('Auth Client', () => {
   });
 
   describe('revokeGrant', () => {
-    async function createInteractiveGrant() {
-      const keys = generateTestKeys();
-      const signatureData = await signedSignatureData(
-        keys.privateKey,
-        keys.publicKey.kid
-      );
-      const created = await authClient.createGrant(
-        JSON.stringify(keys.publicKey),
-        signatureData,
-        {
-          access: [
-            makeAccessItem({ type: 'OUTGOING_PAYMENT', actions: ['CREATE'] })
-          ],
-          start: ['redirect']
-        }
-      );
-      return { keys, created };
-    }
-
     test('revokes a continuable grant and clears continue credentials', async () => {
-      const { keys, created } = await createInteractiveGrant();
+      const keys = generateTestKeys();
+      const created = await createInteractiveGrant(keys);
       assert.ok(created.continueId);
       assert.ok(created.continueToken);
 
@@ -650,8 +703,48 @@ describe('Auth Client', () => {
       assert.ok(!grant.continueId);
     });
 
+    test('revokes a non-interactive grant using directed identity', async () => {
+      const keys = generateTestKeys();
+      const createGrantSignatureData = await signedSignatureData(
+        keys.privateKey,
+        keys.publicKey.kid
+      );
+      const created = await authClient.createGrant(
+        JSON.stringify(keys.publicKey),
+        createGrantSignatureData,
+        {
+          access: [
+            makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
+          ],
+          start: ['redirect']
+        }
+      );
+      assert.ok(created.continueId);
+      assert.ok(created.continueToken);
+
+      const revokeGrantSignatureData = await signedSignatureData(
+        keys.privateKey,
+        keys.publicKey.kid
+      );
+      const result = await authClient.revokeGrant(
+        created.id,
+        revokeGrantSignatureData,
+        created.continueId,
+        created.continueToken
+      );
+
+      assert.ok(result);
+      assert.equal(result.id, created.id);
+
+      const grant = await authClient.getGrant(created.id);
+      assert.equal(grant.state, 'REVOKED');
+      assert.ok(!grant.continueToken);
+      assert.ok(!grant.continueId);
+    });
+
     test('rejects revocation with an invalid continue token', async () => {
-      const { keys, created } = await createInteractiveGrant();
+      const keys = generateTestKeys();
+      const created = await createInteractiveGrant(keys);
       const signatureData = await signedSignatureData(
         keys.privateKey,
         keys.publicKey.kid
@@ -672,19 +765,7 @@ describe('Auth Client', () => {
 
     test('rejects revocation with an invalid signature', async () => {
       const clientKeys = generateTestKeys();
-      const created = await authClient.createGrant(
-        JSON.stringify(clientKeys.publicKey),
-        await signedSignatureData(
-          clientKeys.privateKey,
-          clientKeys.publicKey.kid
-        ),
-        {
-          access: [
-            makeAccessItem({ type: 'OUTGOING_PAYMENT', actions: ['CREATE'] })
-          ],
-          start: ['redirect']
-        }
-      );
+      const created = await createInteractiveGrant(clientKeys);
 
       const signerKeys = generateTestKeys();
       const signatureData = await signedSignatureData(
@@ -706,7 +787,8 @@ describe('Auth Client', () => {
     });
 
     test('rejects revoking an already-revoked grant', async () => {
-      const { keys, created } = await createInteractiveGrant();
+      const keys = generateTestKeys();
+      const created = await createInteractiveGrant(keys);
       const signatureData = await signedSignatureData(
         keys.privateKey,
         keys.publicKey.kid

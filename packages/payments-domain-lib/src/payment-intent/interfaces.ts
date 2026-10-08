@@ -56,6 +56,7 @@ export type IQuote = IPendingQuote | ICompletedQuote | IFailedQuote;
 
 export interface ISentPayment {
   id: string;
+  grantId?: string;
   state: SentPaymentState;
   senderWalletAddress: string;
   senderWalletAddressId: string;

@@ -23,8 +23,8 @@ body:json {
 
 script:post-response {
   const body = res.getBody();
-  
+
   if (body?.id) {
-    bru.setVar("incomingPaymentId", body.id);
+    bru.setEnvVar("incomingPaymentId", body.id.split("/").pop());
   }
 }
