@@ -251,7 +251,8 @@ export class PaymentsClient {
     walletAddress: string,
     paymentIntentId: string,
     quoteId?: string,
-    debitAmount?: number
+    debitAmount?: number,
+    metadata?: string
   ): Promise<CreatePaymentResult> {
     const request = new PbCreatePaymentRequest();
     request.setId(id);
@@ -265,6 +266,10 @@ export class PaymentsClient {
 
     if (debitAmount) {
       request.setDebitAmount(debitAmount);
+    }
+
+    if (metadata) {
+      request.setMetadata(metadata);
     }
 
     return new Promise((resolve, reject) => {
@@ -598,7 +603,8 @@ export class PaymentsClient {
       expiresAt: expiresAt || undefined,
       destinationIlpAddress: destinationIlpAddress || undefined,
       createdAt: response.getCreatedAt(),
-      remoteUrl: response.getRemoteUrl() || undefined
+      remoteUrl: response.getRemoteUrl() || undefined,
+      metadata: response.getMetadata() || undefined
     };
   }
 
@@ -628,7 +634,8 @@ export class PaymentsClient {
       ),
       createdAt: response.getCreatedAt(),
       remoteUrl: remoteUrl || undefined,
-      failReason: failReason || undefined
+      failReason: failReason || undefined,
+      metadata: response.getMetadata() || undefined
     };
   }
 

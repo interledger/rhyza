@@ -101,6 +101,7 @@ export interface GetPaymentIntentResult {
   destinationIlpAddress?: string;
   createdAt: string;
   remoteUrl?: string;
+  metadata?: string;
 }
 
 export interface GetQuoteResult {
@@ -137,4 +138,5 @@ export interface GetPaymentResult {
   /** Parent intent's remoteUrl, set for REMOTE intents. */
   remoteUrl?: string;
   failReason?: string;
+  metadata?: string;
 }

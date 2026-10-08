@@ -1036,6 +1036,9 @@ components:
         debitAmount:
           type: number
           description: The amount to debit from the sender.
+        metadata:
+          type: string
+          description: Additional arbitrary data associated with the payment intent.
     PaymentCreateResponse:
       type: object
       description: Response schema after initiating a payment.

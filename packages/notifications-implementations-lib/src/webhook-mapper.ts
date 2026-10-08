@@ -30,7 +30,7 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
         walletAddressId: paymentIntentData.receiverWalletAddressId,
         createdAt: paymentIntentData.createdAt,
         expiresAt: paymentIntentData.expiresAt,
-        receiveAmount: {
+        receivedAmount: {
           value: paymentIntentData.receivedAmount,
           assetCode: paymentIntentData.assetCode,
           assetScale: paymentIntentData.assetScale

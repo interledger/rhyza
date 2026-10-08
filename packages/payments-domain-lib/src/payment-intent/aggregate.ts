@@ -401,7 +401,8 @@ export class PaymentIntentAggregate {
         receiverWalletAddressId,
         receiverWalletAddress,
         expiresAt,
-        incomingAmount
+        incomingAmount,
+        metadata
       } = cmd.payload;
 
       if (this.paymentIntentMap.has(id)) {
@@ -438,7 +439,11 @@ export class PaymentIntentAggregate {
         walletAddress.assetCode,
         walletAddress.assetScale,
         expiresAt ?? null,
-        incomingAmount != null ? BigInt(incomingAmount) : null
+        incomingAmount != null ? BigInt(incomingAmount) : null,
+        undefined,
+        undefined,
+        undefined,
+        metadata ? JSON.parse(metadata) : undefined
       );
 
       this.paymentIntentMap.set(id, entity.toObject());
@@ -695,7 +700,8 @@ export class PaymentIntentAggregate {
       senderWalletAddress,
       paymentIntentId,
       quoteId,
-      debitAmount
+      debitAmount,
+      metadata
     } = cmd.payload;
 
     try {
@@ -737,7 +743,8 @@ export class PaymentIntentAggregate {
           },
           exchangeRate,
           quoteId,
-          debitAmount: debitAmount ? BigInt(debitAmount) : undefined
+          debitAmount: debitAmount ? BigInt(debitAmount) : undefined,
+          metadata: metadata ? JSON.parse(metadata) : undefined
         });
       } else {
         // TODO: support creating payment without quote
@@ -758,7 +765,8 @@ export class PaymentIntentAggregate {
             address: senderWalletAddress,
             assetScale: walletAddress.assetScale,
             assetCode: walletAddress.assetCode
-          }
+          },
+          metadata: metadata ? JSON.parse(metadata) : undefined
         });
       }
 

@@ -132,7 +132,7 @@ components:
         - walletAddressId
         - createdAt
         - expiresAt
-        - receiveAmount
+        - receivedAmount
       properties:
         id:
           type: string
@@ -147,7 +147,7 @@ components:
           format: uuid
         incomingAmount:
           $ref: '#/components/schemas/amount'
-        receiveAmount:
+        receivedAmount:
           $ref: '#/components/schemas/amount'
         createdAt:
           type: string

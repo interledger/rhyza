@@ -623,6 +623,9 @@ export class PaymentsServiceServer {
     if (paymentIntent.remoteUrl) {
       pbPaymentIntent.setRemoteUrl(paymentIntent.remoteUrl);
     }
+    if (paymentIntent.metadata) {
+      pbPaymentIntent.setMetadata(JSON.stringify(paymentIntent.metadata));
+    }
     return pbPaymentIntent;
   }
 
@@ -645,6 +648,9 @@ export class PaymentsServiceServer {
     }
     if (parentIntent.remoteUrl) {
       pbPayment.setRemoteUrl(parentIntent.remoteUrl);
+    }
+    if (payment.metadata) {
+      pbPayment.setMetadata(JSON.stringify(payment.metadata));
     }
 
     // debitAmount and sentAmount are denominated in the payment's own

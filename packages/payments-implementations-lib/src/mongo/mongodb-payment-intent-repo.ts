@@ -402,7 +402,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
           destinationIlpAddress: doc.destinationIlpAddress,
           remoteUrl: doc.remoteUrl,
           peerId: doc.peerId,
-          quotes: doc.quotes.map((quote) => ({ ...quote }))
+          quotes: doc.quotes.map((quote) => ({ ...quote })),
+          metadata: doc.metadata
         }))
       };
     } catch (err) {
