@@ -1,0 +1,71 @@
+---
+title: Accounting in Rhyza
+---
+
+import { LinkOut } from '@interledger/docs-design-system'
+
+Rhyza uses <LinkOut href="https://en.wikipedia.org/wiki/Double-entry_bookkeeping">double-entry accounting</LinkOut> to record Interledger packet interactions. Every transaction—whether successful, failed, or rejected—is processed by Rhyza's internal ledger and converted into financial records with equal and opposite entries between internal accounts.
+
+Accounts within Rhyza are a financial service providers's internal [peer](#peer-liquidity) accounts used to fund payments, not the accounts of the FSP's customers. This distinction is crucial for understanding how Rhyza handles transactions and settlements.
+
+## Assets
+
+An asset represents a transferrable item of value. Although the Interledger Protocol (ILP) supports the transfer of any asset deemed to have value, assets are generally denominated in a currency. For example fiat currencies, central bank digital currencies, and branded currencies (such as merchant reward points).
+
+Part of Rhyza's [integration requirements](/integration/checklist#assets) include adding one or more supported assets.
+
+An asset is made up of the following properties.
+
+| Property     | Type    | Description                                                                                                                                                 | Example |
+| ------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `value`      | BigInt  | A numerical amount                                                                                                                                          | `10000` |
+| `assetCode`  | String  | A code representing the asset. An <LinkOut href="https://en.wikipedia.org/wiki/ISO_4217">ISO 4217 currency code</LinkOut> should be used whenever possible. | `"USD"` |
+| `assetScale` | Integer | The display scale of the asset, used to format human-readable amounts.                                                                                      | `2`     |
+
+While the `assetScale` is used for display purposes, Rhyza's internal ledger operates at a fixed high precision (`scale 20`). All accounting entries are stored at this scale to ensure consistent precision across all types of assets and transactions.
+
+To convert an asset's value into an amount that's easier to interpret, apply the following formula.
+
+$\frac{value}{10^{assetScale}}$ = _currencyAmount_
+
+Using the example data from the preceding table, the formula looks like this:
+
+$\frac{10000}{10^2} =\$100.00 USD
+
+## Accounts
+
+Rhyza uses liquidity accounts to track the amounts available to fund transactions. Rhyza doesn't physically hold funds in each account; instead, it uses <LinkOut href="https://en.wikipedia.org/wiki/Double-entry_bookkeeping">double-entry accounting</LinkOut> to record the transactions. The actual settlement of amounts owed, in which funds are physically exchanged, occurs outside of both Rhyza and the Interledger Protocol.
+
+In Rhyza, liquidity is tracked exclusively for **peering relationships**.
+
+### Peer liquidity
+
+Rhyza manages peer liquidity through a set of specialized accounts for each peering relationship in an asset-specific ledger. These accounts work together to track and enforce liquidity limits using a two-phase commit process.
+
+#### Account types
+
+Every peer relationship involves four primary ledger accounts (and their internal system counterparts):
+
+| Account type     | What the account represents                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Liquidity**    | Tracks pre-funded capital or credit lines. This is where settlement deposits are recorded.                    |
+| **Clearing**     | Tracks the net balance of successful Interledger packet exchanges.                                            |
+| **Suspense**     | Temporarily holds funds during the two-phase commit (reservation) process.                                    |
+| **FSP accounts** | Internal "Accounting System Entity" accounts that serve as counterparties to maintain double-entry integrity. |
+
+#### Liquidity enforcement
+
+When a transfer is initiated, Rhyza verifies that the peer has sufficient liquidity by summing the balances of the peer's **Clearing** and **Liquidity** accounts:
+
+$$Total Liquidity = Clearing Balance + Liquidity Balance$$
+
+A transfer is only processed if the _TotalLiquidity_ is greater than or equal to the transfer amount. This allows a peer's clearing balance to become negative (representing a net obligation) as long as it's collateralized by a sufficient positive balance in their liquidity account.
+
+#### Processing transfers
+
+Rhyza uses a two-phase commit to ensure ledger consistency.
+
+- **Phase one**: Reservation<br />Funds are moved from the sender's _clearing account_ to their _suspense account_.
+- **Phase two**: Commit **or** Reject
+  - Commit - If the payment is fulfilled, the reservation is released (moved from _suspense_ back to _clearing_) and the final transfer is recorded from the sender's _clearing account_ to the receiver's _clearing account_.
+  - Reject - If the payment fails or is rejected, the reserved funds are moved from the _suspense account_ back to the sender's _clearing account_.

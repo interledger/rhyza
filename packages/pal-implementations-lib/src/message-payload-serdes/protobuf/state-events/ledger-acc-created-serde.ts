@@ -21,11 +21,13 @@ export class LedgerAccountsCreatedStateEventSerde extends ProtoBufBaseStateEvent
     typedPayload.accounts.forEach((acc) => {
       const pbAccount = new PbLedgerAccountState();
       pbAccount.setId(acc.id);
+      pbAccount.setType(acc.type);
       pbAccount.setName(acc.name);
       pbAccount.setAssetCode(acc.assetCode);
       pbAccount.setAssetDisplayScale(acc.assetDisplayScale);
       pbAccount.setDebitedAmount(acc.debitedAmount);
       pbAccount.setCreditedAmount(acc.creditedAmount);
+      if (acc.peerId) pbAccount.setPeerId(acc.peerId);
       pbAccountsList.push(pbAccount);
     });
     pbPayload.setAccountsList(pbAccountsList);
@@ -51,6 +53,13 @@ export class LedgerAccountsCreatedStateEventSerde extends ProtoBufBaseStateEvent
       accounts: pbAccounts.map((account) => {
         return {
           id: account.getId(),
+          type: account.getType() as
+            | 'ASSET_LIQUIDITY_ACCOUNT'
+            | 'PEER_LIQUIDITY_ACCOUNT'
+            | 'PEER_CLEARING_ACCOUNT'
+            | 'ASE_LIQUIDITY_ACCOUNT'
+            | 'ASE_CLEARING_ACCOUNT'
+            | 'SUSPENSE_ACCOUNT',
           assetCode: account.getAssetCode(),
           assetDisplayScale: account.getAssetDisplayScale(),
           name: account.getName(),

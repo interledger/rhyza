@@ -11,3 +11,4 @@ export * from './json/json-domain-event-serializer';
 export * from './json/json-command-serializer';
 export * from './json/json-snapshot-serializer';
 export * from './json/json-state-event-serializer';
+export * from './json/json-timer-event-serializer';

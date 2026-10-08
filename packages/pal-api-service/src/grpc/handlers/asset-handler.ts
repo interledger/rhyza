@@ -37,7 +37,7 @@ export class AssetGrpcHandler {
     this._assetAggregate = assetAggregate;
     this._responseRegistry = responseRegistry;
     this._msgProducer = msgProducer;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._telemetryService = telemetryService;
 
     this._logger.info('AssetGrpcHandler created');

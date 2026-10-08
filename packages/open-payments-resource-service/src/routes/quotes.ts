@@ -122,7 +122,7 @@ export async function quoteRoutes(
         const { domain, pathName } =
           parseAddressToDomainAndPathName(walletAddressUrl);
 
-        const alias = await palClient.ResolveWalletAddressAlias(
+        const alias = await palClient.resolveWalletAddressAlias(
           domain,
           pathName
         );

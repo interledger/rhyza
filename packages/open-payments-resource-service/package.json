@@ -6,6 +6,7 @@
     "start": "node dist/index.js",
     "dev": "node --import tsx src/index.ts",
     "build": "tsc --build",
+    "test": "node --import tsx --test test/*.test.ts",
     "generate:resource-server-types": "openapi-typescript ../../open-payments-specifications/openapi/resource-server.yaml --output src/types/generated/resource-server-types.ts",
     "generate:wallet-address-server-types": "openapi-typescript ../../open-payments-specifications/openapi/wallet-address-server.yaml --output src/types/generated/wallet-address-server-types.ts",
     "generate:types": "pnpm generate:resource-server-types && pnpm generate:wallet-address-server-types",

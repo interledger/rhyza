@@ -1,0 +1,112 @@
+---
+// The API reference is a standalone page, outside Starlight, so it does not
+// get Starlight's stylesheet or its logo swap. This header renders the two
+// logo files itself and swaps them on the `dark` class that ThemeSync puts
+// on <html>.
+import lightLogo from '../assets/light-logo.svg'
+import darkLogo from '../assets/dark-logo.svg'
+
+const fallback = { href: '/apis/api-overview/', label: '← Documentation' }
+---
+
+<header class='op-header'>
+  <a href='/' class='op-header__logo'>
+    <img
+      src={lightLogo.src}
+      alt='Rhyza'
+      class='op-header__logo-img op-header__logo-img--light'
+    />
+    <img
+      src={darkLogo.src}
+      alt='Rhyza'
+      class='op-header__logo-img op-header__logo-img--dark'
+    />
+  </a>
+  <a href={fallback.href} class='op-header__back' id='back-link'
+    >{fallback.label}</a
+  >
+</header>
+<script is:inline>
+  ;(function () {
+    const ref = document.referrer
+    if (!ref) return
+
+    let refUrl
+    try {
+      refUrl = new URL(ref)
+    } catch {
+      // ignore invalid referrer URLs
+      return
+    }
+
+    if (refUrl.origin !== location.origin) return
+    // Came from the API reference itself (for example, a reload). Keep the
+    // default out to the docs instead of looping back into /apis/. The
+    // pattern also matches the old per-spec URLs, which redirect here.
+    // /apis/api-overview/ is a docs page and does not match.
+    if (/^\/apis\/(scalar(\/|$).*)?$/.test(refUrl.pathname)) return
+
+    const backLink = document.getElementById('back-link')
+    if (backLink) {
+      backLink.href = ref
+    }
+  })()
+</script>
+
+<style>
+  .op-header {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    height: var(--op-header-height);
+    padding: 0 var(--op-header-pad-x);
+    background: var(--op-header-bg);
+    border-bottom: 1px solid var(--op-header-border);
+  }
+
+  .op-header__logo {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 100%;
+    /* The logo box is taller than the header. See --op-header-logo-height. */
+    overflow: hidden;
+    text-decoration: none;
+  }
+
+  .op-header__logo-img {
+    flex: none;
+    height: var(--op-header-logo-height);
+    width: auto;
+  }
+
+  /* Only one of the two is ever shown. The light file is the default, so the
+     page is correct before any script runs. */
+  .op-header__logo-img--dark {
+    display: none;
+  }
+
+  :global(html.dark) .op-header__logo-img--light {
+    display: none;
+  }
+
+  :global(html.dark) .op-header__logo-img--dark {
+    display: block;
+  }
+
+  .op-header__back {
+    font-size: 0.875rem;
+    text-decoration: none;
+    white-space: nowrap;
+    color: var(--op-header-muted);
+  }
+
+  .op-header__back:hover {
+    color: var(--op-header-text);
+  }
+</style>

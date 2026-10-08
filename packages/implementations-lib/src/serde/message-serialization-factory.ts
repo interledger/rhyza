@@ -3,8 +3,12 @@ import {
   IRawMessage,
   IRawMessageHeader,
   IRawMessageSerializerFactory,
+  ITelemetryHistogram,
+  ITelemetryService,
   MessageDataFormats,
-  MissingSerializerError
+  MissingSerializerError,
+  TELEMETRY_PROPS_CALL_NAME_PROP,
+  TELEMETRY_PROPS_DATA_FORMAT_PROP
 } from 'common-types-lib';
 import {
   IRawMessageSerializer,
@@ -16,12 +20,18 @@ import { JsonCommandSerializer } from './json/json-command-serializer';
 import { JsonDomainEventSerializer } from './json/json-domain-event-serializer';
 import { JsonSnapshotSerializer } from './json/json-snapshot-serializer';
 import { JsonStateEventSerializer } from './json/json-state-event-serializer';
+import process from 'process';
+import { JsonTimerEventSerializer } from './json/json-timer-event-serializer';
+
+const HISTOGRAM_NAME = 'MessageSerializationFactory_histo';
 
 export class MessageSerializationFactory
   implements IRawMessageSerializerFactory
 {
   private static _instance: MessageSerializationFactory | null = null;
   private _serializers: IRawMessageSerializer[];
+  private _telemetryService: ITelemetryService | null = null;
+  private _serdeHisto: ITelemetryHistogram | null = null;
 
   private constructor() {
     this._serializers = [];
@@ -31,6 +41,7 @@ export class MessageSerializationFactory
     this.register(new JsonDomainEventSerializer());
     this.register(new JsonStateEventSerializer());
     this.register(new JsonSnapshotSerializer());
+    this.register(new JsonTimerEventSerializer());
   }
 
   static instance(): MessageSerializationFactory {
@@ -65,6 +76,11 @@ export class MessageSerializationFactory
     return header ? header[name].toString() : null;
   }
 
+  setTelemetry(telemetryService: ITelemetryService): void {
+    this._telemetryService = telemetryService;
+    this._serdeHisto = this._telemetryService.getHistogram(HISTOGRAM_NAME);
+  }
+
   register(newSerde: IRawMessageSerializer): this {
     if (newSerde.dataFormat !== MessageDataFormats.JSON && !newSerde.msgName) {
       throw new Error('Non-JSON serializer must have a msgName');
@@ -88,6 +104,8 @@ export class MessageSerializationFactory
   }
 
   serialize(msg: IMessage): IRawMessage {
+    const start = process.hrtime.bigint();
+
     const serializer = this._getSerializer(
       msg.msgDataFormat,
       msg.msgType,
@@ -117,10 +135,20 @@ export class MessageSerializationFactory
       headers: headers
     };
 
+    if (this._serdeHisto) {
+      const elapsedNs = Number(process.hrtime.bigint() - start);
+      this._serdeHisto.observe(elapsedNs, {
+        [TELEMETRY_PROPS_CALL_NAME_PROP]: `${msg.msgName}_serialize`,
+        [TELEMETRY_PROPS_DATA_FORMAT_PROP]: msg.msgDataFormat
+      });
+    }
+
     return rawMsg;
   }
 
   deserialize(rawMsg: IRawMessage): IMessage {
+    const start = process.hrtime.bigint();
+
     if (!rawMsg.headers) {
       throw new Error('Invalid message, missing headers');
     }
@@ -151,6 +179,14 @@ export class MessageSerializationFactory
     msg.msgOffset = rawMsg.offset;
     msg.msgTopic = rawMsg.topic;
     msg.msgKey = rawMsg.key ? rawMsg.key.toString() : null;
+
+    if (this._serdeHisto) {
+      const elapsedNs = Number(process.hrtime.bigint() - start);
+      this._serdeHisto.observe(elapsedNs, {
+        [TELEMETRY_PROPS_CALL_NAME_PROP]: `${msg.msgName}_deserialize`,
+        [TELEMETRY_PROPS_DATA_FORMAT_PROP]: msg.msgDataFormat
+      });
+    }
 
     return msg;
   }

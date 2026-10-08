@@ -20,7 +20,6 @@
     "ilp-client-lib": "workspace:*",
     "implementations-lib": "workspace:*",
     "pal-client-lib": "workspace:*",
-    "pal-domain-lib": "workspace:*",
     "payments-client-lib": "workspace:*"
   },
   "devDependencies": {

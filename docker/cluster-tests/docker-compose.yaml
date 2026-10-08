@@ -9,9 +9,10 @@ services:
       - '6379:6379'
 
   mongodb:
-    image: mongo
+    image: mongo:7.0.8
     container_name: mongodb
     restart: unless-stopped
+    command: ['mongod', '--wiredTigerCacheSizeGB', '8'] # Cap WiredTiger to 8GB RAM for tests
     volumes:
       - mongodb-data:/data/db
     environment:
@@ -20,10 +21,37 @@ services:
     ports:
       - 27017:27017
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 27017 || exit 1']
       interval: 10s
-      timeout: 10s
-      retries: 5
+      timeout: 2s
+      retries: 3
+      start_period: 20s
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: kafka-exporter
+    restart: unless-stopped
+    ports:
+      - '9308:9308'
+    command:
+      # Tell the exporter how to connect to your cluster brokers
+      - --kafka.server=kafka-1:19092
+      - --kafka.server=kafka-2:19092
+      - --kafka.server=kafka-3:19092
+    depends_on:
+      - kafka-1
+      - kafka-2
+      - kafka-3
+
+  # Helper to download the JMX exporter agent on start
+  jmx-exporter-download:
+    image: alpine:latest
+    container_name: jmx-exporter-download
+    volumes:
+      - jmx-shared:/shared
+    command: >
+      wget -O /shared/jmx_prometheus_javaagent.jar
+      https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/1.0.1/jmx_prometheus_javaagent-1.0.1.jar
 
   kafka-1:
     image: apache/kafka:latest
@@ -32,7 +60,15 @@ services:
     restart: unless-stopped
     ports:
       - 29092:9092
+      - 29405:9405 # Prometheus metrics endpoint
+    depends_on:
+      jmx-exporter-download:
+        condition: service_completed_successfully
+    volumes:
+      - jmx-shared:/usr/share/jmx-exporter
+      - ../kafka-config.yaml:/usr/share/jmx-exporter/kafka-config.yaml
     environment:
+      KAFKA_OPTS: '-javaagent:/usr/share/jmx-exporter/jmx_prometheus_javaagent.jar=9405:/usr/share/jmx-exporter/kafka-config.yaml'
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: 'broker,controller'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -49,12 +85,13 @@ services:
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-      KAFKA_MESSAGE_MAX_BYTES: 20971520
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 20971520
+      KAFKA_MESSAGE_MAX_BYTES: 41943040
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 41943040
       KAFKA_GROUP_CONSUMER_MAX_SESSION_TIMEOUT_MS: 15000
       KAFKA_GROUP_CONSUMER_SESSION_TIMEOUT_MS: 10000
       KAFKA_GROUP_CONSUMER_MIN_SESSION_TIMEOUT_MS: 10000
       KAFKA_GROUP_CONSUMER_MAX_HEARTBEAT_INTERVAL_MS: 5000
+
   kafka-2:
     image: apache/kafka:latest
     hostname: kafka-2
@@ -62,7 +99,15 @@ services:
     restart: unless-stopped
     ports:
       - 39092:9092
+      - 39405:9405 # Prometheus metrics endpoint
+    depends_on:
+      jmx-exporter-download:
+        condition: service_completed_successfully
+    volumes:
+      - jmx-shared:/usr/share/jmx-exporter
+      - ../kafka-config.yaml:/usr/share/jmx-exporter/kafka-config.yaml
     environment:
+      KAFKA_OPTS: '-javaagent:/usr/share/jmx-exporter/jmx_prometheus_javaagent.jar=9405:/usr/share/jmx-exporter/kafka-config.yaml'
       KAFKA_NODE_ID: 2
       KAFKA_PROCESS_ROLES: 'broker,controller'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -79,8 +124,8 @@ services:
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-      KAFKA_MESSAGE_MAX_BYTES: 20971520
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 20971520
+      KAFKA_MESSAGE_MAX_BYTES: 41943040
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 41943040
       KAFKA_GROUP_CONSUMER_MAX_SESSION_TIMEOUT_MS: 15000
       KAFKA_GROUP_CONSUMER_SESSION_TIMEOUT_MS: 10000
       KAFKA_GROUP_CONSUMER_MIN_SESSION_TIMEOUT_MS: 10000
@@ -93,7 +138,15 @@ services:
     restart: unless-stopped
     ports:
       - 49092:9092
+      - 49405:9405 # Prometheus metrics endpoint
+    depends_on:
+      jmx-exporter-download:
+        condition: service_completed_successfully
+    volumes:
+      - jmx-shared:/usr/share/jmx-exporter
+      - ../kafka-config.yaml:/usr/share/jmx-exporter/kafka-config.yaml
     environment:
+      KAFKA_OPTS: '-javaagent:/usr/share/jmx-exporter/jmx_prometheus_javaagent.jar=9405:/usr/share/jmx-exporter/kafka-config.yaml'
       KAFKA_NODE_ID: 3
       KAFKA_PROCESS_ROLES: 'broker,controller'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -110,8 +163,8 @@ services:
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-      KAFKA_MESSAGE_MAX_BYTES: 20971520
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 20971520
+      KAFKA_MESSAGE_MAX_BYTES: 41943040
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 41943040
       KAFKA_GROUP_CONSUMER_MAX_SESSION_TIMEOUT_MS: 15000
       KAFKA_GROUP_CONSUMER_SESSION_TIMEOUT_MS: 10000
       KAFKA_GROUP_CONSUMER_MIN_SESSION_TIMEOUT_MS: 10000
@@ -129,7 +182,7 @@ services:
       "
       # blocks until kafka is reachable
       echo -e 'Existing kafka topics:'
-      ./kafka-topics.sh --bootstrap-server kafka:19092 --list
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --list
       echo -e '\nCreating kafka topics:'
       ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --topic audits
       ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --topic logs
@@ -141,6 +194,7 @@ services:
       ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ledger-domain-events
       ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ledger-snapshot-events
       ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ledger-state-events
+      ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ledger-timer-events
       ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic wallet-address-domain-events
       ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic fxrate-domain-events
       ./kafka-topics.sh --bootstrap-server kafka-3:19092 --create --if-not-exists --partitions 3 --replication-factor 2 --topic ilp-domain-events
@@ -208,3 +262,4 @@ volumes:
   mongodb-data:
   grafana-data:
   tempo-data:
+  jmx-shared:

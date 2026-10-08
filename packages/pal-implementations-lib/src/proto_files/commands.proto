@@ -34,3 +34,34 @@ message PbPostTransactionCmdPayload{
   string amount =4;
   uint32 amount_scale = 5;
 }
+
+// same for CheckBalanceAndReserveTransferCmdPayload and ReserveTransferCmdPayload
+message PbCheckBalanceAndReserveOrReserveTransferCmdPayload{
+  string request_id = 1;
+  string transfer_id = 2;
+  string peer_id = 3;
+  string amount = 4;
+  uint32 amount_scale = 5;
+  string transfer_direction = 6;// only 'INCOMING' | 'OUTGOING';
+  string payment_intent_id = 7;
+  string payment_id = 8;
+}
+
+// same for CommitTransferCmdPayload and RejectTransferCmdPayload
+message PbCommitOrRejectCmdPayload{
+  string request_id = 1;
+  string transfer_id = 2;
+  string transfer_direction = 3;// only 'INCOMING' | 'OUTGOING';
+  string payment_intent_id = 4;
+  string payment_id = 5;
+}
+
+// same for all liquidity commands DepositToPeerCmd, WithdrawFromPeerCmd, DepositToAseCmd and WithdrawFromAseCmd
+message PbLiquidityManagementCmdPayload{
+  string request_id = 1;
+  string peer_id = 2;
+  string asset_code = 3;
+  string amount = 4;
+  uint32 amount_scale = 5;
+  optional string external_id = 6;
+}

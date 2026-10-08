@@ -13,7 +13,7 @@ export class FxCacheExpiryService implements IPalFxCacheExpiryService {
 
   constructor(messagePub: IMessageProducer, logger: ILogger) {
     this._messageProducer = messagePub;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
   }
 
   destroy(): void {

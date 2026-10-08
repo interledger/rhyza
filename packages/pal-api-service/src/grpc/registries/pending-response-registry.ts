@@ -10,7 +10,7 @@ export class PendingResponseRegistry {
   private readonly _responseMap: Map<string, PendingResponse>;
 
   constructor(responseTimeoutMs: number, logger: ILogger) {
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._responseTimeoutMs = responseTimeoutMs;
     this._responseMap = new Map();
   }

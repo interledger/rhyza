@@ -1,13 +1,13 @@
 openapi: 3.1.0
 info:
-  title: Rafiki Admin API
-  version: 0.0.4
+  title: Rhyza Admin API
+  version: 0.0.8
   license:
     name: ISC
     identifier: ISC
 servers:
   - url: /
-    description: Base URL is determined by the Rafiki deployment.
+    description: Base URL is determined by the Rhyza deployment.
 security: []
 tags:
   - name: assets
@@ -24,6 +24,8 @@ tags:
     x-displayName: Peers
   - name: liquidity
     x-displayName: Liquidity
+  - name: rates
+    x-displayName: Rates
 paths:
   /peers:
     post:
@@ -121,6 +123,69 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/WalletAddressCreate'
+  /wallet-addresses/{id}/activate:
+    post:
+      summary: Activate Wallet Address
+      description: >-
+        Activate a wallet address that was previously deactivated. Once
+        active, the Open Payments wallet address document becomes reachable again.
+      tags:
+        - wallet-addresses
+      operationId: activateWalletAddress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal Rhyza id of the wallet address.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The wallet address is activated.
+        '404':
+          description: Wallet address not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The wallet address is already active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /wallet-addresses/{id}/deactivate:
+    post:
+      summary: Deactivate Wallet Address
+      description: >-
+        Deactivate a wallet address. While inactive, the Open Payments wallet
+        address document is not found, and no resources can be created against
+        it. Deactivating a wallet address that is already inactive returns 409.
+      tags:
+        - wallet-addresses
+      operationId: deactivateWalletAddress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal Rhyza id of the wallet address.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The wallet address is deactivated.
+        '404':
+          description: Wallet address not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The wallet address is already inactive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /wallet-addresses/{id}/keys:
     post:
       summary: Register Wallet Address Key
@@ -606,8 +671,7 @@ paths:
       description: >-
         Deposit liquidity so the node can send payments. Debits the asset system
         account and credits the peer's ASE liquidity account by producing a
-        ledger PostTransaction command. Fire-and-forget: returns 202 before the
-        ledger posts the transaction (see the sync TODO in the route).
+        ledger DepositToAse command. This is request-response style, returns 200 when complete.
       tags:
         - liquidity
       operationId: Liquidity_deposit
@@ -623,6 +687,7 @@ paths:
                 - assetCode
                 - peerId
                 - amount
+                - amountScale
               properties:
                 assetCode:
                   type: string
@@ -637,8 +702,11 @@ paths:
                     Amount in raw ledger units at the asset scale
                     (100000 = 1000.00 at scale 2).
                   example: 100000
+                amountScale:
+                  type: number
+                  description: The number of decimal places for the amount asset (e.g., 2 for "USD").
       responses:
-        '202':
+        '200':
           description: >-
             Deposit accepted and produced to the ledger (not yet confirmed).
           content:
@@ -661,8 +729,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /rates:
+    post:
+      summary: Set Exchange Rate
+      description: >-
+        Store an exchange rate for payments between wallet addresses on this Rhyza instance, 
+        or a peer's rate used for payments sent to or received from that peer.
+      tags:
+        - rates
+      operationId: setFxRate
+      parameters: []
+      requestBody:
+        description: Exchange rate to store
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FxRateSet'
+      responses:
+        '204':
+          description: The exchange rate has been stored.
+        '400':
+          description: >-
+            sourceAssetCode, destinationAssetCode, rate, or rateTtlSecs is missing,
+            or rate or rateTtlSecs is not greater than 0.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to set the exchange rate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
+    FxRateSet:
+      type: object
+      description: Exchange rate to store.
+      required:
+        - sourceAssetCode
+        - destinationAssetCode
+        - rate
+        - peerId
+        - rateTtlSecs
+      properties:
+        sourceAssetCode:
+          type: string
+          description: Asset code the rate converts from.
+          example: USD
+        destinationAssetCode:
+          type: string
+          description: Asset code the rate converts to.
+          example: EUR
+        rate:
+          type: number
+          exclusiveMinimum: 0
+          description: Units of destination asset per one unit of source asset.
+          example: 0.92
+        peerId:
+          type: ['string', 'null']
+          description: >-
+            Peer whose rate this is. Null stores an intra-ASE rate.
+        rateTtlSecs:
+          type: number
+          exclusiveMinimum: 0
+          description: Seconds until the stored rate expires.
+          example: 60
     ErrorResponse:
       type: object
       description: Response schema for API errors.
@@ -681,10 +815,10 @@ components:
       properties:
         code:
           type: string
-          description: The asset code (e.g., "USD", "EUR", "BTC").
+          description: The asset code (e.g., "USD", "EUR", "BTC"). Must be unique per asset. An ISO4217 currency code should be used whenever possible.
         scale:
           type: number
-          description: The number of decimal places for the asset (e.g., 2 for "USD").
+          description: The number of decimal places to display for the asset. For example, a USD amount of 1000 with a scale of 2 will display as $10.00. The internal Rhyza ledger operates at a fixed high precision scale of 20.
     AssetCreateResponse:
       type: object
       description: Response schema after creating an asset.

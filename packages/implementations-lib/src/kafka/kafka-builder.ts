@@ -2,7 +2,8 @@ import { KafkaJS, RdKafka } from '@confluentinc/kafka-javascript';
 import {
   ConsoleLogger,
   ILogger,
-  IRawMessageSerializerFactory
+  IRawMessageSerializerFactory,
+  ITelemetryService
 } from 'common-types-lib';
 import crypto from 'crypto';
 import { KafkaConsumer } from './kafka-consumer';
@@ -29,10 +30,10 @@ export class KafkaBuilder implements IKafkaBuilder {
   }
 
   private _logger!: ILogger;
-  private _kafkaLogger!: KafkaJS.Logger;
   private _serializerFactory!: IRawMessageSerializerFactory;
   private _kafka!: KafkaJS.Kafka;
   private _globalConfig: KafkaJS.CommonConstructorConfig;
+  private _telemetryService?: ITelemetryService;
 
   private _buildBasics() {
     if (!this._logger) {
@@ -49,13 +50,6 @@ export class KafkaBuilder implements IKafkaBuilder {
       );
     }
 
-    //
-    //
-    // this._globalConfig["KafkaJS"] = {
-    //   brokers: this._globalConfig["metadata.broker.list"].split(','),
-    //   "logger": this._kafkaLogger
-    // };
-
     // create the main kafka client if not already created
     if (!this._kafka) {
       this._kafka = new KafkaJS.Kafka(this._globalConfig);
@@ -67,8 +61,6 @@ export class KafkaBuilder implements IKafkaBuilder {
    */
   withLogger(logger: ILogger): KafkaBuilder {
     this._logger = logger;
-    this._kafkaLogger = new KafkaLoggerWrapper(logger);
-    //this._kafkaLogger.setLogLevel(KafkaJS.logLevel.DEBUG);
     return this;
   }
 
@@ -94,6 +86,11 @@ export class KafkaBuilder implements IKafkaBuilder {
     this._globalConfig['sasl.mechanism'] = authentication.mechanism;
     this._globalConfig['sasl.username'] = authentication.username;
     this._globalConfig['sasl.password'] = authentication.password;
+    return this;
+  }
+
+  withTelemetry(telemetryService: ITelemetryService): KafkaBuilder {
+    this._telemetryService = telemetryService;
     return this;
   }
 
@@ -133,13 +130,22 @@ export class KafkaBuilder implements IKafkaBuilder {
     consumerConfig['max.partition.fetch.bytes'] = 50 * 1024 * 1024;
     if (!consumerConfig.kafkaJS) {
       consumerConfig.kafkaJS = {
-        logger: this._kafkaLogger,
+        logger: this._logger
+          ? new KafkaLoggerWrapper(this._logger.child(KafkaConsumer.name))
+          : undefined,
         groupId: consumerOptions.consumerGroupId || crypto.randomUUID()
       };
+    } else {
+      consumerConfig.kafkaJS.logger = this._logger
+        ? new KafkaLoggerWrapper(this._logger.child(KafkaConsumer.name))
+        : undefined;
+      consumerConfig.kafkaJS.groupId =
+        consumerOptions.consumerGroupId || crypto.randomUUID();
     }
 
+    //consumerConfig['log_level'] = 4; // warn;
+
     return new KafkaConsumer(
-      this._kafka,
       this._kafka.consumer(consumerConfig),
       consumerOptions,
       this._serializerFactory,
@@ -177,12 +183,29 @@ export class KafkaBuilder implements IKafkaBuilder {
     if (producerOptions.compressionCodec !== undefined) {
       producerConfig['compression.codec'] = producerOptions.compressionCodec;
     }
+    if (producerOptions.compressionLevel !== undefined) {
+      producerConfig['compression.level'] = producerOptions.compressionLevel;
+    }
+
+    if (!producerConfig.kafkaJS) {
+      producerConfig.kafkaJS = {
+        logger: this._logger
+          ? new KafkaLoggerWrapper(this._logger.child(KafkaProducer.name))
+          : undefined
+      };
+    } else {
+      producerConfig.kafkaJS.logger = this._logger
+        ? new KafkaLoggerWrapper(this._logger.child(KafkaProducer.name))
+        : undefined;
+    }
+
+    producerConfig['log_level'] = 4; // warn;
 
     return new KafkaProducer(
-      this._kafka,
       this._kafka.producer(producerConfig),
       this._serializerFactory,
-      this._logger
+      this._logger,
+      this._telemetryService || null
     );
   }
 
@@ -221,7 +244,8 @@ export class KafkaBuilder implements IKafkaBuilder {
       globalConfig,
       consumerOptions,
       this._serializerFactory,
-      this._logger
+      this._logger,
+      this._telemetryService || null
     );
   }
 }

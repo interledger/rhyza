@@ -16,7 +16,6 @@ export enum CommandTopics {
   'PaymentCommands' = 'payment-commands',
   'AuthCommands' = 'auth-commands',
   'LedgerCommands' = 'ledger-commands',
-  'AssetCommands' = 'asset-commands',
   'IlpCommands' = 'ilp-commands',
   'IlpConnectorCommands' = 'ilp-connector-commands',
   'NotificationCommands' = 'notification-commands'
@@ -30,4 +29,10 @@ export enum StateEventTopics {
 // for private event-sourcing snapshot events
 export enum SnapshotEventTopics {
   'LedgerSnapshotEvents' = 'ledger-snapshot-events'
+}
+
+// For private timer related events, like check for expired transfers
+// or if a snapshot needed.
+export enum TimerEventTopics {
+  'LedgerTimerEvents' = 'ledger-timer-events'
 }

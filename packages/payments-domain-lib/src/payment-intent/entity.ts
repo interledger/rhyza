@@ -348,6 +348,7 @@ class SentPayment {
   private _cancelReason?: string;
   private _ledgerTransferId?: string;
   private _failReason?: string;
+  private _grantId?: string;
   private _metadata?: Record<string, unknown>;
 
   private constructor(args: {
@@ -367,6 +368,7 @@ class SentPayment {
     cancelReason?: string;
     ledgerTransferId?: string;
     failReason?: string;
+    grantId?: string;
     metadata?: Record<string, unknown>;
   }) {
     this._id = args.id;
@@ -385,6 +387,7 @@ class SentPayment {
     this._cancelReason = args.cancelReason;
     this._ledgerTransferId = args.ledgerTransferId;
     this._failReason = args.failReason;
+    this._grantId = args.grantId;
     this._metadata = args.metadata;
   }
 
@@ -398,6 +401,7 @@ class SentPayment {
     debitAmount: bigint;
     receiveAmount: bigint;
     quoteId?: string;
+    grantId?: string;
     metadata?: Record<string, unknown>;
   }): SentPayment {
     return new SentPayment({
@@ -426,6 +430,7 @@ class SentPayment {
       cancelReason: obj.cancelReason,
       ledgerTransferId: obj.ledgerTransferId,
       failReason: obj.failReason,
+      grantId: obj.grantId,
       metadata: obj.metadata
     });
   }
@@ -448,6 +453,7 @@ class SentPayment {
       cancelReason: this._cancelReason,
       ledgerTransferId: this._ledgerTransferId,
       failReason: this._failReason,
+      grantId: this._grantId,
       metadata: this._metadata
     };
   }
@@ -563,6 +569,10 @@ class SentPayment {
 
   get quoteId(): string | undefined {
     return this._quoteId;
+  }
+
+  get grantId(): string | undefined {
+    return this._grantId;
   }
 
   get senderWalletAddressId(): string {
@@ -1125,6 +1135,7 @@ export class PaymentIntent implements IPaymentIntent {
   addLocalPayment(args: {
     id: string;
     quoteId?: string;
+    grantId?: string;
     senderWalletAddress: {
       id: string;
       address: string;
@@ -1139,6 +1150,7 @@ export class PaymentIntent implements IPaymentIntent {
       id,
       senderWalletAddress,
       quoteId,
+      grantId,
       debitAmount,
       exchangeRate: unscaledExchangeRate,
       metadata
@@ -1235,6 +1247,7 @@ export class PaymentIntent implements IPaymentIntent {
       debitAmount: paymentDebitAmount,
       receiveAmount: paymentReceiveAmount,
       quoteId,
+      grantId,
       metadata
     });
 
@@ -1245,6 +1258,7 @@ export class PaymentIntent implements IPaymentIntent {
   addRemotePayment(args: {
     id: string;
     quoteId: string;
+    grantId?: string;
     senderWalletAddress: {
       id: string;
       address: string;
@@ -1253,7 +1267,7 @@ export class PaymentIntent implements IPaymentIntent {
     };
     metadata?: Record<string, unknown>;
   }): ISentPayment {
-    const { id, quoteId, senderWalletAddress, metadata } = args;
+    const { id, quoteId, grantId, senderWalletAddress, metadata } = args;
 
     if (this._destination !== 'REMOTE') {
       throw new PaymentIntentInvalidState(
@@ -1325,6 +1339,7 @@ export class PaymentIntent implements IPaymentIntent {
       debitAmount: quote.debitAmount,
       receiveAmount: quote.receiveAmount,
       quoteId,
+      grantId,
       metadata
     });
 

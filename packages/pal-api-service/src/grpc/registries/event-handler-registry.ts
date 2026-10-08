@@ -14,7 +14,7 @@ export class EventHandlerRegistry {
   }[];
 
   constructor(logger: ILogger) {
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._eventHandlers = [];
   }
 

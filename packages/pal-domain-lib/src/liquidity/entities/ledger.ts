@@ -1,4 +1,8 @@
-import { ILedgerAccount, LedgerAccountDtoSerializer } from './ledger-account';
+import {
+  ILedgerAccount,
+  LedgerAccountDtoSerializer,
+  LedgerAccountTypes
+} from './ledger-account';
 import {
   LedgerAccountsCreatedStateEvent,
   LedgerCreatedStateEvent,
@@ -11,20 +15,21 @@ import {
   CommitTransferCmd,
   CreateLedgerAccountForAssetCmd,
   CreateLedgerAccountsForPeerCmd,
+  DepositToAseCmd,
+  DepositToPeerCmd,
   LedgerCommand,
-  PostTransactionCmd,
   RejectTransferCmd,
-  ReserveTransferCmd
+  ReserveTransferCmd,
+  WithdrawFromAseCmd,
+  WithdrawFromPeerCmd
 } from '../messages/commands';
-import { ILogger, MessageTypes } from 'common-types-lib';
+import { CommandMsg, ILogger, MessageTypes } from 'common-types-lib';
 import {
   LedgerDomainEvent,
-  LedgerTransactionPostedEvent,
   LedgerOutgoingTransferCommittedEvent,
   LedgerOutgoingTransferRejectedEvent,
   LedgerOutgoingTransferReservedEvent,
   LedgerOutgoingTransferInsufficientFundsErrorEvent,
-  LedgerAccountNotFoundEvent,
   ILedgerTransactionDto,
   LedgerAccountCreatedForAssetEvent,
   LedgerAccountCreationForAssetFailedEvent,
@@ -34,10 +39,42 @@ import {
   LedgerIncomingTransferReservedEvent,
   LedgerIncomingTransferCommittedEvent,
   LedgerIncomingTransferRejectedEvent,
-  LedgerIncomingTransferInsufficientFundsErrorEvent
+  LedgerIncomingTransferInsufficientFundsErrorEvent,
+  LedgerOutgoingTransferCheckBalanceAndReserveFailedEvent,
+  LedgerOutgoingTransferReserveFailedEvent,
+  LedgerHighLevelFailureResponseEventPayload,
+  LedgerIncomingTransferReserveFailedEvent,
+  LedgerIncomingTransferCheckBalanceAndReserveFailedEvent,
+  LedgerHighLevelSuccessResponseEventPayload,
+  LedgerOutgoingTransferCommitFailedEvent,
+  LedgerOutgoingTransferRejectFailedEvent,
+  LedgerIncomingTransferCommitFailedEvent,
+  LedgerIncomingTransferRejectFailedEvent,
+  LedgerHighLevelSuccessResponseEvent,
+  LedgerHighLevelFailureResponseEvent,
+  LedgerDepositToPeerFailedEvent,
+  LedgerWithdrawFromPeerFailedEvent,
+  LedgerLiquidityManagementSuccessEventPayload,
+  LedgerLiquidityManagementFailureEventPayload,
+  LedgerDepositToAseFailedEvent,
+  LedgerDepositToPeerSucceededEvent,
+  LedgerDepositToAseSucceededEvent,
+  LedgerWithdrawFromAseFailedEvent,
+  LedgerWithdrawFromPeerSucceededEvent,
+  LedgerWithdrawFromAseSucceededEvent,
+  LedgerWithdrawFromPeerFailedWithInsufficientFundsEvent,
+  LedgerWithdrawFromAseFailedWithInsufficientFundsEvent
 } from 'pal-public-types-lib';
+import { amountFromBigIntOfSize, amountToBigIntOfSize } from '../utils';
 
 const DEFAULT_DISPLAY_ASSET_SCALE = 2;
+
+export interface IPendingTransfer {
+  transferId: string;
+  peerId: string;
+  amount: string;
+  amountScale: number;
+}
 
 export class Ledger {
   private readonly _id: string; // ledger id is the asset code
@@ -51,13 +88,16 @@ export class Ledger {
   private readonly _uncommittedStateEvents: LedgerStateEvent[];
   private readonly _uncommittedDomainEvents: LedgerDomainEvent[];
 
+  private readonly _pendingTransfers: Map<string, IPendingTransfer>;
+
   private constructor(id: string, assetScale: number, logger: ILogger) {
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._version = 0n; // we start at version 1 because there is already the LedgerCreatedStateEvent
     this._lastSnapshotVersion = 0n;
     this._accounts = [];
     this._uncommittedStateEvents = [];
     this._uncommittedDomainEvents = [];
+    this._pendingTransfers = new Map();
     this._transactionCount = 0n;
 
     this._id = id;
@@ -95,9 +135,7 @@ export class Ledger {
     return ledger;
   }
 
-  /*
-   * getters
-   * */
+  // region getters
 
   get id(): string {
     return this._id;
@@ -131,9 +169,16 @@ export class Ledger {
     return this._transactionCount;
   }
 
-  /*
-   * private
-   * */
+  // endregion getters
+
+  // region private helpers
+
+  private _toLedgerAmount(amountStr: string, amountScale: number): bigint {
+    return amountToBigIntOfSize(amountStr, amountScale, this._assetScale);
+  }
+  private _fromLedgerAmount(amount: bigint, targetScale: number): string {
+    return amountFromBigIntOfSize(amount, this._assetScale, targetScale);
+  }
 
   private _recordAndApplyStateEvent(event: LedgerStateEvent): void {
     // event version must be resulting agg version (after evt apply
@@ -144,17 +189,85 @@ export class Ledger {
 
   private _recordDomainEvent(
     event: LedgerDomainEvent,
-    requestId?: string
+    sourceCmd?: CommandMsg
   ): void {
-    if (requestId) {
-      event.requestId = requestId;
+    // propagate requestId
+    if (sourceCmd?.requestId) {
+      event.requestId = sourceCmd.requestId;
     }
     this._uncommittedDomainEvents.push(event);
   }
 
-  /*
-   * Apply events and snapshot
-   * */
+  private _getAccount(
+    type: LedgerAccountTypes,
+    peerId?: string
+  ): ILedgerAccount | undefined {
+    return this._accounts.find((a) => {
+      return (
+        a.type === type &&
+        (type === 'ASSET_LIQUIDITY_ACCOUNT' || (peerId && a.peerId === peerId))
+      );
+    });
+  }
+
+  private _failHighLevelTransaction(
+    cmd:
+      | ReserveTransferCmd
+      | CheckBalanceAndReserveTransferCmd
+      | CommitTransferCmd
+      | RejectTransferCmd,
+    notFound: 'ACCOUNT' | 'PENDING'
+  ): void {
+    const payload: LedgerHighLevelFailureResponseEventPayload = {
+      requestId: cmd.payload.requestId,
+      transferId: cmd.payload.transferId,
+      paymentIntentId: cmd.payload.paymentIntentId,
+      paymentId: cmd.payload.paymentId,
+      errorMessage: `${notFound === 'ACCOUNT' ? 'Account(s)' : 'PendingTransfer'} not found for ${cmd.msgName}`
+    };
+
+    const direction = cmd.payload.transferDirection;
+    let eventType:
+      | typeof LedgerHighLevelSuccessResponseEvent
+      | typeof LedgerHighLevelFailureResponseEvent;
+
+    if (LedgerCommand.isReserveTransferCmd(cmd)) {
+      eventType =
+        direction === 'OUTGOING'
+          ? LedgerOutgoingTransferReserveFailedEvent
+          : LedgerIncomingTransferReserveFailedEvent;
+    } else if (LedgerCommand.isCommitTransferCmd(cmd)) {
+      eventType =
+        direction === 'OUTGOING'
+          ? LedgerOutgoingTransferCommitFailedEvent
+          : LedgerIncomingTransferCommitFailedEvent;
+    } else if (LedgerCommand.isRejectTransferCmd(cmd)) {
+      eventType =
+        direction === 'OUTGOING'
+          ? LedgerOutgoingTransferRejectFailedEvent
+          : LedgerIncomingTransferRejectFailedEvent;
+    } else if (LedgerCommand.isCheckBalanceAndReserveTransferCmd(cmd)) {
+      eventType =
+        direction === 'OUTGOING'
+          ? LedgerOutgoingTransferCheckBalanceAndReserveFailedEvent
+          : LedgerIncomingTransferCheckBalanceAndReserveFailedEvent;
+    } else {
+      const err = new Error(
+        'could not get error event in ledger._failHighLevelTransaction()'
+      );
+      this._logger.error(err);
+      throw err;
+    }
+
+    this._recordDomainEvent(new eventType(this._id, payload), cmd);
+    this._logger.warn(
+      `${notFound === 'ACCOUNT' ? 'Account(s)' : 'PendingTransfer'} not found for ${cmd.msgName}`
+    );
+  }
+
+  // endregion private helpers
+
+  // region Apply events and snapshot
 
   private _applySnapshot(snapshot: LedgerSnapshotEvent): void {
     if (
@@ -180,13 +293,28 @@ export class Ledger {
     this._accounts = snapshot.payload.accounts.map(
       LedgerAccountDtoSerializer.fromDTO
     );
+
+    // load pending transfers from the snapshot to the in memory state
+    if (
+      snapshot.payload.pendingTransfers &&
+      snapshot.payload.pendingTransfers.length
+    ) {
+      snapshot.payload.pendingTransfers.forEach((item) => {
+        this._pendingTransfers.set(item.transferId, item);
+      });
+    }
+
     this._lastSnapshotVersion = this._version = BigInt(
       snapshot.aggregateVersion
     );
     this._transactionCount = BigInt(snapshot.payload.transactionCount);
 
+    if (!this.verify()) {
+      throw new Error('Ledger failed verification - erroneous state found');
+    }
+
     this._logger.debug(
-      `Ledger ${this.id} - loaded from snapshot at version: ${this.version}, accounts count: ${this.accountsCount}, transactions count: ${this.transactionsCount}`
+      `Ledger ${this.id} - loaded snapshot - current version is: ${this.version}, accounts count: ${this.accountsCount}, transactions count: ${this.transactionsCount}, pending transfers count: ${this._pendingTransfers.size}`
     );
   }
 
@@ -254,12 +382,37 @@ export class Ledger {
     drAccount.debitedAmount += amount;
     crAccount.creditedAmount += amount;
 
+    /*
+    Add to the pending transfers if a reservation.
+    By keeping this here, we're able to track pending transfers
+    across restarts/crashes.
+    */
+    if (
+      event.payload.transaction.isReservation &&
+      event.payload.transaction.transferId
+    ) {
+      this._pendingTransfers.set(event.payload.transaction.transferId, {
+        transferId: event.payload.transaction.transferId,
+        peerId: event.payload.transaction.peerId,
+        amount: event.payload.transaction.amount,
+        amountScale: event.payload.transaction.amountScale
+      });
+    }
+
+    // Delete from pending transfers if a reservation void
+    if (
+      event.payload.transaction.voidsReservation &&
+      event.payload.transaction.transferId
+    ) {
+      this._pendingTransfers.delete(event.payload.transaction.transferId);
+    }
+
     this._transactionCount++;
   }
 
-  /*
-   * process commands
-   * */
+  // endregion Apply events and snapshot
+
+  // region process commands
 
   private async _processCreateLedgerAccountForAssetCmd(
     cmd: CreateLedgerAccountForAssetCmd
@@ -270,7 +423,7 @@ export class Ledger {
           assetCode: cmd.payload.assetCode,
           reason: 'ASSET_CODE_MISMATCH'
         }),
-        cmd.requestId
+        cmd
       );
       this._logger.warn(
         `Asset code: ${cmd.payload.assetCode} of new account with ID: ${cmd.payload.id} does not match ledger's ID: ${this._id}`
@@ -285,7 +438,7 @@ export class Ledger {
           assetCode: cmd.payload.assetCode,
           reason: 'DUPLICATE_ACCOUNT_ID'
         }),
-        cmd.requestId
+        cmd
       );
       this._logger.warn(
         `Account with ID: ${cmd.payload.id} already exists in ledger: ${this._id}`
@@ -298,12 +451,13 @@ export class Ledger {
         accounts: [
           {
             id: cmd.payload.id,
+            type: LedgerAccountTypes.ASSET_LIQUIDITY_ACCOUNT,
             name: `Asset Account for '${cmd.payload.assetCode}'`,
             assetCode: cmd.payload.assetCode,
             assetDisplayScale: DEFAULT_DISPLAY_ASSET_SCALE,
-            externalId: cmd.payload.assetCode,
             debitedAmount: 0n.toString(),
-            creditedAmount: 0n.toString()
+            creditedAmount: 0n.toString(),
+            peerId: undefined
           }
         ]
       })
@@ -314,7 +468,7 @@ export class Ledger {
         id: cmd.payload.id,
         assetCode: cmd.payload.assetCode
       }),
-      cmd.requestId
+      cmd
     );
   }
 
@@ -328,7 +482,7 @@ export class Ledger {
           assetCode: cmd.payload.assetCode,
           reason: 'ASSET_CODE_MISMATCH'
         }),
-        cmd.requestId
+        cmd
       );
       this._logger.warn(
         `Asset code: ${cmd.payload.assetCode} of account creation comand for peer: ${cmd.payload.peerId} does not match ledger's ID: ${this._id}`
@@ -352,7 +506,7 @@ export class Ledger {
           assetCode: cmd.payload.assetCode,
           reason: 'DUPLICATE_ACCOUNT_ID'
         }),
-        cmd.requestId
+        cmd
       );
       this._logger.warn(
         `Duplicate account id detected while processing CreateLedgerAccountsForPeerCmd for peerId: ${cmd.payload.peerId}`
@@ -360,10 +514,30 @@ export class Ledger {
       return;
     }
 
+    const duplicateForPeerIdFound = this._accounts.some(
+      (acc) =>
+        acc.peerId === cmd.payload.peerId &&
+        acc.assetCode === cmd.payload.assetCode
+    );
+    if (duplicateForPeerIdFound) {
+      this._recordDomainEvent(
+        new LedgerAccountCreationForPeerFailedEvent({
+          peerId: cmd.payload.peerId,
+          assetCode: cmd.payload.assetCode,
+          reason: 'DUPLICATE_ACCOUNT_ID'
+        }),
+        cmd
+      );
+      this._logger.warn(
+        `Duplicate accounts detected for the same peer id and asset code while processing CreateLedgerAccountsForPeerCmd for peerId: ${cmd.payload.peerId} and asset code: ${cmd.payload.assetCode}`
+      );
+      return;
+    }
+
     const commonStateEventObj = {
       assetCode: cmd.payload.assetCode,
       assetDisplayScale: DEFAULT_DISPLAY_ASSET_SCALE,
-      externalId: cmd.payload.peerId,
+      peerId: cmd.payload.peerId,
       debitedAmount: 0n.toString(),
       creditedAmount: 0n.toString()
     };
@@ -373,27 +547,32 @@ export class Ledger {
         accounts: [
           {
             id: cmd.payload.peerLiquidityAccId,
-            name: `Peer Liquidity Account for peer '${cmd.payload.peerId}'`,
+            type: LedgerAccountTypes.PEER_LIQUIDITY_ACCOUNT,
+            name: `Peer Liquidity Account for peer '${cmd.payload.peerId}' and asset '${cmd.payload.assetCode}'`,
             ...commonStateEventObj
           },
           {
             id: cmd.payload.peerClearingAccId,
-            name: `Peer Clearing Account for peer '${cmd.payload.peerId}'`,
+            type: LedgerAccountTypes.PEER_CLEARING_ACCOUNT,
+            name: `Peer Clearing Account for peer '${cmd.payload.peerId}' and asset '${cmd.payload.assetCode}'`,
             ...commonStateEventObj
           },
           {
             id: cmd.payload.aseLiquidityAccId,
-            name: `ASE Liquidity Account for peer '${cmd.payload.peerId}'`,
+            type: LedgerAccountTypes.ASE_LIQUIDITY_ACCOUNT,
+            name: `ASE Liquidity Account for peer '${cmd.payload.peerId}' and asset '${cmd.payload.assetCode}'`,
             ...commonStateEventObj
           },
           {
             id: cmd.payload.aseClearingAccId,
-            name: `ASE Clearing Account for peer '${cmd.payload.peerId}'`,
+            type: LedgerAccountTypes.ASE_CLEARING_ACCOUNT,
+            name: `ASE Clearing Account for peer '${cmd.payload.peerId}' and asset '${cmd.payload.assetCode}'`,
             ...commonStateEventObj
           },
           {
             id: cmd.payload.suspenseAccId,
-            name: `Peer Suspense Account for peer '${cmd.payload.peerId}'`,
+            type: LedgerAccountTypes.SUSPENSE_ACCOUNT,
+            name: `Peer Suspense Account for peer '${cmd.payload.peerId}' and asset '${cmd.payload.assetCode}'`,
             ...commonStateEventObj
           }
         ]
@@ -410,108 +589,68 @@ export class Ledger {
       suspenseAccId: cmd.payload.suspenseAccId
     });
 
-    this._recordDomainEvent(outputDomainEvent, cmd.requestId);
-  }
-
-  private async _processPostTransactionCmd(
-    cmd: PostTransactionCmd
-  ): Promise<void> {
-    const debitedAccount: ILedgerAccount | undefined = this._accounts.find(
-      (a) => a.id === cmd.payload.debitedAccountId
-    );
-    const creditedAccount = this._accounts.find(
-      (a) => a.id === cmd.payload.creditedAccountId
-    );
-    if (!debitedAccount || !creditedAccount) {
-      throw new Error('Account(s) not found');
-    }
-    // note: we don't need to check that the accounts are of the same asset in the same ledger!
-
-    // TODO validate amount and convert to ledger scale
-
-    const transactionDTO: ILedgerTransactionDto = {
-      id: cmd.payload.id,
-      debitedAccountId: cmd.payload.debitedAccountId,
-      creditedAccountId: cmd.payload.creditedAccountId,
-      amount: cmd.payload.amount,
-      amountScale: cmd.payload.amountScale,
-      timestamp: Date.now(),
-      externalId: cmd.payload.transferId
-    };
-
-    this._recordAndApplyStateEvent(
-      new LedgerTransactionRecordedStateEvent(this._id, {
-        transaction: transactionDTO
-      })
-    );
-
-    this._recordDomainEvent(
-      new LedgerTransactionPostedEvent(this._id, transactionDTO),
-      cmd.requestId
-    );
+    this._recordDomainEvent(outputDomainEvent, cmd);
   }
 
   private async _processReserveTransferCmd(
     cmd: ReserveTransferCmd
   ): Promise<void> {
-    const payerClearingAccount: ILedgerAccount | undefined =
-      this._accounts.find((a) => a.id === cmd.payload.payerClearingAccountId);
-    const suspenseAccount = this._accounts.find(
-      (a) => a.id === cmd.payload.suspenseAccountId
+    const payerClearingAccount = this._getAccount(
+      cmd.payload.transferDirection === 'OUTGOING'
+        ? LedgerAccountTypes.ASE_CLEARING_ACCOUNT
+        : LedgerAccountTypes.PEER_CLEARING_ACCOUNT,
+      cmd.payload.peerId
     );
+    const suspenseAccount: ILedgerAccount | undefined = this._getAccount(
+      LedgerAccountTypes.SUSPENSE_ACCOUNT,
+      cmd.payload.peerId
+    );
+
     if (!payerClearingAccount || !suspenseAccount) {
-      this._recordDomainEvent(
-        new LedgerAccountNotFoundEvent({
-          assetCode: this._id,
-          accountId: cmd.payload.payerClearingAccountId
-        }),
-        cmd.requestId
-      );
-      this._logger.warn(
-        'Account(s) not found in CheckBalanceAndReserveTransferCmd'
-      );
+      this._failHighLevelTransaction(cmd, 'ACCOUNT');
       return;
     }
     // note: we don't need to check that the accounts are of the same asset in the same ledger!
 
-    // TODO validate amount and convert to ledger scale
-    const transactionDTO: ILedgerTransactionDto = {
-      id: crypto.randomUUID(),
-      debitedAccountId: cmd.payload.payerClearingAccountId,
-      creditedAccountId: cmd.payload.suspenseAccountId,
-      amount: cmd.payload.amount,
-      amountScale: cmd.payload.amountScale,
-      timestamp: Date.now(),
-      externalId: cmd.payload.transferId
-    };
+    // validate amount and convert to ledger scale
+    const amountForLedger = this._toLedgerAmount(
+      cmd.payload.amount,
+      cmd.payload.amountScale
+    );
 
     this._recordAndApplyStateEvent(
       new LedgerTransactionRecordedStateEvent(this._id, {
-        transaction: transactionDTO
+        transaction: {
+          id: crypto.randomUUID(),
+          originatingCommandName: cmd.msgName,
+          debitedAccountId: payerClearingAccount.id,
+          creditedAccountId: suspenseAccount.id,
+          amount: amountForLedger.toString(),
+          amountScale: this._assetScale,
+          timestamp: Date.now(),
+          isReservation: true,
+          voidsReservation: false,
+          transferId: cmd.payload.transferId,
+          peerId: cmd.payload.peerId
+        }
       })
     );
 
+    const successPayload: LedgerHighLevelSuccessResponseEventPayload = {
+      requestId: cmd.payload.requestId,
+      transferId: cmd.payload.transferId,
+      paymentIntentId: cmd.payload.paymentIntentId,
+      paymentId: cmd.payload.paymentId
+    };
     if (cmd.payload.transferDirection === 'OUTGOING') {
       this._recordDomainEvent(
-        new LedgerOutgoingTransferReservedEvent(this._id, {
-          requestId: cmd.payload.requestId,
-          transferId: cmd.payload.transferId,
-          isError: false,
-          paymentIntentId: cmd.payload.paymentIntentId,
-          paymentId: cmd.payload.paymentId
-        }),
-        cmd.requestId
+        new LedgerOutgoingTransferReservedEvent(this._id, successPayload),
+        cmd
       );
     } else {
       this._recordDomainEvent(
-        new LedgerIncomingTransferReservedEvent(this._id, {
-          requestId: cmd.payload.requestId,
-          transferId: cmd.payload.transferId,
-          isError: false,
-          paymentIntentId: cmd.payload.paymentIntentId,
-          paymentId: cmd.payload.paymentId
-        }),
-        cmd.requestId
+        new LedgerIncomingTransferReservedEvent(this._id, successPayload),
+        cmd
       );
     }
   }
@@ -519,30 +658,34 @@ export class Ledger {
   private async _processCheckBalanceAndReserveCmd(
     cmd: CheckBalanceAndReserveTransferCmd
   ): Promise<void> {
-    const payerClearingAccount: ILedgerAccount | undefined =
-      this._accounts.find((a) => a.id === cmd.payload.payerClearingAccountId);
-    const payerLiquidityAccount = this._accounts.find(
-      (a) => a.id === cmd.payload.payerLiquidityAccountId
+    const payerClearingAccount = this._getAccount(
+      cmd.payload.transferDirection === 'OUTGOING'
+        ? LedgerAccountTypes.ASE_CLEARING_ACCOUNT
+        : LedgerAccountTypes.PEER_CLEARING_ACCOUNT,
+      cmd.payload.peerId
     );
-    const suspenseAccount = this._accounts.find(
-      (a) => a.id === cmd.payload.suspenseAccountId
+    const payerLiquidityAccount = this._getAccount(
+      cmd.payload.transferDirection === 'OUTGOING'
+        ? LedgerAccountTypes.ASE_LIQUIDITY_ACCOUNT
+        : LedgerAccountTypes.PEER_LIQUIDITY_ACCOUNT,
+      cmd.payload.peerId
     );
+    const suspenseAccount: ILedgerAccount | undefined = this._getAccount(
+      LedgerAccountTypes.SUSPENSE_ACCOUNT,
+      cmd.payload.peerId
+    );
+
     if (!payerClearingAccount || !payerLiquidityAccount || !suspenseAccount) {
-      this._recordDomainEvent(
-        new LedgerAccountNotFoundEvent({
-          assetCode: this._id,
-          accountId: cmd.payload.payerClearingAccountId
-        }),
-        cmd.requestId
-      );
-      this._logger.warn(
-        'Account(s) not found in CheckBalanceAndReserveTransferCmd'
-      );
+      this._failHighLevelTransaction(cmd, 'ACCOUNT');
       return;
     }
     // note: we don't need to check that the accounts are of the same asset in the same ledger!
 
-    const amount = BigInt(cmd.payload.amount);
+    // validate amount and convert to ledger scale
+    const ledgerAmount = this._toLedgerAmount(
+      cmd.payload.amount,
+      cmd.payload.amountScale
+    );
 
     // check liquidity
     const clearingBalance =
@@ -550,46 +693,49 @@ export class Ledger {
     const liquidityBalance =
       payerLiquidityAccount.creditedAmount -
       payerLiquidityAccount.debitedAmount;
-    const hasLiquidity = clearingBalance + liquidityBalance >= amount;
+    const hasLiquidity = clearingBalance + liquidityBalance >= ledgerAmount;
 
     if (!hasLiquidity) {
       this._logger.warn(
         `Ledger ${this._id} - check balance and reserve transfer failed, insufficient liquidity`
       );
+      const failurePayload: LedgerHighLevelFailureResponseEventPayload = {
+        requestId: cmd.payload.requestId,
+        transferId: cmd.payload.transferId,
+        paymentIntentId: cmd.payload.paymentIntentId,
+        paymentId: cmd.payload.paymentId,
+        errorMessage: 'Insufficient liquidity'
+      };
       if (cmd.payload.transferDirection === 'OUTGOING') {
         this._uncommittedDomainEvents.push(
           new LedgerOutgoingTransferInsufficientFundsErrorEvent(
             this._id,
-            cmd.payload.requestId,
-            cmd.payload.transferId,
-            cmd.payload.paymentIntentId,
-            cmd.payload.paymentId
+            failurePayload
           )
         );
       } else {
         this._uncommittedDomainEvents.push(
           new LedgerIncomingTransferInsufficientFundsErrorEvent(
             this._id,
-            cmd.payload.requestId,
-            cmd.payload.transferId,
-            cmd.payload.paymentIntentId,
-            cmd.payload.paymentId
+            failurePayload
           )
         );
       }
       return;
     }
 
-    // TODO validate amount and convert to ledger scale
-
     const transactionDTO: ILedgerTransactionDto = {
       id: crypto.randomUUID(),
-      debitedAccountId: cmd.payload.payerClearingAccountId,
-      creditedAccountId: cmd.payload.suspenseAccountId,
-      amount: amount.toString(),
-      amountScale: cmd.payload.amountScale,
+      originatingCommandName: cmd.msgName,
+      debitedAccountId: payerClearingAccount.id,
+      creditedAccountId: suspenseAccount.id,
+      amount: ledgerAmount.toString(),
+      amountScale: this._assetScale,
       timestamp: Date.now(),
-      externalId: cmd.payload.transferId
+      isReservation: true,
+      voidsReservation: false,
+      transferId: cmd.payload.transferId,
+      peerId: cmd.payload.peerId
     };
 
     this._recordAndApplyStateEvent(
@@ -598,66 +744,81 @@ export class Ledger {
       })
     );
 
+    const successPayload: LedgerHighLevelSuccessResponseEventPayload = {
+      requestId: cmd.payload.requestId,
+      transferId: cmd.payload.transferId,
+      paymentIntentId: cmd.payload.paymentIntentId,
+      paymentId: cmd.payload.paymentId
+    };
+
     if (cmd.payload.transferDirection === 'OUTGOING') {
       this._recordDomainEvent(
-        new LedgerOutgoingTransferReservedEvent(this._id, {
-          requestId: cmd.payload.requestId,
-          transferId: cmd.payload.transferId,
-          isError: false,
-          paymentIntentId: cmd.payload.paymentIntentId,
-          paymentId: cmd.payload.paymentId
-        }),
-        cmd.requestId
+        new LedgerOutgoingTransferReservedEvent(this._id, successPayload),
+        cmd
       );
     } else {
       this._recordDomainEvent(
-        new LedgerIncomingTransferReservedEvent(this._id, {
-          requestId: cmd.payload.requestId,
-          transferId: cmd.payload.transferId,
-          isError: false,
-          paymentIntentId: cmd.payload.paymentIntentId,
-          paymentId: cmd.payload.paymentId
-        }),
-        cmd.requestId
+        new LedgerIncomingTransferReservedEvent(this._id, successPayload),
+        cmd
       );
     }
+
+    this._pendingTransfers.set(cmd.payload.transferId, {
+      transferId: cmd.payload.transferId,
+      peerId: cmd.payload.peerId,
+      amount: ledgerAmount.toString(),
+      amountScale: this._assetScale
+    });
   }
 
   private async _processCommitTransferCmd(
     cmd: CommitTransferCmd
   ): Promise<void> {
-    const suspenseAccount = this._accounts.find(
-      (a) => a.id === cmd.payload.suspenseAccountId
-    );
-    const payerClearingAccount: ILedgerAccount | undefined =
-      this._accounts.find((a) => a.id === cmd.payload.payerClearingAccountId);
-    const payeeClearingAccount = this._accounts.find(
-      (a) => a.id === cmd.payload.payeeClearingAccountId
-    );
-    if (!payerClearingAccount || !payeeClearingAccount || !suspenseAccount) {
-      this._recordDomainEvent(
-        new LedgerAccountNotFoundEvent({
-          assetCode: this._id,
-          accountId: cmd.payload.payerClearingAccountId
-        }),
-        cmd.requestId
-      );
-      this._logger.warn('Account(s) not found in CommitTransferCmd');
+    const pendingTransfer = this._pendingTransfers.get(cmd.payload.transferId);
+    if (!pendingTransfer) {
+      this._failHighLevelTransaction(cmd, 'PENDING');
       return;
     }
 
+    const payerClearingAccount = this._getAccount(
+      cmd.payload.transferDirection === 'OUTGOING'
+        ? LedgerAccountTypes.ASE_CLEARING_ACCOUNT
+        : LedgerAccountTypes.PEER_CLEARING_ACCOUNT,
+      pendingTransfer.peerId
+    );
+    const payeeClearingAccount = this._getAccount(
+      cmd.payload.transferDirection === 'OUTGOING'
+        ? LedgerAccountTypes.PEER_CLEARING_ACCOUNT
+        : LedgerAccountTypes.ASE_CLEARING_ACCOUNT,
+      pendingTransfer.peerId
+    );
+    const suspenseAccount: ILedgerAccount | undefined = this._getAccount(
+      LedgerAccountTypes.SUSPENSE_ACCOUNT,
+      pendingTransfer.peerId
+    );
+
+    if (!payerClearingAccount || !payeeClearingAccount || !suspenseAccount) {
+      this._failHighLevelTransaction(cmd, 'ACCOUNT');
+      return;
+    }
+
+    // Note: pendingTransfer amounts are already in ledger scale
     const now = Date.now();
 
     this._recordAndApplyStateEvent(
       new LedgerTransactionRecordedStateEvent(this._id, {
         transaction: {
           id: crypto.randomUUID(),
-          debitedAccountId: cmd.payload.suspenseAccountId,
-          creditedAccountId: cmd.payload.payerClearingAccountId,
-          amount: cmd.payload.amount,
-          amountScale: cmd.payload.amountScale,
+          originatingCommandName: cmd.msgName,
+          debitedAccountId: suspenseAccount.id,
+          creditedAccountId: payerClearingAccount.id,
+          amount: pendingTransfer.amount,
+          amountScale: pendingTransfer.amountScale,
           timestamp: now,
-          externalId: cmd.payload.transferId
+          isReservation: false,
+          voidsReservation: true,
+          transferId: cmd.payload.transferId,
+          peerId: pendingTransfer.peerId
         }
       })
     );
@@ -666,37 +827,36 @@ export class Ledger {
       new LedgerTransactionRecordedStateEvent(this._id, {
         transaction: {
           id: crypto.randomUUID(),
-          debitedAccountId: cmd.payload.payerClearingAccountId,
-          creditedAccountId: cmd.payload.payeeClearingAccountId,
-          amount: cmd.payload.amount,
-          amountScale: cmd.payload.amountScale,
+          originatingCommandName: cmd.msgName,
+          debitedAccountId: payerClearingAccount.id,
+          creditedAccountId: payeeClearingAccount.id,
+          amount: pendingTransfer.amount,
+          amountScale: pendingTransfer.amountScale,
           timestamp: now,
-          externalId: cmd.payload.transferId
+          isReservation: false,
+          voidsReservation: true,
+          transferId: cmd.payload.transferId,
+          peerId: pendingTransfer.peerId
         }
       })
     );
 
+    const successPayload: LedgerHighLevelSuccessResponseEventPayload = {
+      requestId: cmd.payload.requestId,
+      transferId: cmd.payload.transferId,
+      paymentIntentId: cmd.payload.paymentIntentId,
+      paymentId: cmd.payload.paymentId
+    };
+
     if (cmd.payload.transferDirection === 'OUTGOING') {
       this._recordDomainEvent(
-        new LedgerOutgoingTransferCommittedEvent(this._id, {
-          requestId: cmd.payload.requestId,
-          transferId: cmd.payload.transferId,
-          isError: false,
-          paymentIntentId: cmd.payload.paymentIntentId,
-          paymentId: cmd.payload.paymentId
-        }),
-        cmd.requestId
+        new LedgerOutgoingTransferCommittedEvent(this._id, successPayload),
+        cmd
       );
     } else {
       this._recordDomainEvent(
-        new LedgerIncomingTransferCommittedEvent(this._id, {
-          requestId: cmd.payload.requestId,
-          transferId: cmd.payload.transferId,
-          isError: false,
-          paymentIntentId: cmd.payload.paymentIntentId,
-          paymentId: cmd.payload.paymentId
-        }),
-        cmd.requestId
+        new LedgerIncomingTransferCommittedEvent(this._id, successPayload),
+        cmd
       );
     }
   }
@@ -704,20 +864,229 @@ export class Ledger {
   private async _processRejectTransferCmd(
     cmd: RejectTransferCmd
   ): Promise<void> {
-    const suspenseAccount = this._accounts.find(
-      (a) => a.id === cmd.payload.suspenseAccountId
+    const pendingTransfer = this._pendingTransfers.get(cmd.payload.transferId);
+    if (!pendingTransfer) {
+      this._failHighLevelTransaction(cmd, 'PENDING');
+      return;
+    }
+
+    const payerClearingAccount = this._getAccount(
+      cmd.payload.transferDirection === 'OUTGOING'
+        ? LedgerAccountTypes.ASE_CLEARING_ACCOUNT
+        : LedgerAccountTypes.PEER_CLEARING_ACCOUNT,
+      pendingTransfer.peerId
     );
-    const payerClearingAccount: ILedgerAccount | undefined =
-      this._accounts.find((a) => a.id === cmd.payload.payerClearingAccountId);
+    const suspenseAccount: ILedgerAccount | undefined = this._getAccount(
+      LedgerAccountTypes.SUSPENSE_ACCOUNT,
+      pendingTransfer.peerId
+    );
+
     if (!payerClearingAccount || !suspenseAccount) {
+      this._failHighLevelTransaction(cmd, 'ACCOUNT');
+      return;
+    }
+
+    // Note: pendingTransfer amounts are already in ledger scale
+    this._recordAndApplyStateEvent(
+      new LedgerTransactionRecordedStateEvent(this._id, {
+        transaction: {
+          id: crypto.randomUUID(),
+          originatingCommandName: cmd.msgName,
+          debitedAccountId: suspenseAccount.id,
+          creditedAccountId: payerClearingAccount.id,
+          amount: pendingTransfer.amount,
+          amountScale: pendingTransfer.amountScale,
+          timestamp: Date.now(),
+          isReservation: false,
+          voidsReservation: true,
+          transferId: cmd.payload.transferId,
+          peerId: pendingTransfer.peerId
+        }
+      })
+    );
+
+    const successPayload: LedgerHighLevelSuccessResponseEventPayload = {
+      requestId: cmd.payload.requestId,
+      transferId: cmd.payload.transferId,
+      paymentIntentId: cmd.payload.paymentIntentId,
+      paymentId: cmd.payload.paymentId
+    };
+
+    if (cmd.payload.transferDirection === 'OUTGOING') {
       this._recordDomainEvent(
-        new LedgerAccountNotFoundEvent({
-          assetCode: this._id,
-          accountId: cmd.payload.payerClearingAccountId
-        }),
-        cmd.requestId
+        new LedgerOutgoingTransferRejectedEvent(this._id, successPayload),
+        cmd
       );
-      this._logger.warn('Account(s) not found in RejectTransferCmd');
+    } else {
+      this._recordDomainEvent(
+        new LedgerIncomingTransferRejectedEvent(this._id, successPayload),
+        cmd
+      );
+    }
+  }
+
+  private async _processDepositCmd(
+    cmd: DepositToPeerCmd | DepositToAseCmd
+  ): Promise<void> {
+    const assetAccount = this._getAccount(
+      LedgerAccountTypes.ASSET_LIQUIDITY_ACCOUNT
+    );
+    let liquidityAccount: ILedgerAccount | undefined;
+
+    if (cmd.msgName === DepositToPeerCmd.name) {
+      liquidityAccount = this._getAccount(
+        LedgerAccountTypes.PEER_LIQUIDITY_ACCOUNT,
+        cmd.payload.peerId
+      );
+    } else {
+      liquidityAccount = this._getAccount(
+        LedgerAccountTypes.ASE_LIQUIDITY_ACCOUNT,
+        cmd.payload.peerId
+      );
+    }
+
+    if (!assetAccount || !liquidityAccount) {
+      const failPayload: LedgerLiquidityManagementFailureEventPayload = {
+        peerId: cmd.payload.peerId,
+        requestId: cmd.payload.requestId,
+        errorMessage: `Account(s) not found for ${cmd.msgName}`
+      };
+      if (cmd.msgName === WithdrawFromPeerCmd.name) {
+        this._recordDomainEvent(
+          new LedgerDepositToPeerFailedEvent(this._id, failPayload),
+          cmd
+        );
+      } else {
+        this._recordDomainEvent(
+          new LedgerDepositToAseFailedEvent(this._id, failPayload),
+          cmd
+        );
+      }
+
+      this._logger.warn(`Account(s) not found for ${cmd.msgName}`);
+      return;
+    }
+
+    // validate amount and convert to ledger scale
+    const amountForLedger = this._toLedgerAmount(
+      cmd.payload.amount,
+      cmd.payload.amountScale
+    );
+
+    this._recordAndApplyStateEvent(
+      new LedgerTransactionRecordedStateEvent(this._id, {
+        transaction: {
+          id: crypto.randomUUID(),
+          originatingCommandName: cmd.msgName,
+          debitedAccountId: assetAccount.id,
+          creditedAccountId: liquidityAccount.id,
+          amount: amountForLedger.toString(),
+          amountScale: this._assetScale,
+          timestamp: Date.now(),
+          externalId: cmd.payload.externalId,
+          isReservation: false,
+          voidsReservation: false,
+          peerId: cmd.payload.peerId
+        }
+      })
+    );
+
+    const payload: LedgerLiquidityManagementSuccessEventPayload = {
+      peerId: cmd.payload.peerId,
+      requestId: cmd.payload.requestId,
+      externalId: cmd.payload.externalId
+    };
+    if (cmd.msgName === DepositToPeerCmd.name) {
+      this._recordDomainEvent(
+        new LedgerDepositToPeerSucceededEvent(this._id, payload),
+        cmd
+      );
+    } else {
+      this._recordDomainEvent(
+        new LedgerDepositToAseSucceededEvent(this._id, payload),
+        cmd
+      );
+    }
+  }
+
+  private async _processWithdrawCmd(
+    cmd: WithdrawFromPeerCmd | WithdrawFromAseCmd
+  ): Promise<void> {
+    const assetAccount = this._getAccount(
+      LedgerAccountTypes.ASSET_LIQUIDITY_ACCOUNT
+    );
+    let liquidityAccount: ILedgerAccount | undefined;
+
+    if (cmd.msgName === WithdrawFromPeerCmd.name) {
+      liquidityAccount = this._getAccount(
+        LedgerAccountTypes.PEER_LIQUIDITY_ACCOUNT,
+        cmd.payload.peerId
+      );
+    } else {
+      liquidityAccount = this._getAccount(
+        LedgerAccountTypes.ASE_LIQUIDITY_ACCOUNT,
+        cmd.payload.peerId
+      );
+    }
+
+    if (!assetAccount || !liquidityAccount) {
+      const failPayload: LedgerLiquidityManagementFailureEventPayload = {
+        peerId: cmd.payload.peerId,
+        requestId: cmd.payload.requestId,
+        errorMessage: `Account(s) not found for ${cmd.msgName}`
+      };
+      if (cmd.msgName === WithdrawFromPeerCmd.name) {
+        this._recordDomainEvent(
+          new LedgerWithdrawFromPeerFailedEvent(this._id, failPayload),
+          cmd
+        );
+      } else {
+        this._recordDomainEvent(
+          new LedgerWithdrawFromAseFailedEvent(this._id, failPayload),
+          cmd
+        );
+      }
+
+      this._logger.warn(`Account(s) not found for ${cmd.msgName}`);
+      return;
+    }
+
+    // validate amount, convert to ledger scale, and check liquidity
+    const amountForLedger = this._toLedgerAmount(
+      cmd.payload.amount,
+      cmd.payload.amountScale
+    );
+    const hasLiquidity =
+      liquidityAccount.creditedAmount - liquidityAccount.debitedAmount >=
+      amountForLedger;
+
+    if (!hasLiquidity) {
+      const failPayload: LedgerLiquidityManagementFailureEventPayload = {
+        peerId: cmd.payload.peerId,
+        requestId: cmd.payload.requestId,
+        errorMessage: 'Insufficient liquidity'
+      };
+      if (cmd.msgName === WithdrawFromPeerCmd.name) {
+        this._recordDomainEvent(
+          new LedgerWithdrawFromPeerFailedWithInsufficientFundsEvent(
+            this._id,
+            failPayload
+          ),
+          cmd
+        );
+      } else {
+        this._recordDomainEvent(
+          new LedgerWithdrawFromAseFailedWithInsufficientFundsEvent(
+            this._id,
+            failPayload
+          ),
+          cmd
+        );
+      }
+
+      this._logger.warn(
+        `Ledger ${this._id} - withdraw failed, insufficient liquidity ${cmd.msgName}`
+      );
       return;
     }
 
@@ -725,44 +1094,42 @@ export class Ledger {
       new LedgerTransactionRecordedStateEvent(this._id, {
         transaction: {
           id: crypto.randomUUID(),
-          debitedAccountId: cmd.payload.suspenseAccountId,
-          creditedAccountId: cmd.payload.payerClearingAccountId,
-          amount: cmd.payload.amount,
-          amountScale: cmd.payload.amountScale,
+          originatingCommandName: cmd.msgName,
+          debitedAccountId: liquidityAccount.id,
+          creditedAccountId: assetAccount.id,
+          amount: amountForLedger.toString(),
+          amountScale: this._assetScale,
           timestamp: Date.now(),
-          externalId: cmd.payload.transferId
+          externalId: cmd.payload.externalId,
+          isReservation: false,
+          voidsReservation: false,
+          peerId: cmd.payload.peerId
         }
       })
     );
 
-    if (cmd.payload.transferDirection === 'OUTGOING') {
+    const payload: LedgerLiquidityManagementSuccessEventPayload = {
+      peerId: cmd.payload.peerId,
+      requestId: cmd.payload.requestId,
+      externalId: cmd.payload.externalId
+    };
+
+    if (cmd.msgName === WithdrawFromPeerCmd.name) {
       this._recordDomainEvent(
-        new LedgerOutgoingTransferRejectedEvent(this._id, {
-          requestId: cmd.payload.requestId,
-          transferId: cmd.payload.transferId,
-          isError: false,
-          paymentIntentId: cmd.payload.paymentIntentId,
-          paymentId: cmd.payload.paymentId
-        }),
-        cmd.requestId
+        new LedgerWithdrawFromPeerSucceededEvent(this._id, payload),
+        cmd
       );
     } else {
       this._recordDomainEvent(
-        new LedgerIncomingTransferRejectedEvent(this._id, {
-          requestId: cmd.payload.requestId,
-          transferId: cmd.payload.transferId,
-          isError: false,
-          paymentIntentId: cmd.payload.paymentIntentId,
-          paymentId: cmd.payload.paymentId
-        }),
-        cmd.requestId
+        new LedgerWithdrawFromAseSucceededEvent(this._id, payload),
+        cmd
       );
     }
   }
 
-  /*
-   * public
-   * */
+  // endregion process commands
+
+  // region public methods
 
   // load the aggregate from the snapshot and events
   async load(
@@ -770,32 +1137,37 @@ export class Ledger {
     events: LedgerStateEvent[],
     replayed: boolean = false
   ): Promise<boolean> {
-    this._logger.debug(
+    this._logger.info(
       `Ledger ${this.id} at version ${this._version} - going to load from ${snapshot ? '1' : '(no)'} snapshot and ${events.length} events - replayed: ${replayed} ...`
     );
 
     if (!snapshot && !events.length) {
-      return false;
-    }
-
-    if (snapshot) {
-      this._applySnapshot(snapshot);
-    }
-    if (!events.length) {
-      // return true/ok if no events found but a snapshot exists
-      if (snapshot) {
-        this._logger.debug(
-          `Ledger ${this.id} - loaded from snapshot at version: ${this.version}, last snapshot version: ${this.lastSnapshotVersion}, accounts count: ${this.accountsCount}, transactions count: ${this.transactionsCount}`
-        );
-        return true;
-      }
       this._logger.warn(
         `Ledger ${this.id} - not loaded - no snapshots or events provided`
       );
       return false;
     }
 
-    this.applyEvents(events, replayed);
+    if (snapshot) {
+      this._applySnapshot(snapshot);
+    }
+    if (events.length) {
+      this.applyEvents(events, replayed);
+    }
+
+    let logMsg = `Ledger ${this.id} - loaded from `;
+    if (snapshot && events.length) {
+      logMsg += 'snapshot and events';
+    } else if (!snapshot && events.length) {
+      logMsg += 'events';
+    } else {
+      logMsg += 'snapshot';
+    }
+    this._logger.info(
+      `${logMsg} - current version is: ${this.version}, last snapshot version: ${this.lastSnapshotVersion}, accounts count: ${this.accountsCount}, transactions count: ${this.transactionsCount}, pending transfers count: ${this._pendingTransfers.size}`
+    );
+
+    // loaded successfully if either a snapshot or events were loaded
     return true;
   }
 
@@ -821,22 +1193,22 @@ export class Ledger {
       throw new Error('Version mismatch');
     }
 
+    if (!this.verify()) {
+      throw new Error('Ledger failed verification - erroneous state found');
+    }
+
     this._logger.debug(
-      `Ledger ${this.id} - applied ${events.length} event(s), current version is: ${this.version}, last snapshot version: ${this.lastSnapshotVersion}, accounts count: ${this.accountsCount}, transactions count: ${this.transactionsCount}`
+      `Ledger ${this.id} - applied ${events.length} event(s) - current version is: ${this.version}, last snapshot version: ${this.lastSnapshotVersion}, accounts count: ${this.accountsCount}, transactions count: ${this.transactionsCount}, pending transfers count: ${this._pendingTransfers.size} `
     );
     return;
   }
 
   async processCommand(ledgerCmd: LedgerCommand): Promise<void> {
     if (LedgerCommand.isCreateLedgerAccountForAssetCmd(ledgerCmd)) {
-      // low level
       await this._processCreateLedgerAccountForAssetCmd(ledgerCmd);
     } else if (LedgerCommand.isCreateLedgerAccountsForPeerCmd(ledgerCmd)) {
       await this._processCreateLedgerAccountsForPeerCmd(ledgerCmd);
-    } else if (LedgerCommand.isPostTransactionCmd(ledgerCmd)) {
-      await this._processPostTransactionCmd(ledgerCmd);
     } else if (LedgerCommand.isReserveTransferCmd(ledgerCmd)) {
-      // high level
       await this._processReserveTransferCmd(ledgerCmd);
     } else if (LedgerCommand.isCheckBalanceAndReserveTransferCmd(ledgerCmd)) {
       await this._processCheckBalanceAndReserveCmd(ledgerCmd);
@@ -844,6 +1216,16 @@ export class Ledger {
       await this._processCommitTransferCmd(ledgerCmd);
     } else if (LedgerCommand.isRejectTransferCmd(ledgerCmd)) {
       await this._processRejectTransferCmd(ledgerCmd);
+    } else if (
+      LedgerCommand.isDepositToPeerCmd(ledgerCmd) ||
+      LedgerCommand.isDepositToAseCmd(ledgerCmd)
+    ) {
+      await this._processDepositCmd(ledgerCmd);
+    } else if (
+      LedgerCommand.isWithdrawFromPeerCmd(ledgerCmd) ||
+      LedgerCommand.isWithdrawFromAseCmd(ledgerCmd)
+    ) {
+      await this._processWithdrawCmd(ledgerCmd);
     } else {
       throw new Error(`unhandled command with msgName: '${ledgerCmd.msgName}'`);
     }
@@ -861,7 +1243,8 @@ export class Ledger {
       {
         assetScale: this._assetScale,
         accounts: this._accounts.map(LedgerAccountDtoSerializer.toDTO),
-        transactionCount: this._transactionCount.toString()
+        transactionCount: this._transactionCount.toString(),
+        pendingTransfers: Array.from(this._pendingTransfers.values())
       }
     );
 
@@ -896,7 +1279,8 @@ export class Ledger {
     let output = `Version:               ${this._version}\n`;
     output += `Last snapshot version: ${this._lastSnapshotVersion}\n`;
     output += `Accounts:              ${this._accounts.length}\n`;
-    output += `Transactions:          ${this._transactionCount}`;
+    output += `Transactions:          ${this._transactionCount}\n`;
+    output += `Pending Trxs:          ${this._pendingTransfers.size}`;
 
     this._logger.info(`${header}\n${output}\n${footer}\n`);
   }
@@ -921,4 +1305,5 @@ export class Ledger {
       version: this.version.toString()
     };
   }
+  // endregion public methods
 }

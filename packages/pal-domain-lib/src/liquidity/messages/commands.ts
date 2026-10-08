@@ -4,8 +4,10 @@ import {
   MessageDataFormats
 } from 'common-types-lib';
 
+const DATAFORMAT = MessageDataFormats.JSON;
+
 export abstract class LedgerCommand extends CommandMsg {
-  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
+  msgDataFormat: MessageDataFormats = DATAFORMAT;
   msgTopic: string = CommandTopics.LedgerCommands;
   protected constructor(aggId: string) {
     super(aggId);
@@ -27,11 +29,7 @@ export abstract class LedgerCommand extends CommandMsg {
     return cmd.msgName === CreateLedgerAccountsForPeerCmd.name;
   }
 
-  static isPostTransactionCmd(cmd: CommandMsg): cmd is PostTransactionCmd {
-    return cmd.msgName === PostTransactionCmd.name;
-  }
-
-  // High level commands
+  // High-level commands
   static isReserveTransferCmd(cmd: CommandMsg): cmd is ReserveTransferCmd {
     return cmd.msgName === ReserveTransferCmd.name;
   }
@@ -45,6 +43,20 @@ export abstract class LedgerCommand extends CommandMsg {
   }
   static isRejectTransferCmd(cmd: CommandMsg): cmd is RejectTransferCmd {
     return cmd.msgName === RejectTransferCmd.name;
+  }
+
+  // High-level liquidity managment commands
+  static isDepositToPeerCmd(cmd: CommandMsg): cmd is DepositToPeerCmd {
+    return cmd.msgName === DepositToPeerCmd.name;
+  }
+  static isWithdrawFromPeerCmd(cmd: CommandMsg): cmd is WithdrawFromPeerCmd {
+    return cmd.msgName === WithdrawFromPeerCmd.name;
+  }
+  static isDepositToAseCmd(cmd: CommandMsg): cmd is DepositToAseCmd {
+    return cmd.msgName === DepositToAseCmd.name;
+  }
+  static isWithdrawFromAseCmd(cmd: CommandMsg): cmd is WithdrawFromAseCmd {
+    return cmd.msgName === WithdrawFromAseCmd.name;
   }
 }
 
@@ -92,32 +104,14 @@ export class CreateLedgerAccountsForPeerCmd extends LedgerCommand {
   }
 }
 
-export type PostTransactionCmdPayload = {
-  id: string;
-  debitedAccountId: string;
-  creditedAccountId: string;
-  amount: string;
-  amountScale: number;
-  transferId?: string;
-};
-export class PostTransactionCmd extends LedgerCommand {
-  payload: PostTransactionCmdPayload;
-  constructor(aggId: string, payload: PostTransactionCmdPayload) {
-    super(aggId);
-    this.payload = payload;
-  }
-}
-
 /*
- * High level commands
+ * High-level transfer commands
  * */
 
 export type CheckBalanceAndReserveTransferCmdPayload = {
   requestId: string;
   transferId: string;
-  payerClearingAccountId: string;
-  payerLiquidityAccountId: string;
-  suspenseAccountId: string;
+  peerId: string;
   amount: string;
   amountScale: number;
   transferDirection: 'INCOMING' | 'OUTGOING';
@@ -125,7 +119,6 @@ export type CheckBalanceAndReserveTransferCmdPayload = {
   paymentId: string;
 };
 export class CheckBalanceAndReserveTransferCmd extends LedgerCommand {
-  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   payload: CheckBalanceAndReserveTransferCmdPayload;
   constructor(
     aggId: string,
@@ -139,8 +132,7 @@ export class CheckBalanceAndReserveTransferCmd extends LedgerCommand {
 export type ReserveTransferCmdPayload = {
   requestId: string;
   transferId: string;
-  payerClearingAccountId: string;
-  suspenseAccountId: string;
+  peerId: string;
   amount: string;
   amountScale: number;
   transferDirection: 'INCOMING' | 'OUTGOING';
@@ -148,7 +140,6 @@ export type ReserveTransferCmdPayload = {
   paymentId: string;
 };
 export class ReserveTransferCmd extends LedgerCommand {
-  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
   payload: ReserveTransferCmdPayload;
   constructor(aggId: string, payload: ReserveTransferCmdPayload) {
     super(aggId);
@@ -156,43 +147,68 @@ export class ReserveTransferCmd extends LedgerCommand {
   }
 }
 
-export type CommitTransferCmdPayload = {
+export type CommitOrRejectTransferCmdPayload = {
   requestId: string;
   transferId: string;
-  payerClearingAccountId: string;
-  suspenseAccountId: string;
-  payeeClearingAccountId: string;
-  amount: string;
-  amountScale: number;
   transferDirection: 'INCOMING' | 'OUTGOING';
   paymentIntentId: string;
   paymentId: string;
 };
 export class CommitTransferCmd extends LedgerCommand {
-  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
-  payload: CommitTransferCmdPayload;
-  constructor(aggId: string, payload: CommitTransferCmdPayload) {
+  payload: CommitOrRejectTransferCmdPayload;
+  constructor(aggId: string, payload: CommitOrRejectTransferCmdPayload) {
     super(aggId);
     this.payload = payload;
   }
 }
 
-export type RejectTransferCmdPayload = {
+export class RejectTransferCmd extends LedgerCommand {
+  payload: CommitOrRejectTransferCmdPayload;
+  constructor(aggId: string, payload: CommitOrRejectTransferCmdPayload) {
+    super(aggId);
+    this.payload = payload;
+  }
+}
+
+/*
+ * High-level liquidity management commands
+ * */
+
+export type LiquidityManagementCmdPayload = {
   requestId: string;
-  transferId: string;
-  payerClearingAccountId: string;
-  suspenseAccountId: string;
+  peerId: string;
+  assetCode: string;
   amount: string;
   amountScale: number;
-  transferDirection: 'INCOMING' | 'OUTGOING';
-  paymentIntentId: string;
-  paymentId: string;
+  externalId?: string;
 };
-export class RejectTransferCmd extends LedgerCommand {
-  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
-  payload: RejectTransferCmdPayload;
-  constructor(aggId: string, payload: RejectTransferCmdPayload) {
-    super(aggId);
+export class DepositToPeerCmd extends LedgerCommand {
+  payload: LiquidityManagementCmdPayload;
+  constructor(payload: LiquidityManagementCmdPayload) {
+    super(payload.assetCode);
+    this.payload = payload;
+  }
+}
+
+export class WithdrawFromPeerCmd extends LedgerCommand {
+  payload: LiquidityManagementCmdPayload;
+  constructor(payload: LiquidityManagementCmdPayload) {
+    super(payload.assetCode);
+    this.payload = payload;
+  }
+}
+export class DepositToAseCmd extends LedgerCommand {
+  payload: LiquidityManagementCmdPayload;
+  constructor(payload: LiquidityManagementCmdPayload) {
+    super(payload.assetCode);
+    this.payload = payload;
+  }
+}
+
+export class WithdrawFromAseCmd extends LedgerCommand {
+  payload: LiquidityManagementCmdPayload;
+  constructor(payload: LiquidityManagementCmdPayload) {
+    super(payload.assetCode);
     this.payload = payload;
   }
 }

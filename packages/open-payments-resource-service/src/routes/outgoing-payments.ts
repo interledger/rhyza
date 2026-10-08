@@ -76,7 +76,7 @@ export async function outgoingPaymentRoutes(
 
     const { domain, pathName } =
       parseAddressToDomainAndPathName(walletAddressUrl);
-    const alias = await palClient.ResolveWalletAddressAlias(domain, pathName);
+    const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
 
     if (!alias) {
       // An unknown wallet address returns an empty page rather than an

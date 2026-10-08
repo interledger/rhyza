@@ -9,6 +9,8 @@ service PalGrpc {
 
   rpc CreateWalletAddress(PbCreateWalletAddressRequest) returns (PbCreateWalletAddressResponse);
   rpc GetWalletAddresses(PbGetWalletAddressesRequest) returns (PbGetWalletAddressesResponse);
+  rpc DeactivateWalletAddress(PbDeactivateWalletAddressRequest) returns (google.protobuf.Empty);
+  rpc ActivateWalletAddress(PbActivateWalletAddressRequest) returns (google.protobuf.Empty);
   rpc AddWalletAddressKey(PbAddWalletAddressKeyRequest) returns (PbAddWalletAddressKeyResponse);
   rpc GetWalletAddressKeys(PbGetWalletAddressKeysRequest) returns (PbGetWalletAddressKeysResponse);
   rpc RevokeWalletAddressKey(PbRevokeWalletAddressKeyRequest) returns (google.protobuf.Empty);
@@ -29,6 +31,9 @@ service PalGrpc {
 
   // ledger queries
   rpc GetLedgerAccounts(PbGetLedgerAccountsRequest) returns (PbGetLedgerAccountsResponse);
+
+  // ledger liquidity management requests
+  rpc ExecuteLedgerLiquidityManagementRequest(PbLedgerLiquidityManagementRequest) returns (PbLedgerLiquidityManagementResponse);
 }
 
 /*
@@ -86,6 +91,14 @@ message PbSingleWalletAddressResponse {
   string asset_code = 3;
   uint32 asset_scale = 4;
   bool is_active = 5;
+}
+
+message PbDeactivateWalletAddressRequest {
+  string wallet_address_id = 1;
+}
+
+message PbActivateWalletAddressRequest {
+  string wallet_address_id = 1;
 }
 
 /*
@@ -257,14 +270,51 @@ message PbGetLedgerAccountsRequest{
 
 message PbLedgerAccount {
   string id = 1;
-  string asset_code = 2;
-  uint32 asset_display_scale = 3;
-  string name = 4;
-  string debited_amount = 5;
-  string credited_amount = 6;
-  optional string external_id = 7;
+  string type = 2;
+  string name = 3;
+  string asset_code = 4;
+  uint32 asset_display_scale = 5;
+  string debited_amount = 6;
+  string credited_amount = 7;
+  optional string peer_id = 8;
 }
 
 message PbGetLedgerAccountsResponse{
   repeated PbLedgerAccount accounts = 1;
+}
+
+// liquidity requests
+message PbLedgerLiquidityManagementRequest{
+  enum Type {
+    DEPOSIT_TO_ASE = 0;
+    DEPOSIT_TO_PEER = 1;
+    WITHDRAW_FROM_ASE = 2;
+    WITHDRAW_FROM_PEER = 3;
+  }
+
+  Type type = 1;
+  string request_id = 2;
+  string peer_id = 3;
+  string asset_code = 4;
+  string amount = 5;
+  uint32 amount_scale = 6;
+  optional string external_id = 7;
+}
+
+message PbLedgerLiquidityManagementSuccessResponse{}
+
+message PbLedgerLiquidityManagementFailureResponse{
+  string error_message = 4;
+}
+message PbLedgerLiquidityManagementResponse{
+
+  string request_id = 1;
+  string peer_id = 2;
+  optional string external_id = 3;
+
+  oneof response {
+    google.protobuf.Empty success = 4;
+    PbLedgerLiquidityManagementFailureResponse generic_failure = 5;
+    PbLedgerLiquidityManagementFailureResponse insufficient_funds_failure = 6;
+  }
 }

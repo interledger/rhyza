@@ -21,7 +21,7 @@ export class AseFxServiceAdapter implements IPalAseFxService {
     this._aseEndpointUrl = aseEndpointUrl;
     this._timeoutMs = timeoutMs;
     this._rateTtlMs = rateTtlMs;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
   }
 
   /*

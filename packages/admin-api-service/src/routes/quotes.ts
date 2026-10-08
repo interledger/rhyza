@@ -44,7 +44,7 @@ export async function quoteRoutes(
     const id = request.body.id ?? randomUUID();
 
     const { domain, pathName } = parseAddressToDomainAndPathName(walletAddress);
-    const alias = await palClient.ResolveWalletAddressAlias(domain, pathName);
+    const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
     if (!alias) {
       return reply
         .status(404)

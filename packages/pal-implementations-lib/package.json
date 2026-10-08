@@ -12,19 +12,20 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mongodb": "~7.1.0",
-    "ioredis": "~5.10.1",
-    "google-protobuf": "~4.0.2",
-    "pal-domain-lib": "workspace: *",
     "common-types-lib": "workspace: *",
+    "implementations-lib": "workspace: *",
+    "pal-domain-lib": "workspace: *",
     "pal-public-types-lib": "workspace: *",
-    "implementations-lib": "workspace: *"
+    "google-protobuf": "catalog:",
+    "ioredis": "~5.10.1",
+    "mongodb": "~7.1.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.3",
-    "tslib": "~2.8.1",
-    "grpc_tools_node_protoc_ts": "~5.3.3",
+    "@types/google-protobuf": "~3.15.12",
     "grpc-tools": "~1.13.1",
-    "@types/google-protobuf": "~3.15.12"
+    "grpc_tools_node_protoc_ts": "~5.3.3",
+    "ts-proto": "~2.12.0",
+    "tslib": "~2.8.1",
+    "tsx": "^4.19.3"
   }
 }

@@ -7,15 +7,18 @@ import {
   IRawMessageSerializerFactory
 } from 'common-types-lib';
 import { randomBytes } from 'node:crypto';
+import { KafkaLoggerWrapper } from './kafka-logger-wrapper';
+import { AdminConstructorConfig } from '@confluentinc/kafka-javascript/types/kafkajs';
 
-const DEFAULT_BATCH_SIZE = 5000;
-const DEFAULT_BATCH_TIMEOUT_MS = 1000;
+const DEFAULT_BATCH_SIZE = 25000;
+const DEFAULT_BATCH_TIMEOUT_MS = 500;
 
 export class KafkaFetcher implements IMessageFetcher {
   private readonly _logger: ILogger | null;
   private readonly _kafka: KafkaJS.Kafka;
   private readonly _consumerIdPrefix: string;
   private readonly _serializerFactory: IRawMessageSerializerFactory;
+  private readonly _loggerWrapper: KafkaLoggerWrapper | null;
 
   constructor(
     kafka: KafkaJS.Kafka,
@@ -23,13 +26,18 @@ export class KafkaFetcher implements IMessageFetcher {
     consumerIdPrefix: string | null,
     logger: ILogger | null = null
   ) {
-    this._logger = logger;
+    this._logger = logger ? logger.child(this.constructor.name) : null;
     this._kafka = kafka;
     this._serializerFactory = serializerFactory;
 
     // make sure the consumer group id is random
     this._consumerIdPrefix =
       consumerIdPrefix || `${this.constructor.name}_${crypto.randomUUID()}`;
+
+    this._loggerWrapper = null;
+    if (this._logger) {
+      this._loggerWrapper = new KafkaLoggerWrapper(this._logger);
+    }
   }
 
   private _formatMessage(
@@ -65,7 +73,16 @@ export class KafkaFetcher implements IMessageFetcher {
     msgKey: string,
     partitionAndOffset?: { partition: number; offset: number }
   ): Promise<IMessage[]> {
-    const admin = this._kafka.admin();
+    const config: AdminConstructorConfig = {};
+    if (this._loggerWrapper) {
+      if (config.kafkaJS) {
+        config.kafkaJS.logger = this._loggerWrapper;
+      } else {
+        config.kafkaJS = { logger: this._loggerWrapper };
+      }
+    }
+
+    const admin = this._kafka.admin(config);
     await admin.connect();
 
     // from the topic offsets, get the partitions that have messages
@@ -92,7 +109,8 @@ export class KafkaFetcher implements IMessageFetcher {
         groupId: `${this._consumerIdPrefix}-${randomBytes(3).toString('hex')}`,
         fromBeginning: true,
         partitionAssigners: [KafkaJS.PartitionAssigners.roundRobin],
-        autoCommit: false
+        autoCommit: false,
+        logger: this._loggerWrapper || undefined
       },
       'js.consumer.max.batch.size': DEFAULT_BATCH_SIZE,
       'fetch.wait.max.ms': DEFAULT_BATCH_TIMEOUT_MS

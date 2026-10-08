@@ -10,7 +10,7 @@ repositories
 */
 export interface ILedgerEventSourcingRepository {
   // for any events other than snapshot events
-  publishEvents(events: LedgerStateEvent[]): Promise<void>;
+  //publishEvents(events: LedgerStateEvent[]): Promise<void>;
 
   // specific for snapshot events
   publishSnapshotEvent(events: LedgerSnapshotEvent[]): Promise<void>;
@@ -24,6 +24,7 @@ export interface ILedgerEventSourcingRepository {
 }
 
 export interface ILedgerReadSideRepository {
+  getAllLedgerIds(): Promise<string[]>;
   storeLedgers(ledgers: ILedgerDto[]): Promise<void>;
   fetchLedgers(ids: string[]): Promise<ILedgerDto[]>;
 

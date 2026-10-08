@@ -4,27 +4,38 @@ import {
   IMessage,
   IMessageProducer,
   IMessageProducerAcks,
-  IRawMessageSerializerFactory
+  IRawMessageSerializerFactory,
+  ITelemetryHistogram,
+  ITelemetryService,
+  TELEMETRY_PROPS_CALL_NAME_PROP
 } from 'common-types-lib';
 import { KafkaUtil } from './kafka-util';
+import process from 'process';
+
+const HISTOGRAM_NAME = 'KafkaProducer_histo';
 
 export class KafkaProducer implements IMessageProducer {
   private readonly _logger: ILogger;
   private readonly _producer: KafkaJS.Producer;
-  private readonly _kafka: KafkaJS.Kafka;
   private readonly _serializerFactory: IRawMessageSerializerFactory;
+  private readonly _telemetryService: ITelemetryService | null = null;
+  private _histogram: ITelemetryHistogram | null = null;
 
   constructor(
-    kafka: KafkaJS.Kafka,
     producer: KafkaJS.Producer,
     serializerFactory: IRawMessageSerializerFactory,
-    logger: ILogger
+    logger: ILogger,
+    telemetryService: ITelemetryService | null = null
   ) {
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
+    this._telemetryService = telemetryService;
     this._serializerFactory = serializerFactory;
 
-    this._kafka = kafka;
     this._producer = producer;
+
+    if (this._telemetryService) {
+      this._histogram = this._telemetryService.getHistogram(HISTOGRAM_NAME);
+    }
   }
 
   private _convertIMessageArrayToTopicMessages(
@@ -51,7 +62,9 @@ export class KafkaProducer implements IMessageProducer {
   }
 
   async sendWithoutAcks(message: IMessage | IMessage[]): Promise<void> {
+    const startTs = process.hrtime.bigint();
     const topicMessages = this._convertIMessageArrayToTopicMessages(message);
+    const convertTookNs = Number(process.hrtime.bigint() - startTs);
 
     // we're ignoring the promise on purpose
     this._producer.sendBatch({ topicMessages }).catch((e) => {
@@ -59,11 +72,20 @@ export class KafkaProducer implements IMessageProducer {
       throw e;
     });
 
-    this._logger?.debug(`${this.constructor.name} - send completed`);
+    if (this._histogram) {
+      this._histogram.observe(Number(process.hrtime.bigint() - startTs), {
+        [TELEMETRY_PROPS_CALL_NAME_PROP]: 'sendWithoutAcks'
+      });
+      this._histogram.observe(convertTookNs, {
+        [TELEMETRY_PROPS_CALL_NAME_PROP]: 'sendWithoutAcks_convert'
+      });
+    }
   }
 
   async send(message: IMessage | IMessage[]): Promise<IMessageProducerAcks[]> {
+    const startTs = process.hrtime.bigint();
     const topicMessages = this._convertIMessageArrayToTopicMessages(message);
+    const convertTookNs = Number(process.hrtime.bigint() - startTs);
 
     const acks: KafkaJS.RecordMetadata[] = await this._producer.sendBatch({
       topicMessages
@@ -85,7 +107,14 @@ export class KafkaProducer implements IMessageProducer {
       }
     );
 
-    //this._logger?.debug(`${this.constructor.name} - send completed - ret is: ${JSON.stringify(resIMessageProducerSendAcks, null, 2)}`);
+    if (this._histogram) {
+      this._histogram.observe(Number(process.hrtime.bigint() - startTs), {
+        [TELEMETRY_PROPS_CALL_NAME_PROP]: 'send'
+      });
+      this._histogram.observe(convertTookNs, {
+        [TELEMETRY_PROPS_CALL_NAME_PROP]: 'send_convert'
+      });
+    }
 
     return resIMessageProducerSendAcks;
   }

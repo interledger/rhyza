@@ -6,7 +6,6 @@ import {
 import {
   ICache,
   ILogger,
-  IMessage,
   IMessageProducer,
   SnapshotEvent,
   SnapshotEventTopics,
@@ -38,7 +37,7 @@ export class KafkaEventSourcingRepo<
     cachePrefix: string,
     logger: ILogger
   ) {
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._kafkaBuilder = kafkaBuilder;
     this._cache = cache;
     this._cachePrefix = cachePrefix;
@@ -50,9 +49,9 @@ export class KafkaEventSourcingRepo<
     return `${this._cachePrefix}_${keyId}`;
   }
 
-  async publishEvents(events: IMessage[]): Promise<void> {
-    await this._producer.send(events);
-  }
+  // async publishEvents(events: IMessage[]): Promise<void> {
+  //   await this._producer.send(events);
+  // }
 
   async publishSnapshotEvent(events: T[]): Promise<void> {
     // not efficient, but we don't expect to have many snapshots at the same time

@@ -15,7 +15,7 @@ export class AssetAggregate {
   private readonly _uncommittedDomainEvents: AssetDomainEvent[];
 
   constructor(repo: IPalAssetRepository, logger: ILogger) {
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._repo = repo;
     this._uncommittedDomainEvents = [];
   }

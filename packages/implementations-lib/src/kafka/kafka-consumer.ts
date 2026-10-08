@@ -13,7 +13,6 @@ export class KafkaConsumer implements IMessageConsumer {
   private readonly _logger: ILogger;
   private readonly _consumerOptions: KafkaConsumerOptions;
   private readonly _consumer: KafkaJS.Consumer;
-  private readonly _kafka: KafkaJS.Kafka;
   private readonly _serializerFactory: IRawMessageSerializerFactory;
   private _batchSize: number;
   private _topics: string[];
@@ -27,13 +26,12 @@ export class KafkaConsumer implements IMessageConsumer {
     | null;
 
   constructor(
-    kafka: KafkaJS.Kafka,
     consumer: KafkaJS.Consumer,
     options: KafkaConsumerOptions,
     serializerFactory: IRawMessageSerializerFactory,
     logger: ILogger
   ) {
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._serializerFactory = serializerFactory;
     this._consumerOptions = options;
 
@@ -45,8 +43,12 @@ export class KafkaConsumer implements IMessageConsumer {
       this._consumerOptions.batchSize || KafkaConsumerDefaults.batchSize;
     this._topics = [];
 
-    this._kafka = kafka;
     this._consumer = consumer;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setOnRebalanceFn(onRebalanceFn: () => Promise<void>): void {
+    throw new Error('Method not implemented.');
   }
 
   // IMessageConsumer members
@@ -102,10 +104,6 @@ export class KafkaConsumer implements IMessageConsumer {
 
     await this._consumer.run({
       eachBatch: async (batchPayload: KafkaJS.EachBatchPayload) => {
-        this._logger?.debug(
-          `Got batch with ${batchPayload.batch.messages.length} messages from topic ${batchPayload.batch.topic} partition ${batchPayload.batch.partition} first offset ${batchPayload.batch.firstOffset()} last offset ${batchPayload.batch.lastOffset()}`
-        );
-
         // Shouldn't happen, for debug
         if (
           batchPayload.batch.isEmpty() ||

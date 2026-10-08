@@ -3,6 +3,7 @@ import { ProtoBufBaseSnapshotEventSerializer } from 'implementations-lib';
 import { LedgerSnapshotPayload } from 'pal-domain-lib';
 import {
   PbLedgerAccountState,
+  PbLedgerPendingTransfer,
   PbLedgerSnapshotPayload
 } from '../../proto_generated';
 
@@ -20,6 +21,7 @@ export class LedgerSnapshotSerde extends ProtoBufBaseSnapshotEventSerializer<Led
       typedPayload.accounts.map((a) => {
         const pbAccount = new PbLedgerAccountState();
         pbAccount.setId(a.id);
+        pbAccount.setType(a.type);
         pbAccount.setName(a.name);
         pbAccount.setAssetCode(a.assetCode);
         pbAccount.setAssetDisplayScale(a.assetDisplayScale);
@@ -28,7 +30,16 @@ export class LedgerSnapshotSerde extends ProtoBufBaseSnapshotEventSerializer<Led
         return pbAccount;
       })
     );
-
+    pbPayload.setPendingTransfersList(
+      typedPayload.pendingTransfers.map((t) => {
+        const pbPendingTransfer = new PbLedgerPendingTransfer();
+        pbPendingTransfer.setTransferId(t.transferId);
+        pbPendingTransfer.setPeerId(t.peerId);
+        pbPendingTransfer.setAmount(t.amount);
+        pbPendingTransfer.setAmountScale(t.amountScale);
+        return pbPendingTransfer;
+      })
+    );
     return pbPayload.serializeBinary();
   }
 
@@ -44,17 +55,34 @@ export class LedgerSnapshotSerde extends ProtoBufBaseSnapshotEventSerializer<Led
 
     const payload: LedgerSnapshotPayload = {
       accounts: [],
+      pendingTransfers: [],
       assetScale: pbPayload.getAssetScale(),
       transactionCount: pbPayload.getTransactionCount().toString()
     };
     payload.accounts = pbPayload.getAccountsList().map((acc) => {
       return {
         id: acc.getId(),
+        type: acc.getType() as
+          | 'ASSET_LIQUIDITY_ACCOUNT'
+          | 'PEER_LIQUIDITY_ACCOUNT'
+          | 'PEER_CLEARING_ACCOUNT'
+          | 'ASE_LIQUIDITY_ACCOUNT'
+          | 'ASE_CLEARING_ACCOUNT'
+          | 'SUSPENSE_ACCOUNT',
+        name: acc.getName(),
         assetCode: acc.getAssetCode(),
         assetDisplayScale: acc.getAssetDisplayScale(),
-        name: acc.getName(),
         creditedAmount: acc.getCreditedAmount(),
         debitedAmount: acc.getDebitedAmount()
+      };
+    });
+
+    payload.pendingTransfers = pbPayload.getPendingTransfersList().map((t) => {
+      return {
+        transferId: t.getTransferId(),
+        peerId: t.getPeerId(),
+        amount: t.getAmount(),
+        amountScale: t.getAmountScale()
       };
     });
 

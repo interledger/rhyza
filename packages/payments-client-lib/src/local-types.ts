@@ -48,6 +48,15 @@ export type IncomingPaymentInput =
 
 export interface CreatePaymentIntentResult {
   id: string;
+  receiverWalletAddress: string;
+  state: string;
+  destination: string;
+  receivedAmount: bigint;
+  assetCode: string;
+  assetScale: number;
+  incomingAmount?: bigint;
+  expiresAt?: string;
+  createdAt: string;
 }
 
 export interface CompletePaymentIntentResult {

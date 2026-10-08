@@ -1,0 +1,26 @@
+meta {
+  name: Set Exchange Rate
+  type: http
+  seq: 12
+}
+
+post {
+  url: http://{{adminApiUrl}}/rates
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "sourceAssetCode": "USD",
+    "destinationAssetCode": "EUR",
+    "rate": 0.92,
+    "peerId": null,
+    "rateTtlSecs": 60
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -21,7 +21,7 @@ export async function walletAddressRoutes(
   }>('/:walletAddressPath/jwks.json', async (request, reply) => {
     const { walletAddressPath } = request.params;
 
-    const alias = await opts.palClient.ResolveWalletAddressAlias(
+    const alias = await opts.palClient.resolveWalletAddressAlias(
       null,
       walletAddressPath
     );
@@ -58,7 +58,7 @@ export async function walletAddressRoutes(
   }>('/:walletAddressPath', async (request, reply) => {
     const { walletAddressPath } = request.params;
 
-    const alias = await opts.palClient.ResolveWalletAddressAlias(
+    const alias = await opts.palClient.resolveWalletAddressAlias(
       null,
       walletAddressPath
     );
@@ -84,6 +84,14 @@ export async function walletAddressRoutes(
     }
 
     const walletAddress = walletAddresses[0];
+
+    if (!walletAddress.isActive) {
+      throw new OpenPaymentsResourceServerRouteError(
+        404,
+        'Wallet address not found',
+        'not_found'
+      );
+    }
 
     return reply.status(200).send({
       id: `${opts.openPaymentsResourceServiceUrl}/${alias.pathName}`,

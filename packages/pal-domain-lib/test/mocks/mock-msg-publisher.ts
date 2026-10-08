@@ -1,11 +1,17 @@
 import {
   IMessage,
   IMessageProducer,
-  IMessageProducerAcks
+  IMessageProducerAcks,
+  MessageTypes,
+  StateEvent
 } from 'common-types-lib';
 
 export class MockMessageProducer implements IMessageProducer {
   private _messages: IMessage[] = [];
+
+  constructor(mockMessageStore: IMessage[]) {
+    this._messages = mockMessageStore;
+  }
 
   get messages(): IMessage[] {
     return this._messages;
@@ -36,5 +42,12 @@ export class MockMessageProducer implements IMessageProducer {
   sendWithoutAcks(events: IMessage[]): Promise<void> {
     this._messages.push(...events);
     return Promise.resolve();
+  }
+
+  fetchStateEvents(aggId: string): Promise<StateEvent[]> {
+    const filtered = this._messages.filter(
+      (e) => e.msgType === MessageTypes.STATE_EVENT && e.msgKey === aggId
+    );
+    return Promise.resolve(filtered as StateEvent[]);
   }
 }

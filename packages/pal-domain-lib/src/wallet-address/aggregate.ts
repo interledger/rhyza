@@ -2,6 +2,8 @@ import {
   CannotCreateDuplicateWalletAddressAliasError,
   CannotCreateDuplicateWalletAddressError,
   WalletAddressAliasNotFoundError,
+  WalletAddressAlreadyActiveError,
+  WalletAddressAlreadyInactiveError,
   WalletAddressKeyNotFoundError,
   WalletAddressNotFoundError
 } from './errors';
@@ -24,7 +26,7 @@ export class WalletAddressAggregate {
   private readonly _uncommittedDomainEvents: WalletAddressDomainEvent[];
 
   constructor(repo: IPalWalletAddressRepository, logger: ILogger) {
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._repo = repo;
     this._uncommittedDomainEvents = [];
   }
@@ -83,6 +85,46 @@ export class WalletAddressAggregate {
     );
 
     return newWallet.id;
+  }
+
+  async activate(walletAddressId: string): Promise<void> {
+    const [walletDto] = await this._repo.fetch([walletAddressId]);
+    if (!walletDto) {
+      throw new WalletAddressNotFoundError(
+        `Wallet Address with id ${walletAddressId} does not exist`
+      );
+    }
+
+    const wallet = PalWalletAddress.fromDto(walletDto);
+    if (wallet.isActive) {
+      throw new WalletAddressAlreadyActiveError(
+        `Wallet Address with id ${walletAddressId} is already active`
+      );
+    }
+
+    wallet.activate();
+    this._logger.info(`Wallet address ${walletAddressId} activated`);
+    await this._repo.store(wallet.toDto());
+  }
+
+  async deactivate(walletAddressId: string): Promise<void> {
+    const [walletDto] = await this._repo.fetch([walletAddressId]);
+    if (!walletDto) {
+      throw new WalletAddressNotFoundError(
+        `Wallet Address with id ${walletAddressId} does not exist`
+      );
+    }
+
+    const wallet = PalWalletAddress.fromDto(walletDto);
+    if (!wallet.isActive) {
+      throw new WalletAddressAlreadyInactiveError(
+        `Wallet Address with id ${walletAddressId} is not active`
+      );
+    }
+
+    wallet.deactivate();
+    this._logger.info(`Wallet address ${walletAddressId} deactivated`);
+    await this._repo.store(wallet.toDto());
   }
 
   async getWalletAddresses(ids: string[]): Promise<IPalWalletAddressDto[]> {

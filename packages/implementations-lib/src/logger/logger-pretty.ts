@@ -45,7 +45,13 @@ class CustomLoggerPrettifier extends Writable {
     if (linesStr.length > 0) {
       linesStr = linesStr.slice(0, -1);
     }
-    const lines: any[] = JSON.parse(`[${linesStr}]`);
+    let lines: any[] = [];
+
+    try {
+      lines = JSON.parse(`[${linesStr}]`);
+    } catch (e) {
+      // nothing, this is the logger after all :)
+    }
 
     const outputLines: string[] = [];
     lines.forEach((line: any) => {

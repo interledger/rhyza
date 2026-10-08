@@ -127,8 +127,20 @@ export class PaymentsClient {
             return reject(error);
           }
 
+          const incomingAmount = response.getIncomingAmount();
+          const expiresAt = response.getExpiresAt();
+
           return resolve({
-            id: response.getId()
+            id: response.getId(),
+            receiverWalletAddress: response.getReceiverWalletAddress(),
+            state: response.getState(),
+            destination: response.getDestination(),
+            receivedAmount: BigInt(response.getReceivedAmount()),
+            assetCode: response.getAssetCode(),
+            assetScale: response.getAssetScale(),
+            incomingAmount: incomingAmount ? BigInt(incomingAmount) : undefined,
+            expiresAt: expiresAt || undefined,
+            createdAt: response.getCreatedAt()
           });
         }
       );
@@ -252,6 +264,7 @@ export class PaymentsClient {
     paymentIntentId: string,
     quoteId?: string,
     debitAmount?: number,
+    grantId?: string,
     metadata?: string
   ): Promise<CreatePaymentResult> {
     const request = new PbCreatePaymentRequest();
@@ -266,6 +279,10 @@ export class PaymentsClient {
 
     if (debitAmount) {
       request.setDebitAmount(debitAmount);
+    }
+
+    if (grantId) {
+      request.setGrantId(grantId);
     }
 
     if (metadata) {

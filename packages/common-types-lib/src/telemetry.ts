@@ -68,3 +68,4 @@ export interface ITelemetryService {
 // common property names so we all collect telemetry the same way
 export const TELEMETRY_PROPS_CALL_NAME_PROP = 'callName';
 export const TELEMETRY_PROPS_SUCCESS_PROP = 'success';
+export const TELEMETRY_PROPS_DATA_FORMAT_PROP = 'dataFormat';

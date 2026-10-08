@@ -15,7 +15,7 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
 
   constructor(connectionString: string, logger: ILogger) {
     this._connectionString = connectionString;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
   }
 
   private _checkInitialisedOrThrow(): boolean {

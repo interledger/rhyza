@@ -10,7 +10,8 @@ export const MessageTypes = {
   STATE_EVENT: 'STATE_EVENT', // for private event-sourcing events
   SNAPSHOT_EVENT: 'SNAPSHOT_EVENT', // for private event-sourcing snapshot events
   DOMAIN_EVENT: 'DOMAIN_EVENT', // public domain events
-  COMMAND: 'COMMAND' // for internal/private BC command
+  COMMAND: 'COMMAND', // for internal/private BC command,
+  TIMER: 'TIMER' // for internal BC time dependent routines
 } as const;
 export type MessageTypes = keyof typeof MessageTypes;
 
@@ -111,5 +112,16 @@ export abstract class CommandMsg extends BaseMessage {
   protected constructor(aggId: string) {
     super();
     this.aggregateId = aggId;
+  }
+}
+
+export abstract class TimerEvent extends BaseMessage {
+  msgType: MessageTypes = MessageTypes.TIMER;
+
+  abstract payload: any;
+
+  protected constructor(aggId: string) {
+    super();
+    this.msgKey = aggId;
   }
 }

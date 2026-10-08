@@ -43,10 +43,6 @@ export class KafkaLedgerEventSourcingRepository extends KafkaEventSourcingRepo<
     await this._redisClient.connect();
   }
 
-  async publishEvents(events: LedgerStateEvent[]): Promise<void> {
-    await super.publishEvents(events);
-  }
-
   async publishSnapshotEvent(events: LedgerSnapshotEvent[]): Promise<void> {
     return super.publishSnapshotEvent(events);
   }

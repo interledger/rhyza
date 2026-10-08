@@ -14,12 +14,24 @@ export class LedgerTransactionRecordedStateEventSerde extends ProtoBufBaseStateE
 
     const pbPayload = new PbLedgerTransactionRecordedStatePayload();
     pbPayload.setId(typedPayload.transaction.id);
+    pbPayload.setOriginatingCommandName(
+      typedPayload.transaction.originatingCommandName
+    );
     pbPayload.setAmount(typedPayload.transaction.amount);
     pbPayload.setAmountScale(typedPayload.transaction.amountScale);
     pbPayload.setTimestamp(typedPayload.transaction.timestamp);
 
+    pbPayload.setPeerId(typedPayload.transaction.peerId);
     pbPayload.setDebitedAccountId(typedPayload.transaction.debitedAccountId);
     pbPayload.setCreditedAccountId(typedPayload.transaction.creditedAccountId);
+    pbPayload.setIsReservation(typedPayload.transaction.isReservation);
+    pbPayload.setVoidsReservation(typedPayload.transaction.voidsReservation);
+
+    if (typedPayload.transaction.externalId)
+      pbPayload.setExternalId(typedPayload.transaction.externalId);
+
+    if (typedPayload.transaction.transferId)
+      pbPayload.setTransferId(typedPayload.transaction.transferId);
 
     return pbPayload.serializeBinary();
   }
@@ -41,10 +53,22 @@ export class LedgerTransactionRecordedStateEventSerde extends ProtoBufBaseStateE
         amountScale: pbPayload.getAmountScale(),
         timestamp: pbPayload.getTimestamp(),
         debitedAccountId: pbPayload.getDebitedAccountId(),
-        creditedAccountId: pbPayload.getCreditedAccountId()
+        creditedAccountId: pbPayload.getCreditedAccountId(),
+        isReservation: pbPayload.getIsReservation(),
+        voidsReservation: pbPayload.getVoidsReservation(),
+        originatingCommandName: pbPayload.getOriginatingCommandName(),
+        peerId: pbPayload.getPeerId(),
+        externalId: undefined,
+        transferId: undefined
       }
     };
 
+    if (pbPayload.hasExternalId()) {
+      payload.transaction.externalId = pbPayload.getExternalId();
+    }
+    if (pbPayload.hasTransferId()) {
+      payload.transaction.transferId = pbPayload.getTransferId();
+    }
     return payload;
   }
 }

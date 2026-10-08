@@ -29,9 +29,10 @@
     "common-types-lib": "workspace:*",
     "ioredis": "~5.10.1",
     "@confluentinc/kafka-javascript": "~1.8.2",
-    "google-protobuf": "~4.0.2",
+    "google-protobuf": "catalog:",
     "pg": "^8.13.1",
-    "pino": "^9.6.0"
+    "pino": "^9.6.0",
+    "@platformatic/kafka": "~2.8.0"
   },
   "devDependencies": {
     "@types/pg": "^8.11.11",

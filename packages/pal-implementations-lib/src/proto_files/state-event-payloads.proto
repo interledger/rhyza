@@ -6,17 +6,27 @@ Specific payload messages
 
 message PbLedgerAccountState{
     string id = 1;
-    string name = 2;
-    string asset_code = 3;
-    uint32 asset_display_scale = 4;
-    string debited_amount = 5;
-    string credited_amount = 6;
+    string type = 2;
+    string name = 3;
+    string asset_code = 4;
+    uint32 asset_display_scale = 5;
+    string debited_amount = 6;
+    string credited_amount = 7;
+    optional string peer_id = 8;
+}
+
+message PbLedgerPendingTransfer{
+  string transfer_id = 1;
+  string peer_id = 2;
+  string amount = 3;
+  uint32 amount_scale = 4;
 }
 
 message PbLedgerSnapshotPayload{
     repeated PbLedgerAccountState accounts = 1;
-    uint64 transaction_count = 2;
-    uint32 asset_scale = 3;
+    repeated PbLedgerPendingTransfer pending_transfers = 2;
+    uint64 transaction_count = 3;
+    uint32 asset_scale = 4;
 }
 
 message PbLedgerAccountsCreatedStatePayload{
@@ -35,4 +45,10 @@ message PbLedgerTransactionRecordedStatePayload{
     string amount =4;
     uint32 amount_scale = 5;
     uint64 timestamp = 6;
+    string peer_id = 7;
+    bool is_reservation = 8;
+    bool voids_reservation = 9;
+    string originating_command_name = 10;
+    optional string external_id = 11;
+    optional string transfer_id = 12;
 }

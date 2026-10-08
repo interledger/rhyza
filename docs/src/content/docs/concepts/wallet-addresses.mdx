@@ -1,0 +1,30 @@
+---
+title: Wallet addresses
+next: Integration overview
+tableOfContents: false
+---
+
+A wallet address is a secure, unique URL of a payment account that supports Open Payments. It acts as an entry point to the Open Payments resource server, facilitating interactions like sending and receiving payments.
+
+Determine whether a URL is a wallet address by sending a `GET` request to the URL with an `accept: application/json` header.
+
+```http title="Example request"
+curl --request GET \
+ --url https://wallet.example.com/alice \
+ --header 'accept: application/json'
+```
+
+A valid response means the URL is a wallet address.
+
+```http title="Example response"
+{
+  "id": "https://wallet.example.com/alice",
+  "publicName": "Alice",
+  "assetCode": "USD",
+  "assetScale": 2,
+  "authServer": "https://auth.wallet.example.com",
+  "resourceServer": "https://wallet.example.com",
+}
+```
+
+Rhyza assigns each customer account a wallet address on behalf of the financial service provider. See the integration requirements for [wallet addresses](/integration/checklist#wallet-addresses) for more information.

@@ -92,7 +92,8 @@ export class OpenPaymentsResourceServer {
       streamServer: createStreamServer({
         serverSecret: parseStreamServerSecret(STREAM_SERVER_SECRET_RAW),
         serverAddress: ILP_ADDRESS
-      })
+      }),
+      openPaymentsUrl: OPEN_PAYMENTS_RESOURCE_SERVICE_URL
     });
 
     this.server.register(outgoingPaymentRoutes, {

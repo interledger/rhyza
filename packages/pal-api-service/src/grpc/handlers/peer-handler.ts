@@ -49,7 +49,7 @@ export class PeerGrpcHandler {
     this._peerAggregate = peerAggregate;
     this._responseRegistry = responseRegistry;
     this._msgProducer = msgProducer;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._telemetryService = telemetryService;
 
     this._logger.info('PeerGrpcHandler created');

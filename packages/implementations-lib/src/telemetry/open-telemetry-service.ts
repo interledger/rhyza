@@ -75,7 +75,7 @@ export class OpenTelemetryService implements ITelemetryService {
     this._appName = appName;
     this._appVersion = appVersion;
     this._instanceId = instanceId;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._counters = new Map();
     this._histograms = new Map();
     this._gauges = new Map();

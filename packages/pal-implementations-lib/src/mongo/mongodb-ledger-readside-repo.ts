@@ -22,7 +22,7 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
 
   constructor(connectionString: string, logger: ILogger) {
     this._connectionString = connectionString;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
   }
 
   private _checkInitialisedOrThrow(): boolean {
@@ -112,6 +112,28 @@ export class MongoDbLedgerReadSideRepo implements ILedgerReadSideRepository {
   /*
    * Ledger Methods
    * */
+  async getAllLedgerIds(): Promise<string[]> {
+    this._checkInitialisedOrThrow();
+
+    try {
+      const docs = await this._ledgersCol
+        .find()
+        .project({ id: 1, _id: 0 })
+        .toArray();
+
+      if (!docs || docs.length === 0) {
+        return [];
+      }
+
+      return docs.map((doc) => doc.id);
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to get ledger ids - error: ${(e as Error).message}`
+      );
+    }
+  }
+
   async storeLedgers(ledgers: ILedgerDto[]): Promise<void> {
     this._checkInitialisedOrThrow();
 

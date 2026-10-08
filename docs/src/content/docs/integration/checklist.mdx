@@ -1,0 +1,236 @@
+---
+title: Integration checklist
+head:
+  - tag: style
+    content: table, tr, td {background-color:transparent !important;} table {box-shadow:none !important;}
+---
+
+import { Badge, Icon, Card, CardGrid } from '@astrojs/starlight/components'
+import { LinkOut } from '@interledger/docs-design-system'
+
+:::danger
+What about infrastructure stuff like MongoDB, Kafka, Redis?
+:::
+
+## Required
+
+Before an entity deploys Rhyza to a production environment and joins the Interledger network, they must:
+
+<table>
+  <tr>
+    <td>&#x2705;</td>
+    <td>
+      Be a licensed financial service provider (FSP) in the jurisdictions in
+      which they operate.
+    </td>
+  </tr>
+  <tr>
+    <td>&#x2705;</td>
+    <td>Integrate with an [identity provider (IdP)](#identity-providers)</td>
+  </tr>
+  <tr>
+    <td>&#x2705;</td>
+    <td>
+      Add at least one [asset](#assets) to Rhyza. Do this before setting up
+      wallets.{' '}
+    </td>
+  </tr>
+  <tr>
+    <td>&#x2705;</td>
+    <td>
+      Set up a [base wallet address](#create-a-base-wallet-address) then [create
+      wallet addresses](#create-wallet-addresses) for their account holders
+      (customers).
+    </td>
+  </tr>
+  <tr>
+    <td>&#x2705;</td>
+    <td>
+      Expose a [webhook endpoint](#expose-a-webhook-endpoint) and understand how
+      to handle each webhook event.
+    </td>
+  </tr>
+  <tr>
+    <td>&#x2705;</td>
+    <td>Secure their admin services from external access.</td>
+  </tr>
+</table>
+
+### Identity providers
+
+An identity provider (IdP) is a system or service that stores and manages user identity information, authentication, and consent for an FSP's customers. Integrating with an IdP is required to use the Open Payments authorization service provided by Rhyza and to support Open Payments outgoing payments.
+
+### Assets
+
+Rhyza must be configured to support at least one asset. An asset represents an item of value, such as the US dollar, that can be transferred via the Interledger Protocol. Assets are added through the Admin API's <LinkOut href="/apis/#tag/assets">Create Asset</LinkOut> endpoint.
+
+### Wallet addresses
+
+Each payment account belonging to an FSP's customer must be associated with at least one [wallet address](/concepts/wallet-addresses) for the account to be able to send and receive payments over Interledger and Open Payments.
+
+Wallet addresses are created and hosted in Rhyza. However, the mapping of a wallet address to a customer's account stays with the FSP and is never stored in Rhyza's database tables.
+
+#### Create a base wallet address
+
+The base wallet address is the portion of the address that will be the same for all customers. For example, `https://wallet.example.com`.
+
+The base wallet address URL is defined in the FSP's YAML configuration file. Once it's set, it cannot be changed.
+
+#### Create wallet addresses
+
+:::note
+Rhyza must be set up with at least one asset before wallet addresses can be created.
+:::
+
+When deciding on the wallet address structure for their customers, the FSP should consider whether their chosen naming conventions could disclose personal data. For example, choosing to issue addresses using first and last names, like `https://wallet.example.com/alice.smith`.
+
+Addresses are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address are recognized as identical.
+
+Wallet addresses can be created one-by-one via the Admin API's <LinkOut href="https://">Create Wallet Address</LinkOut> endpoint. To bulk-assign wallet addresses to existing customers, the FSP can write a script that loops through their list of accounts. The script must call the Create Wallet Address endpoint.
+
+### Webhooks
+
+The FSP must expose a webhook endpoint that listens for <LinkOut href="">events</LinkOut> dispatched by Rhyza. The endpoint is defined in their YAML configuration file.
+
+When an event is received, the FSP can react accordingly. For example, if the FSP receives a Payment Created event but the sender has insufficient funds, the FSP can cancel the payment by calling the Admin API's Cancel Payment endpoint.
+
+#### Asynchronous event handling
+
+If requests to credit or debit user accounts are lengthy processes, we recommend using a worker to process received events. The worker allows the server to process events at a rate suitable for the FPS's system and reduces the number of failed/retried events since the event listener can immediately reply with a successful `200` status.
+
+#### Error handling
+
+Rhyza retries a webhook request at increasing intervals if the request times out or if a non-200 status is returned. The first retry occurs after 10 seconds. Additional retries occur after 20 more seconds, then after 30 more seconds, and so on. Rhyza continues to retry until it receives a `200` status.
+
+FSPs can fine-tune timeouts and max retries in their YAML configuration file.
+
+## Optional
+
+<table>
+  <tr>
+    <td>&#x2705;</td>
+    <td>Add a [peer](#peers).</td>
+  </tr>
+  <tr>
+    <td>&#x2705;</td>
+    <td>Provide [exchange rates](#exchange-rates).</td>
+  </tr>
+</table>
+
+### Peers
+
+For two FSPs to exchange Interledger payments with each other, they must be peers. If an FSP is using Rhyza solely for transfers between accounts on its own ledger, a peer isn't required.
+
+Before becoming peers, both FSPs must:
+
+<details>
+  <summary>Run an Interledger connector</summary>
+  Rhyza ILP connectors know how to speak to each other. It's recommended that
+  both FSPs use Rhyza.
+</details>
+
+<details>
+  <summary>Agree on an asset</summary>
+  Both FSPs must agree on an [asset](/concepts/accounting#assets) to use for the peering relationship. Peers can set up multiple peering relationships with each another based on different assets.
+
+At least one common asset must be [added](#assets) to both FSPs' Rhyza instance before setting up the peering relationship.
+
+</details>
+
+<details>
+  <summary>Exchange static Interledger (ILP) addresses</summary>
+  An FSP's{' '}
+  <LinkOut href='https://interledger.org/developers/rfcs/ilp-addresses/'>
+    ILP address
+  </LinkOut>{' '}
+  is self-assigned during Rhyza setup and stored locally in the FSP's YAML
+  configuration file.
+</details>
+
+<details>
+  <summary>Communicate a connection endpoint</summary>
+  The connection endpoint is a URL that the other peer will send Interledger
+  packets to.
+</details>
+
+<details>
+  <summary>Exchange auth tokens for the connection endpoint</summary>
+  Incoming and outgoing `authtokens` allow peered FSPs to authenticate packets
+  to ensure they originated from each peer's Interledger connector and weren't
+  tampered with en route.
+</details>
+
+<details>
+  <summary>Agree on a settlement mechanism</summary>
+  The settlement mechanism that two peers agree to use is what facilitates the
+  transfer of actual funds between them. Neither Interledger nor Rhyza provide a
+  settlement mechanism.
+</details>
+
+Peering relationships are created by calling the Admin API's <LinkOut href="">Create Peer</LinkOut> endpoint.
+
+### Exchange rates
+
+A rate probe precedes every Interledger payment to provide a quote. The quote estimates the full cost of transferring value. If the FSP plans to support cross-currency transactions, they must specify how Rhyza will obtain exchange rates.
+
+Rhyza supports two models:
+
+- [Push model](#push-model) - The FSP sets exchanges rates in Rhyza
+- [Pull model](#pull-model) - The FSP hosts an external endpoint for Rhyza to query
+
+#### Rate scopes
+
+Every exchange rate Rhyza holds is scoped in one of two ways. Both push and pull models support setting/fetching either scope.
+
+- Peer rate - Applies only to payments made through a specific peer, identified by `peerId`
+- Intra-FSP rate - Applies FSP-wide to any conversion between two given asset codes, independent of peer
+
+Peer and intra-FSP rates for the same asset pair are set, cached, and expired independently of one another. Both can be active for the same pair at the same time. Include `peerId` to target a peer rate, or omit it to target the intra-FSP rate for that asset pair.
+
+#### Push model
+
+In this model, the FSP sets exchange rates in Rhyza directly via the Admin API's <LinkOut href="">Rates</LinkOut> endpoint. Include `peerId` in the payload to set a peer rate; omit it to set the intra-FSP rate for the asset pair instead.
+
+#### Pull model
+
+In this model, Rhyza requests exchange rates from the FSP whenever a rate is needed and not available in its local cache. To enable the pull model, the FSP must define their exchange rate endpoint in their YAML configuration file.
+
+The FSP's endpoint must accept <Badge text="GET" variant="note" size="medium"/> requests. Rhyza always includes the `base` asset code as a query parameter. When Rhyza needs a [peer rate](#rate-scopes), rather than the intra-FSP rate, it includes a `peerId` query parameter identifying the peer.
+
+```bash title="Example request: intra-FSP rate"
+GET https://cloud-nine-wallet/rates?base=USD
+```
+
+```bash title="Example request: peer rate" wrap
+GET https://cloud-nine-wallet/rates?base=USD&peerId=480ef339-7842-4501-a905-923fc1339cef
+```
+
+The endpoint must return a JSON response containing the `base` asset and a mapping of exchange rates for other supported assets.
+
+```json title="Example response"
+{
+  "base": "USD",
+  "rates": {
+    "EUR": 0.813399,
+    "MXN": 17.05
+  }
+}
+```
+
+#### Rate caching and expiration
+
+Because peer and intra-FSP rates are cached separately, expiry of one doesn't affect the other, and each is refreshed (via the pull model) or re-pushed independently.
+
+**Pull model**
+
+Pulled rates are refreshed proactively in the background shortly before they expire, so a payment or quote isn't delayed waiting on a live pull.
+
+The FSP can specify how long Rhyza caches exchange rates in their YAML configuration file. Caching improves performance by reducing the number of outgoing requests to the FSP's rates endpoint.
+
+**Push model**
+
+Pushed rates are **not** refreshed in the background. The `rateTtlSecs` provided in the API request determines the lifetime of the specific rate. Once a pushed rate's `rateTtlSecs` elapses, it's only replaced the next time that rate is requested, at which point Rhyza falls back to the pull model synchronously.
+
+If the pull model isn't configured or also fails to provide a rate, Rhyza will fail the payment or quote request with an error.
+
+If `rateTtlSecs` is omitted when the rate is pushed, the rate never expires and stays in effect. Rhyza won't fall back to pulling for that asset pair (or peer) until the FSP pushes a new rate.

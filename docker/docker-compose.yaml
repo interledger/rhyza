@@ -395,6 +395,12 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_MESSAGE_MAX_BYTES: 41943040
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 41943040
+      KAFKA_GROUP_CONSUMER_MAX_SESSION_TIMEOUT_MS: 15000
+      KAFKA_GROUP_CONSUMER_SESSION_TIMEOUT_MS: 10000
+      KAFKA_GROUP_CONSUMER_MIN_SESSION_TIMEOUT_MS: 10000
+      KAFKA_GROUP_CONSUMER_MAX_HEARTBEAT_INTERVAL_MS: 5000
     healthcheck:
       test: nc -z localhost 19092 || exit -1
       start_period: 30s
@@ -442,6 +448,7 @@ services:
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-domain-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-snapshot-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-state-events
+      ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ledger-timer-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic wallet-address-domain-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic fxrate-domain-events
       ./kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --partitions 24 --topic ilp-domain-events

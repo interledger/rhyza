@@ -1,5 +1,6 @@
 import { IMessage } from './messages';
 import { IRawMessage } from './raw/messages';
+import { ITelemetryService } from '../telemetry';
 
 export interface IMessageFetcher {
   fetchLast(
@@ -46,6 +47,9 @@ export interface IMessageConsumer {
     batchHandlerCallback: (messages: IMessage[]) => Promise<void>
   ): void;
   setFilteringFn(filterFn: (message: IMessage) => boolean): void;
+
+  setOnRebalanceFn(onRebalanceFn: () => Promise<void>): void;
+
   setTopics(topics: string[]): void;
 
   setBatchSize(size: number): void;
@@ -60,6 +64,7 @@ export interface IMessageConsumer {
 }
 
 export interface IRawMessageSerializerFactory {
+  setTelemetry(telemetryService: ITelemetryService): void;
   serialize(msg: IMessage): IRawMessage;
   deserialize(rawMsg: IRawMessage): IMessage;
 }

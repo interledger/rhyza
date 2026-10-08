@@ -7,19 +7,20 @@ import {
   IMessageConsumer,
   ILogger,
   IRawMessageSerializerFactory,
-  IMessage
+  IMessage,
+  ITelemetryService,
+  ITelemetryHistogram,
+  TELEMETRY_PROPS_CALL_NAME_PROP
 } from 'common-types-lib';
 import { KafkaConsumerOptions } from './types';
 import { KafkaUtil } from './kafka-util';
+import process from 'process';
 
 const DEFAULT_BATCH_SIZE = 1;
 const DEFAULT_BATCH_TIMEOUT_MS = 50;
 
-export type rebalanceCallback = (
-  type: 'error' | 'assign' | 'revoke',
-  assignments?: { topic: string; partition: number }[],
-  error?: Error
-) => Promise<void>;
+const HISTOGRAM_NAME = 'KafkaLowLevelConsumer_histo';
+
 export type messageHandlerCallback = (messages: IMessage[]) => Promise<void>;
 
 export class KafkaLowLevelConsumer implements IMessageConsumer {
@@ -27,10 +28,12 @@ export class KafkaLowLevelConsumer implements IMessageConsumer {
   private readonly _consumer: RdKafka.KafkaConsumer;
   private readonly _serializerFactory: IRawMessageSerializerFactory;
   private readonly _globalConfig: RdKafka.ConsumerGlobalConfig = {};
+  private readonly _telemetryService: ITelemetryService | null = null;
+  private readonly _histogram: ITelemetryHistogram | null = null;
 
   private _topics: string[] = [];
   private _batchHandlerCallback: messageHandlerCallback | null = null;
-  private _rebalanceCallback: rebalanceCallback | null = null;
+  private _rebalanceCallback: (() => Promise<void>) | null = null;
   private _batchSize: number;
   private _batchTimeoutMs: number;
   private _consuming = false;
@@ -40,14 +43,20 @@ export class KafkaLowLevelConsumer implements IMessageConsumer {
     globalConfigs: RdKafka.ConsumerGlobalConfig,
     consumerConfigs: KafkaConsumerOptions,
     serializerFactory: IRawMessageSerializerFactory,
-    logger: ILogger | null = null
+    logger: ILogger | null = null,
+    telemetryService: ITelemetryService | null = null
   ) {
-    this._logger = logger;
+    this._logger = logger ? logger.child(this.constructor.name) : null;
+    this._telemetryService = telemetryService;
     this._globalConfig = globalConfigs;
     this._serializerFactory = serializerFactory;
     this._batchSize = consumerConfigs.batchSize ?? DEFAULT_BATCH_SIZE;
     this._batchTimeoutMs =
       consumerConfigs.batchTimeoutMs ?? DEFAULT_BATCH_TIMEOUT_MS;
+
+    if (this._telemetryService) {
+      this._histogram = this._telemetryService.getHistogram(HISTOGRAM_NAME);
+    }
 
     this._consumer = new RdKafka.KafkaConsumer(
       {
@@ -55,6 +64,9 @@ export class KafkaLowLevelConsumer implements IMessageConsumer {
         'group.id': consumerConfigs.consumerGroupId,
         'enable.auto.commit': false, // we do it manually
         'fetch.wait.max.ms': this._batchTimeoutMs,
+        // Increase this to 1 MB to increase batching for large batchTimeoutMs,
+        // because for low batchTimeoutMs fetch.min.bytes is ignored
+        'fetch.min.bytes': 1024 * 1024,
         rebalance_cb: true,
         event_cb: true
       },
@@ -65,7 +77,6 @@ export class KafkaLowLevelConsumer implements IMessageConsumer {
     this._consumer.setDefaultConsumeTimeout(this._batchTimeoutMs);
 
     this._consumer.on('rebalance', this._onRebalance.bind(this));
-    this._consumer.on('rebalance.error', this._onRebalanceError.bind(this));
     this._consumer.on('event.event', this._onEvent.bind(this));
     this._consumer.on('event.error', this._onError.bind(this));
     this._consumer.on('disconnected', this._onDisconnect.bind(this));
@@ -94,45 +105,22 @@ export class KafkaLowLevelConsumer implements IMessageConsumer {
       return;
     }
 
-    // rdkafka library code emits the event as it receives it from the cluster and
-    // before actually calling the assign() or unassign(), we need to wait a bit
-    // half a second is enough and this is not a performance issue
+    // rdkafka library code emits the event as it receives it from the
+    // cluster and before actually calling the assign() or unassign(),
+    // only after this finishes the rebalance completes.
     // https://github.com/Blizzard/node-rdkafka/blob/aba2011d6c1ae2a0ae745b5d71bef77aa42180cc/lib/kafka-consumer.js#L59
-    setTimeout(async () => {
+
+    const type = error.code == -175 ? 'assign' : 'revoke';
+    this._logger?.debug(
+      `KafkaLowLevelConsumer - event.rebalance received - type: ${type}, assignment: ${JSON.stringify(assignments)}`
+    );
+
+    if (this._rebalanceCallback) {
+      this._rebalanceCallback();
       this._logger?.debug(
-        `KafkaLowLevelConsumer - event.rebalance - ${JSON.stringify(
-          assignments,
-          null,
-          2
-        )}`
+        'KafkaLowLevelConsumer - subscribed callback call completed'
       );
-
-      if (!this._rebalanceCallback) {
-        return;
-      }
-
-      const type = error.code == -175 ? 'assign' : 'revoke';
-      await this._rebalanceCallback(type, assignments);
-    }, 500);
-  }
-
-  /* istanbul ignore next */
-  private _onRebalanceError(error: Error) {
-    // same as above in _onRebalance()
-    setTimeout(async () => {
-      this._logger?.warn(
-        `KafkaLowLevelConsumer - event.rebalance error - ${JSON.stringify(
-          error,
-          null,
-          2
-        )}`
-      );
-      if (!this._rebalanceCallback) {
-        return;
-      }
-
-      await this._rebalanceCallback('error', undefined, error);
-    }, 500);
+    }
   }
 
   private _onDisconnect(metrics: RdKafka.ClientMetrics): void {
@@ -183,48 +171,88 @@ export class KafkaLowLevelConsumer implements IMessageConsumer {
 
     this._consuming = true;
     this._logger?.info(
-      `${this.constructor.name} - starting consume loop with batch size ${this._batchSize} and timeout ${this._batchTimeoutMs}ms`
+      `${this.constructor.name} - starting consume loop with batch size ${this._batchSize} and timeout ${this._batchTimeoutMs}ms...`
     );
+
+    let cycleStartTs: bigint,
+      beforeDeserializeTs: bigint,
+      beforeHandlerTs: bigint,
+      beforeCommitTs: bigint;
+    let fetchBatchTookNs: number,
+      deserializeTookNs: number,
+      handlerTookNs: number,
+      commitTookNs: number,
+      cycleTookNs: number;
+    let kafkaMessages: RdKafka.Message[] = [];
+    let deserializedMessages: IMessage[] = [];
 
     while (this._consuming) {
       if (this._stopConsumingRequested) break;
 
-      const start = Date.now();
-      const kafkaMessages = await this._fetchBatch();
-      const afterFetch = Date.now();
+      kafkaMessages.length = 0;
+      cycleStartTs = process.hrtime.bigint();
+      kafkaMessages = await this._fetchBatch();
+      fetchBatchTookNs = Number(process.hrtime.bigint() - cycleStartTs);
 
       if (kafkaMessages.length <= 0) {
-        // // No messages? Wait a bit before polling again to save CPU
-        // const waitMs = this._batchTimeoutMs - (Date.now() - afterFetch);
-        // if(waitMs > 0) {
-        //   await new Promise((resolve) => setTimeout(resolve, waitMs));
-        // }
         continue;
       }
 
-      // const msgs = kafkaMessages.map(this._toIMessage.bind(this));
-      const msgs = kafkaMessages.map((msg) =>
+      // NOTE: we only measure when there are messages to process
+      deserializedMessages.length = 0;
+
+      beforeDeserializeTs = process.hrtime.bigint();
+      deserializedMessages = kafkaMessages.map((msg) =>
         this._serializerFactory.deserialize(
           KafkaUtil.convertFromKafkaMsg(msg, msg.topic, msg.partition)
         )
       );
-      const beforeHander = Date.now();
-      await this._batchHandlerCallback(msgs);
-      const handlerTook = Date.now() - beforeHander;
+      deserializeTookNs = Number(process.hrtime.bigint() - beforeDeserializeTs);
+
+      beforeHandlerTs = process.hrtime.bigint();
+      await this._batchHandlerCallback(deserializedMessages);
+      handlerTookNs = Number(process.hrtime.bigint() - beforeHandlerTs);
 
       // Commit offsets after successful processing
-      const beforeCommit = Date.now();
+      beforeCommitTs = process.hrtime.bigint();
       this._consumer.commit();
-      const afterCommit = Date.now();
-      this._logger?.debug(
-        `Consume cycle took:  ${afterCommit - start}ms - fetch: ${afterFetch - start}ms - handler: ${handlerTook}ms - commit: ${afterCommit - beforeCommit}ms`
-      );
+      commitTookNs = Number(process.hrtime.bigint() - beforeCommitTs);
+
+      cycleTookNs = Number(process.hrtime.bigint() - cycleStartTs);
+
+      if (this._histogram) {
+        this._histogram.observe(cycleTookNs, {
+          [TELEMETRY_PROPS_CALL_NAME_PROP]: 'consumeCycle'
+        });
+        this._histogram.observe(fetchBatchTookNs, {
+          [TELEMETRY_PROPS_CALL_NAME_PROP]: 'fetchBatch'
+        });
+        this._histogram.observe(deserializeTookNs, {
+          [TELEMETRY_PROPS_CALL_NAME_PROP]: 'deserialize'
+        });
+        this._histogram.observe(handlerTookNs, {
+          [TELEMETRY_PROPS_CALL_NAME_PROP]: 'handler'
+        });
+        this._histogram.observe(commitTookNs, {
+          [TELEMETRY_PROPS_CALL_NAME_PROP]: 'commit'
+        });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      this._logger?.isDebugEnabled() &&
+        this._logger?.debug(
+          `Consume cycle took:  ${Math.round(cycleTookNs / 1e6)}ms - parts: ${Math.round(fetchBatchTookNs / 1e6)}ms / ${Math.round(deserializeTookNs / 1e6)}ms / ${Math.round(handlerTookNs / 1e6)}ms / ${Math.round(commitTookNs / 1e6)}ms (fetch/deserialization/handler/commit)`
+        );
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setCallbackFn(handlerCallback: (message: IMessage) => Promise<void>): void {
     throw new Error('setCallbackFn is not supported for KafkaLowLevelConsumer');
+  }
+
+  setOnRebalanceFn(onRebalanceFn: () => Promise<void>): void {
+    this._rebalanceCallback = onRebalanceFn;
   }
 
   setBatchCallbackFn(

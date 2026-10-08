@@ -29,7 +29,7 @@ export class MongoDbWalletRepo implements IPalWalletAddressRepository {
 
   constructor(connectionString: string, logger: ILogger) {
     this._connectionString = connectionString;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
   }
 
   private _checkInitialisedOrThrow(): boolean {

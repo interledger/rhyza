@@ -3,11 +3,15 @@ import {
   SnapshotEvent,
   SnapshotEventTopics,
   StateEventTopics,
-  MessageDataFormats
+  MessageDataFormats,
+  TimerEventTopics,
+  TimerEvent
 } from 'common-types-lib';
 
+const DATAFORMAT = MessageDataFormats.JSON;
+
 export abstract class LedgerStateEvent extends StateEvent {
-  msgDataFormat: MessageDataFormats = MessageDataFormats.JSON;
+  msgDataFormat: MessageDataFormats = DATAFORMAT;
   msgTopic: string = StateEventTopics.LedgerStateEvents;
   protected constructor(aggId: string) {
     super(aggId);
@@ -30,7 +34,7 @@ export abstract class LedgerStateEvent extends StateEvent {
   }
 }
 export abstract class BaseLedgerSnapshotEvent extends SnapshotEvent {
-  msgDataFormat: MessageDataFormats = MessageDataFormats.PROTOBUF;
+  msgDataFormat: MessageDataFormats = DATAFORMAT;
   msgTopic: string = SnapshotEventTopics.LedgerSnapshotEvents;
   protected constructor(aggId: string, aggVersion: string) {
     super(aggId, aggVersion);
@@ -61,12 +65,20 @@ export class LedgerCreatedStateEvent extends LedgerStateEvent {
 export type LedgerAccountsCreatedStatePayload = {
   accounts: {
     id: string;
+    // must align with LedgerAccountTypes enum
+    type:
+      | 'ASSET_LIQUIDITY_ACCOUNT'
+      | 'PEER_LIQUIDITY_ACCOUNT'
+      | 'PEER_CLEARING_ACCOUNT'
+      | 'ASE_LIQUIDITY_ACCOUNT'
+      | 'ASE_CLEARING_ACCOUNT'
+      | 'SUSPENSE_ACCOUNT';
     name: string;
     assetCode: string;
     assetDisplayScale: number;
     debitedAmount: string;
     creditedAmount: string;
-    externalId?: string;
+    peerId?: string;
   }[];
 };
 export class LedgerAccountsCreatedStateEvent extends LedgerStateEvent {
@@ -81,12 +93,17 @@ export class LedgerAccountsCreatedStateEvent extends LedgerStateEvent {
 export type LedgerTransactionRecordedStatePayload = {
   transaction: {
     id: string;
+    originatingCommandName: string;
     debitedAccountId: string;
     creditedAccountId: string;
     amount: string;
     amountScale: number;
     timestamp: number;
-    externalId?: string;
+    externalId?: string; // external liquidity id
+    isReservation: boolean;
+    voidsReservation: boolean;
+    peerId: string;
+    transferId?: string; //transferId for non-liquidity transaction
   };
 };
 export class LedgerTransactionRecordedStateEvent extends LedgerStateEvent {
@@ -104,11 +121,24 @@ export class LedgerTransactionRecordedStateEvent extends LedgerStateEvent {
 export type LedgerSnapshotPayload = {
   accounts: {
     id: string;
+    type:
+      | 'ASSET_LIQUIDITY_ACCOUNT'
+      | 'PEER_LIQUIDITY_ACCOUNT'
+      | 'PEER_CLEARING_ACCOUNT'
+      | 'ASE_LIQUIDITY_ACCOUNT'
+      | 'ASE_CLEARING_ACCOUNT'
+      | 'SUSPENSE_ACCOUNT';
     name: string;
     assetCode: string;
     assetDisplayScale: number;
     debitedAmount: string;
     creditedAmount: string;
+  }[];
+  pendingTransfers: {
+    transferId: string;
+    peerId: string;
+    amount: string;
+    amountScale: number;
   }[];
   transactionCount: string;
   assetScale: number;
@@ -124,5 +154,14 @@ export class LedgerSnapshotEvent extends BaseLedgerSnapshotEvent {
   ) {
     super(aggId, aggVersion);
     this.payload = payload;
+  }
+}
+
+export class LedgerSnapshotCheckTimerEvent extends TimerEvent {
+  msgTopic: string = TimerEventTopics.LedgerTimerEvents;
+  payload: undefined = undefined;
+
+  constructor(aggId: string) {
+    super(aggId);
   }
 }

@@ -1,0 +1,29 @@
+---
+title: Clearing and settlement
+---
+
+## Clearing
+
+When a payment is made over traditional banking rails, the money doesn't move instantly. First, there are checks to confirm that the money exists and can be transferred. Clearing networks are responsible for exchanging messages between financial service providers (FSPs) to facilitate these checks. This process is called clearing. When a payment successfully clears, it means the sender's FSP has an obligation to the recipient's FSP.
+
+The [Interledger Protocol (ILP)](/concepts/interledger) isn't a traditional clearing network, but does function in a similar way.
+
+- FSPs that implement the protocol must become [peers](/integration/checklist#peers) to transact with one another. This is comparable to traditional banking, where FSPs must use the same clearing network. An FSP can't use Interledger to transact with another FSP unless they have both implemented the protocol and have peered with one another.
+- Peered FSPs exchange ILP packets, which are packets of value that contain transaction information. ILP packets are akin to the messages exchanged during the traditional clearing process.
+- The successful exchange of ILP packets between peers creates obligations between them that must be settled. The receipt of a fulfilled ILP packet is basically a conditional IOU&mdash;a promise to pay&mdash;that affects the financial accounting balances between the peers.
+
+You can read more about clearing as it relates to ILP in the [Interledger developer docs](https://interledger.org/developers/rfcs/peering-clearing-settling/).
+
+Conceptually, Rhyza sits at the clearing level, but isn't a clearing network. It's software that makes implementing the Interledger protocol faster and easier. Rhyza uses ILP to [track liquidity](/concepts/accounting) for FSP peering relationships. An FSP must still connect Rhyza to their existing backend system and internal ledger for authentication, fetching exchange rates, and managing liquidity itself. For example, if an incoming payment completes in Rhyza, the FSP's backend must credit the recipient's account on their own system, however that might look.
+
+In any case, no movement of actual money has occurred yet.
+
+## Settlement
+
+In traditional banking, settlement is the fulfillment of an obligation between FSPs. It turns the promise of payment into a real payment by moving actual money. This occurs over a shared settlement network, such as Fedwire in the United States.
+
+When a sender's FSP settles with the recipient's FSP, there's a high chance that the FSP isn't physically handing over cash. There's likely an intermediary, like a reserve bank or central bank, that maintains accounts for both FSPs. The intermediary moves funds from one account to the other, crediting and debiting the accounts as necessary.
+
+With Interledger, the concept of settlement isn't that different. Each [peer](/integration/checklist#peers) must agree on a settlement system to use to fulfill their obligations with one another. However, ILP itself isn't a settlement system. This means peers must have some other way to fulfill their obligations and exchange value. Examples can include using a real-time gross settlement system like Fedwire, an automated clearing house (ACH) network, a money transfer service, or some other payment channel. You can read more about settling as it relates to ILP in the [Interledger developer docs](https://interledger.org/developers/rfcs/settlement-engines/).
+
+Rhyza is also not a settlement system. It [keeps track of liquidity](/concepts/accounting) through peer liquidity accounts. These accounts track deposit, withdrawal, and transfer amounts for FSP peering relationships.

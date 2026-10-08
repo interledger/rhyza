@@ -21,7 +21,7 @@ export class FxAggregate {
     this._ratesRepo = ratesRepo;
     this._aseService = aseService;
     this._fxCacheExpiryService = fxCacheExpiryService;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
   }
 
   private async _fetchIntraAseRateAndStoreIt(

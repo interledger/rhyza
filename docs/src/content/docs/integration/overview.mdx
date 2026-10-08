@@ -1,124 +1,27 @@
 ---
-title: Integrate Rhyza with your FSP
+title: Integrate Rhyza with an FSP
+tableOfContents: false
 ---
 
-import { Card, CardGrid, Badge } from '@astrojs/starlight/components'
+import { Steps } from '@astrojs/starlight/components'
 import { LinkOut } from '@interledger/docs-design-system'
 
-## Before you begin
+Rhyza is a Docker Compose application for financial service providers (FSPs). An FSP is an entity that provides and maintains payment accounts for its customers. An FSP has a number of [responsibilities and obligations](/concepts/financial-service-provider) and is regulated in the jurisdictions it operates. Examples of FSPs include banks, digital wallet providers, and mobile money providers.
 
-You must be, or be working with, a financial service provider (FSP). An FSP is an entity that provides and maintains payment accounts for its customers and is regulated in the jurisdictions it operates. Examples of FSPs include banks, digital wallet providers, and mobile money providers. The [financial service provider](/overview/concepts/financial-service-provider) page provides examples of an FSP's responsibilities and obligations.
+:::caution
+Rhyza **should not** be used in production environments by non-regulated FSPs.
+:::
 
-For testing purposes, you can use the [Local Playground](/integration/playground/overview) to run two mock FSPs that automatically peer with one another. However, Rhyza **should not** be used in production environments by non-regulated FSPs.
+<Steps>
 
-## Software components
+1. Install the latest version of <LinkOut href="https://docs.docker.com/compose/install">Docker Compose</LinkOut>.
 
-From an integration perspective, Rhyza is structured around the **core system** (which processes payments, runs the ledger, handles wallet address registration and peering, and dispatches webhooks), the internal **Admin API**, and the external **Open Payments APIs**.
+2. Run(?) the Compose file from <LinkOut href='https://github.com/interledger/rhyza/tree/main/docker'>Rhyza's repo</LinkOut>.
 
-Rhyza's API services consist of the following:
+3. Work through the [integration checklist](/integration/checklist).
 
-<Card title='Admin API service' icon='setting'>
-  The unified REST interface used by the FSP for all administrative tasks,
-  including managing assets, wallet addresses, and initiating payments. **This
-  is the primary point of integration.**
-  <p></p>
-  <p>
-    <LinkOut href='/apis/scalar/admin-api'>Admin API specification</LinkOut>
-  </p>
-</Card>
+</Steps>
 
-<CardGrid>
-  <Card title="Open Payments authorization server">
-    Standalone service implementing the Open Payments authorization server
-    specification. It must be deployed to handle authorization grants from
-    external clients.
-    <p></p>
-    <p>[Learn more >](/overview/concepts/open-payments#open-payments-authorization-server)</p>
-  </Card>
+## Testing
 
-  <Card title="Open Payments resource server">
-    Standalone service that hosts and manages access to protected Open Payments
-    resources. It must be deployed to expose wallet addresses and payment
-    resources to the network.
-    <p></p>
-    <p>[Learn more >](/overview/concepts/open-payments#open-payments-resource-server)</p>
-  </Card>
-</CardGrid>
-
-## Integration steps
-
-<CardGrid>
-  <Card title="Integration checklist" icon="approve-check"> Review the checklist for all required and optional integration steps.<p></p><p>[Review the checklist >](/integration/requirements/overview)</p></Card>
-
-<Card title="Set up assets">
-  <Badge text="Required" variant="danger" /> An asset is a monetary unit
-  represented by a currency code and a scale. Rhyza must be set up for at least
-  one asset.<p></p>
-  <p>[Create an asset >](/integration/requirements/assets)</p>
-</Card>
-
-<Card title="Create a base wallet address">
-  <Badge text="Required" variant="danger" /> Each payment account in the FSP's
-  system must be linked to a wallet address. Rhyza must be set up with at least one asset before creating wallet addresses.<p></p>
-  <p>[Create a wallet address >](/integration/requirements/wallet-addresses)</p>
-</Card>
-
-<Card title="Expose a webhook endpoint">
-  <Badge text="Required" variant="danger" /> The FSP must expose a webhook endpoint that listens for events dispatched by Rhyza, then react accordingly by
-  calling/interfacing with the Admin API. For example, to approve payments.
-  <p></p>
-  <p>
-    [Specify a webhook endpoint >](/integration/requirements/webhook-events)
-  </p>
-</Card>
-
-</CardGrid>
-
-## Payments
-
-The following steps provide an example of using the <LinkOut href="/apis/scalar/admin-api">Admin API</LinkOut> to make a basic payment between two wallet addresses on the same Rhyza instance.
-
-<CardGrid>
-
-<Card title='1. Create an incoming payment'>
-  Use `POST /payment-intents` to create an incoming payment resource on the
-  recipient's wallet account.
-  <p></p>
-  <p>
-    <LinkOut href='/apis/scalar/admin-api#tag/payment-intents/POST/payment-intents'>
-      Create Payment Intent
-    </LinkOut>
-  </p>
-</Card>
-
-<Card title='2. Create a quote'>
-  Use `POST /quotes` to create a quote resource on the sender's wallet account.
-  The quote shows how much it will cost the sender to deliver an amount to the
-  receiver.
-  <p></p>
-  <p>
-    <LinkOut href='/apis/scalar/admin-api#tag/quotes/POST/quotes'>
-      Create Quote
-    </LinkOut>
-  </p>
-</Card>
-
-<Card title='3. Create a payment'>
-  Use `POST /payments` to create a payment resource on the sender's wallet
-  account. This operation starts the payment. The payment must be
-  funded/approved before it can be sent.
-  <p></p>
-  <p>
-    <LinkOut href='/apis/scalar/admin-api#tag/payments/POST/payments'>
-      Create Payment
-    </LinkOut>
-  </p>
-</Card>
-
-<Card title="Handle webhook requests">
-  As the payment flow progresses, you (as the FSP) are notified about events that happen in your system. Some events are actionable, such as `payment.created`. Review the Webhook Events page to learn more about handling each event.
-  <p></p>
-  <p>[Webhook events >](/integration/requirements/webhook-events)</p>
-</Card>
-
-</CardGrid>
+For testing purposes, the [Local Playground](/integration/testlocal) lets you run two mock FSPs that automatically peer with one another.

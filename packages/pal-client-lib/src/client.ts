@@ -5,10 +5,16 @@ import {
   IGetPeerFxRateFromSourceAsset,
   IGetPeerFxRateToDestinationAsset,
   IGetWalletAddressResponse,
+  IPalClientLiquidityRequest,
+  IPalClientLiquidityResponse,
   IPalClientWalletAddress,
+  PalClientLedgerInsufficientFundsForWithdrawalError,
+  PalClientLedgerUnknownError,
   PalClientPeerAlreadyExistsError,
   PalClientPeerNotFoundError,
   PalClientUnknownError,
+  PalClientWalletAddressAlreadyActiveError,
+  PalClientWalletAddressAlreadyInactiveError,
   PalClientWalletAddressNotFoundError,
   PalClientWalletAddressKeyNotFoundError,
   PalClientWalletAddressKeyAlreadyRevokedError,
@@ -19,7 +25,9 @@ import {
   PbCreateAssetRequest,
   PbCreateWalletAddressAliasRequest,
   PbCreateWalletAddressRequest,
+  PbActivateWalletAddressRequest,
   PbCreateWalletAddressResponse,
+  PbDeactivateWalletAddressRequest,
   PbGetAssetRequest,
   PbGetAssetResponse,
   PbGetWalletAddressesRequest,
@@ -55,7 +63,9 @@ import {
   PbSetFxRateRequest,
   PbGetPeerFxRateFromSourceAssetRequest,
   PbGetPeerFxRateToDestinationAssetRequest,
-  PbGetIntraAseFxRateRequest
+  PbGetIntraAseFxRateRequest,
+  PbLedgerLiquidityManagementRequest,
+  PbLedgerLiquidityManagementResponse
 } from 'pal-public-types-lib';
 import process from 'process';
 
@@ -252,6 +262,62 @@ export class PalClient {
     });
   }
 
+  activateWalletAddress(walletAddressId: string): Promise<void> {
+    const request = new PbActivateWalletAddressRequest();
+    request.setWalletAddressId(walletAddressId);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.activateWalletAddress(
+        request,
+        (error: ServiceError | null) => {
+          if (error) {
+            if (error.code === grpc.status.NOT_FOUND) {
+              return reject(
+                new PalClientWalletAddressNotFoundError(error.message)
+              );
+            }
+            if (error.code === grpc.status.FAILED_PRECONDITION) {
+              return reject(
+                new PalClientWalletAddressAlreadyActiveError(error.message)
+              );
+            }
+            return reject(new PalClientUnknownError(error.message));
+          }
+
+          return resolve();
+        }
+      );
+    });
+  }
+
+  deactivateWalletAddress(walletAddressId: string): Promise<void> {
+    const request = new PbDeactivateWalletAddressRequest();
+    request.setWalletAddressId(walletAddressId);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.deactivateWalletAddress(
+        request,
+        (error: ServiceError | null) => {
+          if (error) {
+            if (error.code === grpc.status.NOT_FOUND) {
+              return reject(
+                new PalClientWalletAddressNotFoundError(error.message)
+              );
+            }
+            if (error.code === grpc.status.FAILED_PRECONDITION) {
+              return reject(
+                new PalClientWalletAddressAlreadyInactiveError(error.message)
+              );
+            }
+            return reject(new PalClientUnknownError(error.message));
+          }
+
+          return resolve();
+        }
+      );
+    });
+  }
+
   async addWalletAddressKey(
     walletAddressId: string,
     jwk: IPalJsonWebKeyDto
@@ -365,7 +431,7 @@ export class PalClient {
     });
   }
 
-  async ResolveWalletAddressAlias(
+  async resolveWalletAddressAlias(
     domain: string | null,
     pathName: string
   ): Promise<{
@@ -423,18 +489,141 @@ export class PalClient {
           const respAccounts = response.getAccountsList().map((item) => {
             return {
               id: item.getId(),
+              type: item.getType() as
+                | 'ASSET_LIQUIDITY_ACCOUNT'
+                | 'PEER_LIQUIDITY_ACCOUNT'
+                | 'PEER_CLEARING_ACCOUNT'
+                | 'ASE_LIQUIDITY_ACCOUNT'
+                | 'ASE_CLEARING_ACCOUNT'
+                | 'SUSPENSE_ACCOUNT',
               name: item.getName(),
               assetCode: item.getAssetCode(),
               assetDisplayScale: item.getAssetDisplayScale(),
               debitedAmount: item.getDebitedAmount(),
               creditedAmount: item.getCreditedAmount(),
-              externalId: item.getExternalId()
+              peerId: item.getPeerId()
             };
           });
           return resolve(respAccounts);
         }
       );
     });
+  }
+
+  private _createPbLedgerLiquidityManagementRequest(
+    request: IPalClientLiquidityRequest
+  ): PbLedgerLiquidityManagementRequest {
+    const pbReq = new PbLedgerLiquidityManagementRequest();
+    pbReq.setRequestId(request.requestId);
+    pbReq.setPeerId(request.peerId);
+    pbReq.setAssetCode(request.assetCode);
+    pbReq.setAmountScale(request.amountScale);
+    pbReq.setAmount(request.amount);
+    if (request.externalId != undefined)
+      pbReq.setExternalId(request.externalId);
+    return pbReq;
+  }
+
+  private async _executeLedgerLiquidityManagementResp(
+    pbReq: PbLedgerLiquidityManagementRequest
+  ): Promise<IPalClientLiquidityResponse> {
+    return new Promise((resolve, reject) => {
+      this._grpcClient.executeLedgerLiquidityManagementRequest(
+        pbReq,
+        (
+          srvError: ServiceError | null,
+          srvResponse: PbLedgerLiquidityManagementResponse
+        ) => {
+          if (srvError) {
+            return reject(srvError.message);
+          }
+
+          const commonResp: IPalClientLiquidityResponse = {
+            isError: false,
+            errorMessage: undefined,
+            peerId: srvResponse.getPeerId(),
+            requestId: srvResponse.getRequestId(),
+            externalId: undefined
+          };
+
+          if (srvResponse.hasExternalId()) {
+            commonResp.externalId = srvResponse.getExternalId();
+          }
+
+          if (srvResponse.hasSuccess()) {
+            return resolve(commonResp);
+          } else if (srvResponse.hasInsufficientFundsFailure()) {
+            const specificResp = srvResponse.getInsufficientFundsFailure();
+            return reject(
+              new PalClientLedgerInsufficientFundsForWithdrawalError(
+                specificResp?.getErrorMessage()
+              )
+            );
+          } else {
+            const specificResp = srvResponse.getGenericFailure();
+            return reject(
+              new PalClientLedgerUnknownError(specificResp?.getErrorMessage())
+            );
+          }
+        }
+      );
+    });
+  }
+
+  async ledgerDepositToAse(
+    request: IPalClientLiquidityRequest
+  ): Promise<IPalClientLiquidityResponse> {
+    const pbReq = this._createPbLedgerLiquidityManagementRequest(request);
+    pbReq.setType(PbLedgerLiquidityManagementRequest.Type.DEPOSIT_TO_ASE);
+    return this._executeLedgerLiquidityManagementResp(pbReq);
+  }
+
+  ledgerDepositToPeer(
+    request: IPalClientLiquidityRequest
+  ): Promise<IPalClientLiquidityResponse> {
+    const pbReq = this._createPbLedgerLiquidityManagementRequest(request);
+    pbReq.setType(PbLedgerLiquidityManagementRequest.Type.DEPOSIT_TO_PEER);
+    return this._executeLedgerLiquidityManagementResp(pbReq);
+  }
+
+  ledgerWithdrawFromAse(
+    request: IPalClientLiquidityRequest
+  ): Promise<IPalClientLiquidityResponse> {
+    const pbReq = this._createPbLedgerLiquidityManagementRequest(request);
+    pbReq.setType(PbLedgerLiquidityManagementRequest.Type.WITHDRAW_FROM_ASE);
+    return this._executeLedgerLiquidityManagementResp(pbReq);
+  }
+  ledgerWithdrawFromPeer(
+    request: IPalClientLiquidityRequest
+  ): Promise<IPalClientLiquidityResponse> {
+    const pbReq = this._createPbLedgerLiquidityManagementRequest(request);
+    pbReq.setType(PbLedgerLiquidityManagementRequest.Type.WITHDRAW_FROM_PEER);
+    return this._executeLedgerLiquidityManagementResp(pbReq);
+  }
+
+  /**
+   * Convert an amount in integer string notation from the ledger to the
+   * correct string representation with the provided amount scale.
+   * @param amountStr Integer amount string
+   * @param displayScale precision scale
+   */
+  amountStrToDisplayAmountStr(amountStr: string, displayScale: number): string {
+    if (displayScale < 0) {
+      throw new Error('Display scale must be greater than or equal to zero');
+    }
+
+    if (displayScale == 0) {
+      return amountStr;
+    } else if (amountStr.length > displayScale) {
+      return (
+        amountStr.slice(0, -displayScale) + '.' + amountStr.slice(-displayScale)
+      );
+    } else if (amountStr.length == displayScale) {
+      return '0.' + amountStr;
+    }
+
+    const diff = displayScale - amountStr.length;
+    return '0.' + '0'.repeat(diff) + amountStr;
   }
 
   /*

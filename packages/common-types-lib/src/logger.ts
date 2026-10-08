@@ -73,3 +73,48 @@ export class ConsoleLogger implements ILogger {
     return this;
   }
 }
+
+/**
+ * Null logger implementation which does nothing
+ */
+export class NullLogger implements ILogger {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  fatal(...args: any[]): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  error(...args: any[]): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  warn(...args: any[]): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  info(...args: any[]): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  debug(...args: any[]): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  trace(...args: any[]): void {}
+
+  isTraceEnabled(): boolean {
+    return true;
+  }
+  isDebugEnabled(): boolean {
+    return true;
+  }
+  isInfoEnabled(): boolean {
+    return true;
+  }
+  isWarnEnabled(): boolean {
+    return true;
+  }
+  isErrorEnabled(): boolean {
+    return true;
+  }
+  isFatalEnabled(): boolean {
+    return true;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setLogLevel(logLevel: any): void {}
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  child(componentName: string): ILogger {
+    return this;
+  }
+}

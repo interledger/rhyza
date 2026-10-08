@@ -20,7 +20,7 @@ import {
   LedgerNotFoundEvent
 } from 'pal-public-types-lib';
 
-const INTERNAL_ASSET_SCALE = 20;
+export const LEDGER_INTERNAL_ASSET_SCALE = 20;
 const COMMANDS_HISTOGRAM_NAME = 'PalLedgerAggregate_Commands';
 
 export class LedgerAggregate {
@@ -32,6 +32,7 @@ export class LedgerAggregate {
   private readonly _uncommittedDomainEvents: LedgerDomainEvent[];
   private readonly _telemetryService: ITelemetryService;
   private readonly _commandHisto: ITelemetryHistogram;
+  private _memoryClearRequested: boolean;
 
   constructor(
     esRepo: ILedgerEventSourcingRepository,
@@ -41,11 +42,12 @@ export class LedgerAggregate {
   ) {
     this._esRepo = esRepo;
     this._msgProducer = msgProducer;
-    this._logger = logger;
+    this._logger = logger.child(this.constructor.name);
     this._telemetryService = telemetryService;
     this._ledgers = new Map<string, Ledger>();
     this._uncommittedStateEvents = [];
     this._uncommittedDomainEvents = [];
+    this._memoryClearRequested = false;
 
     this._commandHisto = this._telemetryService.getHistogram(
       COMMANDS_HISTOGRAM_NAME
@@ -96,14 +98,14 @@ export class LedgerAggregate {
 
     const newLedger = Ledger.CreateNewLedger(
       cmd.aggregateId,
-      INTERNAL_ASSET_SCALE,
+      LEDGER_INTERNAL_ASSET_SCALE,
       this._logger
     );
 
     this._ledgers.set(cmd.aggregateId, newLedger);
 
     this._uncommittedStateEvents.push(
-      new LedgerCreatedStateEvent(cmd.aggregateId, INTERNAL_ASSET_SCALE)
+      new LedgerCreatedStateEvent(cmd.aggregateId, LEDGER_INTERNAL_ASSET_SCALE)
     );
 
     const domainEvent = new LedgerCreatedEvent({ assetCode: cmd.aggregateId });
@@ -111,8 +113,47 @@ export class LedgerAggregate {
     this._uncommittedDomainEvents.push(domainEvent);
   }
 
+  private _clearInMemoryState(): void {
+    const ids = Array.from(this._ledgers.keys());
+    this._logger.info(
+      `Clearing in-memory state, currently ${ids.length} ledgers are loaded: ${ids.join(',')}`
+    );
+
+    // clear the ledgers and set them to undefined to force memory release
+    ids.forEach((ledgerId) => {
+      let ledger = this._ledgers.get(ledgerId);
+      if (ledger) {
+        this._ledgers.delete(ledgerId);
+        ledger = undefined;
+      }
+    });
+
+    this._logger.info('Clearing in-memory state complete.');
+  }
+
+  /**
+   * Request in-memory state clearing for the next processCommands cycle.
+   *
+   * This MUST be called when the consumer for the commands is
+   * rebalanced. Because rebalancing might result in different partitions
+   * being attributed to this instance, and that could lead to this instance
+   * not receiving commands for the same ledger, hence we must discard the
+   * in-memory state before accepting new commands.
+   */
+  requestInMemoryStateClear(): void {
+    if (this._ledgers.size === 0) return;
+
+    this._memoryClearRequested = true;
+  }
+
   async processCommands(commands: CommandMsg | CommandMsg[]): Promise<void> {
     const startTs = Date.now();
+
+    if (this._memoryClearRequested) {
+      this._clearInMemoryState();
+      this._memoryClearRequested = false;
+    }
+
     if (!Array.isArray(commands)) {
       commands = [commands];
     }
@@ -138,21 +179,21 @@ export class LedgerAggregate {
     const procMs = Date.now() - startTs;
 
     // publish and clear uncommited events
-    const preEsrepoPublishStart = Date.now();
     const eventsCount =
       this._uncommittedStateEvents.length +
       this._uncommittedDomainEvents.length;
-    await this._esRepo.publishEvents(this._uncommittedStateEvents);
-    const esRepoMs = Date.now() - preEsrepoPublishStart;
 
     const prePublishStart = Date.now();
-    this._uncommittedStateEvents.length = 0;
-    await this._msgProducer.send(this._uncommittedDomainEvents);
-    this._uncommittedDomainEvents.length = 0;
+    await this._msgProducer.send([
+      ...this._uncommittedStateEvents,
+      ...this._uncommittedDomainEvents
+    ]);
     const producerMs = Date.now() - prePublishStart;
+    this._uncommittedStateEvents.length = 0;
+    this._uncommittedDomainEvents.length = 0;
 
     this._logger.debug(
-      `LedgerAggregate: processed ${commands.length} commands and published ${eventsCount} events in ${Date.now() - startTs}ms - proc: ${procMs}ms esRepo pub: ${esRepoMs}ms producer pub: ${producerMs}ms`
+      `LedgerAggregate: processed ${commands.length} commands and published ${eventsCount} events in ${Date.now() - startTs}ms - proc: ${procMs}ms producer pub: ${producerMs}ms`
     );
   }
 
@@ -167,6 +208,10 @@ export class LedgerAggregate {
       return loadedLedger;
     }
 
+    this._logger.info(
+      `LedgerAggregate: loading ledger ${ledgerId} from snapshot/events...`
+    );
+
     const startTs = Date.now();
 
     // try to load the ledger state from event-sourcing repo snapshot+events
@@ -174,7 +219,10 @@ export class LedgerAggregate {
 
     let partitionAndOffset: { partition: number; offset: number } | undefined =
       undefined;
-    if (snapshot?.lastEventIndexOffset && snapshot?.lastEventIndexPartition) {
+    if (
+      snapshot?.lastEventIndexOffset != undefined &&
+      snapshot?.lastEventIndexPartition != undefined
+    ) {
       partitionAndOffset = {
         partition: snapshot.lastEventIndexPartition,
         offset: snapshot.lastEventIndexOffset + 1 // we want to start reading the next message, not the last one that made it to the snapshot
@@ -198,7 +246,7 @@ export class LedgerAggregate {
     this._ledgers.set(ledgerId, ledger);
 
     this._logger.info(
-      `LedgerAggregate: ledger loading took: ${Date.now() - startTs}ms`
+      `LedgerAggregate: ${ledgerId} ledger loading took: ${Date.now() - startTs}ms`
     );
     return ledger;
   }
