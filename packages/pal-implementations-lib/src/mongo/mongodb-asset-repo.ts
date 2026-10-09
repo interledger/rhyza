@@ -72,7 +72,7 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
     await this._client.close();
   }
 
-  async store(asset: IPalAssetDto): Promise<IPalAssetDto> {
+  async store(asset: IPalAssetDto): Promise<void> {
     this._checkInitialisedOrThrow();
 
     const storedAsset: IPalAssetDto = {
@@ -86,7 +86,6 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
         { $set: storedAsset },
         { upsert: true }
       );
-      return storedAsset;
     } catch (e) {
       this._logger.error(e);
       throw new Error(`Unable to store asset - error: ${(e as Error).message}`);
