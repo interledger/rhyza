@@ -1,0 +1,37 @@
+---
+title: Saludos desde Rhyza
+description: Rhyza es un software de código abierto que ofrece a una Entidad de Servicio de Cuentas una solución eficiente para habilitar la funcionalidad de Interledger en las cuentas de sus usuarios.
+template: splash
+lastUpdated: false
+hero:
+  tagline: Rhyza es un software de código abierto que ofrece a una Entidad de Servicio de Cuentas (financial service provider, FSP) una solución eficiente para habilitar la funcionalidad de Interledger en las cuentas de sus usuarios.
+  actions:
+    - text: Leer los documentos de Rhyza
+      link: /es/overview
+      icon: open-book
+      variant: primary
+      attrs:
+        data-umami-event: Página de inicio - Documentos de Rhyza
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+
+<CardGrid>
+  <a class='card-link' href='/integration/testlocal'>
+    <Card title='¡Pruébelo!' icon='document'>
+      Pruebe Rhyza ejecutando dos FSP simuladas que se interconectan
+      automáticamente entre sí.
+    </Card>
+  </a>
+  <a class='card-link' href='/integration/checklist'>
+    <Card title='Requisitos de integración' icon='document'>
+      Revise los requisitos para implementar Rhyza en un entorno de producción.
+    </Card>
+  </a>
+  <a class='card-link' href='/apis/api-overview'>
+    <Card title='Rhyza REST APIs' icon='document'>
+      Obtén una descripción general de cada API disponible y consulta sus
+      especificaciones.
+    </Card>
+  </a>
+</CardGrid>

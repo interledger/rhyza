@@ -1,5 +1,8 @@
 ---
 title: Glossary
+prev:
+  link: /apis/api-overview
+  label: API overview
 ---
 
 import { LinkOut } from '@interledger/docs-design-system'
@@ -42,7 +45,7 @@ A unit of data that carries payment information through the Interledger network.
 
 ## Incoming payment
 
-An object created by the recipient's FSP, on their resource server, that represents a payment being received. The object contains information about the incoming payment, such as the amount, currency, receiver's wallet address, and payment status. The object is used to track and manage payments that are expected to be or have been received.
+An object created by the recipient's FSP, on their resource server, that represents a payment being received. The object contains information about the incoming payment, such as the amount, currency, receiver's wallet address, and payment status. The object is used to track and manage payments that are expected to be or have been received. In Rhyza's Admin API, this same resource is called a [payment intent](#payment-intent).
 
 ## Interledger Protocol (ILP)
 
@@ -54,7 +57,15 @@ An API standard and a set of APIs that allows clients to securely retrieve accou
 
 ## Outgoing payment
 
-An object created by the sender's FSP, on their resource server, that represents a payment being sent. This object contains information about the outgoing payment, such as the amount, currency, receiver's wallet address, and payment status.
+An object created by the sender's FSP, on their resource server, that represents a payment being sent. This object contains information about the outgoing payment, such as the amount, currency, receiver's wallet address, and payment status. In Rhyza's Admin API, this same resource is called a [payment](#payment).
+
+## Payment
+
+Rhyza's name for an [outgoing payment](#outgoing-payment). The sender's FSP creates a payment to send funds toward a specific [payment intent](#payment-intent). See [Payment intents and payments](/concepts/payment-intents-and-payments) for more information.
+
+## Payment intent
+
+Rhyza's name for an [incoming payment](#incoming-payment). The receiver's FSP creates a payment intent to signal that a wallet address is ready to receive funds, before any money has arrived. See [Payment intents and payments](/concepts/payment-intents-and-payments) for more information.
 
 ## Peer
 

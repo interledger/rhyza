@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.9
+  version: 0.0.10
   license:
     name: ISC
     identifier: ISC
@@ -1039,8 +1039,9 @@ components:
           format: date-time
           description: The date and time when the payment intent expires.
         metadata:
-          type: string
+          type: object
           description: Additional arbitrary data associated with the payment intent.
+          additionalProperties: true
     PaymentIntentCreateResponse:
       type: object
       description: Response schema after creating a payment intent.
@@ -1207,6 +1208,10 @@ components:
         debitAmount:
           type: number
           description: The amount to debit from the sender.
+        metadata:
+          type: object
+          description: Additional arbitrary data associated with the payment intent.
+          additionalProperties: true
     PaymentCreateResponse:
       type: object
       description: Response schema after initiating a payment.

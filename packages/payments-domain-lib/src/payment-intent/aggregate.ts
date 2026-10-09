@@ -76,7 +76,8 @@ import {
   InboundPaymentAcceptedEvent,
   InboundPaymentFailedEvent,
   InboundPaymentFinalizedEvent,
-  PaymentIntentCompletedPayload
+  PaymentIntentCompletedPayload,
+  PaymentCompleteFailedAdditionalData
 } from 'payments-public-types-lib';
 
 const fxKey = (
@@ -400,7 +401,8 @@ export class PaymentIntentAggregate {
         receiverWalletAddressId,
         receiverWalletAddress,
         expiresAt,
-        incomingAmount
+        incomingAmount,
+        metadata
       } = cmd.payload;
 
       if (this.paymentIntentMap.has(id)) {
@@ -437,7 +439,11 @@ export class PaymentIntentAggregate {
         walletAddress.assetCode,
         walletAddress.assetScale,
         expiresAt ?? null,
-        incomingAmount != null ? BigInt(incomingAmount) : null
+        incomingAmount != null ? BigInt(incomingAmount) : null,
+        undefined,
+        undefined,
+        undefined,
+        metadata ? JSON.parse(metadata) : undefined
       );
 
       this.paymentIntentMap.set(id, entity.toObject());
@@ -461,7 +467,8 @@ export class PaymentIntentAggregate {
           receiverWalletAddressId: entity.receiverWalletAddressId,
           destination: entity.destination,
           assetCode: entity.assetCode,
-          assetScale: entity.assetScale
+          assetScale: entity.assetScale,
+          metadata: entity.metadata
         },
         cmd.requestId
       );
@@ -699,7 +706,8 @@ export class PaymentIntentAggregate {
       paymentIntentId,
       quoteId,
       debitAmount,
-      grantId
+      grantId,
+      metadata
     } = cmd.payload;
 
     try {
@@ -742,7 +750,8 @@ export class PaymentIntentAggregate {
           exchangeRate,
           quoteId,
           debitAmount: debitAmount ? BigInt(debitAmount) : undefined,
-          grantId
+          grantId,
+          metadata: metadata ? JSON.parse(metadata) : undefined
         });
       } else {
         // TODO: support creating payment without quote
@@ -764,7 +773,8 @@ export class PaymentIntentAggregate {
             assetScale: walletAddress.assetScale,
             assetCode: walletAddress.assetCode
           },
-          grantId
+          grantId,
+          metadata: metadata ? JSON.parse(metadata) : undefined
         });
       }
 
@@ -789,7 +799,9 @@ export class PaymentIntentAggregate {
           assetCode: payment.assetCode,
           assetScale: payment.assetScale,
           receiveAssetCode: paymentIntent.assetCode,
-          receiveAssetScale: paymentIntent.assetScale
+          receiveAssetScale: paymentIntent.assetScale,
+          metadata: payment.metadata,
+          paymentIntentRemoteUrl: paymentIntent.remoteUrl
         },
         cmd.requestId
       );
@@ -1024,6 +1036,7 @@ export class PaymentIntentAggregate {
       `handleApprovePaymentCommand — paymentId: ${cmd.payload.id} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
     const { id: paymentId, paymentIntentId } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1037,6 +1050,12 @@ export class PaymentIntentAggregate {
 
       if (paymentIntent.destination === 'LOCAL') {
         const payment = paymentIntent.completeLocalPayment({ id: paymentId });
+        errorContext = {
+          sentAmount: payment.sentAmount.toString(),
+          walletAddressId: payment.senderWalletAddressId,
+          assetCode: payment.assetCode,
+          assetScale: payment.assetScale
+        };
         this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
         this._appendToMap(
           this.completedLocalPayments,
@@ -1060,7 +1079,8 @@ export class PaymentIntentAggregate {
               assetScale: payment.assetScale,
               receiveAssetCode: paymentIntent.assetCode,
               receiveAssetScale: paymentIntent.assetScale,
-              grantId: payment.grantId
+              grantId: payment.grantId,
+              metadata: payment.metadata
             },
             cmd.requestId
           )
@@ -1086,6 +1106,12 @@ export class PaymentIntentAggregate {
       const payment = paymentIntent.approveRemotePaymentSend({
         id: paymentId
       });
+      errorContext = {
+        sentAmount: payment.sentAmount.toString(),
+        walletAddressId: payment.senderWalletAddressId,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale
+      };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
         this.approvedRemotePayments,
@@ -1118,6 +1144,7 @@ export class PaymentIntentAggregate {
             cmd.payload.paymentIntentId,
             cmd.payload.id
           ),
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1132,6 +1159,7 @@ export class PaymentIntentAggregate {
       `handlePrepareRemotePaymentCommand — paymentId: ${cmd.payload.paymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
     const { paymentIntentId, paymentId, ledgerTransferId } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1167,6 +1195,12 @@ export class PaymentIntentAggregate {
         id: paymentId,
         ledgerTransferId
       });
+      errorContext = {
+        sentAmount: payment.sentAmount.toString(),
+        walletAddressId: payment.senderWalletAddressId,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale
+      };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
         this.sendingRemotePayments,
@@ -1201,6 +1235,7 @@ export class PaymentIntentAggregate {
             paymentIntentId,
             cmd.payload.paymentId
           ),
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1213,6 +1248,7 @@ export class PaymentIntentAggregate {
       `handleFailRemotePaymentCommand — paymentId: ${cmd.payload.paymentId} paymentIntentId: ${cmd.payload.paymentIntentId} reason: ${cmd.payload.reason}`
     );
     const { paymentIntentId, paymentId, reason } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1227,6 +1263,12 @@ export class PaymentIntentAggregate {
         id: paymentId,
         reason
       });
+      errorContext = {
+        sentAmount: payment.sentAmount.toString(),
+        walletAddressId: payment.senderWalletAddressId,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale
+      };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(this.failedRemotePayments, paymentIntent.id, paymentId);
 
@@ -1258,6 +1300,7 @@ export class PaymentIntentAggregate {
             paymentIntentId,
             cmd.payload.paymentId
           ),
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1270,6 +1313,7 @@ export class PaymentIntentAggregate {
       `handleConfirmRemotePaymentCommand — paymentId: ${cmd.payload.paymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
     const { paymentIntentId, paymentId } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1288,6 +1332,12 @@ export class PaymentIntentAggregate {
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
       }
+      errorContext = {
+        sentAmount: existingPayment.sentAmount.toString(),
+        walletAddressId: existingPayment.senderWalletAddressId,
+        assetCode: existingPayment.assetCode,
+        assetScale: existingPayment.assetScale
+      };
       if (!existingPayment.ledgerTransferId) {
         throw new Error(
           `Payment ${paymentId} is missing ledgerTransferId at confirm time`
@@ -1330,6 +1380,7 @@ export class PaymentIntentAggregate {
             paymentIntentId,
             cmd.payload.paymentId
           ),
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1343,6 +1394,7 @@ export class PaymentIntentAggregate {
     );
     const { paymentIntentId, paymentId, reason, rejectCode, rejectMessage } =
       cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1361,6 +1413,12 @@ export class PaymentIntentAggregate {
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
       }
+      errorContext = {
+        sentAmount: existingPayment.sentAmount.toString(),
+        walletAddressId: existingPayment.senderWalletAddressId,
+        assetCode: existingPayment.assetCode,
+        assetScale: existingPayment.assetScale
+      };
       if (!existingPayment.ledgerTransferId) {
         throw new Error(
           `Payment ${paymentId} is missing ledgerTransferId at reject time`
@@ -1409,6 +1467,7 @@ export class PaymentIntentAggregate {
             paymentIntentId,
             cmd.payload.paymentId
           ),
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1421,6 +1480,7 @@ export class PaymentIntentAggregate {
       `handleCompleteRemotePaymentCommand — paymentId: ${cmd.payload.paymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
     );
     const { paymentIntentId, paymentId } = cmd.payload;
+    let errorContext: PaymentCompleteFailedAdditionalData = {};
 
     try {
       const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
@@ -1432,6 +1492,12 @@ export class PaymentIntentAggregate {
 
       const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
       const payment = paymentIntent.completeRemotePayment({ id: paymentId });
+      errorContext = {
+        sentAmount: payment.sentAmount.toString(),
+        walletAddressId: payment.senderWalletAddressId,
+        assetCode: payment.assetCode,
+        assetScale: payment.assetScale
+      };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
         this.completedRemotePayments,
@@ -1455,7 +1521,8 @@ export class PaymentIntentAggregate {
             assetScale: payment.assetScale,
             receiveAssetCode: paymentIntent.assetCode,
             receiveAssetScale: paymentIntent.assetScale,
-            grantId: payment.grantId
+            grantId: payment.grantId,
+            metadata: payment.metadata
           },
           cmd.requestId
         )
@@ -1478,6 +1545,7 @@ export class PaymentIntentAggregate {
             paymentIntentId,
             cmd.payload.paymentId
           ),
+          ...errorContext,
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1992,7 +2060,8 @@ export class PaymentIntentAggregate {
       destination: paymentIntent.destination,
       destinationIlpAddress: paymentIntent.destinationIlpAddress,
       assetCode: paymentIntent.assetCode,
-      assetScale: paymentIntent.assetScale
+      assetScale: paymentIntent.assetScale,
+      metadata: paymentIntent.metadata
     };
   }
 

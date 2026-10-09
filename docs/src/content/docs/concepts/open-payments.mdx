@@ -1,7 +1,5 @@
 ---
 title: Open Payments
-tableOfContents:
-  maxHeadingLevel: 2
 ---
 
 import { LinkOut } from '@interledger/docs-design-system'
@@ -22,7 +20,7 @@ See [Wallet addresses](/concepts/wallet-addresses) for more information.
 
 ### Open Payments resource server
 
-The Open Payments resource server is a standalone service that exposes the endpoints defined in the <LinkOut href="https://openpayments.dev/apis/resource-server/">Open Payments specification</LinkOut>. It acts as a stateless translation layer that validates incoming requests and interfaces with Rhyza's backend to manage resources like incoming payments, quotes, and outgoing payments.
+The Open Payments resource server is a standalone service that exposes the endpoints defined in the <LinkOut href="https://openpayments.dev/apis/resource-server/">Open Payments specification</LinkOut>. It acts as a stateless translation layer that validates incoming requests and interfaces with Rhyza's backend to manage resources like incoming payments, quotes, and outgoing payments. Rhyza's Admin API uses the terms _payment intents_ and _payments_ for these same resources. See [Payment intents and payments](/concepts/payment-intents-and-payments) for more information.
 
 ### Open Payments authorization server
 

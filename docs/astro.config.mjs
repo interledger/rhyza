@@ -135,6 +135,11 @@ export default defineConfig({
               link: '/concepts/open-payments'
             },
             {
+              label: 'Payment intents and payments',
+              translations: { es: 'Payment intents and payments' },
+              link: '/concepts/payment-intents-and-payments'
+            },
+            {
               label: 'Wallet addresses',
               translations: { es: 'Wallet addresses' },
               link: '/concepts/wallet-addresses'

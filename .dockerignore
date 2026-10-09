@@ -14,3 +14,15 @@ img
 **/*.tsbuildinfo
 
 benchmark.js
+
+# not needed by any image build
+.git
+.agents
+.changeset
+.claude
+.vscode
+bruno
+docker
+docs
+internal-docs
+*.md

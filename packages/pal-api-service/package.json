@@ -1,5 +1,5 @@
 {
-  "name": "pal-api-service-lib",
+  "name": "pal-api-service",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

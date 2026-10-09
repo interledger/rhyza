@@ -1,0 +1,30 @@
+---
+title: Payment intents and payments
+---
+
+import { LinkOut } from '@interledger/docs-design-system'
+
+A payment intent is a resource the receiver's financial service provider (FSP) creates to signal that a wallet address is ready to receive funds, before any money has arrived. The sender's FSP then requests a quote against that payment intent, and creates a payment that references both the quote and the intent to actually send the funds. Both terms are specific to Rhyza's Admin API. The [Open Payments](/concepts/open-payments) standard describes the same underlying resources using its own terminology, which Rhyza's public-facing Open Payments APIs continue to use. See [Relationship to Open Payments](#relationship-to-open-payments) for how the two sets of terms relate.
+
+## Payment intents
+
+Payment intents are created via the Admin API's <LinkOut href="/apis/#tag/payment-intents/POST/payment-intents">Create Payment Intent</LinkOut> endpoint. The response includes an `openPaymentsUrl` - the same resource's address on the public Open Payments API, which a third-party client uses to interact with the payment intent directly, as an incoming payment.
+
+## Payments
+
+Before creating a payment, the sender's FSP must first create a [quote](/resources/glossary#quote), which commits to delivering the requested amount to the receiver.
+
+Payments are created via the Admin API's <LinkOut href="/apis/#tag/payments/POST/payments">Create Payment</LinkOut> endpoint, referencing both the quote and the payment intent they fulfill.
+
+## Relationship to Open Payments
+
+Payment intents and payments are Rhyza's Admin API names for resources the Open Payments standard calls incoming and outgoing payments:
+
+| Open Payments term | Rhyza Admin API term | Created by |
+| --- | --- | --- |
+| Incoming payment | Payment intent | Receiver's FSP |
+| Outgoing payment | Payment | Sender's FSP |
+
+The two sets of terms describe the same resources from different perspectives. Rhyza's Admin API terms describe what the resource means operationally for the FSP running the instance: a payment intent is an intention to receive funds, not yet a completed transaction.
+
+See the [Glossary](/resources/glossary) for full definitions of all four terms.

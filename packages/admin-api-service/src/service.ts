@@ -12,7 +12,7 @@ import { quoteRoutes } from './routes/quotes.js';
 import { paymentRoutes } from './routes/payments.js';
 import { liquidityRoutes } from './routes/liquidity.js';
 import { ratesRoutes } from './routes/rates.js';
-import { ILogger } from '../../common-types-lib/src/index.js';
+import { ILogger } from 'common-types-lib';
 import {
   PinoLogger,
   KafkaBuilder,

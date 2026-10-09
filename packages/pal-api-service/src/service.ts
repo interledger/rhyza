@@ -57,7 +57,7 @@ import crypto from 'crypto';
 import { join } from 'path';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const packageJson = require(join(process.cwd(), 'package.json'));
+const packageJson = require(join(__dirname, '..', 'package.json'));
 
 const SVC_PORT = process.env['SVC_PORT']
   ? parseInt(process.env['SVC_PORT'])

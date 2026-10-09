@@ -66,7 +66,7 @@ import { InternalEventHandler } from './handlers/internal-event-handler';
 import { join } from 'path';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const packageJson = require(join(process.cwd(), 'package.json'));
+const packageJson = require(join(__dirname, '..', 'package.json'));
 
 const BC_NAME = 'PAL';
 const APP_NAME = `${BC_NAME}_EVT_HANDLER_SVC`;

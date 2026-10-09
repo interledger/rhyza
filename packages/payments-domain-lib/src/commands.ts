@@ -162,6 +162,7 @@ export type CreatePaymentCmdPayload = {
   quoteId?: string;
   debitAmount?: number;
   grantId?: string;
+  metadata?: string;
 };
 
 export class CreatePaymentCmd extends PaymentIntentCommand {

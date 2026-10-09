@@ -136,12 +136,16 @@ describe('Payments Client', () => {
   test('create payment intent (all fields)', async () => {
     const id = randomUUID();
     const expiresAt = new Date(Date.now() + 1000 * 60 * 5).toISOString(); // 5 minutes
+    const metadata = JSON.stringify({
+      description: 'test'
+    });
     const result = await paymentsClient.createPaymentIntent(
       id,
       receiverWalletAddressId,
       RECEIVER_WALLET_ADDRESS,
       100,
-      expiresAt
+      expiresAt,
+      metadata
     );
 
     assert.equal(result.id, id);

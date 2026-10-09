@@ -39,6 +39,7 @@ interface PaymentIntentBody {
   expiresAt?: string;
   destinationIlpAddress?: string;
   createdAt: string;
+  metadata?: Record<string, unknown>;
 }
 
 function toPaymentIntentBody(
@@ -71,6 +72,10 @@ function toPaymentIntentBody(
 
   if (paymentIntent.destinationIlpAddress) {
     body.destinationIlpAddress = paymentIntent.destinationIlpAddress;
+  }
+
+  if (paymentIntent.metadata) {
+    body.metadata = paymentIntent.metadata;
   }
 
   return body;

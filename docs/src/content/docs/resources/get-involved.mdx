@@ -2,79 +2,150 @@
 title: Get involved
 ---
 
-import { Card, CardGrid, Steps } from '@astrojs/starlight/components'
+import {
+  Card,
+  CardGrid,
+  Steps,
+  LinkButton
+} from '@astrojs/starlight/components'
 import { LinkOut } from '@interledger/docs-design-system'
 
 Welcome to the Rhyza community! Whether you're a seasoned developer or just getting started with open source, there are many ways to contribute to the Rhyza project. This guide will help you find your place in our vibrant ecosystem.
 
 ## 🚀 New to Rhyza?
 
-Explore the project
+<Card title="Explore the project">
+  Browse the Rhyza repository to understand the codebase structure and recent activity.
 
-Browse the <LinkOut href='https://github.com/interledger/rhyza'>Rhyza repository</LinkOut> to understand the codebase structure and recent activity.
+  <LinkButton 
+    href="https://github.com/interledger/rhyza"
+    target="_blank"
+    icon="github"
+    iconPlacement="start"
+    >
+      GitHub repo
+    </LinkButton>
+</Card>
 
-Join our community
+<Card title="Join our community">
+    Start or join GitHub discussions for deeper technical conversations.
 
-Connect with us on <LinkOut href='https://communityinviter.com/apps/interledger/interledger-working-groups-slack'>`interledger.slack.com`</LinkOut> in the `#rhyza` channel for real-time discussions - Start or join <LinkOut href='https://github.com/interledger/rhyza/discussions'>GitHub Discussions</LinkOut> for deeper technical conversations.
+    <LinkButton
+    href="https://github.com/interledger/rhyza/discussions"
+    target="_blank"
+    icon="github"
+    iconPlacement="start"
+    >
+      GitHub Discussions
+    </LinkButton>
 
-Get hands-on
+</Card>
 
-Try [running the system locally](/integration/testlocal) to familiarize yourself with Rhyza's capabilities. Don't hesitate to ask questions in the `#rafiki` Slack channel!
+<Card title='Get hands on'>
+  Try running the system locally to familiarize yourself with Rhyza's
+  capabilities.
 
-Make a first contribution
+  <LinkButton 
+    href='/integration/testlocal'
+    icon="open-book"
+    iconPlacement="start"
+  >
+    Test locally
+  </LinkButton>
+</Card>
 
-Ready to dive in? Here's how to review good first issues on GitHub if you are new to open source development.
+<Card title="Make a first contribution">
+  If you are new to open source development, read our contribution guide then check the Rhyza repo for good first issues. Before claiming an issue, ensure you:
+    * Read the issue description and comments
+    * Review any linked documentation or related issues
+    * Understand the expected deliverables and confirm the issue hasn't been resolved in a recent pull request
 
-1. Check the Rhyza repository for issues with the <LinkOut href='https://github.com/interledger/rhyza/issues?q=state%3Aopen%20label%3A%22good%20first%20issue%22'>`good first issue`</LinkOut> label.
-2. Review our comprehensive <LinkOut href='https://github.com/interledger/rhyza/blob/main/.github/contributing.md'>contribution guide</LinkOut>.
-3. Before claiming an issue, ensure you have:
+<LinkButton
+  href='https://github.com/interledger/rhyza/blob/main/.github/contributing.md'
+  target='_blank'
+  icon='open-book'
+  iconPlacement='start'
+>
+  Contribution guide
+</LinkButton>
 
-- Read the issue description and comments
-- Reviewed any linked documentation or related issues
-- Understood the expected deliverables - Confirmed the issue hasn't been resolved in a recent pull request
+<LinkButton
+  href='https://github.com/interledger/rhyza/issues?q=state%3Aopen%20label%3A%22good%20first%20issue%22'
+  target='_blank'
+  icon='github'
+  iconPlacement='start'
+>
+  Good first issues
+</LinkButton>
+
+</Card>
 
 ## 👨‍💻 Coding
 
-<LinkOut href='https://github.com/interledger/rhyza'>Contribute</LinkOut> to
-Rhyza coding or testing.
+<Card title="Contribute to our codebase">
+  Help us improve and expand the Rhyza ecosystem by coding or testing.
 
-## 📚 Documentation and learning
+  <LinkButton
+    href="https://github.com/interledger/rhyza"
+    target="_blank"
+    icon="github"
+    iconPlacement="start"
+  >
+    GitHub repo
+  </LinkButton>
+</Card>
 
-Contribute to our documentation
+## 📚 Documentation & learning
 
-- Improve existing documentation clarity and accuracy
-- Create step-by-step tutorials for common use cases
-- Develop troubleshooting guides and FAQ sections
+<Card title="Contribute to our documentation">
+  Improve existing documentation clarity and accuracy, create step-by-step tutorials for common use cases, or develop troubleshooting guides and FAQ sections. Submit a pull request and our project maintainers will review it.
 
-Create content
-
-- Write blog posts about your Rhyza integration experiences
-- Create video tutorials or demos
-- Develop sample applications and code examples
-- Share best practices and patterns you've discovered
+  <LinkButton
+    href="https://github.com/interledger/rhyza/tree/main/docs"
+    target="_blank"
+    icon="github"
+    iconPlacement="start"
+  >
+  Rhyza doc repo
+  </LinkButton>
+</Card>
 
 ## 🌟 Community building
 
-Events and engagement
+<Card title="Attend events">
+  The Interledger Foundation hosts, sponsors, and attends multiple events each year. Come to connect, learn, participate in hackathons, or just say hi.
 
-- Attend the <LinkOut href='https://interledger.org/summit'>Interledger Summit</LinkOut> and participate in our annual hackathon
-- Organize local meetups, coding sprints, and workshops
-- Host online webinars or demo sessions
-- Mentor new contributors and help them get started
+  <LinkButton
+      href="https://interledger.org/events/"
+      target="_blank"
+      icon="star"
+      iconPlacement="start"
+    >
+    Interledger Foundation events
+  </LinkButton>
+</Card>
 
-Hackathons
+## 🤝 Getting help
 
-- Participate in existing hackathons using Rhyza
-- Develop innovative applications and integrations
-- Create proof-of-concept projects that showcase Rhyza's capabilities
-- Collaborate with others on experimental features
+<Card title="Stuck on something?">
+  We're here to help. Start a discussion on GitHub or join our monthly community call.
 
-## 🤝 Get help
+<LinkButton
+  href='https://github.com/interledger/rhyza/discussions'
+  target='_blank'
+  icon='github'
+  iconPlacement='start'
+>
+  GitHub Discussions
+</LinkButton>
 
-Stuck on something? We're here to help:
+<LinkButton
+  href='https://calendar.google.com/calendar/event?action=TEMPLATE&amp;tmeid=Z2trYXZsaG1hNWJxZGptbXRzdTlna2p0NXRfMjAyNTA3MDhUMTQzMDAwWiBtb2hhbW1lZEBpbnRlcmxlZGdlci5vcmc&amp;tmsrc=mohammed%40interledger.org&amp;scp=ALL'
+  target='_blank'
+  icon='mobile-android'
+  iconPlacement='start'
+>
+  Community call
+</LinkButton>
 
-- Ask questions in the `#rafiki` Slack channel
-- Start a discussion on GitHub for broader topics
-- Join our <LinkOut href="https://calendar.google.com/calendar/event?action=TEMPLATE&amp;tmeid=Z2trYXZsaG1hNWJxZGptbXRzdTlna2p0NXRfMjAyNTA3MDhUMTQzMDAwWiBtb2hhbW1lZEBpbnRlcmxlZGdlci5vcmc&amp;tmsrc=mohammed%40interledger.org&amp;scp=ALL">community calls</LinkOut>
-
-Remember, every contribution matters - whether it's a small documentation fix, a bug report, or a major feature implementation. We're excited to have you as part of the Rhyza community!
+</Card>

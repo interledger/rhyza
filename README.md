@@ -1,17 +1,38 @@
-# Rafiki v2
+# Rhyza
 
-This repository contains Rafiki’s new architecture: a suite of performant, horizontally scalable services that enable financial service providers (FSPs) to provide Interledger and Open Payments functionality to their users.
+## What is Rhyza?
 
-## Project Architecture
+Rhyza is an open source suite of performant, horizontally scalable services that enable financial service providers (FSPs) to provide Interledger and Open Payments functionality to their users.
 
-The project follows a modular architecture based on **Domain-Driven Design (DDD)**, where each **Bounded Context (BC)** is split into several packages to ensure a separation of concerns.
+## New to Interledger?
 
-- [Project Structure & Guidelines](./internal-docs/Structure%20&%20Guidelines.md)
-- [Project Structure Diagram](./internal-docs/diagrams/structure.png)
-- [Architecture Diagram](./internal-docs/diagrams/architecture.png)
-- [Sequence Diagrams](./internal-docs/sequence-diagrams/)
+Never heard of Interledger before or would you like to learn more? Here are some excellent places to start:
 
-## Getting Started
+- [Interledger Website](https://interledger.org/)
+- [Interledger Specs](https://interledger.org/developers/get-started/)
+- [Interledger Explainer Video](https://twitter.com/Interledger/status/1567916000074678272)
+- [Open Payments](https://openpayments.dev/)
+- [Web Monetization](https://webmonetization.org/)
+
+## Contributing
+
+Please read the [contribution guidelines](.github/contributing.md) before submitting contributions. All contributions must adhere to our [code of conduct](.github/code_of_conduct.md).
+
+## Community Calls
+
+Our Rhyza community calls are open to our community members. We have them every third Tuesday at 14:30 UTC, via Google Meet.
+
+**Google Meet joining info**
+
+Video call link: https://meet.google.com/sms-fwny-ezc
+
+Or dial: (GB) +44 20 3956 0467 PIN: 140 111 239#
+
+More phone numbers: https://tel.meet/sms-fwny-ezc?pin=5321780226087
+
+[Add to Google Calendar](https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=c2Uyc21oaGNla3M5cDFsbTgwcWR2a2x2bGRfMjAyNjA3MjFUMTQzMDAwWiBjX2NqMDI3Z21oc3VqazkxZXZpMjRkOXB2bXQ0QGc&tmsrc=c_cj027gmhsujk91evi24d9pvmt4%40group.calendar.google.com&scp=ALL)
+
+## Local development environment
 
 ### Prerequisites
 
@@ -19,7 +40,7 @@ The project follows a modular architecture based on **Domain-Driven Design (DDD)
 - [pnpm](https://pnpm.io/)
 - [Docker](https://www.docker.com/)
 
-### Installation & Build
+### Installation and build
 
 1. **Set up Node version**:
 
@@ -85,6 +106,17 @@ To stop and remove all containers, volumes, and images:
 ```shell
 pnpm docker down --volumes --rmi all
 ```
+
+---
+
+## Project Architecture
+
+The project follows a modular architecture based on **Domain-Driven Design (DDD)**, where each **Bounded Context (BC)** is split into several packages to ensure a separation of concerns.
+
+- [Project Structure & Guidelines](./internal-docs/Structure%20&%20Guidelines.md)
+- [Project Structure Diagram](./internal-docs/diagrams/structure.png)
+- [Architecture Diagram](./internal-docs/diagrams/architecture.png)
+- [Sequence Diagrams](./internal-docs/sequence-diagrams/)
 
 ## Releasing
 

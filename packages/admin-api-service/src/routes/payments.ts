@@ -42,6 +42,7 @@ interface PaymentBody {
   sentAmount: AmountBody;
   createdAt: string;
   failReason?: string;
+  metadata?: Record<string, unknown>;
 }
 
 function toAmountBody(amount: IAmount): AmountBody {
@@ -72,6 +73,10 @@ function toPaymentBody(payment: GetPaymentResult): PaymentBody {
     body.failReason = payment.failReason;
   }
 
+  if (payment.metadata) {
+    body.metadata = payment.metadata;
+  }
+
   return body;
 }
 
@@ -84,7 +89,7 @@ export async function paymentRoutes(
   server.post<{
     Body: PaymentCreate;
   }>('/payments', async (request, reply) => {
-    const { walletAddress, paymentIntentId, quoteId, debitAmount } =
+    const { walletAddress, paymentIntentId, quoteId, debitAmount, metadata } =
       request.body;
 
     const id = request.body.id ?? randomUUID();
@@ -104,7 +109,9 @@ export async function paymentRoutes(
         walletAddress,
         paymentIntentId,
         quoteId,
-        debitAmount ? Number(debitAmount) : undefined
+        debitAmount ? Number(debitAmount) : undefined,
+        undefined,
+        metadata
       );
 
       return reply.status(201).send({ id: result.id, paymentIntentId });

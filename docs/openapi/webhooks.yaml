@@ -46,7 +46,7 @@ webhooks:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/paymentEvent'
+              $ref: '#/components/schemas/paymentCreatedEvent'
       responses:
         '200':
           description: Payment created
@@ -128,35 +128,40 @@ components:
                 - payment_intent.created
                 - payment_intent.completed
             data:
-              type: object
-              required:
-                - id
-                - walletAddressId
-                - createdAt
-                - expiresAt
-                - receiveAmount
-              properties:
-                id:
-                  type: string
-                  format: uuid
-                state:
-                  type: string
-                  enum:
-                    - CREATED
-                    - COMPLETED
-                walletAddressId:
-                  type: string
-                  format: uuid
-                incomingAmount:
-                  $ref: '#/components/schemas/amount'
-                receiveAmount:
-                  $ref: '#/components/schemas/amount'
-                createdAt:
-                  type: string
-                  format: date-time
-                expiresAt:
-                  type: string
-                  format: date-time
+              $ref: '#/components/schemas/paymentIntentEventData'
+    paymentIntentEventData:
+      type: object
+      required:
+        - id
+        - walletAddressId
+        - createdAt
+        - expiresAt
+        - receivedAmount
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum:
+            - CREATED
+            - COMPLETED
+        walletAddressId:
+          type: string
+          format: uuid
+        incomingAmount:
+          $ref: '#/components/schemas/amount'
+        receivedAmount:
+          $ref: '#/components/schemas/amount'
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
 
     paymentEvent:
       allOf:
@@ -169,45 +174,68 @@ components:
                 - payment.created
                 - payment.completed
             data:
-              type: object
-              required:
-                - id
-                - walletAddressId
-                - createdAt
-                - debitAmount
-                - sentAmount
-                - receiveAmount
-                - state
-              properties:
-                id:
-                  type: string
-                  format: uuid
-                walletAddressId:
-                  type: string
-                  format: uuid
-                state:
-                  type: string
-                  enum:
-                    - CREATED
-                    - PROCESSING
-                    - SENDING
-                    - CONFIRMED
-                    - REJECTED
-                    - COMPLETED
-                    - CANCELLED
-                    - FAILED
-                paymentIntentId:
-                  type: string
-                  format: uuid
-                debitAmount:
-                  $ref: '#/components/schemas/amount'
-                sentAmount:
-                  $ref: '#/components/schemas/amount'
-                receiveAmount:
-                  $ref: '#/components/schemas/amount'
-                createdAt:
-                  type: string
-                  format: date-time
+              $ref: '#/components/schemas/paymentEventData'
+    paymentEventData:
+      type: object
+      required:
+        - id
+        - walletAddressId
+        - createdAt
+        - debitAmount
+        - sentAmount
+        - receiveAmount
+        - state
+      properties:
+        id:
+          type: string
+          format: uuid
+        walletAddressId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum:
+            - CREATED
+            - PROCESSING
+            - SENDING
+            - CONFIRMED
+            - REJECTED
+            - COMPLETED
+            - CANCELLED
+            - FAILED
+        paymentIntentId:
+          type: string
+          format: uuid
+        debitAmount:
+          $ref: '#/components/schemas/amount'
+        sentAmount:
+          $ref: '#/components/schemas/amount'
+        receiveAmount:
+          $ref: '#/components/schemas/amount'
+        createdAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+
+    paymentCreatedEvent:
+      allOf:
+        - $ref: '#/components/schemas/paymentEvent'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/paymentEventData'
+                - type: object
+                  properties:
+                    state:
+                      type: string
+                      enum:
+                        - CREATED
+                    paymentIntentRemoteUrl:
+                      type: string
+                      format: uri
     paymentEventError:
       allOf:
         - $ref: '#/components/schemas/webhookEvent'
@@ -235,6 +263,11 @@ components:
                   type: string
                 message:
                   type: string
+                walletAddressId:
+                  type: string
+                  format: uuid
+                sentAmount:
+                  $ref: '#/components/schemas/amount'
     amount:
       type: object
       required:
