@@ -29,6 +29,7 @@ export class PacketCorrelation {
     paymentId: string;
     requestId: string;
     executionCondition?: string;
+    sharedSecret?: string;
     inboundPrepare?: InboundPrepareSnapshot;
   }): PacketCorrelation {
     return new PacketCorrelation({
@@ -70,14 +71,12 @@ export class PacketCorrelation {
   }
 
   // Every transition here is to a terminal state, so the STREAM shared secret
-  // has done its job: it exists only to decrypt the probe reply, which has
-  // either arrived or never will. Dropping it keeps a live key out of a record
-  // that outlives the 30-second packet by design.
+  // has done its job: it exists only to decrypt the probe or fulfill reply,
+  // which has either arrived or never will. Dropping it keeps a live key out
+  // of a record that outlives the 30-second packet by design.
   private withState(state: PacketState): PacketCorrelation {
     const next = { ...this._data, state };
-    if (next.kind === 'QUOTE') {
-      delete next.sharedSecret;
-    }
+    delete next.sharedSecret;
     return new PacketCorrelation(next);
   }
 }

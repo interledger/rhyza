@@ -15,15 +15,15 @@ interface BasePacketCorrelation {
   // Present on inbound packets so a later fulfill/reject can rebuild the
   // STREAM reply. Outbound packets never have one.
   inboundPrepare?: InboundPrepareSnapshot;
+  // Outbound packets store the STREAM shared secret to decrypt the reply
+  // (quote reject or payment fulfill). Dropped when the packet goes terminal.
+  sharedSecret?: string;
 }
 
 interface QuotePacketCorrelation extends BasePacketCorrelation {
   kind: 'QUOTE';
   quoteId: string;
   requestId: string;
-  // Outbound quote probes store the STREAM shared secret to decrypt the
-  // remote `prepareAmount` from the reject `data`.
-  sharedSecret?: string;
 }
 
 interface PaymentPacketCorrelation extends BasePacketCorrelation {

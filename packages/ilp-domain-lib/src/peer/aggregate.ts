@@ -21,6 +21,7 @@ import {
   decodeStreamReply,
   encodeOutgoingStreamPrepare,
   encodeStreamQuoteReply,
+  rewriteStreamReplyAmount,
   inboundPrepareFrom,
   ResolveStreamCredentials,
   sha256,
@@ -412,7 +413,8 @@ export class IlpPeerAggregate {
       expiresAt: new Date(payload.expiresAt),
       paymentId: payload.paymentId,
       requestId: cmd.requestId,
-      executionCondition: encoded.executionCondition.toString('base64')
+      executionCondition: encoded.executionCondition.toString('base64'),
+      sharedSecret: payload.sharedSecret
     });
     await this.peerRepo.storePacket(correlation.toObject());
 
@@ -638,25 +640,40 @@ export class IlpPeerAggregate {
       return fail('prepare_snapshot_missing', stored.paymentId);
     }
 
+    const inboundPrepare = stored.inboundPrepare;
     const streamReply = this.streamServer.createReply(
-      toIlpPrepare(stored.inboundPrepare)
+      toIlpPrepare(inboundPrepare)
     );
     if (!isIncomingMoney(streamReply)) {
       return fail('not_fulfillable', stored.paymentId);
     }
 
-    // One packet per payment, so this packet's amount is the connection total.
-    // Revisit alongside any decision to accept split inbound delivery.
-    streamReply.setTotalReceived(stored.inboundPrepare.amount);
+    // One packet per payment, so the credited amount is the connection total.
+    // accept() attaches a receipt when the credentials carried receipt setup.
+    // The rewrite keeps that frame and replaces the hop amount.
+    streamReply.setTotalReceived(payload.receiveAmount);
     const fulfill = streamReply.accept();
+
+    const resolved = await this.resolveStreamCredentials(
+      inboundPrepare.destinationIlpAddress
+    );
+    const streamData = resolved
+      ? rewriteStreamReplyAmount({
+          sharedSecret: resolved.sharedSecret,
+          replyData: fulfill.data,
+          prepareAmount: payload.receiveAmount,
+          assetCode: payload.receiveAssetCode,
+          assetScale: payload.receiveAssetScale
+        })
+      : undefined;
 
     try {
       await this.peeringClient.dispatchFulfill({
         peerId: payload.peerId,
         packetId: payload.packetId,
-        callbackDeadline: stored.inboundPrepare.expiresAt,
+        callbackDeadline: inboundPrepare.expiresAt,
         fulfillment: fulfill.fulfillment.toString('base64'),
-        data: fulfill.data.toString('base64')
+        data: streamData?.toString('base64')
       });
     } catch (err) {
       return fail(
@@ -752,6 +769,11 @@ export class IlpPeerAggregate {
       throw new PacketNotFound(`Packet ${payload.packetId} not found`);
     }
 
+    // Read before transitioning: going terminal drops the secret so it isn't
+    // left at rest in the correlation.
+    const paymentSecret =
+      stored.kind === 'PAYMENT' ? stored.sharedSecret : undefined;
+
     if (stored.kind === 'PAYMENT') {
       if (packetHasExpired(stored.expiresAt)) {
         const expired = PacketCorrelation.fromObject(stored)
@@ -809,13 +831,30 @@ export class IlpPeerAggregate {
     await this.peerRepo.updatePacket(transitioned);
 
     if (transitioned.kind === 'PAYMENT') {
+      const streamReply =
+        payload.data && paymentSecret
+          ? decodeStreamReply(
+              Buffer.from(paymentSecret, 'base64url'),
+              Buffer.from(payload.data, 'base64')
+            )
+          : undefined;
+      const destination =
+        streamReply && !streamReply.connectionClosed
+          ? {
+              destinationAmount: streamReply.prepareAmount,
+              destinationAssetCode: streamReply.assetCode,
+              destinationAssetScale: streamReply.assetScale
+            }
+          : undefined;
+
       return [
         new ILPPaymentConfirmedEvent(
           {
             peerId: transitioned.peerId,
             paymentIntentId: transitioned.paymentIntentId,
             paymentId: transitioned.paymentId,
-            confirmedAt: payload.fulfilledAt
+            confirmedAt: payload.fulfilledAt,
+            ...destination
           },
           transitioned.requestId
         )

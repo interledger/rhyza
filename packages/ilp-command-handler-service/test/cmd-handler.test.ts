@@ -45,6 +45,7 @@ import {
   ProcessFulfillPacketCmd,
   UpdatePeerCmd,
   encodeStreamQuoteReply,
+  encodeStreamFulfillReply,
   encryptStreamData,
   hmacSha256,
   ENCRYPTION_KEY_STRING
@@ -613,9 +614,12 @@ describe('IlpCommandHandler — remote payment sending', () => {
       dispatch
     );
     assert.ok(isIncomingMoney(reply));
+    const sharedSecret = credentials.sharedSecret.toString('base64url');
     return {
       dispatch,
-      fulfillment: reply.accept().fulfillment.toString('base64')
+      fulfillment: reply.accept().fulfillment.toString('base64'),
+      sharedSecret,
+      prepareData: dispatch.payload.data as string
     };
   }
 
@@ -629,6 +633,17 @@ describe('IlpCommandHandler — remote payment sending', () => {
       stored!.executionCondition,
       dispatch.payload.executionCondition
     );
+  });
+
+  test('outbound payment correlation stores the STREAM shared secret', async () => {
+    const { producer, consumer, repo } = await startedHandler();
+    const { dispatch, sharedSecret } = await startRemotePayment(
+      consumer,
+      producer
+    );
+    const stored = await repo.fetchPacketById(dispatch.payload.packetId);
+    assert.ok(stored && stored.kind === 'PAYMENT');
+    assert.equal(stored.sharedSecret, sharedSecret);
   });
 
   test('a matching outbound fulfill yields ILPPaymentConfirmedEvent', async () => {
@@ -659,6 +674,126 @@ describe('IlpCommandHandler — remote payment sending', () => {
         .length,
       0
     );
+  });
+
+  test('a confirmed payment leaves no shared secret behind in the store', async () => {
+    const { producer, consumer, repo } = await startedHandler();
+    const { dispatch, fulfillment, sharedSecret } = await startRemotePayment(
+      consumer,
+      producer
+    );
+    const pending = await repo.fetchPacketById(dispatch.payload.packetId);
+    assert.equal(pending?.sharedSecret, sharedSecret);
+
+    await consumer.deliver([
+      new ProcessFulfillPacketCmd({
+        peerId: 'peer-1',
+        paymentIntentId: 'intent-1',
+        packetId: dispatch.payload.packetId,
+        fulfilledAt: new Date().toISOString(),
+        fulfillment
+      })
+    ]);
+
+    const terminal = await repo.fetchPacketById(dispatch.payload.packetId);
+    assert.ok(terminal && terminal.kind === 'PAYMENT');
+    assert.equal(terminal.state, 'FULFILLED');
+    assert.equal(
+      terminal.sharedSecret,
+      undefined,
+      'a terminal correlation must not keep a live STREAM key at rest'
+    );
+  });
+
+  test('a STREAM fulfill round-trips destination amount onto ILPPaymentConfirmedEvent', async () => {
+    const { producer, consumer } = await startedHandler();
+    const { dispatch, fulfillment, sharedSecret, prepareData } =
+      await startRemotePayment(consumer, producer);
+    producer.sent.length = 0;
+
+    const replyData = encodeStreamFulfillReply({
+      sharedSecret: Buffer.from(sharedSecret, 'base64url'),
+      prepareData: Buffer.from(prepareData, 'base64'),
+      prepareAmount: '95',
+      assetCode: 'EUR',
+      assetScale: 2
+    });
+    assert.ok(replyData);
+
+    await consumer.deliver([
+      new ProcessFulfillPacketCmd({
+        peerId: 'peer-1',
+        paymentIntentId: 'intent-1',
+        packetId: dispatch.payload.packetId,
+        fulfilledAt: new Date().toISOString(),
+        fulfillment,
+        data: replyData!.toString('base64')
+      })
+    ]);
+
+    const confirmed = producer.sent.find(
+      (m) => m.msgName === ILPPaymentConfirmedEvent.name
+    ) as ILPPaymentConfirmedEvent;
+    assert.ok(confirmed);
+    assert.equal(confirmed.payload.destinationAmount, '95');
+    assert.equal(confirmed.payload.destinationAssetCode, 'EUR');
+    assert.equal(confirmed.payload.destinationAssetScale, 2);
+  });
+
+  test('a fulfill without STREAM data still confirms the payment', async () => {
+    const { producer, consumer } = await startedHandler();
+    const { dispatch, fulfillment } = await startRemotePayment(
+      consumer,
+      producer
+    );
+    producer.sent.length = 0;
+
+    await consumer.deliver([
+      new ProcessFulfillPacketCmd({
+        peerId: 'peer-1',
+        paymentIntentId: 'intent-1',
+        packetId: dispatch.payload.packetId,
+        fulfilledAt: new Date().toISOString(),
+        fulfillment
+      })
+    ]);
+
+    const confirmed = producer.sent.find(
+      (m) => m.msgName === ILPPaymentConfirmedEvent.name
+    ) as ILPPaymentConfirmedEvent;
+    assert.ok(confirmed);
+    assert.equal(confirmed.payload.destinationAmount, undefined);
+    assert.equal(
+      producer.sent.filter((m) => m.msgName === ILPPaymentFailedEvent.name)
+        .length,
+      0
+    );
+  });
+
+  test('undecryptable fulfill data still confirms the payment', async () => {
+    const { producer, consumer } = await startedHandler();
+    const { dispatch, fulfillment } = await startRemotePayment(
+      consumer,
+      producer
+    );
+    producer.sent.length = 0;
+
+    await consumer.deliver([
+      new ProcessFulfillPacketCmd({
+        peerId: 'peer-1',
+        paymentIntentId: 'intent-1',
+        packetId: dispatch.payload.packetId,
+        fulfilledAt: new Date().toISOString(),
+        fulfillment,
+        data: Buffer.from('not-stream').toString('base64')
+      })
+    ]);
+
+    const confirmed = producer.sent.find(
+      (m) => m.msgName === ILPPaymentConfirmedEvent.name
+    ) as ILPPaymentConfirmedEvent;
+    assert.ok(confirmed);
+    assert.equal(confirmed.payload.destinationAmount, undefined);
   });
 
   test('a mismatched outbound fulfill does not confirm the payment', async () => {

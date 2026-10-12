@@ -190,6 +190,24 @@ describe('IlpConnector', () => {
     );
   });
 
+  test('a peer fulfill forwards opaque data without parsing it', async () => {
+    await connector.handleConnectorCommands([dispatchPrepare()]);
+    const data = Buffer.from('opaque-stream-fulfill').toString('base64');
+    await transport.triggerResponse({
+      kind: 'FULFILL',
+      packetId: 'packet-1',
+      fulfillment: Buffer.alloc(32).toString('base64'),
+      data
+    });
+
+    const cmd = producer.sent[0] as ProcessFulfillPacketCmd;
+    assert.equal(cmd.payload.data, data);
+    assert.equal(
+      (cmd.payload as { destinationAmount?: string }).destinationAmount,
+      undefined
+    );
+  });
+
   test('paymentIntentId is recovered from the correlation store, never from the response packet', async () => {
     await connector.handleConnectorCommands([
       dispatchPrepare({ packetId: 'p-xyz', paymentIntentId: 'intent-xyz' })

@@ -137,7 +137,10 @@ export class IlpEventHandler {
           packetId: payload.packetId,
           paymentIntentId: payload.paymentIntentId,
           inboundPaymentId: payload.inboundPaymentId,
-          requestId: payload.requestId
+          requestId: payload.requestId,
+          receiveAmount: payload.receiveAmount,
+          receiveAssetCode: payload.receiveAssetCode,
+          receiveAssetScale: payload.receiveAssetScale
         });
       }
       case InboundPaymentFailedEvent.name: {

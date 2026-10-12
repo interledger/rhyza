@@ -242,6 +242,9 @@ describe('IlpEventHandler', () => {
     assert.equal(cmd.msgKey, 'packet-in-1');
     assert.equal(cmd.payload.inboundPaymentId, 'rp-1');
     assert.equal(cmd.payload.paymentIntentId, 'intent-1');
+    assert.equal(cmd.payload.receiveAmount, '100');
+    assert.equal(cmd.payload.receiveAssetCode, 'USD');
+    assert.equal(cmd.payload.receiveAssetScale, 2);
     assert.equal(cmd.requestId, 'req-1');
   });
 

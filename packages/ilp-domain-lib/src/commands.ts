@@ -174,6 +174,10 @@ export interface FulfillInboundPaymentCmdPayload {
   paymentIntentId: string;
   inboundPaymentId: string;
   requestId: string;
+  // Payments' credited amount in the wallet asset (after FX), not the ILP hop amount.
+  receiveAmount: string;
+  receiveAssetCode: string;
+  receiveAssetScale: number;
 }
 
 // Payments BC: inbound payment is fulfillable - dispatch stored STREAM fulfillment.
@@ -251,6 +255,8 @@ export interface ProcessFulfillPacketCmdPayload {
   packetId: string;
   fulfilledAt: string;
   fulfillment: string;
+  // Opaque STREAM fulfill `data`. Connector forwards bytes; aggregate decrypts.
+  data?: string;
 }
 
 export class ProcessFulfillPacketCmd extends CommandMsg {

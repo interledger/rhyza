@@ -182,7 +182,8 @@ export class IlpConnector {
         new ProcessFulfillPacketCmd({
           ...common,
           fulfilledAt: new Date().toISOString(),
-          fulfillment: response.fulfillment
+          fulfillment: response.fulfillment,
+          data: response.data
         })
       );
       return;
