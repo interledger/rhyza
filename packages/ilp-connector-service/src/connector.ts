@@ -76,6 +76,7 @@ export class IlpConnector {
                 packetId: payload.packetId,
                 rejectCode: payload.rejectCode,
                 rejectMessage: payload.rejectMessage,
+                triggeredBy: payload.triggeredBy,
                 data: payload.data
               },
               payload.peerId,

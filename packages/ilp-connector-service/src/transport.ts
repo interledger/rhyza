@@ -22,6 +22,7 @@ export interface WireReject {
   packetId: string;
   rejectCode: string;
   rejectMessage?: string;
+  triggeredBy?: string;
   data?: string;
 }
 

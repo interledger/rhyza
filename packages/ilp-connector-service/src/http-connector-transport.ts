@@ -1,6 +1,14 @@
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ConsoleLogger, ILogger } from 'common-types-lib';
+import {
+  deserializeIlpPrepare,
+  deserializeIlpReply,
+  isFulfill,
+  serializeIlpFulfill,
+  serializeIlpPrepare,
+  serializeIlpReject
+} from 'ilp-packet';
 import { PeerDirectory } from './peer-directory';
 import {
   IConnectorTransport,
@@ -13,6 +21,7 @@ import {
   WireResponseHandler
 } from './transport';
 
+const ILP_CONTENT_TYPE = 'application/octet-stream';
 const DEFAULT_PATH = '/ilp';
 const DEFAULT_CALLBACK_PATH = '/ilp/callback';
 const DEFAULT_ACCEPT_TIMEOUT_MS = 5_000;
@@ -132,18 +141,13 @@ export class HttpConnectorTransport implements IConnectorTransport {
       const res = await fetch(outgoing.endpoint, {
         method: 'POST',
         headers: {
-          'content-type': 'application/json',
+          'content-type': ILP_CONTENT_TYPE,
+          accept: ILP_CONTENT_TYPE,
           authorization: `Bearer ${outgoing.authToken}`,
           [REQUEST_ID_HEADER]: prepare.packetId,
           [CALLBACK_URL_HEADER]: `${this._resolvedPublicBaseUrl}${this._callbackPath}`
         },
-        body: JSON.stringify({
-          destinationIlpAddress: prepare.destinationIlpAddress,
-          amount: prepare.amount,
-          expiresAt: prepare.expiresAt,
-          executionCondition: prepare.executionCondition,
-          data: prepare.data
-        }),
+        body: new Uint8Array(serializeWirePrepare(prepare)),
         signal: controller.signal
       });
 
@@ -236,11 +240,11 @@ export class HttpConnectorTransport implements IConnectorTransport {
         const res = await fetch(callbackUrl, {
           method: 'POST',
           headers: {
-            'content-type': 'application/json',
+            'content-type': ILP_CONTENT_TYPE,
             authorization: `Bearer ${authToken}`,
             [REQUEST_ID_HEADER]: packetId
           },
-          body: JSON.stringify(response)
+          body: new Uint8Array(serializeWireResponse(response))
         });
 
         if (res.ok || (res.status >= 400 && res.status < 500)) {
@@ -308,19 +312,13 @@ export class HttpConnectorTransport implements IConnectorTransport {
     }
 
     this._readBody(req, (body) => {
-      let parsed: Omit<WirePrepare, 'peerId' | 'packetId'>;
+      let prepare: WirePrepare;
       try {
-        parsed = JSON.parse(body);
+        prepare = deserializeWirePrepare(body, peerId, requestId);
       } catch {
         res.writeHead(400).end();
         return;
       }
-
-      const prepare: WirePrepare = {
-        ...parsed,
-        peerId,
-        packetId: requestId
-      };
 
       res.writeHead(202).end();
       void this._inboundPrepareHandler?.(prepare);
@@ -346,7 +344,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
     this._readBody(req, (body) => {
       let response: WireResponse;
       try {
-        response = { ...JSON.parse(body), packetId: requestId };
+        response = deserializeWireResponse(body, requestId);
       } catch {
         res.writeHead(400).end();
         return;
@@ -366,13 +364,13 @@ export class HttpConnectorTransport implements IConnectorTransport {
 
   private _readBody(
     req: http.IncomingMessage,
-    onComplete: (body: string) => void
+    onComplete: (body: Buffer) => void
   ): void {
-    let body = '';
+    const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => {
-      body += chunk;
+      chunks.push(chunk);
     });
-    req.on('end', () => onComplete(body));
+    req.on('end', () => onComplete(Buffer.concat(chunks)));
   }
 
   private _extractBearerToken(header: string = ''): string | undefined {
@@ -400,4 +398,74 @@ function trimTrailingSlashes(value: string): string {
     end--;
   }
   return value.slice(0, end);
+}
+
+function serializeWirePrepare(prepare: WirePrepare): Buffer {
+  return serializeIlpPrepare({
+    amount: prepare.amount,
+    executionCondition: Buffer.from(prepare.executionCondition, 'base64'),
+    expiresAt: new Date(prepare.expiresAt),
+    destination: prepare.destinationIlpAddress,
+    data: optionalDataBuffer(prepare.data)
+  });
+}
+
+function deserializeWirePrepare(
+  body: Buffer,
+  peerId: string,
+  packetId: string
+): WirePrepare {
+  const parsed = deserializeIlpPrepare(body);
+  return {
+    peerId,
+    packetId,
+    destinationIlpAddress: parsed.destination,
+    amount: parsed.amount,
+    expiresAt: parsed.expiresAt.toISOString(),
+    executionCondition: parsed.executionCondition.toString('base64'),
+    data: optionalDataBase64(parsed.data)
+  };
+}
+
+function serializeWireResponse(response: WireResponse): Buffer {
+  if (response.kind === 'FULFILL') {
+    return serializeIlpFulfill({
+      fulfillment: Buffer.from(response.fulfillment, 'base64'),
+      data: optionalDataBuffer(response.data)
+    });
+  }
+  return serializeIlpReject({
+    code: response.rejectCode,
+    triggeredBy: response.triggeredBy ?? '',
+    message: response.rejectMessage ?? '',
+    data: optionalDataBuffer(response.data)
+  });
+}
+
+function deserializeWireResponse(body: Buffer, packetId: string): WireResponse {
+  const reply = deserializeIlpReply(body);
+  if (isFulfill(reply)) {
+    return {
+      kind: 'FULFILL',
+      packetId,
+      fulfillment: reply.fulfillment.toString('base64'),
+      data: optionalDataBase64(reply.data)
+    };
+  }
+  return {
+    kind: 'REJECT',
+    packetId,
+    rejectCode: reply.code,
+    rejectMessage: reply.message || undefined,
+    triggeredBy: reply.triggeredBy || undefined,
+    data: optionalDataBase64(reply.data)
+  };
+}
+
+function optionalDataBuffer(data?: string): Buffer {
+  return data ? Buffer.from(data, 'base64') : Buffer.alloc(0);
+}
+
+function optionalDataBase64(data: Buffer): string | undefined {
+  return data.length > 0 ? data.toString('base64') : undefined;
 }
