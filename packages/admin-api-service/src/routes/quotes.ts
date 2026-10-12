@@ -3,7 +3,7 @@
 import { QuoteCreate } from 'admin-client-lib';
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
+import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import { PaymentsClient } from 'payments-client-lib';
 
 interface QuoteRouteOptions extends FastifyPluginOptions {
@@ -43,8 +43,8 @@ export async function quoteRoutes(
 
     const id = request.body.id ?? randomUUID();
 
-    const { domain, pathName } = parseAddressToDomainAndPathName(walletAddress);
-    const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
+    const pathName = pathNameFromWalletAddress(walletAddress);
+    const alias = await palClient.resolveWalletAddressAlias(null, pathName);
     if (!alias) {
       return reply
         .status(404)

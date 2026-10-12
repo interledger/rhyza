@@ -8,7 +8,7 @@ import {
 } from 'admin-client-lib';
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
+import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import {
   PaymentsClient,
   GetPaymentIntentResult,
@@ -94,9 +94,9 @@ export async function paymentIntentRoutes(
 
     const id = request.body.id ?? randomUUID();
 
-    const { domain, pathName } = parseAddressToDomainAndPathName(walletAddress);
+    const pathName = pathNameFromWalletAddress(walletAddress);
 
-    const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
+    const alias = await palClient.resolveWalletAddressAlias(null, pathName);
 
     if (!alias) {
       return reply

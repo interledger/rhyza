@@ -7,7 +7,7 @@ import { errorHandler } from '../src/errors';
 
 function palClient(state: 'active' | 'inactive' | 'missing'): PalClient {
   return {
-    ResolveWalletAddressAlias: async () =>
+    resolveWalletAddressAlias: async () =>
       state === 'missing'
         ? null
         : { domain: null, pathName: 'alice', walletAddressId: 'wa-1' },
@@ -60,7 +60,7 @@ test('GET wallet address returns the document again after the address is reactiv
   app.setErrorHandler(errorHandler);
   await app.register(walletAddressRoutes, {
     palClient: {
-      ResolveWalletAddressAlias: async () => ({
+      resolveWalletAddressAlias: async () => ({
         domain: null,
         pathName: 'alice',
         walletAddressId: 'wa-1'

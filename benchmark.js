@@ -21,8 +21,8 @@ export const options = {
 };
 
 const ADMIN_API_URL = 'http://localhost:3001';
-const RECEIVER_WALLET_ADDRESS = 'test.com/receiver';
-const SENDER_WALLET_ADDRESS = 'test.com/sender';
+const RECEIVER_PATH_NAME = 'receiver';
+const SENDER_PATH_NAME = 'sender';
 
 function request(url, data) {
   return http.post(url, JSON.stringify(data), {
@@ -43,7 +43,7 @@ export function setup() {
   });
 
   const receiverRes = request(`${ADMIN_API_URL}/wallet-addresses`, {
-    address: RECEIVER_WALLET_ADDRESS,
+    pathName: RECEIVER_PATH_NAME,
     publicName: 'Receiver',
     assetCode: 'USD'
   });
@@ -54,7 +54,7 @@ export function setup() {
   const receiver = JSON.parse(receiverRes.body);
 
   const senderRes = request(`${ADMIN_API_URL}/wallet-addresses`, {
-    address: SENDER_WALLET_ADDRESS,
+    pathName: SENDER_PATH_NAME,
     publicName: 'Sender',
     assetCode: 'USD'
   });
@@ -65,8 +65,8 @@ export function setup() {
   const sender = JSON.parse(senderRes.body);
 
   return {
-    receiverWalletAddress: receiver.address || RECEIVER_WALLET_ADDRESS,
-    senderWalletAddress: sender.address || SENDER_WALLET_ADDRESS
+    receiverWalletAddress: receiver.address,
+    senderWalletAddress: sender.address
   };
 }
 

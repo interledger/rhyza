@@ -1,7 +1,7 @@
 'use strict';
 
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
+import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import {
   httpStatusFromGrpcError,
   toClientApiErrorResponse,
@@ -28,7 +28,7 @@ export function toIncomingPaymentBody(
   paymentIntent: GetPaymentIntentResult | CompletePaymentIntentResult,
   openPaymentsUrl: string
 ): components['schemas']['incoming-payment'] {
-  const { pathName } = parseAddressToDomainAndPathName(
+  const pathName = pathNameFromWalletAddress(
     paymentIntent.receiverWalletAddress
   );
 
@@ -91,10 +91,9 @@ export async function incomingPaymentRoutes(
 
       const id = randomUUID();
 
-      const { domain, pathName } =
-        parseAddressToDomainAndPathName(walletAddressUrl);
+      const pathName = pathNameFromWalletAddress(walletAddressUrl);
 
-      const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
+      const alias = await palClient.resolveWalletAddressAlias(null, pathName);
 
       if (!alias) {
         throw new OpenPaymentsResourceServerRouteError(
@@ -135,7 +134,7 @@ export async function incomingPaymentRoutes(
         paymentIntent = await paymentsClient.createPaymentIntent(
           id,
           walletAddress.id,
-          domain ? `${domain}/${pathName}` : pathName,
+          walletAddressUrl,
           incomingAmount ? Number(incomingAmount.value) : undefined,
           expiresAt,
           metadata
@@ -220,9 +219,8 @@ export async function incomingPaymentRoutes(
       );
     }
 
-    const { domain, pathName } =
-      parseAddressToDomainAndPathName(walletAddressUrl);
-    const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
+    const pathName = pathNameFromWalletAddress(walletAddressUrl);
+    const alias = await palClient.resolveWalletAddressAlias(null, pathName);
 
     if (!alias) {
       return reply.status(200).send({

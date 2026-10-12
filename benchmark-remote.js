@@ -17,8 +17,8 @@ export const options = {
 
 const ADMIN_A_URL = 'http://localhost:3001';
 const ADMIN_B_URL = 'http://localhost:4001';
-const SENDER_WALLET_ADDRESS = 'test.com/sender';
-const RECEIVER_WALLET_ADDRESS = 'test.com/receiver';
+const SENDER_PATH_NAME = 'sender';
+const RECEIVER_PATH_NAME = 'receiver';
 const PEER_AUTH_TOKEN = 'local-peer-token';
 const PEER_A_TO_B = {
   id: '04978037-26b8-4b4d-854a-278ed7548959',
@@ -58,14 +58,15 @@ export function setup() {
   check(post(`${ADMIN_A_URL}/assets`, { code: 'USD', scale: 2 }), {
     'A: asset created or exists': createdOrExists
   });
-  check(
-    post(`${ADMIN_A_URL}/wallet-addresses`, {
-      assetCode: 'USD',
-      address: SENDER_WALLET_ADDRESS,
-      publicName: 'Sender (Node A)'
-    }),
-    { 'A: sender wallet created or exists': createdOrExists }
-  );
+  const senderWalletRes = post(`${ADMIN_A_URL}/wallet-addresses`, {
+    assetCode: 'USD',
+    pathName: SENDER_PATH_NAME,
+    publicName: 'Sender (Node A)'
+  });
+  check(senderWalletRes, {
+    'A: sender wallet created or exists': createdOrExists
+  });
+  const senderWallet = safeJson(senderWalletRes);
   check(
     post(`${ADMIN_A_URL}/peers`, {
       id: PEER_A_TO_B.id,
@@ -98,14 +99,15 @@ export function setup() {
   check(post(`${ADMIN_B_URL}/assets`, { code: 'USD', scale: 2 }), {
     'B: asset created or exists': createdOrExists
   });
-  check(
-    post(`${ADMIN_B_URL}/wallet-addresses`, {
-      assetCode: 'USD',
-      address: RECEIVER_WALLET_ADDRESS,
-      publicName: 'Receiver (Node B)'
-    }),
-    { 'B: receiver wallet created or exists': createdOrExists }
-  );
+  const receiverWalletRes = post(`${ADMIN_B_URL}/wallet-addresses`, {
+    assetCode: 'USD',
+    pathName: RECEIVER_PATH_NAME,
+    publicName: 'Receiver (Node B)'
+  });
+  check(receiverWalletRes, {
+    'B: receiver wallet created or exists': createdOrExists
+  });
+  const receiverWallet = safeJson(receiverWalletRes);
   check(
     post(`${ADMIN_B_URL}/peers`, {
       id: PEER_B_TO_A.id,
@@ -123,11 +125,16 @@ export function setup() {
     }),
     { 'B: peer-for-A created or exists': createdOrExists }
   );
+
+  return {
+    senderWalletAddress: senderWallet?.address,
+    receiverWalletAddress: receiverWallet?.address
+  };
 }
 
-export default function () {
+export default function (data) {
   const intentRes = post(`${ADMIN_B_URL}/payment-intents`, {
-    walletAddress: RECEIVER_WALLET_ADDRESS,
+    walletAddress: data.receiverWalletAddress,
     incomingAmount: INCOMING_AMOUNT
   });
   const intentOk = check(intentRes, {
@@ -139,7 +146,7 @@ export default function () {
   const receiverIntentUrl = safeJson(intentRes).openPaymentsUrl;
 
   const quoteRes = post(`${ADMIN_A_URL}/quotes`, {
-    walletAddress: SENDER_WALLET_ADDRESS,
+    walletAddress: data.senderWalletAddress,
     paymentIntentUrl: receiverIntentUrl,
     debitAmount: DEBIT_AMOUNT
   });
@@ -150,7 +157,7 @@ export default function () {
   const quote = safeJson(quoteRes);
 
   const paymentRes = post(`${ADMIN_A_URL}/payments`, {
-    walletAddress: SENDER_WALLET_ADDRESS,
+    walletAddress: data.senderWalletAddress,
     paymentIntentId: quote.paymentIntentId,
     quoteId: quote.id
   });

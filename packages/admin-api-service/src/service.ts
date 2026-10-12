@@ -87,7 +87,8 @@ export class AdminApiService {
       palClient: this.palClient
     });
     this.server.register(walletAddressRoutes, {
-      palClient: this.palClient
+      palClient: this.palClient,
+      openPaymentsUrl: OPEN_PAYMENTS_URL
     });
     this.server.register(peerRoutes, {
       palClient: this.palClient,

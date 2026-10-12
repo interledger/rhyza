@@ -74,7 +74,7 @@ Wallet addresses are created and hosted in Rhyza. However, the mapping of a wall
 
 The base wallet address is the portion of the address that will be the same for all customers. For example, `https://wallet.example.com`.
 
-The base wallet address URL is defined in the FSP's YAML configuration file. Once it's set, it cannot be changed.
+The base wallet address URL comes from the configured Open Payments resource server base URL (`OPEN_PAYMENTS_URL`). Because wallet addresses are stored and resolved by `pathName` only, that base URL can be changed after deployment without migrating existing wallet address records.
 
 #### Create wallet addresses
 
@@ -86,7 +86,17 @@ When deciding on the wallet address structure for their customers, the FSP shoul
 
 Addresses are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address are recognized as identical.
 
-Wallet addresses can be created one-by-one via the Admin API's <LinkOut href="https://">Create Wallet Address</LinkOut> endpoint. To bulk-assign wallet addresses to existing customers, the FSP can write a script that loops through their list of accounts. The script must call the Create Wallet Address endpoint.
+Create wallet addresses with a bare `pathName` only (for example `sarah`). The Admin API builds the public wallet address URL from `OPEN_PAYMENTS_URL` plus that pathName. Values containing `/` or `://` are rejected.
+
+Wallet addresses can be created one-by-one via the Admin API's <LinkOut href="/apis/#tag/wallet-addresses/POST/wallet-addresses">Create Wallet Address</LinkOut> endpoint. To bulk-assign wallet addresses to existing customers, the FSP can write a script that loops through their list of accounts. The script must call the Create Wallet Address endpoint with a body like:
+
+```json
+{
+  "pathName": "sarah",
+  "assetCode": "USD",
+  "publicName": "Sarah Marshall"
+}
+```
 
 ### Webhooks
 

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.10
+  version: 0.0.11
   license:
     name: ISC
     identifier: ISC
@@ -124,6 +124,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WalletAddressCreateResponse'
+        '400':
+          description: Invalid pathName (must be a single path segment).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Wallet address already exists.
           content:
@@ -939,13 +945,17 @@ components:
       type: object
       description: Schema for creating a new wallet address.
       required:
-        - address
+        - pathName
         - assetCode
         - publicName
       properties:
-        address:
+        pathName:
           type: string
-          description: The full wallet address (e.g., "example.com/alice").
+          description: >-
+            The wallet address path name (e.g., "alice"). Must be a single path
+            segment — values containing "/" or "://" are rejected. The full
+            wallet address URL is built from the configured Open Payments
+            resource server base URL plus this pathName.
         assetCode:
           type: string
           description: The code of the asset associated with this wallet address.
