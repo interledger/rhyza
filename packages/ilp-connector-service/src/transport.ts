@@ -32,8 +32,7 @@ export type WireResponseHandler = (
 ) => void | Promise<void>;
 
 export type WireInboundPrepareHandler = (
-  prepare: WirePrepare,
-  callbackUrl: string
+  prepare: WirePrepare
 ) => void | Promise<void>;
 
 export type WireOutboundPrepareAcceptedHandler = (
@@ -46,12 +45,12 @@ export interface IConnectorTransport {
   sendFulfill(
     fulfill: WireFulfill,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void>;
   sendReject(
     reject: WireReject,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void>;
 
   onResponse(handler: WireResponseHandler): void;

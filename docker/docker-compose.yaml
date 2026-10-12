@@ -270,12 +270,15 @@ services:
       KAFKA_URL: kafka:19092
       LOG_LEVEL: debug
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
+      REDIS_URL: redis:6379
       STREAM_SERVER_SECRET: cmFmaWtpLXYyLWRldi1zdHJlYW0tc2VjcmV0LTAwMDE
       ILP_ADDRESS: private.rafiki.a
     depends_on:
       init-kafka:
         condition: service_completed_successfully
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - rafiki-v2

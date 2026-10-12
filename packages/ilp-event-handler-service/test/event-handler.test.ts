@@ -16,11 +16,13 @@ import {
   RejectInboundPaymentCmd,
   ILPQuoteRequestReceivedEvent,
   RespondToRemoteQuoteCmd,
-  StartRemotePaymentCmd
+  StartRemotePaymentCmd,
+  StartRemoteQuoteCmd
 } from 'ilp-domain-lib';
 import {
   RemoteQuoteCalculatedEvent,
   RemoteQuoteCalculationFailedEvent,
+  RemoteQuoteRequestedEvent,
   InboundPaymentFulfillableEvent,
   InboundPaymentFailedEvent,
   RemotePaymentPreparedEvent
@@ -73,6 +75,48 @@ const request = () =>
   });
 
 describe('IlpEventHandler', () => {
+  test('maps a RemoteQuoteRequestedEvent to a StartRemoteQuoteCmd with sharedSecret', async () => {
+    const producer = new MockProducer();
+    const consumer = new MockConsumer();
+    const handler = new IlpEventHandler(
+      consumer,
+      producer,
+      new ConsoleLogger()
+    );
+    await handler.start();
+
+    await consumer.deliver([
+      new RemoteQuoteRequestedEvent(
+        {
+          paymentIntentId: 'intent-1',
+          quoteId: 'quote-1',
+          requestId: 'req-1',
+          senderWalletAddress: 'https://sender.example/alice',
+          receiverWalletAddress: 'https://recv.example/bob',
+          senderAssetCode: 'USD',
+          senderAssetScale: 2,
+          receiverAssetCode: 'EUR',
+          receiverAssetScale: 2,
+          peerId: 'peer-1',
+          peerAssetCode: 'USD',
+          peerAssetScale: 2,
+          sourceAmount: '100',
+          destinationIlpAddress: 'g.peer.bob',
+          sharedSecret: 'c2VjcmV0'
+        },
+        'req-1'
+      )
+    ]);
+
+    assert.equal(producer.sent.length, 1);
+    const cmd = producer.sent[0] as StartRemoteQuoteCmd;
+    assert.equal(cmd.msgName, StartRemoteQuoteCmd.name);
+    assert.equal(cmd.payload.sharedSecret, 'c2VjcmV0');
+    assert.equal(cmd.payload.destinationIlpAddress, 'g.peer.bob');
+    assert.equal(cmd.payload.sourceAmount, '100');
+    assert.equal(cmd.requestId, 'req-1');
+  });
+
   test('maps a RemoteQuoteCalculatedEvent to a RespondToRemoteQuoteCmd', async () => {
     const producer = new MockProducer();
     const consumer = new MockConsumer();

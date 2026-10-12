@@ -3,74 +3,114 @@
 import assert from 'node:assert';
 import { randomBytes } from 'node:crypto';
 import { describe, test } from 'node:test';
+import { StreamServer, type IncomingMoney } from '@interledger/stream-receiver';
 import {
+  ConnectionAssetDetailsFrame,
+  ConnectionNewAddressFrame,
   Packet,
   StreamMoneyFrame
 } from 'ilp-protocol-stream/dist/src/packet.js';
 import {
-  decodeInboundStreamPrepare,
+  decodeStreamPrepareAmount,
+  decodeStreamReply,
+  decryptStreamData,
   ENCRYPTION_KEY_STRING,
   hmacSha256
 } from '../src/stream/decode.js';
-import { encodeOutgoingStreamPrepare } from '../src/stream/encode.js';
+import {
+  encodeOutgoingStreamPrepare,
+  encodeStreamQuoteReply
+} from '../src/stream/encode.js';
+
+function remoteReceiver() {
+  const streamServer = new StreamServer({
+    serverSecret: randomBytes(32),
+    serverAddress: 'test.receiver'
+  });
+  const credentials = streamServer.generateCredentials({
+    paymentTag: 'intent-1'
+  });
+  return { streamServer, credentials };
+}
+
+function decryptPrepare(sharedSecret: Buffer, data: Buffer): Packet {
+  return Packet._deserializeUnencrypted(
+    decryptStreamData(hmacSha256(sharedSecret, ENCRYPTION_KEY_STRING), data)
+  );
+}
+
+function isIncomingMoney(reply: { accept?: unknown }): reply is IncomingMoney {
+  return typeof reply.accept === 'function';
+}
 
 describe('STREAM outgoing encode', () => {
-  test('produces a fulfillable condition that round-trips through decode', () => {
-    const sharedSecret = randomBytes(32);
+  test('produces a fulfillable condition that StreamServer.createReply accepts', () => {
+    const { streamServer, credentials } = remoteReceiver();
     const encoded = encodeOutgoingStreamPrepare({
-      sharedSecret,
-      amount: '100'
+      sharedSecret: credentials.sharedSecret,
+      minDestinationAmount: '100'
     });
 
     assert.equal(encoded.executionCondition.length, 32);
     assert.equal(encoded.fulfillment.length, 32);
     assert.ok(encoded.data.length > 0);
 
-    const decoded = decodeInboundStreamPrepare({
-      sharedSecret,
+    const reply = streamServer.createReply({
+      destination: credentials.ilpAddress,
+      amount: '100',
+      expiresAt: new Date(Date.now() + 30_000),
       executionCondition: encoded.executionCondition,
       data: encoded.data
     });
-
-    assert.equal(decoded.fulfillable, true);
-    assert.ok(decoded.fulfillment);
-    assert.ok(decoded.fulfillment!.equals(encoded.fulfillment));
-    assert.ok(decoded.plaintext);
+    assert.ok(isIncomingMoney(reply));
+    assert.ok(reply.accept().fulfillment.equals(encoded.fulfillment));
   });
 
   test('encrypt/decrypt yields a STREAM packet with StreamMoney for the amount', () => {
     const sharedSecret = randomBytes(32);
     const encoded = encodeOutgoingStreamPrepare({
       sharedSecret,
-      amount: '250',
+      minDestinationAmount: '250',
       sequence: 7
     });
 
-    const decrypted = decodeInboundStreamPrepare({
-      sharedSecret,
-      executionCondition: encoded.executionCondition,
-      data: encoded.data
-    });
-    assert.ok(decrypted.plaintext);
-
-    const streamPacket = Packet._deserializeUnencrypted(decrypted.plaintext!);
+    const streamPacket = decryptPrepare(sharedSecret, encoded.data);
     assert.equal(streamPacket.sequence.toString(), '7');
     assert.equal(streamPacket.prepareAmount.toString(), '250');
-    assert.equal(streamPacket.frames.length, 1);
-    assert.ok(streamPacket.frames[0] instanceof StreamMoneyFrame);
-    assert.equal(
-      (streamPacket.frames[0] as StreamMoneyFrame).streamId.toString(),
-      '1'
-    );
 
-    const encryptionKey = hmacSha256(sharedSecret, ENCRYPTION_KEY_STRING);
-    assert.equal(encryptionKey.length, 32);
+    const money = streamPacket.frames.find(
+      (frame): frame is StreamMoneyFrame => frame instanceof StreamMoneyFrame
+    );
+    assert.ok(money);
+    assert.equal(money!.streamId.toString(), '1');
+  });
+
+  test('the prepare asks for asset details so the reply amount has a unit', () => {
+    const sharedSecret = randomBytes(32);
+    const encoded = encodeOutgoingStreamPrepare({
+      sharedSecret,
+      minDestinationAmount: '0'
+    });
+
+    const streamPacket = decryptPrepare(sharedSecret, encoded.data);
+    assert.ok(
+      streamPacket.frames.some(
+        (frame) => frame instanceof ConnectionNewAddressFrame
+      ),
+      'expected ConnectionNewAddress to trigger the receiver asset reply'
+    );
   });
 
   test('each encode uses fresh ciphertext so conditions differ', () => {
-    const sharedSecret = Buffer.alloc(32, 3);
-    const a = encodeOutgoingStreamPrepare({ sharedSecret, amount: '42' });
-    const b = encodeOutgoingStreamPrepare({ sharedSecret, amount: '42' });
+    const { streamServer, credentials } = remoteReceiver();
+    const a = encodeOutgoingStreamPrepare({
+      sharedSecret: credentials.sharedSecret,
+      minDestinationAmount: '42'
+    });
+    const b = encodeOutgoingStreamPrepare({
+      sharedSecret: credentials.sharedSecret,
+      minDestinationAmount: '42'
+    });
 
     // Nonce in encrypt makes ciphertext (and thus condition) differ.
     assert.notEqual(a.data.toString('base64'), b.data.toString('base64'));
@@ -80,14 +120,74 @@ describe('STREAM outgoing encode', () => {
     );
 
     for (const encoded of [a, b]) {
-      assert.equal(
-        decodeInboundStreamPrepare({
-          sharedSecret,
-          executionCondition: encoded.executionCondition,
-          data: encoded.data
-        }).fulfillable,
-        true
-      );
+      const reply = streamServer.createReply({
+        destination: credentials.ilpAddress,
+        amount: '42',
+        expiresAt: new Date(Date.now() + 30_000),
+        executionCondition: encoded.executionCondition,
+        data: encoded.data
+      });
+      assert.ok(isIncomingMoney(reply));
     }
+  });
+
+  test('quote reply carries destination amount in STREAM prepareAmount', () => {
+    const sharedSecret = randomBytes(32);
+    const prepare = encodeOutgoingStreamPrepare({
+      sharedSecret,
+      minDestinationAmount: '0'
+    });
+
+    const replyData = encodeStreamQuoteReply({
+      sharedSecret,
+      prepareData: prepare.data,
+      prepareAmount: '95'
+    });
+    assert.ok(replyData);
+
+    assert.equal(decodeStreamPrepareAmount(sharedSecret, replyData!), '95');
+    assert.equal(
+      decodeStreamPrepareAmount(sharedSecret, Buffer.from('not-stream')),
+      undefined
+    );
+  });
+
+  test('quote reply names the asset the amount is denominated in', () => {
+    const sharedSecret = randomBytes(32);
+    const prepare = encodeOutgoingStreamPrepare({
+      sharedSecret,
+      minDestinationAmount: '0'
+    });
+
+    const replyData = encodeStreamQuoteReply({
+      sharedSecret,
+      prepareData: prepare.data,
+      prepareAmount: '95',
+      assetCode: 'EUR',
+      assetScale: 2
+    });
+    assert.ok(replyData);
+
+    const decoded = decodeStreamReply(sharedSecret, replyData!);
+    assert.equal(decoded?.prepareAmount, '95');
+    assert.equal(decoded?.assetCode, 'EUR');
+    assert.equal(decoded?.assetScale, 2);
+    assert.equal(decoded?.connectionClosed, false);
+
+    const reply = decryptPrepare(sharedSecret, replyData!);
+    assert.ok(
+      reply.frames.some((frame) => frame instanceof ConnectionAssetDetailsFrame)
+    );
+  });
+
+  test('undecryptable probe data yields no reply instead of throwing', () => {
+    assert.equal(
+      encodeStreamQuoteReply({
+        sharedSecret: randomBytes(32),
+        prepareData: Buffer.alloc(0),
+        prepareAmount: '95'
+      }),
+      undefined
+    );
   });
 });

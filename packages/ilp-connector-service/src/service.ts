@@ -98,7 +98,6 @@ export class IlpConnectorService {
       deps?.transport ??
       new HttpConnectorTransport({
         directory: this._directory,
-        correlationStore: this._correlationStore,
         port: HTTP_PORT,
         publicBaseUrl: PUBLIC_BASE_URL,
         path: HTTP_PATH,

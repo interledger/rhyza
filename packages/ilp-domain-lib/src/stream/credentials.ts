@@ -3,8 +3,11 @@
 import { randomBytes } from 'node:crypto';
 import {
   StreamServer,
+  type IncomingMoney,
   type StreamCredentials
 } from '@interledger/stream-receiver';
+
+export { StreamServer, type IncomingMoney, type StreamCredentials };
 
 export interface ResolvedStreamCredentials {
   paymentIntentId: string;

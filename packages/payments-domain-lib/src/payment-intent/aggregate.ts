@@ -9,6 +9,7 @@ import {
   IPaymentIntent,
   IPaymentIntentRepository,
   IRemotePaymentIntentService,
+  IRemoteStreamCredentials,
   PaymentIntentDestination,
   PaymentIntentState,
   SentPaymentState,
@@ -111,6 +112,10 @@ export class PaymentIntentAggregate {
   private paymentIntentMap = new Map<string, IPaymentIntent>();
   private walletAddressMap = new Map<string, IWalletAddress>();
   private remotePaymentIntentFetchErrors = new Map<string, Error>();
+  // The OP server mints a fresh connection token on every fetch, so the ILP
+  // address and the shared secret are only valid as a pair. Cache them
+  // together, never separately. Cleared per batch like every other map here.
+  private remoteStreamCredentials = new Map<string, IRemoteStreamCredentials>();
   private peerMap = new Map<string, IPeer | null>(); // ilpAddress, peer
   private peerFetchErrors = new Map<string, Error>(); // ilpAddress, error
   private peersById = new Map<string, IPeer | null>(); // peerId, peer
@@ -662,6 +667,15 @@ export class PaymentIntentAggregate {
       this._logger.debug(
         `handleCreateQuoteCommand — REMOTE quote pending quoteId: ${quoteId} destinationIlpAddress: ${destinationIlpAddress} peerId: ${peer.peerId}`
       );
+
+      // Peer routing above used the stored address, which is fine as every
+      // token for this receiver shares the same routable prefix. The packet
+      // itself must use the address these credentials were minted with.
+      const streamCredentials = await this._resolveRemoteStreamCredentials(
+        paymentIntent.id,
+        paymentIntent.remoteUrl ?? remoteUrl
+      );
+
       return new RemoteQuoteRequestedEvent(
         {
           paymentIntentId: paymentIntent.id,
@@ -677,7 +691,8 @@ export class PaymentIntentAggregate {
           peerAssetCode: peer.assetCode,
           peerAssetScale: peer.assetScale,
           sourceAmount: sourceAmount.toString(),
-          destinationIlpAddress
+          destinationIlpAddress: streamCredentials.destinationIlpAddress,
+          sharedSecret: streamCredentials.sharedSecret
         },
         cmd.requestId
       );
@@ -2022,6 +2037,10 @@ export class PaymentIntentAggregate {
         );
         this.paymentIntentMap.set(canonicalId, entity.toObject());
         this.newPaymentIntentIds.push(canonicalId);
+        this.remoteStreamCredentials.set(canonicalId, {
+          destinationIlpAddress: remotePaymentIntent.destinationIlpAddress,
+          sharedSecret: remotePaymentIntent.sharedSecret
+        });
       }
     }
 
@@ -2038,6 +2057,10 @@ export class PaymentIntentAggregate {
       const resolvedError = this.remotePaymentIntentFetchErrors.get(resolvedId);
       if (resolvedError) {
         this.remotePaymentIntentFetchErrors.set(proposedId, resolvedError);
+      }
+      const resolvedCredentials = this.remoteStreamCredentials.get(resolvedId);
+      if (resolvedCredentials) {
+        this.remoteStreamCredentials.set(proposedId, resolvedCredentials);
       }
     }
   }
@@ -2063,6 +2086,39 @@ export class PaymentIntentAggregate {
       assetScale: paymentIntent.assetScale,
       metadata: paymentIntent.metadata
     };
+  }
+
+  /**
+   * STREAM credentials for a remote incoming payment, as a pair.
+   *
+   * `sharedSecret` is derived from the connection token embedded in
+   * `destinationIlpAddress`, and the OP server re-mints that token on every
+   * fetch. Pairing an address stored at import time with a secret from a later
+   * fetch produces a packet the receiver cannot decrypt, and it answers F06.
+   * So both fields always come from the same response — never from the payment
+   * intent for one and a fetch for the other.
+   */
+  private async _resolveRemoteStreamCredentials(
+    paymentIntentId: string,
+    remoteUrl?: string
+  ): Promise<IRemoteStreamCredentials> {
+    const cached = this.remoteStreamCredentials.get(paymentIntentId);
+    if (cached) return cached;
+
+    if (!remoteUrl) {
+      throw new Error(
+        `Payment intent ${paymentIntentId} is missing remoteUrl; cannot fetch STREAM credentials`
+      );
+    }
+
+    const remoteDetails =
+      await this._remotePaymentIntentService.fetchIncomingPayment(remoteUrl);
+    const credentials = {
+      destinationIlpAddress: remoteDetails.destinationIlpAddress,
+      sharedSecret: remoteDetails.sharedSecret
+    };
+    this.remoteStreamCredentials.set(paymentIntentId, credentials);
+    return credentials;
   }
 
   private _collectIlpAddress(cmd: CreateQuoteCmd, into: Set<string>): void {
@@ -2772,6 +2828,7 @@ export class PaymentIntentAggregate {
       this.newPaymentIntentIds = [];
       this.completedPaymentIntentIds = [];
       this.remotePaymentIntentFetchErrors.clear();
+      this.remoteStreamCredentials.clear();
       this.peerMap.clear();
       this.peerFetchErrors.clear();
       this.peersById.clear();

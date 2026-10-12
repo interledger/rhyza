@@ -2,15 +2,13 @@
 
 import assert from 'node:assert';
 import { describe, test } from 'node:test';
-import { ConsoleLogger } from 'common-types-lib';
+import { ConsoleLogger, IMessage } from 'common-types-lib';
 import {
   DispatchPreparePacketCmd,
   ILPPeerCreatedEvent,
   ProcessRejectPacketCmd
 } from 'ilp-domain-lib';
-import { IMessage } from 'common-types-lib';
 import { InMemoryTransportCorrelationStore } from '../src/correlation/in-memory-store';
-import { ITransportCorrelationStore } from '../src/correlation/store';
 import { IlpConnector } from '../src/connector';
 import { HttpConnectorTransport } from '../src/http-connector-transport';
 import { OutboundExpiryWorker } from '../src/outbound-expiry-worker';
@@ -35,8 +33,6 @@ const waitFor = async (
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };
-
-const TEST_CALLBACK_URL = 'https://peer.example/callback';
 
 const prepare = (overrides: Partial<WirePrepare> = {}): WirePrepare => ({
   peerId: 'self',
@@ -69,34 +65,17 @@ const rejectPacket = (
   ...overrides
 });
 
-async function registerInboundHandle(
-  store: ITransportCorrelationStore,
-  p: WirePrepare,
-  callbackUrl: string = TEST_CALLBACK_URL
-): Promise<string> {
-  return store.createInboundReplyHandle({
-    peerId: p.peerId,
-    packetId: p.packetId,
-    expiresAt: p.expiresAt,
-    delivery: { kind: 'http', callbackUrl }
-  });
-}
-
 async function startSelfLoopTransport(options?: {
   isActive?: boolean;
   outgoingToken?: string;
   incomingToken?: string;
-  store?: ITransportCorrelationStore;
 }): Promise<{
   transport: HttpConnectorTransport;
   directory: PeerDirectory;
-  store: ITransportCorrelationStore;
 }> {
   const directory = new PeerDirectory();
-  const store = options?.store ?? new InMemoryTransportCorrelationStore();
   const transport = new HttpConnectorTransport({
     directory,
-    correlationStore: store,
     port: 0,
     logger: new ConsoleLogger()
   });
@@ -111,6 +90,7 @@ async function startSelfLoopTransport(options?: {
       http: {
         outgoing: {
           endpoint: `http://127.0.0.1:${port}/ilp`,
+          callbackEndpoint: `http://127.0.0.1:${port}/ilp/callback`,
           authToken: options?.outgoingToken ?? 'shared-token'
         },
         incoming: { authToken: options?.incomingToken ?? 'shared-token' }
@@ -119,16 +99,14 @@ async function startSelfLoopTransport(options?: {
     })
   );
 
-  return { transport, directory, store };
+  return { transport, directory };
 }
 
 describe('HttpConnectorTransport — no outgoing config', () => {
   test('rejects locally with T00 without making any network call', async () => {
     const directory = new PeerDirectory();
-    const store = new InMemoryTransportCorrelationStore();
     const transport = new HttpConnectorTransport({
       directory,
-      correlationStore: store,
       port: 0
     });
     const responses: WireResponse[] = [];
@@ -146,15 +124,14 @@ describe('HttpConnectorTransport — no outgoing config', () => {
 
 describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)', () => {
   test('fulfills a round trip when the inbound handler calls sendFulfill', async () => {
-    const { transport, store } = await startSelfLoopTransport();
+    const { transport } = await startSelfLoopTransport();
     try {
       const responses: WireResponse[] = [];
       transport.onResponse((r) => {
         responses.push(r);
       });
-      transport.onInboundPrepare(async (p, callbackUrl) => {
-        const replyHandle = await registerInboundHandle(store, p, callbackUrl);
-        await transport.sendFulfill(fulfillPacket(p), p.peerId, replyHandle);
+      transport.onInboundPrepare(async (p) => {
+        await transport.sendFulfill(fulfillPacket(p), p.peerId, p.expiresAt);
       });
 
       await transport.sendPrepare(prepare());
@@ -168,20 +145,19 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
   });
 
   test('rejects a round trip when the inbound handler calls sendReject', async () => {
-    const { transport, store } = await startSelfLoopTransport();
+    const { transport } = await startSelfLoopTransport();
     try {
       const responses: WireResponse[] = [];
       transport.onResponse((r) => {
         responses.push(r);
       });
-      transport.onInboundPrepare(async (p, callbackUrl) => {
-        const replyHandle = await registerInboundHandle(store, p, callbackUrl);
+      transport.onInboundPrepare(async (p) => {
         await transport.sendReject(
           rejectPacket(p, {
-            data: Buffer.from('{"destinationAmount":"95"}').toString('base64')
+            data: Buffer.from('opaque-reject-data').toString('base64')
           }),
           p.peerId,
-          replyHandle
+          p.expiresAt
         );
       });
 
@@ -197,14 +173,13 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
   });
 
   test('the initial POST returns 202 immediately - sendPrepare does not block on the callback', async () => {
-    const { transport, store } = await startSelfLoopTransport();
+    const { transport } = await startSelfLoopTransport();
     try {
       let respondedAt = 0;
-      transport.onInboundPrepare(async (p, callbackUrl) => {
+      transport.onInboundPrepare(async (p) => {
         await new Promise((r) => setTimeout(r, 200));
         respondedAt = Date.now();
-        const replyHandle = await registerInboundHandle(store, p, callbackUrl);
-        await transport.sendFulfill(fulfillPacket(p), p.peerId, replyHandle);
+        await transport.sendFulfill(fulfillPacket(p), p.peerId, p.expiresAt);
       });
 
       const before = Date.now();
@@ -262,13 +237,12 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
   });
 
   test('a late callback still succeeds after the peer is deactivated in between', async () => {
-    const { transport, directory, store } = await startSelfLoopTransport();
+    const { transport, directory } = await startSelfLoopTransport();
     try {
       let deliverFulfill: (() => Promise<void>) | undefined;
-      transport.onInboundPrepare(async (p, callbackUrl) => {
-        const replyHandle = await registerInboundHandle(store, p, callbackUrl);
+      transport.onInboundPrepare(async (p) => {
         deliverFulfill = () =>
-          transport.sendFulfill(fulfillPacket(p), p.peerId, replyHandle);
+          transport.sendFulfill(fulfillPacket(p), p.peerId, p.expiresAt);
       });
 
       const responses: WireResponse[] = [];
@@ -285,6 +259,7 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
           http: {
             outgoing: {
               endpoint: `http://127.0.0.1:${transport.boundPort}/ilp`,
+              callbackEndpoint: `http://127.0.0.1:${transport.boundPort}/ilp/callback`,
               authToken: 'shared-token'
             },
             incoming: { authToken: 'shared-token' }
@@ -301,14 +276,12 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
     }
   });
 
-  test('any replica can deliver an inbound reply when replyHandle resolves from shared store', async () => {
-    const { transport, store } = await startSelfLoopTransport();
+  test('any replica can deliver an inbound reply using the peer callback endpoint', async () => {
+    const { transport } = await startSelfLoopTransport();
     try {
       let capturedPrepare: WirePrepare | undefined;
-      let replyHandle: string | undefined;
-      transport.onInboundPrepare(async (p, callbackUrl) => {
+      transport.onInboundPrepare(async (p) => {
         capturedPrepare = p;
-        replyHandle = await registerInboundHandle(store, p, callbackUrl);
       });
 
       const responses: WireResponse[] = [];
@@ -317,14 +290,12 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
       });
 
       await transport.sendPrepare(prepare({ packetId: 'packet-replica-b' }));
-      await waitFor(
-        () => capturedPrepare !== undefined && replyHandle !== undefined
-      );
+      await waitFor(() => capturedPrepare !== undefined);
 
       await transport.sendFulfill(
         fulfillPacket(capturedPrepare!),
         capturedPrepare!.peerId,
-        replyHandle!
+        capturedPrepare!.expiresAt
       );
       await waitFor(() => responses.length > 0);
 

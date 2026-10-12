@@ -1,7 +1,6 @@
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ConsoleLogger, ILogger } from 'common-types-lib';
-import { ITransportCorrelationStore } from './correlation/store';
 import { PeerDirectory } from './peer-directory';
 import {
   IConnectorTransport,
@@ -23,7 +22,6 @@ const CALLBACK_URL_HEADER = 'callback-url';
 
 export interface HttpConnectorTransportOptions {
   directory: PeerDirectory;
-  correlationStore: ITransportCorrelationStore;
   port: number;
   publicBaseUrl?: string;
   path?: string;
@@ -35,7 +33,6 @@ export interface HttpConnectorTransportOptions {
 
 export class HttpConnectorTransport implements IConnectorTransport {
   private readonly _directory: PeerDirectory;
-  private readonly _correlationStore: ITransportCorrelationStore;
   private readonly _port: number;
   private readonly _publicBaseUrl?: string;
   private readonly _path: string;
@@ -51,7 +48,6 @@ export class HttpConnectorTransport implements IConnectorTransport {
 
   constructor(options: HttpConnectorTransportOptions) {
     this._directory = options.directory;
-    this._correlationStore = options.correlationStore;
     this._port = options.port;
     this._publicBaseUrl = options.publicBaseUrl
       ? trimTrailingSlashes(options.publicBaseUrl)
@@ -192,35 +188,28 @@ export class HttpConnectorTransport implements IConnectorTransport {
   async sendFulfill(
     fulfill: WireFulfill,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    await this._sendInboundReply(replyHandle, peerId, fulfill);
+    await this._sendInboundReply(peerId, fulfill, callbackDeadline);
   }
 
   async sendReject(
     reject: WireReject,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    await this._sendInboundReply(replyHandle, peerId, reject);
+    await this._sendInboundReply(peerId, reject, callbackDeadline);
   }
 
   private async _sendInboundReply(
-    replyHandle: string,
     peerId: string,
-    response: WireResponse
+    response: WireResponse,
+    callbackDeadline: string
   ): Promise<void> {
-    const target =
-      await this._correlationStore.resolveInboundReplyHandle(replyHandle);
-    if (!target) {
+    const outgoing = this._directory.getOutgoing(peerId);
+    if (!outgoing) {
       this._logger.warn(
-        `No inbound reply target for handle ${replyHandle} (packet ${response.packetId})`
-      );
-      return;
-    }
-    if (target.delivery.kind !== 'http') {
-      this._logger.warn(
-        `Unsupported inbound delivery kind for handle ${replyHandle}`
+        `Peer ${peerId} has no outgoing config; dropping callback for packet ${response.packetId}`
       );
       return;
     }
@@ -228,36 +217,27 @@ export class HttpConnectorTransport implements IConnectorTransport {
     await this._sendCallback(
       response.packetId,
       response,
-      target.delivery.callbackUrl,
-      target.expiresAt,
-      peerId
+      outgoing.callbackEndpoint,
+      callbackDeadline,
+      outgoing.authToken
     );
-    await this._correlationStore.deleteInboundReplyHandle(replyHandle);
   }
 
   private async _sendCallback(
     packetId: string,
     response: WireResponse,
     callbackUrl: string,
-    expiresAt: string,
-    peerId: string
+    callbackDeadline: string,
+    authToken: string
   ): Promise<void> {
-    const outgoing = this._directory.getOutgoing(peerId);
-    if (!outgoing) {
-      this._logger.warn(
-        `Peer ${peerId} has no outgoing config anymore; dropping callback for packet ${packetId}`
-      );
-      return;
-    }
-
-    const deadline = Date.parse(expiresAt);
+    const deadline = Date.parse(callbackDeadline);
     while (true) {
       try {
         const res = await fetch(callbackUrl, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
-            authorization: `Bearer ${outgoing.authToken}`,
+            authorization: `Bearer ${authToken}`,
             [REQUEST_ID_HEADER]: packetId
           },
           body: JSON.stringify(response)
@@ -270,7 +250,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
       } catch (err) {
         if (!Number.isFinite(deadline) || Date.now() >= deadline) {
           this._logger.warn(
-            `Giving up delivering callback for packet ${packetId}: expired. Last error: ${(err as Error).message}`
+            `Giving up delivering callback for packet ${packetId}: callback deadline passed. Last error: ${(err as Error).message}`
           );
           return;
         }
@@ -322,8 +302,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
     }
 
     const requestId = req.headers[REQUEST_ID_HEADER];
-    const callbackUrl = req.headers[CALLBACK_URL_HEADER];
-    if (typeof requestId !== 'string' || typeof callbackUrl !== 'string') {
+    if (typeof requestId !== 'string') {
       res.writeHead(400).end();
       return;
     }
@@ -344,7 +323,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
       };
 
       res.writeHead(202).end();
-      void this._inboundPrepareHandler?.(prepare, callbackUrl);
+      void this._inboundPrepareHandler?.(prepare);
     });
   }
 

@@ -870,11 +870,15 @@ components:
       description: Connector settings for sending ILP packets to this peer.
       required:
         - endpoint
+        - callbackEndpoint
         - authToken
       properties:
         endpoint:
           type: string
-          description: The HTTP endpoint of the peer's ILP connector.
+          description: Where we POST ILP prepares to this peer.
+        callbackEndpoint:
+          type: string
+          description: Where we POST fulfills and rejects for prepares this peer sent us.
         authToken:
           type: string
           description: The bearer token sent to the peer when dispatching packets.
