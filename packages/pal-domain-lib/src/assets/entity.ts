@@ -10,7 +10,7 @@ export class PalAsset {
     scale: number,
     ledgerAccountId: string | null = null
   ) {
-    this._code = code;
+    this._code = code.toUpperCase();
     this._scale = scale;
     this._ledgerAccountId = ledgerAccountId;
   }

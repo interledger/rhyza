@@ -44,7 +44,7 @@ export class AssetAggregate {
 
     await this._repo.store(newAsset.toDto());
     this._uncommittedDomainEvents.push(
-      new AssetCreatedEvent({ assetCode: code.toUpperCase() })
+      new AssetCreatedEvent({ assetCode: newAsset.code })
     );
     this._logger.debug(`Asset with code: ${code} created`);
   }

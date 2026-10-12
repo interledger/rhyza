@@ -75,15 +75,10 @@ export class MongoDbAssetRepo implements IPalAssetRepository {
   async store(asset: IPalAssetDto): Promise<void> {
     this._checkInitialisedOrThrow();
 
-    const storedAsset: IPalAssetDto = {
-      ...asset,
-      code: asset.code.toUpperCase()
-    };
-
     try {
       await this._collection.updateOne(
-        { code: storedAsset.code },
-        { $set: storedAsset },
+        { code: asset.code },
+        { $set: asset },
         { upsert: true }
       );
     } catch (e) {
