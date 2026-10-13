@@ -123,6 +123,9 @@ importers:
       admin-client-lib:
         specifier: workspace:*
         version: link:../admin-client-lib
+      auth-client-lib:
+        specifier: workspace:*
+        version: link:../auth-client-lib
       common-types-lib:
         specifier: workspace:*
         version: link:../common-types-lib

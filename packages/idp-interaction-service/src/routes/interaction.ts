@@ -26,6 +26,10 @@ export async function interactionRoutes(
 
       const grant = await authClient.getGrant(id);
 
+      if (!grant) {
+        return reply.status(404).send();
+      }
+
       return reply.status(200).send({
         id: grant.id,
         access: grant.accesses,

@@ -1561,6 +1561,7 @@ describe('GrantAggregate.handleBatch', () => {
             interactionNonce: generateNonce(),
             finishNonce: generateNonce(),
             accessTokens: [],
+            createdAt,
             interaction: {
               interactRef: randomUUID(),
               nonce: 'correct-nonce',
