@@ -5,6 +5,7 @@ service RhyzaAuth {
 	// Grant RPCs
 	rpc CreateGrant(GrantRequest) returns (CreateGrantResponse) {}
 	rpc GetGrant(GetGrantRequest) returns (Grant) {}
+	rpc GetGrantsPage(GetGrantsPageRequest) returns (GetGrantsPageResponse) {}
 	rpc ContinueGrant(ContinueGrantRequest) returns (ContinueGrantResponse) {}
 	rpc RevokeGrant(RevokeGrantRequest) returns (RevokeGrantResponse) {}
 	// Access Token RPCs
@@ -55,6 +56,7 @@ message Grant {
 	string finish_nonce = 13;
 	Interaction interaction = 14;
 	string last_continued_at = 15; // Date string
+	string created_at = 16; // Date string; the pagination sort key
 }
 
 message AccessLimits {
@@ -108,6 +110,37 @@ message CreateGrantResponse {
 
 message GetGrantRequest {
 	string id = 1;
+}
+
+enum SortOrder {
+	SORT_ORDER_UNSPECIFIED = 0;
+	SORT_ORDER_ASC = 1;
+	SORT_ORDER_DESC = 2;
+}
+
+message GetGrantsPageRequest {
+	// Filters by the end user whose access was granted (accesses[].identifier),
+	// not by the requesting client; omit to list across all.
+	optional string identifier = 1;
+	// Filters by grant state; omit to list across all.
+	optional string state = 2;
+	// Opaque cursor from a previous page's start_cursor/end_cursor.
+	optional string cursor = 3;
+	// Page size; 0 means server default (20). Server clamps to 100.
+	uint32 limit = 4;
+	// false = forward (first/after), true = backward (last/before).
+	bool backwards = 5;
+	// Ordering by createdAt. Unspecified means server default.
+	SortOrder sort_order = 6;
+}
+
+message GetGrantsPageResponse {
+	repeated Grant grants = 1;
+	bool has_next_page = 2;
+	bool has_previous_page = 3;
+	// Opaque cursors for the previous / next page.
+	optional string start_cursor = 4;
+	optional string end_cursor = 5;
 }
 
 message ContinueGrantRequest {

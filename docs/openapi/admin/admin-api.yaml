@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.12
+  version: 0.0.13
   license:
     name: ISC
     identifier: ISC
@@ -24,6 +24,8 @@ tags:
     x-displayName: Peers
   - name: liquidity
     x-displayName: Liquidity
+  - name: grants
+    x-displayName: Grants
   - name: rates
     x-displayName: Rates
 paths:
@@ -287,6 +289,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /grants:
+    get:
+      summary: List Grants
+      description: >-
+        List grants with cursor pagination, ordered by creation time.
+        Optionally filter by state and by the end user whose access was
+        granted.
+      tags:
+        - grants
+      operationId: Grants_listGrants
+      parameters:
+        - name: identifier
+          in: query
+          description: >-
+            Filter by the end user whose access was granted (the wallet address
+            in a grant's access items), not by the requesting client.
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: Filter by grant state
+          required: false
+          schema:
+            $ref: '#/components/schemas/GrantState'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageFirst'
+        - $ref: '#/components/parameters/PageLast'
+        - $ref: '#/components/parameters/PageSortOrder'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantsPage'
+        '400':
+          description: Invalid pagination parameters, or a cursor that was not issued for this query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /payment-intents:
     get:
       summary: List Payment Intents
@@ -303,41 +347,10 @@ paths:
           required: false
           schema:
             type: string
-        - name: cursor
-          in: query
-          description: >-
-            Opaque cursor from a previous page's startCursor/endCursor. Valid
-            only for the query that produced it. Reusing a cursor with a
-            different sortOrder or filter returns 400.
-          required: false
-          schema:
-            type: string
-        - name: first
-          in: query
-          description: Page size, paginating forward from the cursor. Mutually exclusive with last.
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-        - name: last
-          in: query
-          description: Page size, paginating backward from the cursor (requires cursor). Mutually exclusive with first.
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-        - name: sortOrder
-          in: query
-          description: Ordering by creation time. Defaults to desc (newest first).
-          required: false
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-            default: desc
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageFirst'
+        - $ref: '#/components/parameters/PageLast'
+        - $ref: '#/components/parameters/PageSortOrder'
       responses:
         '200':
           description: The request has succeeded.
@@ -498,41 +511,10 @@ paths:
           required: false
           schema:
             type: string
-        - name: cursor
-          in: query
-          description: >-
-            Opaque cursor from a previous page's startCursor/endCursor. Valid
-            only for the query that produced it. Reusing a cursor with a
-            different sortOrder or filter returns 400.
-          required: false
-          schema:
-            type: string
-        - name: first
-          in: query
-          description: Page size, paginating forward from the cursor. Mutually exclusive with last.
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-        - name: last
-          in: query
-          description: Page size, paginating backward from the cursor (requires cursor). Mutually exclusive with first.
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-        - name: sortOrder
-          in: query
-          description: Ordering by creation time. Defaults to desc (newest first).
-          required: false
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-            default: desc
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageFirst'
+        - $ref: '#/components/parameters/PageLast'
+        - $ref: '#/components/parameters/PageSortOrder'
       responses:
         '200':
           description: The request has succeeded.
@@ -584,12 +566,7 @@ paths:
         - payments
       operationId: approvePayment
       parameters:
-        - name: intentId
-          in: path
-          description: Unique identifier for the payment intent
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/PaymentIntentId'
         - name: id
           in: path
           description: Unique identifier for the payment to be approved
@@ -620,12 +597,7 @@ paths:
         - payments
       operationId: cancelPayment
       parameters:
-        - name: intentId
-          in: path
-          description: Unique identifier for the payment intent
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/PaymentIntentId'
         - name: id
           in: path
           description: Unique identifier for the payment to be cancelled
@@ -660,12 +632,7 @@ paths:
         - payments
       operationId: getPayment
       parameters:
-        - name: intentId
-          in: path
-          description: Unique identifier for the payment intent
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/PaymentIntentId'
         - name: id
           in: path
           description: Unique identifier for the payment
@@ -782,6 +749,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
+  parameters:
+    PageCursor:
+      name: cursor
+      in: query
+      description: >-
+        Opaque cursor from a previous page's startCursor/endCursor. Valid
+        only for the query that produced it. Reusing a cursor with a
+        different sortOrder or filter returns 400.
+      required: false
+      schema:
+        type: string
+    PageFirst:
+      name: first
+      in: query
+      description: Page size, paginating forward from the cursor. Mutually exclusive with last.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    PageLast:
+      name: last
+      in: query
+      description: Page size, paginating backward from the cursor (requires cursor). Mutually exclusive with first.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    PageSortOrder:
+      name: sortOrder
+      in: query
+      description: Ordering by creation time. Defaults to desc (newest first).
+      required: false
+      schema:
+        type: string
+        enum:
+          - asc
+          - desc
+        default: desc
+    PaymentIntentId:
+      name: intentId
+      in: path
+      description: Unique identifier for the payment intent
+      required: true
+      schema:
+        type: string
   schemas:
     FxRateSet:
       type: object
@@ -1340,6 +1354,98 @@ components:
         failReason:
           type: string
           description: Failure detail when the payment failed.
+    GrantState:
+      type: string
+      description: Lifecycle state of a grant.
+      enum:
+        - PROCESSING
+        - PENDING
+        - APPROVED
+        - ISSUED
+        - REVOKED
+        - REJECTED
+    GrantAccessLimits:
+      type: object
+      description: Limits attached to a grant's access item.
+      properties:
+        receiver:
+          type: string
+        interval:
+          type: string
+        debitAmount:
+          $ref: '#/components/schemas/Amount'
+        receiveAmount:
+          $ref: '#/components/schemas/Amount'
+    GrantAccessItem:
+      type: object
+      description: One access right requested or granted.
+      required:
+        - type
+        - actions
+      properties:
+        type:
+          type: string
+        actions:
+          type: array
+          items:
+            type: string
+        identifier:
+          type: string
+          description: The end user's wallet address this access applies to.
+        limits:
+          $ref: '#/components/schemas/GrantAccessLimits'
+    GrantSubjectId:
+      type: object
+      required:
+        - format
+        - id
+      properties:
+        format:
+          type: string
+        id:
+          type: string
+    Grant:
+      type: object
+      description: >-
+        A GNAP grant. Deliberately excludes the grant's secrets — continue
+        token, interaction and finish nonces, and access tokens — which an
+        operator listing has no use for.
+      required:
+        - id
+        - createdAt
+        - state
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        state:
+          $ref: '#/components/schemas/GrantState'
+        client:
+          type: string
+          description: The requesting client's wallet address.
+        accesses:
+          type: array
+          items:
+            $ref: '#/components/schemas/GrantAccessItem'
+        subjectIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/GrantSubjectId'
+    GrantsPage:
+      type: object
+      description: A page of grants in the requested creation order.
+      required:
+        - result
+        - pagination
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/components/schemas/Grant'
+        pagination:
+          $ref: '#/components/schemas/PageInfo'
     PageInfo:
       type: object
       description: Cursor pagination metadata for a page of results.

@@ -205,6 +205,34 @@ export interface IRevokedGrantUpdate {
   state: GrantState;
 }
 
+/**
+ * Keyset pagination over `(createdAt, id)`. Mirrors the payments bounded
+ * context's pagination deliberately rather than sharing it, so the two can be
+ * compared before any shared abstraction is introduced.
+ */
+export type SortOrder = 'asc' | 'desc';
+export const DEFAULT_SORT_ORDER: SortOrder = 'desc';
+
+export interface IGrantPageOpts {
+  /**
+   * The end user whose access was granted — `accesses[].identifier`, not
+   * `client`, which is the requesting client's wallet address.
+   */
+  identifier?: string;
+  state?: GrantState;
+  cursor?: string;
+  limit: number;
+  /** false = forward (first/after), true = backward (last/before). */
+  backwards: boolean;
+  sortOrder?: SortOrder;
+}
+
+export interface IPage<T> {
+  items: T[];
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 export interface IGrantRepository {
   storeMany(grants: IGrant[]): Promise<void>;
   storeRotatedGrants(updates: IRotatedGrantUpdate[]): Promise<void>;
@@ -216,5 +244,7 @@ export interface IGrantRepository {
   storeRevokedTokens(tokens: IAccessToken[]): Promise<void>;
   fetchById(id: string): Promise<IGrant | undefined>;
   fetchByIds(ids: string[]): Promise<IGrant[]>;
+  /** Keyset-paginated grants, filterable by state and granted identifier. */
+  fetchGrantsPage(opts: IGrantPageOpts): Promise<IPage<IGrant>>;
   storeInteractions(grants: IGrant[]): Promise<void>;
 }

@@ -55,6 +55,35 @@ export interface InteractionResult {
   expiresAt: number;
 }
 
+/** Order of a page's results by creation time. */
+export type PageSortOrder = 'asc' | 'desc';
+
+export interface IPageQuery {
+  /** The end user whose access was granted (accesses[].identifier). */
+  identifier?: string;
+  state?: string;
+  /** Opaque cursor from a previous page's startCursor/endCursor. */
+  cursor?: string;
+  /** Page size, paginating forward from the cursor. Mutually exclusive with `last`. */
+  first?: number;
+  /** Page size, paginating backward from the cursor (requires `cursor`). */
+  last?: number;
+  /** Ordering by creation time. Omit to use the server default (newest first). */
+  sortOrder?: PageSortOrder;
+}
+
+export interface IPageInfo {
+  startCursor?: string;
+  endCursor?: string;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface IPage<T> {
+  items: T[];
+  pagination: IPageInfo;
+}
+
 export interface GetGrantResult {
   id: string;
   startMethods?: string[];
@@ -71,6 +100,7 @@ export interface GetGrantResult {
   finishNonce: string;
   interaction?: InteractionResult;
   lastContinuedAt: string;
+  createdAt: string;
 }
 
 export interface CreateGrantResult {

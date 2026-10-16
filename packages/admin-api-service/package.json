@@ -15,8 +15,9 @@
   "license": "Apache-2.0",
   "dependencies": {
     "admin-client-lib": "workspace:*",
-    "fastify": "~5.3.3",
+    "auth-client-lib": "workspace:*",
     "common-types-lib": "workspace:*",
+    "fastify": "~5.3.3",
     "ilp-client-lib": "workspace:*",
     "implementations-lib": "workspace:*",
     "pal-client-lib": "workspace:*",

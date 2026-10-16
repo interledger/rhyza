@@ -27,6 +27,9 @@ import {
   AcceptInteractionRequest,
   RejectInteractionRequest,
   GetGrantRequest,
+  GetGrantsPageRequest,
+  GetGrantsPageResponse,
+  SortOrder as PbSortOrder,
   AccessItem,
   AccessLimits,
   SubjectId,
@@ -42,7 +45,13 @@ import {
   HandleInteractionChoiceResponse
 } from 'auth-public-types-lib';
 
-import { IMessage, IMessageConsumer, IMessageProducer } from 'common-types-lib';
+import {
+  IMessage,
+  IMessageConsumer,
+  IMessageProducer,
+  InvalidArgument
+} from 'common-types-lib';
+import { CursorContext, decodeCursor, encodeCursor } from './cursor';
 import {
   CreateGrantCmd,
   ContinueGrantCmd,
@@ -71,7 +80,11 @@ import {
   FinishInteractionCmd,
   GrantInteractionFinishedEvent,
   GrantInteractionFinishFailedEvent,
-  GrantInteractionChoiceFailedEvent
+  GrantInteractionChoiceFailedEvent,
+  DEFAULT_SORT_ORDER,
+  GrantState,
+  IGrant,
+  SortOrder
 } from 'auth-domain-lib';
 import crypto from 'crypto';
 import { IGrantRepository } from 'auth-domain-lib/src';
@@ -85,6 +98,8 @@ interface PendingResponse {
 }
 
 export class AuthServiceServer {
+  private static readonly DEFAULT_PAGE_LIMIT = 20;
+  private static readonly MAX_PAGE_LIMIT = 100;
   private readonly _instanceId: string;
   private readonly _serverUrl: string;
   private readonly _server: grpc.Server;
@@ -147,6 +162,7 @@ export class AuthServiceServer {
       startInteraction: this._handleUnary.bind(this),
       finishInteraction: this._handleUnary.bind(this),
       getGrant: this._handleGetGrant.bind(this),
+      getGrantsPage: this._handleGetGrantsPage.bind(this),
       acceptInteraction: this._handleUnary.bind(this),
       rejectInteraction: this._handleUnary.bind(this)
     });
@@ -497,6 +513,131 @@ export class AuthServiceServer {
     }
   }
 
+  /**
+   * Shared by GetGrant and GetGrantsPage. Extracted unchanged from the
+   * GetGrant handler, plus createdAt, which pagination sorts on.
+   */
+  private _toPbGrant(grant: IGrant): Grant {
+    const response = new Grant();
+    response.setId(grant.id);
+    response.setState(grant.state);
+    response.setCreatedAt(new Date(grant.createdAt).toISOString());
+
+    if (grant.startMethods) {
+      response.setStartMethodsList(grant.startMethods);
+    }
+
+    if (grant.continueToken) {
+      response.setContinueToken(grant.continueToken);
+      response.setContinueId(grant.id);
+    }
+
+    if (grant.client) {
+      const serializedClient =
+        typeof grant.client === 'string'
+          ? grant.client
+          : JSON.stringify(grant.client);
+      response.setClient(serializedClient);
+    }
+
+    if (grant.subjectIds) {
+      for (const sub of grant.subjectIds) {
+        const subItem = new SubjectId();
+        subItem.setId(sub.id);
+        subItem.setFormat(sub.format);
+        response.addSubjectIds(subItem);
+      }
+    }
+
+    for (const access of grant.accesses || []) {
+      response.addAccesses(this.getAccessListResponse(access));
+    }
+
+    if (grant.finishNonce) response.setFinishNonce(grant.finishNonce);
+
+    if (grant.finishUri) response.setFinishUri(grant.finishUri);
+
+    if (grant.finishMethod) response.setFinishMethod(grant.finishMethod);
+
+    if (grant.interaction) {
+      const interaction = new Interaction();
+      interaction.setExpiresAt(grant.interaction.expiresAt.getTime());
+      interaction.setState(grant.interaction.state);
+      interaction.setInteractRef(grant.interaction.interactRef);
+      response.setInteraction(interaction);
+    }
+
+    return response;
+  }
+
+  private async _handleGetGrantsPage(
+    call: ServerUnaryCall<GetGrantsPageRequest, GetGrantsPageResponse>,
+    callback: sendUnaryData<GetGrantsPageResponse>
+  ): Promise<void> {
+    try {
+      const request = call.request;
+      const cursorContext: CursorContext = {
+        sortOrder: this._pageSortOrder(request.getSortOrder()),
+        identifier: request.getIdentifier() || undefined,
+        state: (request.getState() || undefined) as GrantState | undefined
+      };
+      const cursor = request.getCursor() || undefined;
+
+      const page = await this._repo.fetchGrantsPage({
+        identifier: cursorContext.identifier,
+        state: cursorContext.state,
+        cursor: cursor && decodeCursor(cursor, cursorContext),
+        limit: this._clampPageLimit(request.getLimit()),
+        backwards: request.getBackwards(),
+        sortOrder: cursorContext.sortOrder
+      });
+
+      const response = new GetGrantsPageResponse();
+      response.setGrantsList(page.items.map((grant) => this._toPbGrant(grant)));
+      response.setHasNextPage(page.hasNextPage);
+      response.setHasPreviousPage(page.hasPreviousPage);
+      if (page.items.length > 0) {
+        response.setStartCursor(encodeCursor(page.items[0].id, cursorContext));
+        response.setEndCursor(
+          encodeCursor(page.items[page.items.length - 1].id, cursorContext)
+        );
+      }
+
+      callback(null, response);
+    } catch (err) {
+      callback(this._pageErrorToStatus(err));
+    }
+  }
+
+  private _clampPageLimit(limit: number): number {
+    if (!limit) return AuthServiceServer.DEFAULT_PAGE_LIMIT;
+    return Math.min(limit, AuthServiceServer.MAX_PAGE_LIMIT);
+  }
+
+  private _pageSortOrder(sortOrder: PbSortOrder): SortOrder {
+    switch (sortOrder) {
+      case PbSortOrder.SORT_ORDER_ASC:
+        return 'asc';
+      case PbSortOrder.SORT_ORDER_DESC:
+        return 'desc';
+      default:
+        return DEFAULT_SORT_ORDER;
+    }
+  }
+
+  private _pageErrorToStatus(err: unknown): grpc.ServiceError {
+    if (err instanceof InvalidArgument) {
+      return {
+        code: grpc.status.INVALID_ARGUMENT,
+        message: (err as Error).message
+      } as grpc.ServiceError;
+    }
+    return {
+      code: grpc.status.INTERNAL,
+      message: (err as Error).message
+    } as grpc.ServiceError;
+  }
+
   private async _handleGetGrant(
     call: ServerUnaryCall<GetGrantRequest, Grant>,
     callback: sendUnaryData<Grant>
@@ -512,55 +653,7 @@ export class AuthServiceServer {
         return;
       }
 
-      const response = new Grant();
-      response.setId(grant.id);
-      response.setState(grant.state);
-
-      if (grant.startMethods) {
-        response.setStartMethodsList(grant.startMethods);
-      }
-
-      if (grant.continueToken) {
-        response.setContinueToken(grant.continueToken);
-        response.setContinueId(grant.id);
-      }
-
-      if (grant.client) {
-        const serializedClient =
-          typeof grant.client === 'string'
-            ? grant.client
-            : JSON.stringify(grant.client);
-        response.setClient(serializedClient);
-      }
-
-      if (grant.subjectIds) {
-        for (const sub of grant.subjectIds) {
-          const subItem = new SubjectId();
-          subItem.setId(sub.id);
-          subItem.setFormat(sub.format);
-          response.addSubjectIds(subItem);
-        }
-      }
-
-      for (const access of grant.accesses || []) {
-        response.addAccesses(this.getAccessListResponse(access));
-      }
-
-      if (grant.finishNonce) response.setFinishNonce(grant.finishNonce);
-
-      if (grant.finishUri) response.setFinishUri(grant.finishUri);
-
-      if (grant.finishMethod) response.setFinishMethod(grant.finishMethod);
-
-      if (grant.interaction) {
-        const interaction = new Interaction();
-        interaction.setExpiresAt(grant.interaction.expiresAt.getTime());
-        interaction.setState(grant.interaction.state);
-        interaction.setInteractRef(grant.interaction.interactRef);
-        response.setInteraction(interaction);
-      }
-
-      callback(null, response);
+      callback(null, this._toPbGrant(grant));
     } catch (err) {
       callback({
         code: grpc.status.INTERNAL,

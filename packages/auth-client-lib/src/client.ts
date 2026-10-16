@@ -5,6 +5,8 @@ import {
   GrantRequest as PbGrantRequest,
   Grant as PbGrant,
   GetGrantRequest as PbGetGrantRequest,
+  GetGrantsPageRequest as PbGetGrantsPageRequest,
+  SortOrder as PbSortOrder,
   AccessLimits as PbAccessLimits,
   Interaction as PbInteraction,
   GrantRequestFinish as PbGrantRequestFinish,
@@ -47,7 +49,9 @@ import {
   RotateTokenResult,
   SignatureRequestData,
   StartInteractionResult,
-  SubjectId
+  SubjectId,
+  IPage,
+  IPageQuery
 } from './types';
 
 export class AuthClient {
@@ -102,6 +106,37 @@ export class AuthClient {
           }
         }
       );
+    });
+  }
+
+  getGrantsPage(query: IPageQuery = {}): Promise<IPage<GetGrantResult>> {
+    const { cursor, limit, backwards, sortOrder } = pageArgs(query);
+
+    const request = new PbGetGrantsPageRequest();
+    if (query.identifier) request.setIdentifier(query.identifier);
+    if (query.state) request.setState(query.state);
+    if (cursor) request.setCursor(cursor);
+    request.setLimit(limit);
+    request.setBackwards(backwards);
+    request.setSortOrder(sortOrder);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.getGrantsPage(request, (error, response) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve({
+          items: response.getGrantsList().map(fromPbGrant),
+          pagination: {
+            startCursor: response.getStartCursor() || undefined,
+            endCursor: response.getEndCursor() || undefined,
+            hasNextPage: response.getHasNextPage(),
+            hasPreviousPage: response.getHasPreviousPage()
+          }
+        });
+      });
     });
   }
 
@@ -490,6 +525,50 @@ function fromPbInteraction(
   };
 }
 
+/**
+ * Relay-style first/last to the server's limit/backwards. Duplicated from the
+ * payments client rather than shared, pending a decision on convergence.
+ */
+function pageArgs(query: IPageQuery): {
+  cursor?: string;
+  limit: number;
+  backwards: boolean;
+  sortOrder: PbSortOrder;
+} {
+  const { cursor, first, last, sortOrder } = query;
+
+  if (sortOrder != null && sortOrder !== 'asc' && sortOrder !== 'desc') {
+    throw new Error("'sortOrder' must be 'asc' or 'desc'");
+  }
+  if (first != null && last != null) {
+    throw new Error("Cannot provide both 'first' and 'last'");
+  }
+  if (last != null && cursor == null) {
+    throw new Error("'last' requires 'cursor'");
+  }
+  for (const [name, value] of [
+    ['first', first],
+    ['last', last]
+  ] as const) {
+    if (value != null && (!Number.isInteger(value) || value < 1)) {
+      throw new Error(`'${name}' must be a positive integer`);
+    }
+  }
+
+  return {
+    cursor,
+    limit: last ?? first ?? 0, // 0 => server default
+    backwards: last != null,
+    // Unset => UNSPECIFIED, letting the server apply its default order.
+    sortOrder:
+      sortOrder === 'asc'
+        ? PbSortOrder.SORT_ORDER_ASC
+        : sortOrder === 'desc'
+          ? PbSortOrder.SORT_ORDER_DESC
+          : PbSortOrder.SORT_ORDER_UNSPECIFIED
+  };
+}
+
 function fromPbGrant(grant: PbGrant): GetGrantResult {
   return {
     id: grant.getId(),
@@ -506,7 +585,8 @@ function fromPbGrant(grant: PbGrant): GetGrantResult {
     finishUri: grant.getFinishUri(),
     finishNonce: grant.getFinishNonce(),
     interaction: fromPbInteraction(grant.getInteraction()),
-    lastContinuedAt: grant.getLastContinuedAt()
+    lastContinuedAt: grant.getLastContinuedAt(),
+    createdAt: grant.getCreatedAt()
   };
 }
 

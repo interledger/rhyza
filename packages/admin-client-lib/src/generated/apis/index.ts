@@ -1,6 +1,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export * from './AssetsApi';
+export * from './GrantsApi';
 export * from './LiquidityApi';
 export * from './PaymentIntentsApi';
 export * from './PaymentsApi';

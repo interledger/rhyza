@@ -20,6 +20,7 @@ services:
       PAYMENTS_GRPC_URL: payments-api-service-b:50052
       OPEN_PAYMENTS_URL: http://open-payments-resource-service-b:3002
       ILP_GRPC_URL: ilp-api-service-b:50053
+      AUTH_GRPC_URL: auth-api-service-b:50054
       MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
       KAFKA_URL: kafka-b:19092
     ports:
@@ -111,6 +112,75 @@ services:
         condition: service_healthy
       redis-b:
         condition: service_healthy
+    networks:
+      - rhyza
+
+  open-payments-auth-service-b:
+    build:
+      context: ../
+      dockerfile: ./packages/open-payments-auth-service/Dockerfile
+    restart: always
+    environment:
+      AUTH_GRPC_URL: auth-api-service-b:50054
+      # localhost, unlike OPEN_PAYMENTS_RESOURCE_SERVICE_URL,
+      # because host needs to reach the continue and interaction
+      # URLs this builds. a Docker name only resolves in-network.
+      OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:4003
+    ports:
+      - '4003:3003'
+    depends_on:
+      auth-api-service-b:
+        condition: service_started
+    networks:
+      - rhyza
+
+  idp-interaction-service-b:
+    build:
+      context: ../
+      dockerfile: ./packages/idp-interaction-service/Dockerfile
+    restart: always
+    environment:
+      AUTH_GRPC_URL: auth-api-service-b:50054
+      IDP_SECRET: idp-secret
+    ports:
+      - '4004:3004'
+    depends_on:
+      auth-api-service-b:
+        condition: service_started
+    networks:
+      - rhyza
+
+  auth-api-service-b:
+    build:
+      context: ../
+      dockerfile: ./packages/auth-api-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka-b:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
+    ports:
+      - '4054:50054'
+    depends_on:
+      mongodb-b:
+        condition: service_healthy
+      init-kafka-b:
+        condition: service_completed_successfully
+    networks:
+      - rhyza
+
+  auth-command-handler-service-b:
+    build:
+      context: ../
+      dockerfile: ./packages/auth-command-handler-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka-b:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
+    depends_on:
+      mongodb-b:
+        condition: service_healthy
+      init-kafka-b:
+        condition: service_completed_successfully
     networks:
       - rhyza
 

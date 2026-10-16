@@ -1,4 +1,5 @@
 apis/AssetsApi.ts
+apis/GrantsApi.ts
 apis/LiquidityApi.ts
 apis/PaymentIntentsApi.ts
 apis/PaymentsApi.ts
@@ -19,6 +20,12 @@ models/CreatePaymentRequest.ts
 models/CreateQuoteRequest.ts
 models/ErrorResponse.ts
 models/FxRateSet.ts
+models/Grant.ts
+models/GrantAccessItem.ts
+models/GrantAccessLimits.ts
+models/GrantState.ts
+models/GrantSubjectId.ts
+models/GrantsPage.ts
 models/JsonWebKey.ts
 models/LiquidityDeposit200Response.ts
 models/LiquidityDepositRequest.ts

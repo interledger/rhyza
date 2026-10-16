@@ -2,8 +2,11 @@ import {
   IAccessToken,
   IContinuedGrantUpdate,
   IFinishedInteractiveGrantUpdate,
+  DEFAULT_SORT_ORDER,
   IGrant,
+  IGrantPageOpts,
   IGrantRepository,
+  IPage,
   IRevokedGrantUpdate,
   IRotatedGrantUpdate
 } from '../../src/grant/interfaces';
@@ -109,6 +112,39 @@ export class MockGrantRepo implements IGrantRepository {
       const grant = this._store.get(id);
       return grant ? [grant] : [];
     });
+  }
+
+  /**
+   * An approximation, not a reimplementation: enough for the aggregate tests
+   * to satisfy the interface. It filters and orders the same way, but it
+   * resolves the cursor by scanning rather than seeking an index, does not
+   * reject an unknown cursor, and ignores `backwards`. The real keyset
+   * behaviour is covered by auth-implementations-lib's integration test.
+   */
+  async fetchGrantsPage(opts: IGrantPageOpts): Promise<IPage<IGrant>> {
+    const descending = (opts.sortOrder ?? DEFAULT_SORT_ORDER) === 'desc';
+    const matching = [...this._store.values()]
+      .filter((g) => opts.state == null || g.state === opts.state)
+      .filter(
+        (g) =>
+          opts.identifier == null ||
+          (g.accesses ?? []).some((a) => a.identifier === opts.identifier)
+      )
+      .sort((a, b) => {
+        const byTime = a.createdAt.getTime() - b.createdAt.getTime();
+        const cmp = byTime !== 0 ? byTime : a.id.localeCompare(b.id);
+        return descending ? -cmp : cmp;
+      });
+
+    const from = opts.cursor
+      ? matching.findIndex((g) => g.id === opts.cursor) + 1
+      : 0;
+
+    return {
+      items: matching.slice(from, from + opts.limit),
+      hasNextPage: from + opts.limit < matching.length,
+      hasPreviousPage: from > 0
+    };
   }
 
   getAll(): IGrant[] {
