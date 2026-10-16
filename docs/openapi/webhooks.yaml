@@ -16,7 +16,7 @@ webhooks:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/paymentIntentEvent'
+              $ref: '#/components/schemas/paymentIntentCreatedEvent'
       responses:
         '200':
           description: Payment intent created
@@ -30,7 +30,7 @@ webhooks:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/paymentIntentEvent'
+              $ref: '#/components/schemas/paymentIntentCompletedEvent'
       responses:
         '200':
           description: Payment intent completed
@@ -60,7 +60,7 @@ webhooks:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/paymentEvent'
+              $ref: '#/components/schemas/paymentCompletedEvent'
       responses:
         '200':
           description: Payment completed
@@ -74,7 +74,7 @@ webhooks:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/paymentEventError'
+              $ref: '#/components/schemas/paymentFailedEvent'
       responses:
         '200':
           description: Payment failed
@@ -87,7 +87,7 @@ webhooks:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/grantEvent'
+              $ref: '#/components/schemas/grantRevokedEvent'
       responses:
         '200':
           description: Grant revoked
@@ -107,26 +107,27 @@ components:
           description: A unique ID that the FSP can use to determine whether the event was previously received, preventing duplicate event processing
         type:
           type: string
-          enum:
-            - payment_intent.created
-            - payment_intent.completed
-            - payment.created
-            - payment.completed
-            - payment.failed
-            - grant.revoked
         data:
           type: object
 
-    paymentIntentEvent:
+    paymentIntentCreatedEvent:
       allOf:
         - $ref: '#/components/schemas/webhookEvent'
         - type: object
           properties:
             type:
               type: string
-              enum:
-                - payment_intent.created
-                - payment_intent.completed
+              const: payment_intent.created
+            data:
+              $ref: '#/components/schemas/paymentIntentEventData'
+    paymentIntentCompletedEvent:
+      allOf:
+        - $ref: '#/components/schemas/webhookEvent'
+        - type: object
+          properties:
+            type:
+              type: string
+              const: payment_intent.completed
             data:
               $ref: '#/components/schemas/paymentIntentEventData'
     paymentIntentEventData:
@@ -163,16 +164,14 @@ components:
           type: object
           additionalProperties: true
 
-    paymentEvent:
+    paymentCompletedEvent:
       allOf:
         - $ref: '#/components/schemas/webhookEvent'
         - type: object
           properties:
             type:
               type: string
-              enum:
-                - payment.created
-                - payment.completed
+              const: payment.completed
             data:
               $ref: '#/components/schemas/paymentEventData'
     paymentEventData:
@@ -221,9 +220,12 @@ components:
 
     paymentCreatedEvent:
       allOf:
-        - $ref: '#/components/schemas/paymentEvent'
+        - $ref: '#/components/schemas/webhookEvent'
         - type: object
           properties:
+            type:
+              type: string
+              const: payment.created
             data:
               allOf:
                 - $ref: '#/components/schemas/paymentEventData'
@@ -236,15 +238,14 @@ components:
                     paymentIntentRemoteUrl:
                       type: string
                       format: uri
-    paymentEventError:
+    paymentFailedEvent:
       allOf:
         - $ref: '#/components/schemas/webhookEvent'
         - type: object
           properties:
             type:
               type: string
-              enum:
-                - payment.failed
+              const: payment.failed
             data:
               type: object
               required:
@@ -387,15 +388,14 @@ components:
         identifier:
           type: string
           format: uri
-    grantEvent:
+    grantRevokedEvent:
       allOf:
         - $ref: '#/components/schemas/webhookEvent'
         - type: object
           properties:
             type:
               type: string
-              enum:
-                - grant.revoked
+              const: grant.revoked
             data:
               type: object
               required:
