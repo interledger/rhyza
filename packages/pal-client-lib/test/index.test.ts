@@ -8,6 +8,9 @@ import {
   PalClient,
   PalClientLedgerInsufficientFundsForWithdrawalError,
   PalClientDuplicateWalletAddressKeyError,
+  PalClientPeerAlreadyActiveError,
+  PalClientPeerAlreadyInactiveError,
+  PalClientPeerNotFoundError,
   PalClientWalletAddressKeyAlreadyRevokedError,
   PalClientWalletAddressKeyNotFoundError,
   PalClientWalletAddressNotFoundError,
@@ -241,6 +244,20 @@ test('pal client - deactivate peer', async () => {
   assert.equal(peer.active, false);
 });
 
+test('pal client - deactivating an inactive peer fails', async () => {
+  await assert.rejects(
+    client.deactivatePeer(PEER_ONE_ID),
+    PalClientPeerAlreadyInactiveError
+  );
+});
+
+test('pal client - deactivating an unknown peer fails', async () => {
+  await assert.rejects(
+    client.deactivatePeer(`${testPrefix}_no_such_peer`),
+    PalClientPeerNotFoundError
+  );
+});
+
 test('pal client - re-activating peer', async () => {
   await client.activatePeer(PEER_ONE_ID);
 
@@ -249,6 +266,20 @@ test('pal client - re-activating peer', async () => {
   assert.ok(peer);
   assert.equal(peer.id, PEER_ONE_ID);
   assert.equal(peer.active, true);
+});
+
+test('pal client - activating an active peer fails', async () => {
+  await assert.rejects(
+    client.activatePeer(PEER_ONE_ID),
+    PalClientPeerAlreadyActiveError
+  );
+});
+
+test('pal client - activating an unknown peer fails', async () => {
+  await assert.rejects(
+    client.activatePeer(`${testPrefix}_no_such_peer`),
+    PalClientPeerNotFoundError
+  );
 });
 
 test('pal client - created peer must have an new set of ledger accounts', async () => {

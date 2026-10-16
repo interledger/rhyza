@@ -1,7 +1,12 @@
 'use strict';
 
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { PalClient } from 'pal-client-lib';
+import {
+  PalClient,
+  PalClientPeerAlreadyActiveError,
+  PalClientPeerAlreadyInactiveError,
+  PalClientPeerNotFoundError
+} from 'pal-client-lib';
 import { IlpClient, IlpClientPeerAlreadyExistsError } from 'ilp-client-lib';
 import { PeerCreate } from 'admin-client-lib';
 
@@ -69,5 +74,39 @@ export async function peerRoutes(
     }
 
     return reply.status(201).send({ id });
+  });
+
+  server.post<{
+    Params: { id: string };
+  }>('/peers/:id/activate', async (request, reply) => {
+    try {
+      await palClient.activatePeer(request.params.id);
+      return reply.status(204).send();
+    } catch (err) {
+      if (err instanceof PalClientPeerNotFoundError) {
+        return reply.status(404).send({ error: err.message });
+      }
+      if (err instanceof PalClientPeerAlreadyActiveError) {
+        return reply.status(409).send({ error: err.message });
+      }
+      throw err;
+    }
+  });
+
+  server.post<{
+    Params: { id: string };
+  }>('/peers/:id/deactivate', async (request, reply) => {
+    try {
+      await palClient.deactivatePeer(request.params.id);
+      return reply.status(204).send();
+    } catch (err) {
+      if (err instanceof PalClientPeerNotFoundError) {
+        return reply.status(404).send({ error: err.message });
+      }
+      if (err instanceof PalClientPeerAlreadyInactiveError) {
+        return reply.status(409).send({ error: err.message });
+      }
+      throw err;
+    }
   });
 }

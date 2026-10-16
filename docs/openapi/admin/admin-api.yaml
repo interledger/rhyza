@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.12
+  version: 0.0.14
   license:
     name: ISC
     identifier: ISC
@@ -66,6 +66,71 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PeerCreate'
+  /peers/{id}/activate:
+    post:
+      summary: Activate Peer
+      description: >-
+        Activate a peer that was deactivated, for example by the rollback of a
+        failed peer creation. The peer is activated in PAL, and the ILP
+        connector uses it again once the activation reaches the ILP service.
+        Activating a peer that is already active returns 409.
+      tags:
+        - peers
+      operationId: activatePeer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The id of the peer.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The peer is activated.
+        '404':
+          description: Peer not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The peer is already active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /peers/{id}/deactivate:
+    post:
+      summary: Deactivate Peer
+      description: >-
+        Deactivate a peer. The peer is deactivated in PAL, and the ILP
+        connector stops using it once the deactivation reaches the ILP
+        service. Deactivating a peer that is already inactive returns 409.
+      tags:
+        - peers
+      operationId: deactivatePeer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The id of the peer.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The peer is deactivated.
+        '404':
+          description: Peer not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The peer is already inactive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /assets:
     post:
       summary: Create Asset
