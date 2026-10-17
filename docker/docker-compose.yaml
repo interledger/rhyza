@@ -184,7 +184,11 @@ services:
     restart: always
     environment:
       KAFKA_URL: kafka:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
+      CHECK_EXPIRATION_INTERVAL_MS: 20000
     depends_on:
+      mongodb:
+        condition: service_healthy
       init-kafka:
         condition: service_completed_successfully
     networks:

@@ -1159,6 +1159,12 @@ importers:
       payments-domain-lib:
         specifier: workspace:*
         version: link:../payments-domain-lib
+      payments-implementations-lib:
+        specifier: workspace:*
+        version: link:../payments-implementations-lib
+      payments-public-types-lib:
+        specifier: workspace:*
+        version: link:../payments-public-types-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3

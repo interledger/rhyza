@@ -819,6 +819,7 @@ export class PaymentsServiceServer {
             assetCode: p.assetCode,
             assetScale: p.assetScale,
             createdAt: p.createdAt,
+            expiresAt: p.expiresAt,
             debitAmount: BigInt(p.debitAmount ?? 0),
             receiveAmount:
               p.receiveAmount === null ? null : BigInt(p.receiveAmount),
