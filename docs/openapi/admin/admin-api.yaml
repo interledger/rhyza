@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.12
+  version: 0.0.13
   license:
     name: ISC
     identifier: ISC
@@ -475,6 +475,43 @@ paths:
               oneOf:
                 - $ref: '#/components/schemas/QuoteCreateFromPaymentIntentId'
                 - $ref: '#/components/schemas/QuoteCreateFromPaymentIntentUrl'
+  /payment-intents/{intentId}/quotes/{id}:
+    get:
+      summary: Get Quote
+      description: >-
+        Retrieve a quote in any state. COMPLETED quotes include expiresAt,
+        debitAmount, receiveAmount, and exchangeRate. PENDING quotes include
+        whichever of debitAmount, receiveAmount, sourceAmount, and
+        senderAssetCode are set. FAILED quotes include errorName and message.
+      tags:
+        - quotes
+      operationId: getQuote
+      parameters:
+        - name: intentId
+          in: path
+          description: Unique identifier for the payment intent
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: Unique identifier for the quote
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '404':
+          description: Quote not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /payments:
     get:
       summary: List Payments
@@ -1149,6 +1186,13 @@ components:
         receiveAmount:
           type: string
           description: The amount to be received by the recipient.
+    QuoteState:
+      type: string
+      description: The current status of a quote.
+      enum:
+        - PENDING
+        - COMPLETED
+        - FAILED
     QuoteCreateFromPaymentIntentId:
       description: >-
         Quotes a payment intent this instance already holds, named by its local
@@ -1180,16 +1224,17 @@ components:
                 The URL of the payment intent this quote is for.
     Quote:
       type: object
-      description: Represents a payment quote with estimated amounts and exchange rates.
+      description: >-
+        A quote in any state. id, paymentIntentId, state, senderWalletAddress,
+        senderWalletAddressId, and createdAt are always present. Other fields
+        are present only for the states that set them.
       required:
         - id
         - paymentIntentId
         - senderWalletAddress
         - senderWalletAddressId
-        - expiresAt
-        - debitAmount
-        - receiveAmount
-        - exchangeRate
+        - createdAt
+        - state
       properties:
         id:
           type: string
@@ -1197,25 +1242,48 @@ components:
         paymentIntentId:
           type: string
           description: The ID of the associated payment intent.
+        state:
+          $ref: '#/components/schemas/QuoteState'
+          description: The current status of the quote.
         senderWalletAddress:
           type: string
           description: The wallet address of the sender.
         senderWalletAddressId:
           type: string
           description: The unique identifier of the sender's wallet address.
+        createdAt:
+          type: string
+          format: date-time
+          description: When the quote was created.
         expiresAt:
           type: string
           format: date-time
-          description: The date and time when the quote expires.
+          description: When the quote expires. Set for COMPLETED quotes.
         debitAmount:
           type: string
-          description: The amount that will be debited from the sender.
+          description: >-
+            Amount debited from the sender. Set for COMPLETED quotes, and for
+            PENDING quotes when it has been determined.
         receiveAmount:
           type: string
-          description: The amount that will be received by the recipient.
+          description: >-
+            Amount received by the recipient. Set for COMPLETED quotes, and
+            for PENDING quotes when it has been determined.
         exchangeRate:
           type: number
-          description: The exchange rate of quote.
+          description: Exchange rate applied to the quote. Set for COMPLETED quotes.
+        sourceAmount:
+          type: string
+          description: Source amount used while the quote is calculated. Set for PENDING quotes when present.
+        senderAssetCode:
+          type: string
+          description: Asset code of the sender amount. Set for PENDING quotes when present.
+        errorName:
+          type: string
+          description: Name of the error that failed the quote. Set for FAILED quotes.
+        message:
+          type: string
+          description: Human-readable failure message. Set for FAILED quotes.
     PaymentCreateBase:
       type: object
       description: >-

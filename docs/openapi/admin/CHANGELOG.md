@@ -1,3 +1,30 @@
+# API Changelog 0.0.12 vs. 0.0.13
+
+
+## API Changes
+
+### GET /payment-intents/{intentId}/quotes/{id}
+-  endpoint added
+
+
+### POST /quotes
+- :warning: the response property `debitAmount` became optional for the status `201`
+- :warning: the response property `exchangeRate` became optional for the status `201`
+- :warning: the response property `expiresAt` became optional for the status `201`
+- :warning: the response property `receiveAmount` became optional for the status `201`
+-  added the optional property `errorName` to the response with the `201` status
+-  added the optional property `message` to the response with the `201` status
+-  added the optional property `senderAssetCode` to the response with the `201` status
+-  added the optional property `sourceAmount` to the response with the `201` status
+-  added the required property `createdAt` to the response with the `201` status
+-  added the required property `state` to the response with the `201` status
+
+
+
+
+## Info
+-  a breaking change was detected but the major version did not increase, from `0.0.12` to `0.0.13`
+
 # API Changelog 0.0.11 vs. 0.0.12
 
 No changes to report, but the specs are different

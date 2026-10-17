@@ -429,7 +429,7 @@ services:
     image: apache/kafka:4.0.0
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
     entrypoint: ['/bin/sh', '-c']
     working_dir: /opt/kafka/bin/
     command: |

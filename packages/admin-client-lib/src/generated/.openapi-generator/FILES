@@ -46,6 +46,7 @@ models/Quote.ts
 models/QuoteCreateBase.ts
 models/QuoteCreateFromPaymentIntentId.ts
 models/QuoteCreateFromPaymentIntentUrl.ts
+models/QuoteState.ts
 models/WalletAddressCreate.ts
 models/WalletAddressCreateResponse.ts
 models/WalletAddressKeyCreateResponse.ts

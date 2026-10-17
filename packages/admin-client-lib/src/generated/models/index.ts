@@ -38,6 +38,7 @@ export * from './Quote';
 export * from './QuoteCreateBase';
 export * from './QuoteCreateFromPaymentIntentId';
 export * from './QuoteCreateFromPaymentIntentUrl';
+export * from './QuoteState';
 export * from './WalletAddressCreate';
 export * from './WalletAddressCreateResponse';
 export * from './WalletAddressKeyCreateResponse';
