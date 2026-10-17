@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { isRemoteSentPayment } from '../../src/payment-intent/interfaces';
-import { ConsoleLogger } from 'common-types-lib';
+import { NullLogger } from 'common-types-lib';
 
 import { PaymentIntentAggregate } from '../../src/payment-intent/aggregate';
 import {
@@ -204,7 +204,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
       repo,
       mockPalService,
       mockRemotePaymentIntentService,
-      new ConsoleLogger()
+      new NullLogger()
     );
   });
 

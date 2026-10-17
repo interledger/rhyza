@@ -981,7 +981,6 @@ describe('GrantEntity', () => {
         assert.throws(
           () => entity.finishInteraction(entity.interactionNonce as string),
           (err: Error) => {
-            console.log(err);
             assert(err instanceof InvalidInteractionError);
             return true;
           }

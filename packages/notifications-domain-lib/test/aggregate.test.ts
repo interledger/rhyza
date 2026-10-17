@@ -4,7 +4,7 @@ import {
   NotificationStatus,
   NotificationType
 } from '../src';
-import { ConsoleLogger } from 'common-types-lib';
+import { NullLogger } from 'common-types-lib';
 import { MockNotificationRepo } from './mocks';
 import { MockNotificationSenderService } from './mocks/mock-notification-sender-service';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +15,7 @@ const notificationSenderService = new MockNotificationSenderService();
 const notificationAggregate = new NotificationAggregate(
   notificationRepository,
   notificationSenderService,
-  new ConsoleLogger()
+  new NullLogger()
 );
 
 describe('notification aggregate', () => {

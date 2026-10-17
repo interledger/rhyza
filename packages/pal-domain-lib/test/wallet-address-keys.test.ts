@@ -1,6 +1,6 @@
 import { before, test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { ConsoleLogger } from 'common-types-lib';
+import { NullLogger } from 'common-types-lib';
 import { IPalJsonWebKeyDto } from 'pal-public-types-lib';
 import {
   DuplicateWalletAddressKeyError,
@@ -13,7 +13,7 @@ import {
 } from '../src';
 import { MockWalletRepo } from './mocks';
 
-const logger = new ConsoleLogger();
+const logger = new NullLogger();
 
 const VALID_JWK: IPalJsonWebKeyDto = {
   kid: 'key-1',

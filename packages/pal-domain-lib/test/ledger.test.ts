@@ -30,7 +30,7 @@ import {
   WithdrawFromAseCmd,
   WithdrawFromPeerCmd
 } from '../src';
-import { ConsoleLogger, DomainEvent, IMessage } from 'common-types-lib';
+import { DomainEvent, IMessage, NullLogger } from 'common-types-lib';
 import {
   LedgerAccountsCreatedForPeerEvent,
   LedgerOutgoingTransferCommittedEvent,
@@ -123,7 +123,7 @@ beforeEach(() => {
   aggregate = new LedgerAggregate(
     mockRepo,
     mockProducer,
-    new ConsoleLogger(),
+    new NullLogger(),
     new MockTelemetryService()
   );
 

@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { KeyLike } from 'crypto';
-import { IMessage } from 'common-types-lib';
+import { IMessage, NullLogger } from 'common-types-lib';
 import {
   createHeaders,
   generateTestKeys
@@ -51,7 +51,6 @@ import {
   InteractionState
 } from '../src/grant/interfaces';
 import { MockGrantRepo, MockWalletAddressService } from './mocks';
-import { PinoLogger } from 'implementations-lib';
 
 const REQUEST_URL = 'https://auth.example/create';
 const REQUEST_METHOD = 'POST';
@@ -154,11 +153,11 @@ describe('GrantAggregate.handleBatch', () => {
   let repo: MockGrantRepo;
   let walletAddressService: MockWalletAddressService;
   let aggregate: GrantAggregate;
-  let logger: PinoLogger;
+  let logger: NullLogger;
 
   beforeEach(() => {
     repo = new MockGrantRepo();
-    logger = new PinoLogger();
+    logger = new NullLogger();
     walletAddressService = new MockWalletAddressService();
     aggregate = new GrantAggregate(repo, walletAddressService, logger);
   });
@@ -1561,6 +1560,7 @@ describe('GrantAggregate.handleBatch', () => {
             interactionNonce: generateNonce(),
             finishNonce: generateNonce(),
             accessTokens: [],
+            createdAt,
             interaction: {
               interactRef: randomUUID(),
               nonce: 'correct-nonce',

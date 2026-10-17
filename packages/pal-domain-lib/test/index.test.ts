@@ -26,7 +26,7 @@ import {
   MockPeerRepo,
   MockWalletRepo
 } from './mocks';
-import { ConsoleLogger, DomainEvent, IMessage } from 'common-types-lib';
+import { DomainEvent, IMessage, NullLogger } from 'common-types-lib';
 import {
   PeerActivatedEvent,
   PeerCreatedEvent,
@@ -37,7 +37,7 @@ import {
 } from 'pal-public-types-lib';
 import { MockAseFxService } from './mocks/mock-ase-fx-service';
 
-const logger = new ConsoleLogger();
+const logger = new NullLogger();
 
 const mockMessageStore: IMessage[] = [];
 const msgPublisher = new MockMessageProducer(mockMessageStore);
