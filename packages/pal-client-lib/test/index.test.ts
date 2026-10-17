@@ -8,6 +8,8 @@ import {
   PalClient,
   PalClientLedgerInsufficientFundsForWithdrawalError,
   PalClientDuplicateWalletAddressKeyError,
+  PalClientPeerAlreadyInactiveError,
+  PalClientPeerNotFoundError,
   PalClientWalletAddressKeyAlreadyRevokedError,
   PalClientWalletAddressKeyNotFoundError,
   PalClientWalletAddressNotFoundError,
@@ -239,6 +241,20 @@ test('pal client - deactivate peer', async () => {
   assert.ok(peer);
   assert.equal(peer.id, PEER_ONE_ID);
   assert.equal(peer.active, false);
+});
+
+test('pal client - deactivating an inactive peer fails', async () => {
+  await assert.rejects(
+    client.deactivatePeer(PEER_ONE_ID),
+    PalClientPeerAlreadyInactiveError
+  );
+});
+
+test('pal client - deactivating an unknown peer fails', async () => {
+  await assert.rejects(
+    client.deactivatePeer(`${testPrefix}_no_such_peer`),
+    PalClientPeerNotFoundError
+  );
 });
 
 test('pal client - re-activating peer', async () => {

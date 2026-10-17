@@ -1219,6 +1219,9 @@ importers:
       admin-client-lib:
         specifier: workspace:*
         version: link:../admin-client-lib
+      ilp-client-lib:
+        specifier: workspace:*
+        version: link:../ilp-client-lib
     devDependencies:
       testcontainers:
         specifier: ^12.0.4

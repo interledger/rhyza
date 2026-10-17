@@ -10,7 +10,8 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "admin-client-lib": "workspace:*"
+    "admin-client-lib": "workspace:*",
+    "ilp-client-lib": "workspace:*"
   },
   "devDependencies": {
     "testcontainers": "^12.0.4",

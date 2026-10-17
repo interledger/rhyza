@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.12
+  version: 0.0.13
   license:
     name: ISC
     identifier: ISC
@@ -66,6 +66,38 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PeerCreate'
+  /peers/{id}/deactivate:
+    post:
+      summary: Deactivate Peer
+      description: >-
+        Deactivate a peer. The peer is deactivated in PAL, and the ILP
+        connector stops using it once the deactivation reaches the ILP
+        service. Deactivating a peer that is already inactive returns 409.
+      tags:
+        - peers
+      operationId: deactivatePeer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The id of the peer.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The peer is deactivated.
+        '404':
+          description: Peer not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The peer is already inactive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /assets:
     post:
       summary: Create Asset

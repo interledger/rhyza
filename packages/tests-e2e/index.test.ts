@@ -8,9 +8,11 @@ import {
   Wait
 } from 'testcontainers';
 import { AdminApiClient, createAdminClient } from 'admin-client-lib';
+import { IlpClient } from 'ilp-client-lib';
 
 const ADMIN_API_PORT = 3001;
 const ADMIN_API_URL = 'http://localhost:' + ADMIN_API_PORT;
+const ILP_GRPC_URL = 'localhost:50053';
 const COMPOSE_FILE = 'docker-compose.yaml';
 
 describe('E2E tests', () => {
@@ -79,6 +81,47 @@ describe('E2E tests', () => {
     );
     assert.equal(paymentFound.id, paymentId);
     assert.equal(paymentFound.state, 'COMPLETED');
+  });
+
+  test('Peer deactivation', async () => {
+    const peerId = 'e2e-deactivated-peer';
+    await adminClient.assets.createAsset({ code: 'EUR', scale: 2 });
+    await adminClient.peers.createPeer({
+      id: peerId,
+      name: 'E2E deactivated peer',
+      assetCode: 'EUR',
+      assetScale: 2,
+      ilpStaticAddress: 'test.e2e-deactivated-peer',
+      http: {
+        outgoing: { endpoint: 'http://localhost:3999', authToken: 'e2e-token' }
+      }
+    });
+
+    await adminClient.peers.deactivatePeer(peerId);
+
+    // The deactivation reaches the ILP service through an event, so wait for it.
+    const ilpClient = new IlpClient(ILP_GRPC_URL);
+    await ilpClient.init();
+    try {
+      const deadline = Date.now() + 30_000;
+      let ilpPeer = await ilpClient.getPeer(peerId);
+      while (ilpPeer?.isActive !== false && Date.now() < deadline) {
+        await setTimeout(500);
+        ilpPeer = await ilpClient.getPeer(peerId);
+      }
+      assert.equal(ilpPeer?.isActive, false);
+    } finally {
+      await ilpClient.disconnect();
+    }
+
+    await assert.rejects(
+      adminClient.peers.deactivatePeer(peerId),
+      (err: { response?: Response }) => err.response?.status === 409
+    );
+    await assert.rejects(
+      adminClient.peers.deactivatePeer('e2e-no-such-peer'),
+      (err: { response?: Response }) => err.response?.status === 404
+    );
   });
 
   const createWalletAddress = async (
