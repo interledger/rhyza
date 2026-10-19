@@ -16,11 +16,8 @@ Rhyza should **not** be used in production environments by non-regulated [FSPs](
 
 ### Set up a development environment
 
-{/* prettier-ignore */}
-<Steps>
-  1. Install the latest version of <LinkOut href='https://docs.docker.com/compose/install'>Docker Compose</LinkOut>.
-  2. Set up a [Local Playground](/testlocal) using Rhyza's <LinkOut href='https://github.com/interledger/rhyza/tree/main/docker'>Compose file</LinkOut>.
-</Steps>
+1. Install the latest version of <LinkOut href='https://docs.docker.com/compose/install'>Docker Compose</LinkOut>.
+2. Set up a [Local Playground](/testlocal) using Rhyza's <LinkOut href='https://github.com/interledger/rhyza/tree/main/docker'>Compose file</LinkOut>.
 
 ### Set up a production environment
 
@@ -28,11 +25,8 @@ Rhyza should **not** be used in production environments by non-regulated [FSPs](
 Kubernetes details coming soon.
 :::
 
-{/* prettier-ignore */}
-<Steps>
-  1. Review the integration configurations.
-  2. Use the [integration checklist](#integration-checklist).
-</Steps>
+1. Review the integration [configurations](#configurations).
+2. Use the [integration checklist](#integration-checklist).
 
 ## Configurations
 
@@ -74,14 +68,11 @@ The FSP's endpoint must accept `GET` requests. Rhyza always includes the `base` 
 
 The endpoint must return a JSON response containing the `base` asset and a mapping of exchange rates for other supported assets.
 
-<details>
-  <summary>Expand for example requests and a response</summary>
-
-```bash title="Intra-FSP rate request"
+```bash title="Intra-FSP rate request example"
 GET https://cloud-nine-wallet/rates?base=USD
 ```
 
-```bash title="Peer rate request" wrap
+```bash title="Peer rate request example" wrap
 GET https://cloud-nine-wallet/rates?base=USD&peerId=480ef339-7842-4501-a905-923fc1339cef
 ```
 
@@ -94,8 +85,6 @@ GET https://cloud-nine-wallet/rates?base=USD&peerId=480ef339-7842-4501-a905-923f
   }
 }
 ```
-
-</details>
 
 #### Rate caching and expiration
 
@@ -112,8 +101,6 @@ The FSP can specify how long Rhyza caches exchange rates in their configuration/
 Pushed rates are **not** refreshed in the background. The `rateTtlSecs` provided in the Admin API's <LinkOut href="/apis/#tag/rates/POST/rates">Set Exchange Rate</LinkOut> endpoint determines the lifetime of the specific rate. Once a pushed rate's `rateTtlSecs` elapses, it's only replaced the next time that rate is requested, at which point Rhyza falls back to the pull model synchronously.
 
 If the pull model isn't configured or also fails to provide a rate, Rhyza will fail the payment or quote request with an error.
-
-If `rateTtlSecs` is omitted when the rate is pushed, the rate never expires and stays in effect. Rhyza won't fall back to pulling for that asset pair (or peer) until the FSP pushes a new rate.
 
 ### Identity providers
 
@@ -145,18 +132,22 @@ Before becoming peers, both FSPs must:
   both FSPs use Rhyza.
 </details>
 
-{/* prettier-ignore */}
 <details>
   <summary>Agree on an asset</summary>
-  Both FSPs must agree on an [asset](/concepts/accounting#assets) to use for the peering relationship. Peers can set up multiple peering relationships with each another based on different assets. 
-  
-  At least one common asset must be added to both FSPs' Rhyza instance before setting up the peering relationship.
+  Both FSPs must agree on an [asset](/concepts/accounting#assets) to use for the
+  peering relationship. Peers can set up multiple peering relationships with
+  each another based on different assets. At least one common asset must be
+  added to both FSPs' Rhyza instance before setting up the peering relationship.
 </details>
 
-{/* prettier-ignore */}
 <details>
   <summary>Exchange static Interledger (ILP) addresses</summary>
-  An FSP's <LinkOut href='https://interledger.org/developers/rfcs/ilp-addresses/'>ILP address</LinkOut> is self-assigned during Rhyza setup and stored locally in the FSP's configuration/manifest file.
+  An FSP's{' '}
+  <LinkOut href='https://interledger.org/developers/rfcs/ilp-addresses/'>
+    ILP address
+  </LinkOut>{' '}
+  is self-assigned during Rhyza setup and stored locally in the FSP's
+  configuration/manifest file.
 </details>
 
 <details>
@@ -185,37 +176,36 @@ Each payment account belonging to an FSP's customer must be associated with at l
 
 Wallet addresses are created and hosted in Rhyza. However, the mapping of a wallet address to a customer's account stays with the FSP and is never stored in Rhyza's database tables.
 
+{/* prettier-ignore */}
 <Tabs>
-  <TabItem label="1️⃣ Configure the base wallet address">
-    The base wallet address is the portion of the address that will be the same for all customers. **Once the base is set, it cannot be changed.**
+  <TabItem label='1️⃣ Configure the base wallet address'>
+    The base wallet address is the portion of the address that will be the same
+    for all customers. **Once the base is set, it cannot be changed.** 
     
-      ```bash title="Example base address"
-      https://wallet.example.com
-      ```
+    ```bash title="Example base address" 
+    https://wallet.example.com
+    ```
   </TabItem>
-  <TabItem label="2️⃣ Decide wallet address structure">
-    This step defines the structure of what comes after the base wallet address. Addresses are treated as case-insensitive, meaning that both lowercase and uppercase variations of the same address are recognized as identical.
+  <TabItem label='2️⃣ Decide wallet address structure'>
+    This step defines the structure of what comes after the base wallet address.
+    Addresses are treated as case-insensitive, meaning that both lowercase and
+    uppercase variations of the same address are recognized as identical. FSPs
+    should consider whether their chosen structure could disclose personal data.
     
-    FSPs should consider whether their chosen structure could disclose personal data.
-
-      ```bash title="Example wallet address structures" ins={1} del={4}
-      Harder to guess account owner
-      https://wallet.example.com/nickname
-
-      Easier to guess account owner
-      https://wallet.example.com/firstname.lastname
-      ```
-
+    ```bash title="Example wallet address structures" ins={1} del={4}
+    Harder to guess account owner 
+    https://wallet.example.com/nickname 
+    
+    Easier to guess account owner
+    https://wallet.example.com/firstname.lastname
+    ```
   </TabItem>
-  <TabItem label="3️⃣ Create wallet addresses">
-    :::note
-    Rhyza must be set up with at least one asset before wallet addresses can be created.
-    :::
-
-    Wallet addresses are created one-by-one by calling the Admin API's <LinkOut href="/apis/#tag/wallet-addresses/POST/wallet-addresses">Create Wallet Address</LinkOut> endpoint.
-
-    To bulk-assign wallet addresses to existing customers, the FSP should write a script that calls the Create Wallet Address endpoint and loops through their list of accounts.
-
+  <TabItem label='3️⃣ Create wallet addresses'>
+    :::note 
+    Rhyza must be set up with at least one asset before wallet addresses
+    can be created. 
+    ::: 
+    Wallet addresses are created one-by-one by calling the Admin API's <LinkOut href='/apis/#tag/wallet-addresses/POST/wallet-addresses'>Create Wallet Address</LinkOut> endpoint. To bulk-assign wallet addresses to existing customers, the FSP should write a script that calls the Create Wallet Address endpoint and loops through their list of accounts.
   </TabItem>
 </Tabs>
 

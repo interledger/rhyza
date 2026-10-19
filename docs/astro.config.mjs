@@ -60,7 +60,8 @@ export default defineConfig({
           lang: 'en'
         },
         es: {
-          label: 'Español'
+          label: 'Español',
+          lang: 'es'
         }
       },
       head: [
@@ -112,6 +113,7 @@ export default defineConfig({
           items: [
             {
               label: 'Accounts and liquidity',
+              translations: { es: 'Transacciones en Rhyza' },
               link: '/concepts/accounting'
             },
             {
@@ -121,6 +123,7 @@ export default defineConfig({
             },
             {
               label: 'Financial service provider',
+              translations: { es: 'Proveedor de servicios financieros (FSP)' },
               link: '/concepts/financial-service-provider'
             },
             {

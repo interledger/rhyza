@@ -6,6 +6,7 @@ Thank you for contributing to Rhyza! Your contributions are essential to making 
 
 - Have you read the [code of conduct](code_of_conduct.md)?
 - Check out the [existing issues](https://github.com/interledger/rhyza/issues) & see if we [accept contributions](#types-of-contributions) for your type of issue.
+- If you use AI tools as part of your contribution, make sure you've read our [AI usage policy](../AI_POLICY.md).
 
 ## Table of Contents <!-- omit in toc -->
 

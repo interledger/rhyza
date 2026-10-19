@@ -40,20 +40,17 @@ The playground also provides several web interfaces for monitoring and interacti
 
 ### Get started
 
-<Steps>
-
 1. From the root directory, run the following command to start the services.
 
-   ```bash
-   pnpm docker up
-   ```
+```bash
+pnpm docker up
+```
 
 2. Verify that the services are running.
-   ```bash
-   pnpm docker ps
-   ```
 
-</Steps>
+```bash
+pnpm docker ps
+```
 
 ## Useful commands
 
@@ -103,13 +100,9 @@ the repository to help you get started with Rhyza's APIs.
 
 ### Setup
 
-<Steps>
-
 1. Open Bruno and select **Open Collection**.
 2. Navigate to the `bruno/collections/rafiki-v2` directory in your local repository.
 3. Once the collection is loaded, select an environment from the dropdown in the top right corner: **Rafiki v2** for the default single-node setup, or **Rafiki v2 Local Peers** when running two nodes.
-
-</Steps>
 
 ### Available collections
 
@@ -130,15 +123,9 @@ Use these requests to perform tasks such as creating assets, setting up wallet a
 
 The **Remote Payment** collection walks through a complete ILP payment between the sender (Node A) and the receiver (Node B), using the **Rafiki v2 Local Peers** environment. It's organized into three numbered folders, run in order:
 
-<Steps>
-
-1. **Setup** - Creates a USD asset, wallet address, and peer on each node
-   (each node peers with the other's `ilp-connector-service`), then funds the
-   sender's liquidity so it has funds to send.
+1. **Setup** - Creates a USD asset, wallet address, and peer on each node (each node peers with the other's `ilp-connector-service`), then funds the sender's liquidity so it has funds to send.
 2. **Flow** - Creates a payment intent on the receiver, a quote on the sender referencing that intent, and the payment itself on the sender.
 3. **Verify** - Checks the incoming payment on the receiver and the payment's status on the sender to confirm it completed.
-
-</Steps>
 
 #### Example flow
 
@@ -147,7 +134,6 @@ The **Remote Payment** collection walks through a complete ILP payment between t
     participant Bruno as Bruno client
     participant Receiver as Receiver (Node B)
     participant Sender as Sender (Node A)
-
     Bruno->>Receiver: POST /payment-intents
     Receiver-->>Bruno: 201 Created
     Bruno->>Sender: POST /quotes
@@ -155,6 +141,5 @@ The **Remote Payment** collection walks through a complete ILP payment between t
     Bruno->>Sender: POST /payments
     Sender-->>Bruno: 201 Created
     Note over Sender,Receiver: Payment sent<br/>over ILP
-
-`}
+  `}
 />

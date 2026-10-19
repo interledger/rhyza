@@ -1,0 +1,34 @@
+---
+title: Open Payments
+---
+
+import { LinkOut } from '@interledger/docs-design-system'
+
+Rhyza sigue el estándar de Open Payments para permitir que los clientes externos recuperen de forma segura información de las cuentas y autoricen pagos desde las cuentas de los clientes de un FSP con el consentimiento de los clientes.
+
+## Servicios de Open Payments de Rhyza
+
+Rhyza ofrece la funcionalidad de Open Payments a través de servicios independientes que exponen las API necesarias para que los clientes puedan recuperar forma segura la información de las cuentas e iniciar pagos.
+
+### Direcciones de billetera
+
+Una dirección de billetera es una URL única que identifica una cuenta habilitada para Open Payments y sirve como punto final de servicio para obtener acceso a las API de Open Payments. Rhyza asignará una dirección de billetera a cada cuenta de cliente en nombre del FSP.
+
+Las direcciones de billetera deben ser una URL HTTPS válida (por ejemplo, `https://wallet.example.com/alice`).
+
+Consulte [Direcciones de billetera](/es/concepts/wallet-addresses) para obtener más información.
+
+### Servidor de recursos de Open Payments
+
+El servidor de recursos de Open Payments es un servicio independiente que expone los puntos finales definidos en <LinkOut href="https://openpayments.dev/apis/#description/introduction
+">la especificación de Open Payments</LinkOut>. Actúa como una capa de traducción sin estado que valida las solicitudes entrantes e interactúa con el backend de Rhyza para gestionar recursos como <LinkOut href="https://openpayments.dev/concepts/resources/#resource-types">pagos entrantes, cotizaciones y pagos salientes</LinkOut>.
+
+:::note
+Rhyza's Admin API uses the terms _payment intents_ and _payments_ for these same resources. See [Payment intents and payments](/es/concepts/payment-intents-and-payments) for more information.
+:::
+
+### Servidor de autorización de Open Payments
+
+El servidor de autorización de Open Payments es un servicio independiente que implementa la especificación del servidor de autorización de Open Payments. Es responsable de delegar la autorización a los clientes (mediante concesiones), resolver las claves públicas para la autenticación y gestionar los tókenes de acceso. Open Payments aprovecha el <LinkOut href="https://openpayments.dev/concepts/auth/">Protocolo de Negociación y Autorización de Concesiones (GNAP)</LinkOut> para delegar la autorización.
+
+[Obtenga más información sobre la arquitectura del sistema de Rhyza.](/architecture)

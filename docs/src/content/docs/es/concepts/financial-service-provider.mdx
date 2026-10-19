@@ -1,0 +1,43 @@
+---
+title: Proveedor de servicios financieros (FSP)
+---
+
+import { LinkOut } from '@interledger/docs-design-system'
+
+Una entidad que administra la cuenta (financial service provider, FSP) es una entidad regulada que proporciona y mantiene cuentas de pago para sus clientes. Algunos ejemplos de FSP son los bancos, los proveedores de billeteras digitales y los proveedores de dinero móvil.
+
+Como entidades reguladas, las FSP están sujetas a las leyes, normas y regulaciones de sus jurisdicciones. Por lo tanto, las entidades no reguladas no deben utilizar Rhyza en entornos de producción.
+
+## Conservación de datos
+
+Todos los datos permanecen en poder del FSP. Rhyza no almacena datos que constituyan la fuente de la verdad, ya sean personales o de otro tipo.
+
+Rhyza no impone por sí misma ningún plazo de conservación para los registros de pagos o de liquidez. Esos datos residen en la infraestructura que implementa y administra el FSP. Por lo tanto, la limitación del plazo de conservación es una política que el FSP aplica en su propia base de datos y capa de infraestructura.
+
+## Responsabilidades y obligaciones
+
+<img
+  src='/img/fsp-responsibilities.png'
+  alt='Image with four panels that summarize the four main responsibilities of FSPs'
+  style='max-width:600px'
+/>
+
+### AML (Prevención del lavado de dinero)
+
+Las FSP cumplen con las leyes y regulaciones contra el lavado de dinero para detectar y prevenir el lavado de dinero y otras actividades financieras sospechosas.
+
+### KYC/KYB (Conozca a su cliente/negocio)
+
+Las prácticas de KYC y KYB garantizan que las FSP verifiquen la identidad de sus clientes mediante la recopilación de documentos de identidad y comprobantes de domicilio, la verificación de registros comerciales, la consulta de listas de sanciones y otros procesos.
+
+### Gestión de cuentas de usuario y datos
+
+Los FSP son responsables de lo siguiente:
+
+- Gestionar la creación, el almacenamiento, el mantenimiento y la seguridad de las cuentas de sus clientes y de los saldos de dichas cuentas.
+- Autenticar a sus clientes y ofrecerles canales seguros para que interactúen con sus cuentas a través de aplicaciones móviles, sitios web u otras interfaces.
+- Almacenar y mantener su propia asignación de direcciones de billetera a cuentas de clientes. Rhyza aloja direcciones de billeteras para facilitar la detección de cuentas, pero no almacena ningún vínculo entre una dirección y una cuenta de cliente.
+
+### Libro contable
+
+Dado que las FSP gestionan depósitos y retiros a través de métodos de pago externos (como transferencias bancarias, tarjetas de crédito y otros servicios), deben registrar en su libro contable todas las transacciones y la información de saldos.

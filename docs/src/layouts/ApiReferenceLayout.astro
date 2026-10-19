@@ -59,7 +59,8 @@ const { title } = Astro.props
     --op-header-bg: #24272f;
     --op-header-border: #17181c;
     --op-header-text: #ffffff;
-    --op-header-muted: #888b96;
+    /* #888b96 gave 4.39:1 on the header and failed WCAG AA. This gives 5:1. */
+    --op-header-muted: #9295a0;
   }
 
   @media (min-width: 50rem) {

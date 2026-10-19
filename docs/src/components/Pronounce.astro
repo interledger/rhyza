@@ -1,0 +1,67 @@
+---
+// src/components/Pronounce.astro
+// Props:
+//   word – the word as printed on the page (required)
+//   src  – path to the MP3, e.g. "/audio/kyiv.mp3" (files live in /public/audio) (required)
+//   lang – optional BCP-47 language of the word, e.g. "uk", so screen readers pronounce it correctly
+//   ipa  – optional text pronunciation (IPA or respelling) for people who can't hear the audio
+const { word, src, lang, ipa } = Astro.props
+---
+
+<pronounce-word data-src={src}>
+  <span lang={lang}>{word}</span>{' '}
+  {ipa && <span class='pronounce-ipa'>{`/${ipa}/ `}</span>}
+  <span aria-hidden='true'>(</span><button
+    type='button'
+    class='pronounce-btn'
+    aria-label={`Play pronunciation of ${word}`}
+    ><span aria-hidden='true'>🔊</span></button
+  ><span aria-hidden='true'>)</span>
+</pronounce-word>
+
+<script>
+  class PronounceWord extends HTMLElement {
+    connectedCallback() {
+      const button = this.querySelector('button')
+      let audio = null
+
+      button?.addEventListener('click', () => {
+        // Create the audio lazily so nothing downloads until someone asks for it
+        if (!audio) audio = new Audio(this.dataset.src)
+        audio.currentTime = 0
+        // Ignore playback failures (e.g. the browser blocks audio) so they don't surface as unhandled errors
+        audio.play().catch(() => {})
+      })
+    }
+  }
+
+  if (!customElements.get('pronounce-word')) {
+    customElements.define('pronounce-word', PronounceWord)
+  }
+</script>
+
+<style>
+  .pronounce-btn {
+    /* Reset button chrome so it reads as inline text */
+    background: none;
+    border: none;
+    padding: 0 0.1em;
+    font: inherit;
+    line-height: inherit;
+    cursor: pointer;
+    /* WCAG 2.5.8: at least 24×24px target */
+    min-width: 24px;
+    min-height: 24px;
+    vertical-align: baseline;
+  }
+
+  .pronounce-btn:focus-visible {
+    outline: 2px solid var(--sl-color-accent);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  .pronounce-ipa {
+    color: var(--sl-color-gray-3);
+  }
+</style>

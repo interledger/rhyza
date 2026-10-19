@@ -1,0 +1,30 @@
+---
+title: Wallet addresses
+---
+
+import { LinkOut } from '@interledger/docs-design-system'
+
+Un wallet address es una URL segura y única de una cuenta de pago compatible con Open Payments. Funciona como un punto de entrada a las API de Open Payments, y facilita interacciones como el envío y la recepción de pagos.
+
+Puede determinar si una URL es un wallet address enviando una solicitud `GET` a la URL con un encabezado `accept: application/json`.
+
+```http title="Ejemplo de solicitud"
+curl --request GET \
+ --url https://wallet.example.com/alice \
+ --header 'accept: application/json'
+```
+
+Una respuesta válida significa que la URL es un wallet address.
+
+```http title="Ejemplo de respuesta"
+{
+  "id": "https://wallet.example.com/alice",
+  "publicName": "Alice",
+  "assetCode": "USD",
+  "assetScale": 2,
+  "authServer": "https://auth.wallet.example.com/123e4567-e89b-12d3-a456-426614174000",
+  "resourceServer": "https://wallet.example.com/123e4567-e89b-12d3-a456-426614174000",
+}
+```
+
+Rhyza asignará una dirección de billetera a cada cuenta de cliente en nombre del FSP. Consulte los [requisitos de integración](/integration#wallet-addresses) para las direcciones de billetera para obtener más información.

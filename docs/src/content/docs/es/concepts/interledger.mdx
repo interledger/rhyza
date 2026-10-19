@@ -1,0 +1,51 @@
+---
+title: Interledger
+---
+
+import { LinkOut } from '@interledger/docs-design-system'
+
+Crear y mantener los servicios necesarios para participar en la red de Interledger puede ser una tarea compleja y que requiere mucho tiempo. Como implementación de referencia de la pila de Interledger, Rhyza les ofrece a los FSP todas las herramientas que necesitan para unirse a la red y habilitar las capacidades de Interledger en las cuentas de sus usuarios.
+
+## Paquetes
+
+En el núcleo de Interledger se encuentra el Interledger Protocol (ILP). Es un protocolo de solicitud/respuesta en el que las solicitudes y las respuestas son paquetes ILP.
+
+Estos paquetes de datos contienen información sobre un pago. Por lo general, la información sobre un único pago agregado del remitente al destinatario se divide en varios paquetes ILP.
+
+Cada paquete representa un pagaré condicional que afecta los saldos contables financieros entre pares. Los importes se ajustan en función del activo del remitente, el activo del destinatario y el servicio de tipos de cambio configurado de Rhyza. Luego, los montos se utilizan para actualizar la [liquidez entre pares](/es/concepts/accounting) en el libro contable de Rhyza.
+
+## Pares
+
+Interledger en sí es una red de computadoras que permite enviar mensajes de pago a través de redes de pago. Cada computadora de la red es un nodo.
+
+Para que dos nodos de la red de Interledger intercambien paquetes ILP entre sí, los dos nodos deben ser pares. Existen varios [requisitos](/integration#peers) que tanto un FSP como su posible par deben cumplir para establecer una relación de interconexión.
+
+Dado que el propósito de la interconexión es facilitar los pagos, lo que a menudo implica extender líneas de crédito, los FSP solo deben interconectarse con entidades en las que confíen. Recomendamos encarecidamente que los posibles pares definan sus expectativas y describan sus acuerdos en un documento legalmente vinculante antes de iniciar una interconexión.
+
+## Conectores
+
+Cada nodo de la red de Interledger puede asumir el papel de remitente, conector o destinatario, según el pago.
+
+- Remitente: origina el pago mediante el envío de paquetes ILP.
+- Conector: un intermediario entre un remitente y un destinatario que reenvía paquetes ILP. Los conectores pueden facilitar los pagos hacia o desde cualquier par con el que estén interconectados.
+- Destinatario: el destinatario final de los paquetes ILP y, por lo tanto, del pago.
+
+Si los nodos remitente y destinatario son pares, el flujo de pago es directo y no se necesitan nodos conectores intermediarios. Sin embargo, si el remitente y el destinatario no son pares, el pago debe pasar por uno o más conectores. Rhyza incluye un conector Interledger para enviar y recibir paquetes ILP.
+
+En la imagen a continuación, el nodo remitente (A) y el nodo destinatario (C) comparten un par común (B). En los pagos del remitente al destinatario, el nodo B desempeña el papel de conector para facilitar los pagos entre ambos.
+
+<img
+  src='/img/concepts-interledger.png'
+  alt='Peering relationship showing a sender, connector, and receiver'
+  style='max-width:400px'
+/>
+
+En realidad, puede haber múltiples conectores entre un nodo remitente y un nodo destinatario. Cuantos más nodos compatibles con distintos activos se interconecten entre sí, más fácil será que los pagos puedan atravesar la red de Interledger.
+
+## Protocolo STREAM
+
+El protocolo STREAM es el protocolo de la capa de transporte en la pila del Interledger Protocol. STREAM establece una conexión entre dos contrapartes a fin de facilitar los pagos directos a través de Interledger.
+
+El conector Interledger de Rhyza admite el envío y la recepción de paquetes STREAM. Los paquetes STREAM se codifican, cifran y envían como el campo de datos en los paquetes ILP. El protocolo utiliza el secreto compartido para autenticar y cifrar los paquetes, y para generar las condiciones y los cumplimientos.
+
+Una función fundamental de STREAM es determinar el tipo de cambio de la ruta y gestionar cualquier cambio en el tipo de cambio. El servicio de tipos de cambio de Rhyza le permite proporcionar información sobre los tipos de cambio.
