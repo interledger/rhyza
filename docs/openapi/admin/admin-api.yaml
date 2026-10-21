@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.13
+  version: 0.0.14
   license:
     name: ISC
     identifier: ISC
@@ -454,7 +454,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Quote'
+                $ref: '#/components/schemas/CompletedQuote'
         '400':
           description: Either paymentIntentId or paymentIntentUrl is required.
           content:
@@ -477,6 +477,44 @@ paths:
               oneOf:
                 - $ref: '#/components/schemas/QuoteCreateFromPaymentIntentId'
                 - $ref: '#/components/schemas/QuoteCreateFromPaymentIntentUrl'
+  /payment-intents/{intentId}/quotes/{id}:
+    get:
+      summary: Get Quote
+      description: >-
+        Retrieve a quote in any state. The response shape depends on state:
+        PendingQuote, CompletedQuote, or FailedQuote.
+      tags:
+        - quotes
+      operationId: getQuote
+      parameters:
+        - name: intentId
+          in: path
+          description: Unique identifier for the payment intent
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: Unique identifier for the quote
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PendingQuote'
+                  - $ref: '#/components/schemas/CompletedQuote'
+                  - $ref: '#/components/schemas/FailedQuote'
+        '404':
+          description: Quote not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /payments:
     get:
       summary: List Payments
@@ -1179,6 +1217,13 @@ components:
         receiveAmount:
           type: string
           description: The amount to be received by the recipient.
+    QuoteState:
+      type: string
+      description: The current status of a quote.
+      enum:
+        - PENDING
+        - COMPLETED
+        - FAILED
     QuoteCreateFromPaymentIntentId:
       description: >-
         Quotes a payment intent this instance already holds, named by its local
@@ -1208,18 +1253,17 @@ components:
               format: uri
               description: >-
                 The URL of the payment intent this quote is for.
-    Quote:
+    QuoteBase:
       type: object
-      description: Represents a payment quote with estimated amounts and exchange rates.
+      description: >-
+        Fields common to every quote response.
       required:
         - id
         - paymentIntentId
         - senderWalletAddress
         - senderWalletAddressId
-        - expiresAt
-        - debitAmount
-        - receiveAmount
-        - exchangeRate
+        - createdAt
+        - state
       properties:
         id:
           type: string
@@ -1233,19 +1277,79 @@ components:
         senderWalletAddressId:
           type: string
           description: The unique identifier of the sender's wallet address.
-        expiresAt:
+        createdAt:
           type: string
           format: date-time
-          description: The date and time when the quote expires.
-        debitAmount:
-          type: string
-          description: The amount that will be debited from the sender.
-        receiveAmount:
-          type: string
-          description: The amount that will be received by the recipient.
-        exchangeRate:
-          type: number
-          description: The exchange rate of quote.
+          description: When the quote was created.
+    PendingQuote:
+      description: >-
+        A quote that is still being calculated. Optional fields are present
+        only when they have been determined so far.
+      allOf:
+        - $ref: '#/components/schemas/QuoteBase'
+        - type: object
+          required:
+            - state
+          properties:
+            state:
+              type: string
+              const: PENDING
+              description: The quote is still being calculated.
+            debitAmount:
+              type: string
+              description: Amount debited from the sender, when determined.
+            receiveAmount:
+              type: string
+              description: Amount received by the recipient, when determined.
+            sourceAmount:
+              type: string
+              description: Source amount used while the quote is calculated.
+            senderAssetCode:
+              type: string
+              description: Asset code of the sender amount.
+    CompletedQuote:
+      description: A successfully calculated quote with amounts and exchange rate.
+      allOf:
+        - $ref: '#/components/schemas/QuoteBase'
+        - type: object
+          required:
+            - state
+          properties:
+            state:
+              type: string
+              const: COMPLETED
+              description: The quote completed successfully.
+            expiresAt:
+              type: string
+              format: date-time
+              description: When the quote expires.
+            debitAmount:
+              type: string
+              description: Amount debited from the sender.
+            receiveAmount:
+              type: string
+              description: Amount received by the recipient.
+            exchangeRate:
+              type: number
+              description: Exchange rate applied to the quote.
+    FailedQuote:
+      description: A quote that failed during calculation.
+      allOf:
+        - $ref: '#/components/schemas/QuoteBase'
+        - type: object
+          required:
+            - state
+          properties:
+            state:
+              type: string
+              const: FAILED
+              description: The quote failed.
+            errorName:
+              type: string
+              description: Name of the error that failed the quote.
+            message:
+              type: string
+              description: Human-readable failure message.
     PaymentCreateBase:
       type: object
       description: >-
