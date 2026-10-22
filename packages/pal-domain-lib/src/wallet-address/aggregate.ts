@@ -47,7 +47,7 @@ export class WalletAddressAggregate {
     assetScale: number,
     isActive?: boolean
   ): Promise<string> {
-    const alias = await this.resolveWalletAddressAlias(domain, pathName);
+    const alias = await this.resolveWalletAddressByAlias(domain, pathName);
 
     if (alias) {
       this._logger.warn(
@@ -135,14 +135,14 @@ export class WalletAddressAggregate {
     return found.map(PalWalletAddress.fromDto);
   }
 
-  async resolveWalletAddressAlias(
+  async resolveWalletAddressByAlias(
     domain: string | null,
     pathName: string
-  ): Promise<string | null> {
+  ): Promise<IPalWalletAddressDto | null> {
     const found = await this._repo.getByAlias(domain || null, pathName);
 
     if (!found) return null;
-    return found.id;
+    return PalWalletAddress.fromDto(found);
   }
 
   async createWalletAddressAlias(

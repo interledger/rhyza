@@ -81,23 +81,23 @@ describe('Payments Client', () => {
       // already exists — fine for reruns
     }
 
-    const receiverAlias = await palClient.resolveWalletAddressAlias(
+    const receiverWallet = await palClient.resolveWalletAddressByAlias(
       null,
       RECEIVER_PATH_NAME
     );
 
-    assert.ok(receiverAlias, 'receiver wallet address alias must resolve');
+    assert.ok(receiverWallet, 'receiver wallet address alias must resolve');
 
-    receiverWalletAddressId = receiverAlias.walletAddressId;
+    receiverWalletAddressId = receiverWallet.id;
 
-    const senderAlias = await palClient.resolveWalletAddressAlias(
+    const senderWallet = await palClient.resolveWalletAddressByAlias(
       null,
       SENDER_PATH_NAME
     );
 
-    assert.ok(senderAlias, 'sender wallet address alias must resolve');
+    assert.ok(senderWallet, 'sender wallet address alias must resolve');
 
-    senderWalletAddressId = senderAlias.walletAddressId;
+    senderWalletAddressId = senderWallet.id;
 
     paymentsClient = new PaymentsClient(PAYMENTS_GRPC_URL);
     await paymentsClient.init();
@@ -716,12 +716,13 @@ describe('Payments Client', () => {
         'Page Receiver',
         ASSET_CODE
       );
-      const alias = await palClient.resolveWalletAddressAlias(
+
+      const wallet = await palClient.resolveWalletAddressByAlias(
         null,
         PAGE_RECEIVER_PATH
       );
-      assert.ok(alias, 'page receiver wallet address alias must resolve');
-      pageReceiverWalletAddressId = alias.walletAddressId;
+      assert.ok(wallet, 'page receiver wallet address alias must resolve');
+      pageReceiverWalletAddressId = wallet.id;
 
       for (let i = 0; i < 5; i++) {
         const id = randomUUID();
@@ -861,12 +862,13 @@ describe('Payments Client', () => {
         'Page Sender',
         ASSET_CODE
       );
-      const alias = await palClient.resolveWalletAddressAlias(
+
+      const wallet = await palClient.resolveWalletAddressByAlias(
         null,
         PAGE_SENDER_PATH
       );
-      assert.ok(alias, 'page sender wallet address alias must resolve');
-      pageSenderWalletAddressId = alias.walletAddressId;
+      assert.ok(wallet, 'page sender wallet address alias must resolve');
+      pageSenderWalletAddressId = wallet.id;
 
       // three payments across two intents
       firstIntentId = await createPaymentIntent(100);
