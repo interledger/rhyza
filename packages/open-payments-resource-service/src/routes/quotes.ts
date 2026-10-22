@@ -122,32 +122,18 @@ export async function quoteRoutes(
         const { domain, pathName } =
           parseAddressToDomainAndPathName(walletAddressUrl);
 
-        const alias = await palClient.resolveWalletAddressAlias(
+        const walletAddress = await palClient.resolveWalletAddressByAlias(
           domain,
           pathName
         );
 
-        if (!alias) {
+        if (!walletAddress) {
           throw new OpenPaymentsResourceServerRouteError(
             400,
             'Wallet address not found',
             'not_found'
           );
         }
-
-        const walletAddresses = await palClient.getWalletAddresses([
-          alias.walletAddressId
-        ]);
-
-        if (!walletAddresses.length) {
-          throw new OpenPaymentsResourceServerRouteError(
-            404,
-            'Wallet address not found',
-            'not_found'
-          );
-        }
-
-        const walletAddress = walletAddresses[0];
 
         let debitAmountValue: number | undefined;
         let receiveAmountValue: number | undefined;
@@ -176,7 +162,7 @@ export async function quoteRoutes(
         const result = await paymentsClient.createQuote(
           id,
           { paymentIntentUrl: incomingPaymentUrl },
-          alias.walletAddressId,
+          walletAddress.id,
           walletAddressUrl,
           debitAmountValue,
           receiveAmountValue
