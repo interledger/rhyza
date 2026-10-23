@@ -223,3 +223,23 @@ class HandleInteractionChoiceCmd extends AuthCmd {
 
 export class AcceptInteractionCmd extends HandleInteractionChoiceCmd {}
 export class RejectInteractionCmd extends HandleInteractionChoiceCmd {}
+
+export interface ValidateOutgoingPaymentGrantLimitCmdPayload {
+  id: string;
+  debitAmountValue: string;
+  receiveAmountValue: string;
+  createdAt: string;
+}
+
+export class ValidateOutgoingPaymentGrantLimitCmd extends AuthCmd {
+  payload: ValidateOutgoingPaymentGrantLimitCmdPayload;
+
+  constructor(
+    payload: ValidateOutgoingPaymentGrantLimitCmdPayload,
+    requestId: string
+  ) {
+    super(payload.id, requestId);
+    this.msgKey = payload.id;
+    this.payload = payload;
+  }
+}

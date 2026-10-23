@@ -6,7 +6,8 @@ import {
   IRevokedGrantUpdate,
   IRotatedGrantUpdate,
   IContinuedGrantUpdate,
-  IFinishedInteractiveGrantUpdate
+  IFinishedInteractiveGrantUpdate,
+  IUpdatedSpentAmountGrant
 } from 'auth-domain-lib';
 import { ILogger } from 'common-types-lib';
 
@@ -129,6 +130,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
       finishUri: doc.finishUri,
       interactionNonce: doc.interactionNonce,
       interaction: doc.interaction,
+      spentAmounts: doc.spentAmounts,
       accessTokens: tokenDocs.map((token) => ({
         ...token,
         expiresInMs: token.expiresInMs,
@@ -161,7 +163,8 @@ export class MongoDbGrantRepo implements IGrantRepository {
           finishMethod: grant.finishMethod,
           finishUri: grant.finishUri,
           interactionNonce: grant.interactionNonce,
-          interaction: grant.interaction
+          interaction: grant.interaction,
+          spentAmounts: grant.spentAmounts
         }))
       );
 
@@ -334,6 +337,35 @@ export class MongoDbGrantRepo implements IGrantRepository {
       this._logger.error(err);
       throw new Error(
         `Unable to store revoked grants - error: ${(err as Error).message}`
+      );
+    }
+  }
+
+  async storeUpdatedSpentAmountGrants(
+    grants: IUpdatedSpentAmountGrant[]
+  ): Promise<void> {
+    this._checkInitialisedOrThrow();
+
+    if (grants.length === 0) return;
+
+    try {
+      await this._grantCollection.bulkWrite(
+        grants.map((grant) => ({
+          updateOne: {
+            filter: { id: grant.id },
+            update: {
+              $set: {
+                spentAmounts: grant.spentAmounts
+              }
+            }
+          }
+        })),
+        { ordered: false }
+      );
+    } catch (err) {
+      this._logger.error(err);
+      throw new Error(
+        `Unable to store updated spent amount grants - error: ${(err as Error).message}`
       );
     }
   }

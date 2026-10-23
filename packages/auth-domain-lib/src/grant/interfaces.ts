@@ -47,9 +47,28 @@ export interface IAccessItem {
   identifier?: string;
 }
 
+export interface OutgoingPaymentAccessItem extends IAccessItem {
+  type: Extract<AccessType, 'OUTGOING_PAYMENT'>;
+}
+
 export interface ISubjectId {
   format: string;
   id: string;
+}
+
+export interface ISpentAmounts {
+  total: {
+    debit: bigint;
+    receive: bigint;
+  };
+  interval?: {
+    start: number;
+    end: number;
+    total: {
+      debit: bigint;
+      receive: bigint;
+    };
+  };
 }
 
 export const InteractionState = {
@@ -136,6 +155,7 @@ export interface IGrant {
   interactionNonce?: string;
   interaction?: IInteraction;
   accessTokens: IAccessToken[];
+  spentAmounts?: ISpentAmounts;
 }
 
 export interface IAccessToken {
@@ -205,6 +225,11 @@ export interface IRevokedGrantUpdate {
   state: GrantState;
 }
 
+export interface IUpdatedSpentAmountGrant {
+  id: string;
+  spentAmounts: ISpentAmounts;
+}
+
 export interface IGrantRepository {
   storeMany(grants: IGrant[]): Promise<void>;
   storeRotatedGrants(updates: IRotatedGrantUpdate[]): Promise<void>;
@@ -214,6 +239,9 @@ export interface IGrantRepository {
   ): Promise<void>;
   storeRevokedGrants(grants: IRevokedGrantUpdate[]): Promise<void>;
   storeRevokedTokens(tokens: IAccessToken[]): Promise<void>;
+  storeUpdatedSpentAmountGrants(
+    grants: IUpdatedSpentAmountGrant[]
+  ): Promise<void>;
   fetchById(id: string): Promise<IGrant | undefined>;
   fetchByIds(ids: string[]): Promise<IGrant[]>;
   storeInteractions(grants: IGrant[]): Promise<void>;

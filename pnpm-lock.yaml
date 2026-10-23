@@ -275,10 +275,16 @@ importers:
       common-types-lib:
         specifier: workspace:*
         version: link:../common-types-lib
+      luxon:
+        specifier: ^3.7.2
+        version: 3.7.2
       uuid:
         specifier: ^14.0.0
         version: 14.0.0
     devDependencies:
+      '@types/luxon':
+        specifier: ^3.7.6
+        version: 3.7.6
       implementations-lib:
         specifier: workspace:*
         version: link:../implementations-lib
@@ -3326,6 +3332,9 @@ packages:
   '@types/long@4.0.2':
     resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
 
+  '@types/luxon@3.7.6':
+    resolution: {integrity: sha512-6KSjliQAXK8ZLgFQO4B7iE4Rpf/B3rItzCFuXezBY/XIAGxOdLd7vRNK9/StRPwiS/yJsVbB7HKpW46B8tcEuQ==}
+
   '@types/mathjax@0.0.40':
     resolution: {integrity: sha512-rHusx08LCg92WJxrsM3SPjvLTSvK5C+gealtSuhKbEOcUZfWlwigaFoPLf6Dfxhg4oryN5qP9Sj7zOQ4HYXINw==}
 
@@ -5971,6 +5980,10 @@ packages:
 
   lru-cache@7.18.3:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
+    engines: {node: '>=12'}
+
+  luxon@3.7.2:
+    resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
     engines: {node: '>=12'}
 
   magic-string@0.30.21:
@@ -10760,6 +10773,8 @@ snapshots:
 
   '@types/long@4.0.2': {}
 
+  '@types/luxon@3.7.6': {}
+
   '@types/mathjax@0.0.40': {}
 
   '@types/mdast@4.0.4':
@@ -13930,6 +13945,8 @@ snapshots:
   lru-cache@11.5.1: {}
 
   lru-cache@7.18.3: {}
+
+  luxon@3.7.2: {}
 
   magic-string@0.30.21:
     dependencies:

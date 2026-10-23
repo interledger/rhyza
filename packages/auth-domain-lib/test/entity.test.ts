@@ -15,11 +15,13 @@ import {
   AccessAction,
   AccessType,
   GrantState,
+  IAccessLimit,
   IFinishMethod,
   IGrant,
   IJsonWebKey,
   InteractionState,
-  IInteraction
+  IInteraction,
+  ISpentAmounts
 } from '../src/grant/interfaces';
 
 function generateNonce(): string {
@@ -118,6 +120,7 @@ describe('GrantEntity', () => {
       const obj = entity.toObject();
       assert.equal(obj.id, id);
       assert.equal(obj.finishUri, finishUri);
+      assert.equal(obj.spentAmounts, undefined); // Only initialized for interactive grants.
     });
 
     it('leaves the grant in pending state without an access token and creates continuation information for interactive grants', () => {
@@ -170,6 +173,12 @@ describe('GrantEntity', () => {
       assert.equal(obj.finishUri, finishUri);
       assert.equal(obj.finishMethod, finishMethod);
       assert.equal(obj.finishNonce, finishNonce);
+      assert.deepEqual(obj.spentAmounts, {
+        total: {
+          debit: 0n,
+          receive: 0n
+        }
+      });
     });
 
     it('treats the grant as continuable if any requested access is interactive', () => {
@@ -192,6 +201,14 @@ describe('GrantEntity', () => {
       assert.ok(entity.lastContinuedAt instanceof Date);
       assert.equal(entity.interaction, undefined); // This should not be initialized at this point.
       assert.equal(accessToken, undefined);
+
+      const obj = entity.toObject();
+      assert.deepEqual(obj.spentAmounts, {
+        total: {
+          debit: 0n,
+          receive: 0n
+        }
+      });
     });
 
     it('throws InvalidGrantInputError when creating an interactive grant with a client that is a JWK', () => {
@@ -927,7 +944,10 @@ describe('GrantEntity', () => {
 
       const result = entity.introspectAccessToken(accessToken.value, [
         { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] },
-        { type: AccessType.OUTGOING_PAYMENT, actions: [AccessAction.CREATE] }
+        {
+          type: AccessType.OUTGOING_PAYMENT,
+          actions: [AccessAction.CREATE]
+        }
       ]);
 
       assert.deepEqual(result, { active: false });
@@ -1081,6 +1101,361 @@ describe('GrantEntity', () => {
           }
         );
       });
+    });
+  });
+
+  describe('validateAndUpdateSpentAmounts', () => {
+    const limits = (overrides: Partial<IAccessLimit> = {}): IAccessLimit =>
+      ({
+        receiver: 'https://wallet.example/bob',
+        assetCode: 'USD',
+        assetScale: 2,
+        ...overrides
+      }) as IAccessLimit;
+
+    function makeGrantWithOutgoingPaymentAccess(
+      overrides: {
+        limits?: IAccessLimit;
+        spentAmounts?: ISpentAmounts;
+      } = {}
+    ): GrantEntity {
+      return GrantEntity.fromObject({
+        id: randomUUID(),
+        createdAt: new Date(),
+        state: GrantState.ISSUED,
+        accessTokens: [],
+        accesses: [
+          {
+            type: AccessType.OUTGOING_PAYMENT,
+            actions: [AccessAction.CREATE],
+            ...(overrides.limits ? { limits: overrides.limits } : {})
+          }
+        ],
+        spentAmounts: overrides.spentAmounts ?? {
+          total: { debit: 0n, receive: 0n }
+        }
+      } as IGrant);
+    }
+
+    it('throws InvalidGrantError when the grant has no outgoing payment access', () => {
+      const entity = GrantEntity.fromObject({
+        id: randomUUID(),
+        createdAt: new Date(),
+        state: GrantState.ISSUED,
+        accessTokens: [],
+        accesses: [
+          { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
+        ],
+        spentAmounts: { total: { debit: 0n, receive: 0n } }
+      } as IGrant);
+
+      assert.throws(
+        () =>
+          entity.validateAndUpdateSpentAmounts({
+            debitAmountValue: '10',
+            createdAt: new Date().toISOString()
+          }),
+        InvalidGrantError
+      );
+    });
+
+    it('throws InvalidGrantError when spent amounts have not been initialized', () => {
+      const entity = GrantEntity.fromObject({
+        id: randomUUID(),
+        createdAt: new Date(),
+        state: GrantState.ISSUED,
+        accessTokens: [],
+        accesses: [
+          { type: AccessType.OUTGOING_PAYMENT, actions: [AccessAction.CREATE] }
+        ]
+      } as IGrant);
+
+      assert.throws(
+        () =>
+          entity.validateAndUpdateSpentAmounts({
+            debitAmountValue: '10',
+            createdAt: new Date().toISOString()
+          }),
+        InvalidGrantError
+      );
+    });
+
+    it('updates the debit and receive totals without validating a limit when the access has no limits', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess();
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        debitAmountValue: '50',
+        receiveAmountValue: '20',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result.total.debit, 50n);
+      assert.equal(result.total.receive, 20n);
+      assert.equal(result.interval, undefined);
+    });
+
+    it('validates and updates the debit total against the limit', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({ debitAmount: 100n })
+      });
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        debitAmountValue: '40',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result.total.debit, 40n);
+    });
+
+    it('throws InvalidGrantError and leaves the total unchanged when the debit amount would exceed the limit', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({ debitAmount: 100n }),
+        spentAmounts: { total: { debit: 60n, receive: 0n } }
+      });
+
+      assert.throws(
+        () =>
+          entity.validateAndUpdateSpentAmounts({
+            debitAmountValue: '50',
+            createdAt: new Date().toISOString()
+          }),
+        InvalidGrantError
+      );
+
+      const obj = entity.toObject();
+      assert.equal(obj.spentAmounts?.total.debit, 60n);
+    });
+
+    it('validates and updates the receive total against the limit', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({ receiveAmount: 100n })
+      });
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        receiveAmountValue: '30',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result.total.receive, 30n);
+    });
+
+    it('throws InvalidGrantError and leaves the total unchanged when the receive amount would exceed the limit', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({ receiveAmount: 100n }),
+        spentAmounts: { total: { debit: 0n, receive: 70n } }
+      });
+
+      assert.throws(
+        () =>
+          entity.validateAndUpdateSpentAmounts({
+            receiveAmountValue: '40',
+            createdAt: new Date().toISOString()
+          }),
+        InvalidGrantError
+      );
+
+      const obj = entity.toObject();
+      assert.equal(obj.spentAmounts?.total.receive, 70n);
+    });
+
+    it('initializes the interval tracker on the first spend, scoped to the repetition containing the spend date', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({
+          debitAmount: 100n,
+          interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+        })
+      });
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        debitAmountValue: '10',
+        createdAt: '2024-01-15T00:00:00.000Z'
+      });
+
+      assert.equal(result.total.debit, 10n);
+      assert.equal(result.interval?.total.debit, 10n);
+      assert.equal(result.interval?.total.receive, 0n);
+      assert.equal(
+        new Date(result.interval!.start).toISOString(),
+        '2024-01-01T00:00:00.000Z'
+      );
+      assert.equal(
+        new Date(result.interval!.end).toISOString(),
+        '2024-02-01T00:00:00.000Z'
+      );
+    });
+
+    it('initializes the interval tracker to the receive-amount total when the first spend is a receive amount', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({
+          receiveAmount: 100n,
+          interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+        })
+      });
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        receiveAmountValue: '25',
+        createdAt: '2024-01-15T00:00:00.000Z'
+      });
+
+      assert.equal(result.interval?.total.receive, 25n);
+      assert.equal(result.interval?.total.debit, 0n);
+    });
+
+    it('initializes the interval tracker to the repetition containing the spend date, even when that is after the configured start', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({
+          debitAmount: 100n,
+          interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+        })
+      });
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        debitAmountValue: '10',
+        createdAt: '2024-03-10T00:00:00.000Z'
+      });
+
+      assert.equal(result.interval?.total.debit, 10n);
+      assert.equal(
+        new Date(result.interval!.start).toISOString(),
+        '2024-03-01T00:00:00.000Z'
+      );
+      assert.equal(
+        new Date(result.interval!.end).toISOString(),
+        '2024-04-01T00:00:00.000Z'
+      );
+    });
+
+    // NOTE: the limit/lifetime-total checks in validateSpentAmount both
+    // require an *existing* spentAmounts.interval to run, so the very first
+    // spend that bootstraps the interval tracker is not itself validated
+    // against the limit - only spends after that are.
+    it('does not validate the first spend against the limit when it is what initializes the interval tracker', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({
+          debitAmount: 100n,
+          interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+        })
+      });
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        debitAmountValue: '500',
+        createdAt: '2024-01-15T00:00:00.000Z'
+      });
+
+      assert.equal(result.interval?.total.debit, 500n);
+    });
+
+    it('accumulates within an already-tracked interval', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({
+          debitAmount: 100n,
+          interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+        }),
+        spentAmounts: {
+          total: { debit: 10n, receive: 0n },
+          interval: {
+            start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+            end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+            total: { debit: 10n, receive: 0n }
+          }
+        }
+      });
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        debitAmountValue: '20',
+        createdAt: '2024-01-20T00:00:00.000Z'
+      });
+
+      assert.equal(result.total.debit, 30n);
+      assert.equal(result.interval?.total.debit, 30n);
+    });
+
+    it('throws InvalidGrantError when the spend would exceed the limit within the currently tracked interval', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({
+          debitAmount: 100n,
+          interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+        }),
+        spentAmounts: {
+          total: { debit: 20n, receive: 0n },
+          interval: {
+            start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+            end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+            total: { debit: 80n, receive: 0n }
+          }
+        }
+      });
+
+      assert.throws(
+        () =>
+          entity.validateAndUpdateSpentAmounts({
+            debitAmountValue: '30',
+            createdAt: '2024-01-20T00:00:00.000Z'
+          }),
+        InvalidGrantError
+      );
+    });
+
+    it('rolls over to a new interval window when the spend falls after the currently tracked interval', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({
+          debitAmount: 1_000n,
+          interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+        }),
+        spentAmounts: {
+          total: { debit: 90n, receive: 0n },
+          interval: {
+            start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+            end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+            total: { debit: 90n, receive: 0n }
+          }
+        }
+      });
+
+      const result = entity.validateAndUpdateSpentAmounts({
+        debitAmountValue: '15',
+        createdAt: '2024-02-10T00:00:00.000Z'
+      });
+
+      // The lifetime total keeps accumulating...
+      assert.equal(result.total.debit, 105n);
+      // ...but the interval resets to a fresh window scoped to just this
+      // spend, rather than carrying over January's tracked total.
+      assert.equal(result.interval?.total.debit, 15n);
+      assert.equal(
+        new Date(result.interval!.start).toISOString(),
+        '2024-02-01T00:00:00.000Z'
+      );
+      assert.equal(
+        new Date(result.interval!.end).toISOString(),
+        '2024-03-01T00:00:00.000Z'
+      );
+    });
+
+    it('throws InvalidGrantError when the spend date is not covered by any repetition of the interval', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({
+          debitAmount: 1_000n,
+          interval: 'R2/2024-01-01T00:00:00.000Z/P1M'
+        }),
+        spentAmounts: {
+          total: { debit: 10n, receive: 0n },
+          interval: {
+            start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+            end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+            total: { debit: 10n, receive: 0n }
+          }
+        }
+      });
+
+      assert.throws(
+        () =>
+          entity.validateAndUpdateSpentAmounts({
+            debitAmountValue: '5',
+            createdAt: '2024-05-15T00:00:00.000Z'
+          }),
+        InvalidGrantError
+      );
     });
   });
 
