@@ -32,6 +32,7 @@ import {
 } from './interfaces';
 
 const MAX_PAYMENT_INTENT_EXPIRY_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+const MAX_PAYMENT_EXPIRY_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const QUOTE_EXPIRY_MS = 1000 * 60 * 10;
 
 type QuoteRequest = {
@@ -325,6 +326,7 @@ type BaseSentPaymentArgs = {
   assetCode: string;
   assetScale: number;
   createdAt: Date;
+  expiresAt: Date;
   debitAmount: bigint;
   sentAmount: bigint;
   quoteId?: string;
@@ -343,6 +345,7 @@ abstract class BaseSentPayment {
   protected _assetCode: string;
   protected _assetScale: number;
   protected _createdAt: Date;
+  protected _expiresAt: Date;
   protected _debitAmount: bigint;
   protected _quoteId?: string;
   protected _state: SentPaymentState;
@@ -361,6 +364,7 @@ abstract class BaseSentPayment {
     this._assetCode = args.assetCode;
     this._assetScale = args.assetScale;
     this._createdAt = args.createdAt;
+    this._expiresAt = args.expiresAt;
     this._debitAmount = args.debitAmount;
     this._sentAmount = args.sentAmount;
     this._quoteId = args.quoteId;
@@ -393,6 +397,13 @@ abstract class BaseSentPayment {
     }
   }
 
+  expire() {
+    if (this._state === 'CANCELLED' || this._state === 'COMPLETED') {
+      throw new PaymentInvalidStateError(`Payment ${this._id} cannot expire`);
+    }
+    this._state = 'EXPIRED';
+  }
+
   protected _baseObject() {
     return {
       id: this._id,
@@ -403,6 +414,7 @@ abstract class BaseSentPayment {
       assetCode: this._assetCode,
       assetScale: this._assetScale,
       createdAt: this._createdAt,
+      expiresAt: this._expiresAt,
       debitAmount: this._debitAmount,
       sentAmount: this._sentAmount,
       quoteId: this._quoteId,
@@ -485,6 +497,7 @@ class LocalSentPayment extends BaseSentPayment {
     receiveAmount: bigint;
     quoteId?: string;
     createdAt?: Date;
+    expiresAt?: Date;
     grantId?: string;
     metadata?: Record<string, unknown>;
   }): LocalSentPayment {
@@ -492,6 +505,7 @@ class LocalSentPayment extends BaseSentPayment {
       ...args,
       state: 'CREATED',
       createdAt: args.createdAt ?? new Date(),
+      expiresAt: args.expiresAt ?? new Date(Date.now() + MAX_PAYMENT_EXPIRY_MS),
       sentAmount: 0n
     });
   }
@@ -573,6 +587,7 @@ class RemoteSentPayment extends BaseSentPayment {
     peerId: string;
     quoteId?: string;
     createdAt?: Date;
+    expiresAt?: Date;
     grantId?: string;
     metadata?: Record<string, unknown>;
   }): RemoteSentPayment {
@@ -580,6 +595,7 @@ class RemoteSentPayment extends BaseSentPayment {
       ...args,
       state: 'CREATED',
       createdAt: args.createdAt ?? new Date(),
+      expiresAt: args.expiresAt ?? new Date(Date.now() + MAX_PAYMENT_EXPIRY_MS),
       sentAmount: 0n
     });
   }
@@ -1807,6 +1823,28 @@ export class PaymentIntent implements IPaymentIntent {
     const payment = this._findPayment(id);
 
     payment.cancel(reason);
+  }
+
+  expire() {
+    if (this.expiresAt.getTime() < Date.now()) {
+      throw new PaymentIntentInvalidState(
+        `Payment intent ${this.id} is not expired yet: ${this.expiresAt.toISOString()}`
+      );
+    }
+    this._state = 'EXPIRED';
+  }
+
+  expirePayment(paymentId: string) {
+    const payment = this._sentPayments.find(
+      (payment) => payment.id === paymentId
+    );
+    if (!payment) {
+      throw new PaymentNotFoundError(
+        `Payment ${paymentId} not found for ${this.id} payment intent`
+      );
+    }
+    payment.expire();
+    return payment;
   }
 
   get id(): string {

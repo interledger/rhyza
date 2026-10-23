@@ -2,7 +2,8 @@ import {
   DomainEventTopics,
   IMessage,
   IMessageConsumer,
-  IMessageProducer
+  IMessageProducer,
+  TimerEventTopics
 } from 'common-types-lib';
 import {
   CompleteRemoteQuoteCmd,
@@ -17,7 +18,9 @@ import {
   FailInboundPaymentCmd,
   MarkInboundPaymentFulfillableCmd,
   FinalizeInboundPaymentCmd,
-  CalculateRemoteQuoteCmd
+  CalculateRemoteQuoteCmd,
+  ExpirePaymentIntentCmd,
+  ExpirePaymentCmd
 } from 'payments-domain-lib';
 import {
   ILPPaymentConfirmedEvent,
@@ -46,20 +49,32 @@ import {
   LedgerHighLevelSuccessResponseEventPayload,
   LedgerHighLevelFailureResponseEventPayload
 } from 'pal-public-types-lib';
+import { MongoDbPaymentIntentRepo } from 'payments-implementations-lib';
+import { CheckExpirationEvent } from 'payments-public-types-lib';
 
 export class PaymentsEventHandler {
   private _msgConsumer: IMessageConsumer;
   private _msgProducer: IMessageProducer;
+  private _repo: MongoDbPaymentIntentRepo;
+  private readonly instanceId: string;
 
-  constructor(msgConsumer: IMessageConsumer, msgProducer: IMessageProducer) {
+  constructor(
+    msgConsumer: IMessageConsumer,
+    msgProducer: IMessageProducer,
+    repo: MongoDbPaymentIntentRepo,
+    instanceId: string
+  ) {
     this._msgConsumer = msgConsumer;
     this._msgProducer = msgProducer;
+    this._repo = repo;
+    this.instanceId = instanceId;
   }
 
   async start(): Promise<void> {
     this._msgConsumer.setTopics([
       DomainEventTopics.IlpEvents,
-      DomainEventTopics.LedgerEvents
+      DomainEventTopics.LedgerEvents,
+      TimerEventTopics.PaymentExpiredTimeEvents
     ]);
     this._msgConsumer.setBatchCallbackFn(async (messages: IMessage[]) => {
       for (const message of messages) {
@@ -342,8 +357,28 @@ export class PaymentsEventHandler {
         // TODO: placeholder — commit/reject failed mid-flight; needs reconciliation.
         break;
       }
+      case CheckExpirationEvent.name: {
+        await this._checkExpirations(message.requestId ?? '');
+        break;
+      }
       default:
         console.warn(`Unhandled event — msgName: ${message.msgName}`);
     }
+  }
+
+  private async _checkExpirations(requestId: string): Promise<void> {
+    const paymentIntentIds = await this._repo.getExpiredPaymentIntentIds(20);
+    const paymentIds = await this._repo.getExpiredPayments(20);
+    if (paymentIntentIds.length === 0 && paymentIds.length === 0) {
+      return;
+    }
+    const messages: IMessage[] = [];
+    paymentIntentIds.forEach((paymentIntentId: string) =>
+      messages.push(new ExpirePaymentIntentCmd({ paymentIntentId }, requestId))
+    );
+    paymentIds.forEach((payment) =>
+      messages.push(new ExpirePaymentCmd(payment, requestId))
+    );
+    await this._msgProducer.send(messages);
   }
 }

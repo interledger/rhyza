@@ -1,4 +1,10 @@
-import { AppErrorType, DomainEvent, DomainEventTopics } from 'common-types-lib';
+import {
+  AppErrorType,
+  DomainEvent,
+  DomainEventTopics,
+  TimerEvent,
+  TimerEventTopics
+} from 'common-types-lib';
 import {
   PaymentIntentState,
   SentPaymentState,
@@ -300,6 +306,7 @@ export type PaymentCreatedPayload = {
   sentAmount: string | null;
   state: SentPaymentState;
   createdAt: Date;
+  expiresAt: Date;
   assetCode: string;
   assetScale: number;
   receiveAssetScale: number;
@@ -741,5 +748,70 @@ export class InboundPaymentFinalizedEvent extends PaymentIntentDomainEvent {
     super(payload.paymentIntentId);
     this.payload = payload;
     this.requestId = requestId;
+  }
+}
+
+export type PaymentIntentExpiredPayload = {
+  paymentIntentId: string;
+  state: PaymentIntentState;
+};
+
+export class PaymentIntentExpiredEvent extends PaymentIntentDomainEvent {
+  payload: PaymentIntentExpiredPayload;
+  constructor(payload: PaymentIntentExpiredPayload, requestId?: string) {
+    super(payload.paymentIntentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+export type PaymentIntentExpireFailedPayload = {
+  paymentIntentId: string;
+} & FailedMessagePayload;
+
+export class PaymentIntentExpireFailedEvent extends PaymentIntentDomainEvent {
+  payload: PaymentIntentExpireFailedPayload;
+  isErrorEvent = true;
+  constructor(payload: PaymentIntentExpireFailedPayload, requestId?: string) {
+    super(payload.paymentIntentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+export type PaymentExpireFailedPayload = {
+  paymentId: string;
+} & FailedMessagePayload;
+
+export class PaymentExpireFailedEvent extends PaymentIntentDomainEvent {
+  payload: PaymentExpireFailedPayload;
+  isErrorEvent = true;
+  constructor(payload: PaymentExpireFailedPayload, requestId?: string) {
+    super(payload.paymentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+export type PaymentExpiredPayload = {
+  paymentIntentId: string;
+  paymentId: string;
+};
+export class PaymentExpiredEvent extends PaymentIntentDomainEvent {
+  payload: PaymentExpiredPayload;
+
+  constructor(payload: PaymentExpiredPayload, requestId?: string) {
+    super(payload.paymentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+export class CheckExpirationEvent extends TimerEvent {
+  payload: undefined;
+  msgTopic: string = TimerEventTopics.PaymentExpiredTimeEvents;
+  constructor(requestId: string) {
+    super(requestId);
+    this.payload = undefined;
   }
 }
