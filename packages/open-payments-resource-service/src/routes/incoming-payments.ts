@@ -209,12 +209,13 @@ export async function incomingPaymentRoutes(
     }
 
     const pathName = pathNameFromWalletAddress(walletAddressUrl);
-    const walletAdress = await palClient.resolveWalletAddressByAlias(
+    
+    const walletAddress = await palClient.resolveWalletAddressByAlias(
       null,
       pathName
     );
 
-    if (!walletAdress) {
+    if (!walletAddress) {
       return reply.status(200).send({
         pagination: { hasNextPage: false, hasPreviousPage: false },
         result: []
@@ -227,7 +228,7 @@ export async function incomingPaymentRoutes(
       // consistency with Rafiki.
       const page = await paymentsClient.getPaymentIntentsPage({
         sortOrder: 'desc',
-        walletAddressId: walletAdress.id,
+        walletAddressId: walletAddress.id,
         cursor: request.query.cursor,
         first:
           request.query.first != null ? Number(request.query.first) : undefined,
