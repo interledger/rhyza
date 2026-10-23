@@ -94,29 +94,18 @@ export async function incomingPaymentRoutes(
       const { domain, pathName } =
         parseAddressToDomainAndPathName(walletAddressUrl);
 
-      const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
+      const walletAddress = await palClient.resolveWalletAddressByAlias(
+        domain,
+        pathName
+      );
 
-      if (!alias) {
+      if (!walletAddress) {
         throw new OpenPaymentsResourceServerRouteError(
           400,
           'Wallet address not found',
           'not_found'
         );
       }
-
-      const walletAddresses = await palClient.getWalletAddresses([
-        alias.walletAddressId
-      ]);
-
-      if (!walletAddresses.length) {
-        throw new OpenPaymentsResourceServerRouteError(
-          404,
-          'Wallet address not found',
-          'not_found'
-        );
-      }
-
-      const walletAddress = walletAddresses[0];
 
       if (
         incomingAmount &&
@@ -222,9 +211,12 @@ export async function incomingPaymentRoutes(
 
     const { domain, pathName } =
       parseAddressToDomainAndPathName(walletAddressUrl);
-    const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
+    const walletAddress = await palClient.resolveWalletAddressByAlias(
+      domain,
+      pathName
+    );
 
-    if (!alias) {
+    if (!walletAddress) {
       return reply.status(200).send({
         pagination: { hasNextPage: false, hasPreviousPage: false },
         result: []
@@ -237,7 +229,7 @@ export async function incomingPaymentRoutes(
       // consistency with Rafiki.
       const page = await paymentsClient.getPaymentIntentsPage({
         sortOrder: 'desc',
-        walletAddressId: alias.walletAddressId,
+        walletAddressId: walletAddress.id,
         cursor: request.query.cursor,
         first:
           request.query.first != null ? Number(request.query.first) : undefined,

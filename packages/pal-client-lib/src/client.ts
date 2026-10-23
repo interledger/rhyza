@@ -35,8 +35,8 @@ import {
   PbGetWalletAddressesRequest,
   PbGetWalletAddressesResponse,
   PalGrpcClient,
-  PbResolveWalletAddressAliasRequest,
-  PbResolveWalletAddressAliasResponse,
+  PbResolveWalletAddressByAliasRequest,
+  PbResolveWalletAddressByAliasResponse,
   PbGetLedgerAccountsRequest,
   ILedgerAccountDto,
   PbGetLedgerAccountsResponse,
@@ -430,39 +430,37 @@ export class PalClient {
     });
   }
 
-  async resolveWalletAddressAlias(
+  async resolveWalletAddressByAlias(
     domain: string | null,
     pathName: string
-  ): Promise<{
-    domain: string | null;
-    pathName: string;
-    walletAddressId: string;
-  } | null> {
-    const request = new PbResolveWalletAddressAliasRequest();
+  ): Promise<IGetWalletAddressResponse | null> {
+    const request = new PbResolveWalletAddressByAliasRequest();
     if (domain) request.setDomain(domain);
     request.setPathName(pathName);
 
     return new Promise((resolve, reject) => {
-      this._grpcClient.resolveWalletAddressAlias(
+      this._grpcClient.resolveWalletAddressByAlias(
         request,
         (
           error: ServiceError | null,
-          response: PbResolveWalletAddressAliasResponse
+          response: PbResolveWalletAddressByAliasResponse
         ) => {
           if (error) {
             return reject(new PalClientUnknownError(error.message));
           }
 
-          const alias = response.getAlias();
+          const walletAddress = response.getWalletAddress();
 
-          if (!response.hasAlias() || !alias) {
+          if (!response.hasWalletAddress() || !walletAddress) {
             return resolve(null);
           }
 
           return resolve({
-            domain: alias.hasDomain() ? alias.getDomain() || null : null,
-            pathName: alias.getPathName(),
-            walletAddressId: alias.getWalletAddressId()
+            id: walletAddress.getId(),
+            publicName: walletAddress.getPublicName(),
+            assetCode: walletAddress.getAssetCode(),
+            assetScale: walletAddress.getAssetScale(),
+            isActive: walletAddress.getIsActive()
           });
         }
       );

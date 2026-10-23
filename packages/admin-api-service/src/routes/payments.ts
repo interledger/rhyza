@@ -102,8 +102,11 @@ export async function paymentRoutes(
     const id = request.body.id ?? randomUUID();
 
     const { domain, pathName } = parseAddressToDomainAndPathName(walletAddress);
-    const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
-    if (!alias) {
+    const wallet = await palClient.resolveWalletAddressByAlias(
+      domain,
+      pathName
+    );
+    if (!wallet) {
       return reply
         .status(404)
         .send({ error: `Wallet address '${walletAddress}' not found` });
@@ -113,7 +116,7 @@ export async function paymentRoutes(
       const result = await paymentsClient.createPayment(
         id,
         paymentIntent,
-        alias.walletAddressId,
+        wallet.id,
         walletAddress,
         quoteId,
         debitAmount ? Number(debitAmount) : undefined,
