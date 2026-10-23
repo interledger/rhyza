@@ -1,19 +1,21 @@
 import {
-  DEFAULT_SORT_ORDER,
   FinalizedRemoteQuoteUpdate,
-  IPage,
-  IPageOpts,
+  IPaymentPageOpts,
   IPaymentIntent,
   IPaymentIntentRepository,
   ISentPayment,
   isRemoteSentPayment,
   PaymentIntentState,
   SentPaymentState,
-  SortOrder,
   InboundPaymentState
 } from '../../src/payment-intent/interfaces';
-import { InvalidCursorError } from '../../src/payment-intent/errors';
-import { InvalidArgument } from 'common-types-lib';
+import {
+  DEFAULT_SORT_ORDER,
+  InvalidArgument,
+  InvalidCursorError,
+  IPage,
+  SortOrder
+} from 'common-types-lib';
 
 export class MockPaymentIntentRepo implements IPaymentIntentRepository {
   private _store: Map<string, IPaymentIntent> = new Map();
@@ -91,7 +93,7 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchPaymentIntentsPage(
-    opts: IPageOpts
+    opts: IPaymentPageOpts
   ): Promise<IPage<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>>> {
     const all = this.getAll();
     const filtered =
@@ -111,7 +113,7 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchSentPaymentsPage(
-    opts: IPageOpts & { paymentIntentId?: string }
+    opts: IPaymentPageOpts & { paymentIntentId?: string }
   ): Promise<IPage<ISentPayment>> {
     const all = this.getAll().flatMap((intent) => intent.sentPayments);
     const filtered = all.filter(

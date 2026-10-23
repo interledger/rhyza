@@ -17,8 +17,8 @@
   "dependencies": {
     "admin-client-lib": "workspace:*",
     "auth-client-lib": "workspace:*",
-    "fastify": "~5.3.3",
     "common-types-lib": "workspace:*",
+    "fastify": "~5.3.3",
     "ilp-client-lib": "workspace:*",
     "implementations-lib": "workspace:*",
     "pal-client-lib": "workspace:*",

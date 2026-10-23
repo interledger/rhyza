@@ -1,3 +1,5 @@
+import { IPage, IPageOpts } from 'common-types-lib';
+
 import {
   PaymentIntentState,
   SentPaymentState,
@@ -219,22 +221,9 @@ export type FinalizedRemoteQuoteUpdate =
       message: string;
     };
 
-export type SortOrder = 'asc' | 'desc';
-export const DEFAULT_SORT_ORDER: SortOrder = 'desc';
-
-export interface IPageOpts {
+/** Page opts for this bounded context's lists, which scope by wallet address. */
+export interface IPaymentPageOpts extends IPageOpts {
   walletAddressId?: string;
-  cursor?: string;
-  limit: number;
-  /** false = forward (first/after), true = backward (last/before). */
-  backwards: boolean;
-  sortOrder?: SortOrder;
-}
-
-export interface IPage<T> {
-  items: T[];
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
 }
 
 export interface IPaymentIntentRepository {
@@ -251,7 +240,7 @@ export interface IPaymentIntentRepository {
   ): Promise<Array<{ id: string; remoteUrl: string }>>;
   /** Keyset-paginated payment intents, filterable by receiverWalletAddressId. */
   fetchPaymentIntentsPage(
-    opts: IPageOpts
+    opts: IPaymentPageOpts
   ): Promise<IPage<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>>>;
   /**
    * Keyset-paginated sent payments, filterable by senderWalletAddressId and/or
@@ -260,7 +249,7 @@ export interface IPaymentIntentRepository {
    * payment behaviour.
    */
   fetchSentPaymentsPage(
-    opts: IPageOpts & { paymentIntentId?: string }
+    opts: IPaymentPageOpts & { paymentIntentId?: string }
   ): Promise<IPage<IStoredSentPayment>>;
   storeQuotes(
     quoteUpdates: { quoteIds: string[]; paymentIntent: IPaymentIntent }[]

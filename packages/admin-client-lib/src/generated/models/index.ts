@@ -17,6 +17,7 @@ export * from './ErrorResponse';
 export * from './FxRateSet';
 export * from './Grant';
 export * from './GrantState';
+export * from './GrantsPage';
 export * from './Interaction';
 export * from './JsonWebKey';
 export * from './LiquidityDeposit200Response';

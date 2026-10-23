@@ -1602,12 +1602,12 @@ describe('GrantAggregate.handleBatch', () => {
           const createdAt = new Date();
           return {
             id: randomUUID(),
+            createdAt,
             startMethods: ['REDIRECT'],
             state: GrantState.PENDING,
             interactionNonce: generateNonce(),
             finishNonce: generateNonce(),
             accessTokens: [],
-            createdAt,
             interaction: {
               interactRef: randomUUID(),
               nonce: 'correct-nonce',

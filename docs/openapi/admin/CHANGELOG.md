@@ -1,3 +1,33 @@
+# API Changelog 0.0.17 vs. 0.0.18
+
+
+## API Changes
+
+### GET /grant/{id}
+- :warning: api path removed without deprecation
+
+
+### POST /grant/{id}
+- :warning: api path removed without deprecation
+
+
+### GET /grants
+-  endpoint added
+
+
+### GET /grants/{id}
+-  endpoint added
+
+
+### POST /grants/{id}/revoke
+-  endpoint added
+
+
+
+
+## Info
+-  a breaking change was detected but the major version did not increase, from `0.0.17` to `0.0.18`
+
 # API Changelog 0.0.16 vs. 0.0.17
 
 
