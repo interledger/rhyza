@@ -3685,6 +3685,9 @@ describe('PaymentIntentAggregate.handleBatch', () => {
       assert.equal(stored[0].destination, 'REMOTE');
       assert.equal(stored[0].remoteUrl, REMOTE_URL);
       assert.equal(stored[0].destinationIlpAddress, 'g.peer.123');
+      assert.equal(stored[0].quotes.length, 1);
+      assert.equal(stored[0].quotes[0].id, cmd.payload.id);
+      assert.equal(stored[0].quotes[0].state, 'PENDING');
     });
 
     it('stores quotes for a payment intent', async () => {
@@ -3711,6 +3714,31 @@ describe('PaymentIntentAggregate.handleBatch', () => {
       assert.equal(stored[0].id, paymentIntentId);
       assert.equal(stored[0].quotes.length, 1);
       assert.equal(stored[0].quotes[0].id, quoteId);
+    });
+
+    it('persists finalized remote quote state by replacing quotes', async () => {
+      const quoteId = crypto.randomUUID();
+      const paymentIntent = makeRemotePaymentIntentWithPendingQuote(quoteId);
+      await repo.storeMany([paymentIntent]);
+
+      const cmd = new CompleteRemoteQuoteCmd(
+        {
+          paymentIntentId: paymentIntent.id,
+          quoteId,
+          receiveAmountValue: '10000'
+        },
+        crypto.randomUUID()
+      );
+      const { events } = await aggregate.handleBatch([cmd]);
+      assert.equal(events[0].msgName, QuoteCompletedEvent.name);
+
+      await aggregate.flush();
+
+      const stored = repo.getAll();
+      assert.equal(stored.length, 1);
+      assert.equal(stored[0].quotes.length, 1);
+      assert.equal(stored[0].quotes[0].id, quoteId);
+      assert.equal(stored[0].quotes[0].state, 'COMPLETED');
     });
   });
 });
