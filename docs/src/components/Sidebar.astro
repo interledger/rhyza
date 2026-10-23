@@ -1,0 +1,134 @@
+---
+// Combines two plugin overrides that both want the Starlight `Sidebar` slot:
+// - starlight-fullview-mode's left-sidebar collapse toggle (button + script)
+// - starlight-group-pages' sidebar (clickable group labels, via sidebarLink: 'label')
+// Only one `Sidebar` override can be active at a time, so this file renders
+// group-pages' sidebar component in place of the stock Starlight one that
+// fullview-mode would otherwise wrap.
+import StarlightGroupPagesSidebar from 'starlight-group-pages/components/Sidebar.astro'
+import mdiIcons from '@iconify-json/mdi/icons.json'
+
+// Inlined from starlight-fullview-mode/utils/common-utils, which isn't an
+// exported subpath of that package.
+function parseSvgPath(svgString: string) {
+  if (!svgString) return null
+  const match = svgString.match(/ d="([^"]*)"/)
+  return match ? match[1] : null
+}
+const chevronLeft = parseSvgPath(mdiIcons.icons['chevron-left'].body)
+---
+
+<script>
+  import config from 'virtual:starlight-fullview-mode-config'
+
+  function documentQuerySelector(selector: string) {
+    return document.querySelector(selector) as HTMLElement
+  }
+
+  let toggleSideBarBtn = documentQuerySelector('.toggle-left-side-bar-btn')
+
+  function configureSideBar() {
+    let mainSidebarContainer = documentQuerySelector('.sidebar-pane')
+    let navBar = mainSidebarContainer.querySelector(
+      'ul.top-level'
+    ) as HTMLElement
+    let mainFrame = documentQuerySelector('.main-frame')
+    let body = documentQuerySelector('body')
+
+    let originalState =
+      sessionStorage.getItem('mainSideBarCollapsed') === 'true'
+    let stateModifiedByMediaQuery = false
+
+    const toggleLeftSideBar = (isMainSideBarCollapsed?: boolean) => {
+      // @ts-ignore
+      if (isMainSideBarCollapsed instanceof Event) {
+        isMainSideBarCollapsed =
+          sessionStorage.getItem('mainSideBarCollapsed') === 'true'
+      }
+      if (!isMainSideBarCollapsed) {
+        mainSidebarContainer.classList.add('sidebar-pane-collapsed')
+        mainSidebarContainer.style.width = config.leftSidebarCollapsedWidth
+        document.documentElement.style.setProperty(
+          '--tablet-navbar-inset-inline-start',
+          config.leftSidebarCollapsedWidth
+        )
+        document.documentElement.style.setProperty(
+          '--sl-content-inline-start',
+          config.leftSidebarCollapsedWidth ?? 'var(--sl-sidebar-width)'
+        )
+        mainSidebarContainer.style.overflow = 'hidden'
+        navBar.style.opacity = '0'
+        mainFrame.style.paddingInlineStart = mainSidebarContainer.style.width
+        body.classList.add('main-side-bar-collapsed')
+      } else {
+        mainSidebarContainer.classList.remove('sidebar-pane-collapsed')
+        mainSidebarContainer.style.width =
+          config.leftSidebarExpandedWidth ?? ''
+        const mediaQuery = window.matchMedia(
+          'only screen and (max-width: 800px)'
+        )
+        document.documentElement.style.setProperty(
+          '--tablet-navbar-inset-inline-start',
+          mediaQuery.matches
+            ? 'var(--sl-sidebar-width)'
+            : (getComputedStyle(mainSidebarContainer).getPropertyValue(
+                'width'
+              ) ?? 'var(--sl-sidebar-width)')
+        )
+        document.documentElement.style.setProperty(
+          '--sl-content-inline-start',
+          mediaQuery.matches
+            ? '0px'
+            : (config.leftSidebarExpandedWidth ?? 'var(--sl-sidebar-width)')
+        )
+        mainSidebarContainer.style.overflow = ''
+        navBar.style.opacity = ''
+        mainFrame.style.paddingInlineStart = config.leftSidebarExpandedWidth ?? ''
+        body.classList.remove('main-side-bar-collapsed')
+      }
+
+      if (!stateModifiedByMediaQuery) {
+        sessionStorage.setItem(
+          'mainSideBarCollapsed',
+          isMainSideBarCollapsed ? 'false' : 'true'
+        )
+      }
+    }
+
+    // @ts-ignore
+    toggleSideBarBtn.addEventListener('click', toggleLeftSideBar)
+    if (config.rotateSidebarToggleWhenClosed) {
+      toggleSideBarBtn.classList.add('rotates')
+    }
+
+    const handleResize = () => {
+      const mediaQuery = window.matchMedia('only screen and (max-width: 800px)')
+      if (mediaQuery.matches) {
+        originalState = sessionStorage.getItem('mainSideBarCollapsed') === 'true'
+        stateModifiedByMediaQuery = true
+        toggleLeftSideBar(true)
+      } else {
+        stateModifiedByMediaQuery = false
+        toggleLeftSideBar(!originalState)
+      }
+    }
+
+    let isMainSideBarCollapsed =
+      sessionStorage.getItem('mainSideBarCollapsed') === 'true'
+    toggleLeftSideBar(!isMainSideBarCollapsed)
+
+    window.addEventListener('resize', handleResize)
+    handleResize()
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (config.leftSidebarEnabled) configureSideBar()
+  })
+</script>
+
+<div class="toggle-left-side-bar-btn max-md:hidden">
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+    <path fill="grey" d={chevronLeft}></path>
+  </svg>
+</div>
+<StarlightGroupPagesSidebar />

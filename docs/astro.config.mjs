@@ -5,6 +5,7 @@ import remarkMath from 'remark-math'
 import rehypeMathjax from 'rehype-mathjax'
 import starlightLinksValidator from 'starlight-links-validator'
 import starlightLlmsTxt from 'starlight-llms-txt'
+import starlightGroupPages from 'starlight-group-pages'
 import starlightFullViewMode from 'starlight-fullview-mode'
 import { unified, rehypeHeadingIds } from '@astrojs/markdown-remark'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
@@ -48,6 +49,7 @@ export default defineConfig({
         }
       },
       components: {
+        Sidebar: './src/components/Sidebar.astro',
         PageSidebar: './src/components/PageSidebar.astro',
         Footer: './src/components/Footer.astro',
         PageTitle: './src/components/PageTitle.astro',
@@ -254,6 +256,11 @@ Key terminology notes:
               paths: ['resources/**']
             }
           ]
+        }),
+        starlightGroupPages({
+          sidebarLink: 'label',
+          exclude: ['apis/**'],
+          extendIndexPages: false
         }),
         starlightLinksValidator({
           // The API reference is a custom page, which the validator cannot see

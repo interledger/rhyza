@@ -47,6 +47,9 @@ importers:
       '@astrojs/starlight':
         specifier: ^0.42.0
         version: 0.42.0(@astrojs/markdown-remark@7.3.1)(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))(typescript@5.9.3)
+      '@iconify-json/mdi':
+        specifier: ^1.1.68
+        version: 1.2.3
       '@interledger/docs-design-system':
         specifier: ^0.14.1
         version: 0.14.2
@@ -71,6 +74,9 @@ importers:
       starlight-fullview-mode:
         specifier: ^0.2.6
         version: 0.2.6(@astrojs/starlight@0.42.0(@astrojs/markdown-remark@7.3.1)(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))(typescript@5.9.3))
+      starlight-group-pages:
+        specifier: ^0.2.0
+        version: 0.2.0(@astrojs/starlight@0.42.0(@astrojs/markdown-remark@7.3.1)(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))(typescript@5.9.3))
       starlight-links-validator:
         specifier: ^0.26.0
         version: 0.26.0(@astrojs/starlight@0.42.0(@astrojs/markdown-remark@7.3.1)(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))(typescript@5.9.3))(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))
@@ -7360,6 +7366,12 @@ packages:
     engines: {node: ^18.17.1 || ^20.3.0 || >=21.0.0}
     peerDependencies:
       '@astrojs/starlight': '>=0.32'
+
+  starlight-group-pages@0.2.0:
+    resolution: {integrity: sha512-i69cSUvYA7N+7xOkPlfuEsx7kFh6bsRLd3V4oIV0EpdN2W9m7Dp51VF/hKEVFUovmD2sLbRUwVXKagXVdnYtcA==}
+    engines: {node: '>=22.23.2'}
+    peerDependencies:
+      '@astrojs/starlight': '>=0.42.0'
 
   starlight-links-validator@0.26.0:
     resolution: {integrity: sha512-b3JlzP5bczSDMQp10ST/Gldd6RNzcwpWfTrszzGPcqnuav2W31+MjyX92IXH+VCcG2pG9G1qyDcEcNuMRYi2ig==}
@@ -15860,6 +15872,11 @@ snapshots:
     dependencies:
       '@astrojs/starlight': 0.42.0(@astrojs/markdown-remark@7.3.1)(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))(typescript@5.9.3)
       '@iconify-json/mdi': 1.2.3
+
+  starlight-group-pages@0.2.0(@astrojs/starlight@0.42.0(@astrojs/markdown-remark@7.3.1)(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))(typescript@5.9.3)):
+    dependencies:
+      '@astrojs/starlight': 0.42.0(@astrojs/markdown-remark@7.3.1)(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))(typescript@5.9.3)
+      picomatch: 4.0.7
 
   starlight-links-validator@0.26.0(@astrojs/starlight@0.42.0(@astrojs/markdown-remark@7.3.1)(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0))(typescript@5.9.3))(astro@7.2.10(@astrojs/markdown-remark@7.3.1)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.10.11)(ioredis@5.10.1)(tsx@4.19.3)(yaml@2.9.0)):
     dependencies:
