@@ -108,6 +108,6 @@ jobs:
               print("Success: The changelog is up to date.")
               sys.exit(0)
           else:
-              print("Error: The changelog is incomplete. Please run `pnpm generate-admin-changelog` locally and add its result to `CHANGELOG.md`")
+              print("Error: The changelog is incomplete. Please run `pnpm generate-admin-changelog` locally and commit the updated `CHANGELOG.md`")
               sys.exit(1)
           '
