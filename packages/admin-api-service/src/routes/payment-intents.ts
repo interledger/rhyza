@@ -96,10 +96,7 @@ export async function paymentIntentRoutes(
 
     const pathName = pathNameFromWalletAddress(walletAddress);
 
-    const wallet = await palClient.resolveWalletAddressByAlias(
-      null,
-      pathName
-    );
+    const wallet = await palClient.resolveWalletAddressByAlias(null, pathName);
 
     if (!wallet) {
       return reply

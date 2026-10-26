@@ -209,7 +209,7 @@ export async function incomingPaymentRoutes(
     }
 
     const pathName = pathNameFromWalletAddress(walletAddressUrl);
-    
+
     const walletAddress = await palClient.resolveWalletAddressByAlias(
       null,
       pathName
