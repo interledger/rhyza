@@ -17,6 +17,7 @@ export interface IIlpClientPeer {
   id: string;
   http: IIlpClientHttp;
   isActive?: boolean;
+  maxPacketAmount?: string;
 }
 
 export class IlpClientUnknownError extends Error {}

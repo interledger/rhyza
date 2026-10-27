@@ -30,6 +30,7 @@ coverage
 # IDEs
 .idea/
 .vscode/
+.cursor/
 
 # node_modules
 **/node_modules

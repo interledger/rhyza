@@ -31,7 +31,8 @@ export async function peerRoutes(
       assetScale,
       ilpStaticAddress,
       http,
-      isActive
+      isActive,
+      maxPacketAmount
     } = request.body;
 
     try {
@@ -54,7 +55,7 @@ export async function peerRoutes(
     }
 
     try {
-      await ilpClient.createPeer(id, http, isActive);
+      await ilpClient.createPeer(id, http, isActive, maxPacketAmount);
     } catch (err) {
       try {
         await palClient.deactivatePeer(id);

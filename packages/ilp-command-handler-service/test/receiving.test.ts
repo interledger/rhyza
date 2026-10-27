@@ -312,6 +312,70 @@ describe('IlpCommandHandler — remote quote receiving', () => {
     assert.equal(await repo.fetchPacketById('packet-in-1'), undefined);
   });
 
+  test('an over-limit inbound prepare is rejected with F08 amount+limit data', async () => {
+    const { producer, consumer, repo, credentials } = await startedHandler([
+      { ...PEER, maxPacketAmount: '50' }
+    ]);
+    await consumer.deliver([
+      inboundProbe(credentials.ilpAddress, { amount: '100' })
+    ]);
+
+    const reject = rejectFor(producer);
+    assert.ok(reject, 'expected an F08 reject');
+    assert.equal(reject.payload.rejectCode, 'F08');
+    assert.equal(
+      reject.payload.rejectMessage,
+      'packet size too large. maxAmount=50 actualAmount=100'
+    );
+    assert.ok(reject.payload.data, 'F08 must carry amount+limit data');
+    const data = Buffer.from(reject.payload.data!, 'base64');
+    assert.equal(data.length, 16);
+    assert.equal(data.readBigUInt64BE(0), 100n);
+    assert.equal(data.readBigUInt64BE(8), 50n);
+    assert.equal(
+      producer.sent.filter(
+        (m) =>
+          m.msgName === ILPQuoteRequestReceivedEvent.name ||
+          m.msgName === ILPPaymentReceivedEvent.name
+      ).length,
+      0
+    );
+    assert.equal(await repo.fetchPacketById('packet-in-1'), undefined);
+  });
+
+  test('an under-limit inbound prepare is unchanged by maxPacketAmount', async () => {
+    const { producer, consumer, credentials, fake } = await startedHandler([
+      { ...PEER, maxPacketAmount: '100' }
+    ]);
+    const resolved = await fake.resolveStreamCredentials(
+      credentials.ilpAddress
+    );
+    assert.ok(resolved);
+    const { data, executionCondition } = fulfillablePrepareData(
+      resolved!.sharedSecret
+    );
+
+    await consumer.deliver([
+      inboundProbe(credentials.ilpAddress, {
+        packetId: 'packet-under-limit',
+        amount: '100',
+        data,
+        executionCondition
+      })
+    ]);
+
+    assert.equal(
+      producer.sent.filter((m) => m.msgName === DispatchRejectPacketCmd.name)
+        .length,
+      0
+    );
+    const received = producer.sent.find(
+      (m) => m.msgName === ILPPaymentReceivedEvent.name
+    ) as ILPPaymentReceivedEvent;
+    assert.ok(received);
+    assert.equal(received.payload.sourceAmount, '100');
+  });
+
   test('a quote response after the prepare clock has passed still carries the rate', async () => {
     const { producer, consumer, repo, credentials, fake } =
       await startedHandler();

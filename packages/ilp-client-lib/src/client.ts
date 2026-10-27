@@ -104,20 +104,28 @@ export class IlpClient {
           ? { incoming: { authToken: incoming.getAuthToken() } }
           : {})
       },
-      isActive: pbPeer.hasIsActive() ? pbPeer.getIsActive() : undefined
+      isActive: pbPeer.hasIsActive() ? pbPeer.getIsActive() : undefined,
+      maxPacketAmount: pbPeer.hasMaxPacketAmount()
+        ? String(pbPeer.getMaxPacketAmount())
+        : undefined
     };
   }
 
   createPeer(
     peerId: string,
     http: IIlpClientHttp,
-    isActive?: boolean
+    isActive?: boolean,
+    maxPacketAmount?: string
   ): Promise<IIlpClientPeer> {
     const pbPeer = new PbPeer()
       .setId(peerId)
       .setHttp(this._pbHttpFromHttp(http));
     if (isActive !== undefined) {
       pbPeer.setIsActive(isActive);
+    }
+    if (maxPacketAmount !== undefined) {
+      // jspb uint64 accepts string at runtime; preserves full range.
+      pbPeer.setMaxPacketAmount(maxPacketAmount as unknown as number);
     }
 
     const request = new CreatePeerRequest().setPeer(pbPeer);
@@ -147,13 +155,17 @@ export class IlpClient {
   updatePeer(
     peerId: string,
     http: IIlpClientHttp,
-    isActive?: boolean
+    isActive?: boolean,
+    maxPacketAmount?: string
   ): Promise<IIlpClientPeer> {
     const pbPeer = new PbPeer()
       .setId(peerId)
       .setHttp(this._pbHttpFromHttp(http));
     if (isActive !== undefined) {
       pbPeer.setIsActive(isActive);
+    }
+    if (maxPacketAmount !== undefined) {
+      pbPeer.setMaxPacketAmount(maxPacketAmount as unknown as number);
     }
 
     const request = new UpdatePeerRequest().setPeer(pbPeer);

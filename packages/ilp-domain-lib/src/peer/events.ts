@@ -8,6 +8,7 @@ export interface ILPPeerCreatedPayload {
   peerId: string;
   http: PeerHttpConfig;
   isActive?: boolean;
+  maxPacketAmount?: string;
 }
 
 export class ILPPeerCreatedEvent extends DomainEvent {
@@ -49,6 +50,7 @@ export interface ILPPeerUpdatedPayload {
   peerId: string;
   http: PeerHttpConfig;
   isActive?: boolean;
+  maxPacketAmount?: string;
 }
 
 export class ILPPeerUpdatedEvent extends DomainEvent {

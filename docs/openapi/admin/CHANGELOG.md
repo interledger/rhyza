@@ -1,3 +1,14 @@
+# API Changelog 0.0.19 vs. 0.0.20
+
+
+## API Changes
+
+### POST /peers
+-  added the new optional request property `maxPacketAmount`
+
+
+
+
 # API Changelog 0.0.18 vs. 0.0.19
 
 

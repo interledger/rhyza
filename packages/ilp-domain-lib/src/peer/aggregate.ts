@@ -59,7 +59,19 @@ const REJECT_CODE_WRONG_CONDITION = 'F05';
 const REJECT_CODE_INTERNAL = 'T00';
 const REJECT_CODE_UNEXPECTED_PAYMENT = 'F06';
 const REJECT_CODE_INVALID_AMOUNT = 'F03';
+const REJECT_CODE_AMOUNT_TOO_LARGE = 'F08';
 const REJECT_CODE_TRANSFER_TIMED_OUT = 'R00';
+
+/** F08 reject data: received amount + max, each as OER UInt64 (big-endian). */
+function encodeAmountTooLargeData(
+  receivedAmount: string,
+  maximumAmount: string
+): string {
+  const buf = Buffer.alloc(16);
+  buf.writeBigUInt64BE(BigInt(receivedAmount), 0);
+  buf.writeBigUInt64BE(BigInt(maximumAmount), 8);
+  return buf.toString('base64');
+}
 
 function isIncomingMoney(
   reply: IncomingMoney | { code?: string; fulfillment?: Buffer }
@@ -105,7 +117,8 @@ export class IlpPeerAggregate {
     const entity = Peer.create({
       peerId: input.peerId,
       http: input.http,
-      isActive: input.isActive
+      isActive: input.isActive,
+      maxPacketAmount: input.maxPacketAmount
     });
 
     const stored = entity.toObject();
@@ -122,7 +135,8 @@ export class IlpPeerAggregate {
     const entity = Peer.create({
       peerId: input.peerId,
       http: input.http,
-      isActive: input.isActive
+      isActive: input.isActive,
+      maxPacketAmount: input.maxPacketAmount
     });
 
     const stored = entity.toObject();
@@ -143,11 +157,17 @@ export class IlpPeerAggregate {
       const peer = await this.createPeer({
         peerId: cmd.payload.peerId,
         http: cmd.payload.http,
-        isActive: cmd.payload.isActive
+        isActive: cmd.payload.isActive,
+        maxPacketAmount: cmd.payload.maxPacketAmount
       });
       return [
         new ILPPeerCreatedEvent(
-          { peerId: peer.peerId, http: peer.http, isActive: peer.isActive },
+          {
+            peerId: peer.peerId,
+            http: peer.http,
+            isActive: peer.isActive,
+            maxPacketAmount: peer.maxPacketAmount
+          },
           cmd.requestId
         )
       ];
@@ -170,11 +190,17 @@ export class IlpPeerAggregate {
       const peer = await this.updatePeer({
         peerId: cmd.payload.peerId,
         http: cmd.payload.http,
-        isActive: cmd.payload.isActive
+        isActive: cmd.payload.isActive,
+        maxPacketAmount: cmd.payload.maxPacketAmount
       });
       return [
         new ILPPeerUpdatedEvent(
-          { peerId: peer.peerId, http: peer.http, isActive: peer.isActive },
+          {
+            peerId: peer.peerId,
+            http: peer.http,
+            isActive: peer.isActive,
+            maxPacketAmount: peer.maxPacketAmount
+          },
           cmd.requestId
         )
       ];
@@ -207,11 +233,17 @@ export class IlpPeerAggregate {
       const peer = await this.updatePeer({
         peerId: existing.peerId,
         http: existing.http,
-        isActive
+        isActive,
+        maxPacketAmount: existing.maxPacketAmount
       });
       return [
         new ILPPeerUpdatedEvent(
-          { peerId: peer.peerId, http: peer.http, isActive: peer.isActive },
+          {
+            peerId: peer.peerId,
+            http: peer.http,
+            isActive: peer.isActive,
+            maxPacketAmount: peer.maxPacketAmount
+          },
           requestId
         )
       ];
@@ -465,6 +497,19 @@ export class IlpPeerAggregate {
 
     if (!/^\d+$/.test(payload.amount)) {
       await this.rejectInbound(payload, REJECT_CODE_INVALID_AMOUNT);
+      return [];
+    }
+
+    if (
+      peer.maxPacketAmount !== undefined &&
+      BigInt(payload.amount) > BigInt(peer.maxPacketAmount)
+    ) {
+      await this.rejectInbound(
+        payload,
+        REJECT_CODE_AMOUNT_TOO_LARGE,
+        encodeAmountTooLargeData(payload.amount, peer.maxPacketAmount),
+        `packet size too large. maxAmount=${peer.maxPacketAmount} actualAmount=${payload.amount}`
+      );
       return [];
     }
 
@@ -748,7 +793,8 @@ export class IlpPeerAggregate {
       expiresAt: Date | string;
     },
     rejectCode: string = REJECT_CODE_INTERNAL,
-    data?: string
+    data?: string,
+    rejectMessage?: string
   ): Promise<void> {
     const callbackDeadline =
       context.expiresAt instanceof Date
@@ -759,6 +805,7 @@ export class IlpPeerAggregate {
       packetId: context.packetId,
       callbackDeadline,
       rejectCode,
+      rejectMessage,
       triggeredBy: this.ilpAddress,
       data
     });

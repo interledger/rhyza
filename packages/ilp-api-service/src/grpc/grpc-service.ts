@@ -207,7 +207,10 @@ export class IlpServiceServer {
       {
         peerId: peer.getId(),
         http,
-        isActive: peer.hasIsActive() ? peer.getIsActive() : undefined
+        isActive: peer.hasIsActive() ? peer.getIsActive() : undefined,
+        maxPacketAmount: peer.hasMaxPacketAmount()
+          ? String(peer.getMaxPacketAmount())
+          : undefined
       },
       requestId
     );
@@ -245,7 +248,10 @@ export class IlpServiceServer {
       {
         peerId: peer.getId(),
         http,
-        isActive: peer.hasIsActive() ? peer.getIsActive() : undefined
+        isActive: peer.hasIsActive() ? peer.getIsActive() : undefined,
+        maxPacketAmount: peer.hasMaxPacketAmount()
+          ? String(peer.getMaxPacketAmount())
+          : undefined
       },
       requestId
     );
@@ -327,6 +333,10 @@ export class IlpServiceServer {
     if (peer.isActive !== undefined) {
       pbPeer.setIsActive(peer.isActive);
     }
+    if (peer.maxPacketAmount !== undefined) {
+      // jspb uint64 accepts string at runtime; preserves full range.
+      pbPeer.setMaxPacketAmount(peer.maxPacketAmount as unknown as number);
+    }
     return pbPeer;
   }
 
@@ -381,7 +391,8 @@ export class IlpServiceServer {
         this._domainToPbPeer({
           peerId: evt.payload.peerId,
           http: evt.payload.http,
-          isActive: evt.payload.isActive
+          isActive: evt.payload.isActive,
+          maxPacketAmount: evt.payload.maxPacketAmount
         })
       );
       this._resolvePendingResponse(pending, requestId, null, response);
@@ -403,7 +414,8 @@ export class IlpServiceServer {
         this._domainToPbPeer({
           peerId: evt.payload.peerId,
           http: evt.payload.http,
-          isActive: evt.payload.isActive
+          isActive: evt.payload.isActive,
+          maxPacketAmount: evt.payload.maxPacketAmount
         })
       );
       this._resolvePendingResponse(pending, requestId, null, response);
