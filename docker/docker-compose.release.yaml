@@ -1,0 +1,107 @@
+# Override for Release-pipeline e2e: run pre-built amd64 images, never build from source.
+# Requires VERSION (e.g. v2.4.2). Images must already be loaded locally as
+# rhyza-<package>-amd64:$VERSION. Missing images fail the run (pull_policy: never).
+#
+# Usage:
+#   VERSION=v2.4.2 docker compose -f docker-compose.yaml -f docker-compose.release.yaml up
+
+services:
+  admin-api-service:
+    image: rhyza-admin-api-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  open-payments-resource-service:
+    image: rhyza-open-payments-resource-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  open-payments-auth-service:
+    image: rhyza-open-payments-auth-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  # Not published by Release; not needed for current e2e coverage.
+  http-signature-service:
+    profiles: [not-in-release-e2e]
+    build: !reset null
+
+  pal-api-service:
+    image: rhyza-pal-api-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  pal-ledger-command-handler-service:
+    image: rhyza-pal-ledger-command-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  pal-event-handler-service:
+    image: rhyza-pal-event-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  payments-api-service:
+    image: rhyza-payments-api-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  payments-command-handler-service:
+    image: rhyza-payments-command-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  payments-event-handler-service:
+    image: rhyza-payments-event-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  notifications-command-handler-service:
+    image: rhyza-notifications-command-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  notifications-event-handler-service:
+    image: rhyza-notifications-event-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  ilp-connector-service:
+    image: rhyza-ilp-connector-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  ase-mock-service:
+    image: rhyza-ase-mock-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  ilp-command-handler-service:
+    image: rhyza-ilp-command-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  ilp-api-service:
+    image: rhyza-ilp-api-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  ilp-event-handler-service:
+    image: rhyza-ilp-event-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  auth-api-service:
+    image: rhyza-auth-api-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  idp-interaction-service:
+    image: rhyza-idp-interaction-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never
+
+  auth-command-handler-service:
+    image: rhyza-auth-command-handler-service-amd64:${VERSION}
+    build: !reset null
+    pull_policy: never

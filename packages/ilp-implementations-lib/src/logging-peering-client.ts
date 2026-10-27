@@ -23,7 +23,7 @@ export class LoggingPeeringClient implements IPeeringClient {
     this._logger.info(
       `[LoggingPeeringClient] would dispatch reject ${input.rejectCode} ` +
         `packet=${input.packetId} peer=${input.peerId} ` +
-        `destinationAmount=${input.destinationAmount ?? 'none'}`
+        `data=${input.data ? 'yes' : 'none'}`
     );
   }
 

@@ -17,4 +17,4 @@ pnpm generate-admin-changelog
 
 ## Output
 
-The script calculates the Git merge-base and outputs the API diff in Markdown format. Copy this output and paste it directly at the beginning of `CHANGELOG.md`.
+The script diffs the spec against `origin/main` and outputs the API changelog in Markdown format. Copy this output and paste it directly at the beginning of `CHANGELOG.md`.

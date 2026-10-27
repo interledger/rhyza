@@ -7,7 +7,11 @@ import { ILPPeerCreatedEvent, ILPPeerUpdatedEvent } from 'ilp-domain-lib';
 import { PeerDirectory } from '../src/peer-directory';
 
 const HTTP = {
-  outgoing: { endpoint: 'http://peer.example/ilp', authToken: 'out-token' },
+  outgoing: {
+    endpoint: 'http://peer.example/ilp',
+    callbackEndpoint: 'http://peer.example/ilp/callback',
+    authToken: 'out-token'
+  },
   incoming: { authToken: 'in-token' }
 };
 
@@ -38,6 +42,7 @@ describe('PeerDirectory', () => {
         http: {
           outgoing: {
             endpoint: 'http://peer.example/ilp',
+            callbackEndpoint: 'http://peer.example/ilp/callback',
             authToken: 'out-token-2'
           }
         },

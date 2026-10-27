@@ -1,9 +1,8 @@
 import { Redis } from 'ioredis';
-import { InboundReplyTarget, OutboundPacketCorrelation } from './types';
-import { expiryScore, outboundCorrelationTtlMs, ttlMs } from './expiry';
+import { OutboundPacketCorrelation } from './types';
+import { expiryScore, outboundCorrelationTtlMs } from './expiry';
 import { ITransportCorrelationStore } from './store';
 
-const INBOUND_KEY_PREFIX = 'ilp-connector:inbound-reply:';
 const OUTBOUND_KEY_PREFIX = 'ilp-connector:outbound:';
 const OUTBOUND_EXPIRY_ZSET = 'ilp-connector:outbound-expiry';
 
@@ -27,31 +26,6 @@ export class RedisTransportCorrelationStore
   implements ITransportCorrelationStore
 {
   constructor(private readonly _redis: Redis) {}
-
-  async createInboundReplyHandle(target: InboundReplyTarget): Promise<string> {
-    const replyHandle = crypto.randomUUID();
-    await this._redis.set(
-      `${INBOUND_KEY_PREFIX}${replyHandle}`,
-      JSON.stringify(target),
-      'PX',
-      ttlMs(target.expiresAt)
-    );
-    return replyHandle;
-  }
-
-  async resolveInboundReplyHandle(
-    replyHandle: string
-  ): Promise<InboundReplyTarget | undefined> {
-    const raw = await this._redis.get(`${INBOUND_KEY_PREFIX}${replyHandle}`);
-    if (!raw) {
-      return undefined;
-    }
-    return JSON.parse(raw) as InboundReplyTarget;
-  }
-
-  async deleteInboundReplyHandle(replyHandle: string): Promise<void> {
-    await this._redis.del(`${INBOUND_KEY_PREFIX}${replyHandle}`);
-  }
 
   async storeOutboundCorrelation(
     packetId: string,

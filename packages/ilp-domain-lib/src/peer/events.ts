@@ -157,6 +157,10 @@ export interface ILPPaymentConfirmedPayload {
   paymentIntentId: string;
   paymentId: string;
   confirmedAt: string;
+  // Receiver-credited amount from STREAM fulfill `prepareAmount`, when present.
+  destinationAmount?: string;
+  destinationAssetCode?: string;
+  destinationAssetScale?: number;
 }
 
 export class ILPPaymentConfirmedEvent extends DomainEvent {

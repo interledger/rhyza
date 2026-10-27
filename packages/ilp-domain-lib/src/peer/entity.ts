@@ -14,6 +14,7 @@ export class Peer implements IPeer {
     isActive?: boolean;
   }): Peer {
     Peer.assertHttpEndpoint(args.http.outgoing.endpoint);
+    Peer.assertHttpEndpoint(args.http.outgoing.callbackEndpoint);
     Peer.assertAuthToken(
       args.http.outgoing.authToken,
       'http.outgoing.authToken'

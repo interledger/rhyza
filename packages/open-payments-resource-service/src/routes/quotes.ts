@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
+import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import {
   httpStatusFromGrpcError,
   PaymentsClient,
@@ -119,35 +119,20 @@ export async function quoteRoutes(
           receiver: incomingPaymentUrl
         } = request.body;
 
-        const { domain, pathName } =
-          parseAddressToDomainAndPathName(walletAddressUrl);
+        const pathName = pathNameFromWalletAddress(walletAddressUrl);
 
-        const alias = await palClient.resolveWalletAddressAlias(
-          domain,
+        const walletAddress = await palClient.resolveWalletAddressByAlias(
+          null,
           pathName
         );
 
-        if (!alias) {
+        if (!walletAddress) {
           throw new OpenPaymentsResourceServerRouteError(
             400,
             'Wallet address not found',
             'not_found'
           );
         }
-
-        const walletAddresses = await palClient.getWalletAddresses([
-          alias.walletAddressId
-        ]);
-
-        if (!walletAddresses.length) {
-          throw new OpenPaymentsResourceServerRouteError(
-            404,
-            'Wallet address not found',
-            'not_found'
-          );
-        }
-
-        const walletAddress = walletAddresses[0];
 
         let debitAmountValue: number | undefined;
         let receiveAmountValue: number | undefined;
@@ -176,7 +161,7 @@ export async function quoteRoutes(
         const result = await paymentsClient.createQuote(
           id,
           { paymentIntentUrl: incomingPaymentUrl },
-          alias.walletAddressId,
+          walletAddress.id,
           walletAddressUrl,
           debitAmountValue,
           receiveAmountValue

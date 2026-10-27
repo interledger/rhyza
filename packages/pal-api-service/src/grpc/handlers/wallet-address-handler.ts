@@ -26,9 +26,8 @@ import {
   PbRevokeWalletAddressKeyRequest,
   PbGetWalletAddressesRequest,
   PbGetWalletAddressesResponse,
-  PbResolveWalletAddressAliasRequest,
-  PbResolveWalletAddressAliasResponse,
-  PbResolveWalletAddressNonEmptyResponse,
+  PbResolveWalletAddressByAliasRequest,
+  PbResolveWalletAddressByAliasResponse,
   PbSingleWalletAddressResponse,
   walletAddressKeyToPb
 } from 'pal-public-types-lib';
@@ -134,35 +133,38 @@ export class WalletAddressGrpcHandler {
     return { resp: resp };
   }
 
-  async handleResolveWalletAddressAliasRequest(
+  async handleResolveWalletAddressByAliasRequest(
     call: ServerUnaryCall<
-      PbResolveWalletAddressAliasRequest,
-      PbResolveWalletAddressAliasResponse
+      PbResolveWalletAddressByAliasRequest,
+      PbResolveWalletAddressByAliasResponse
     >
-  ): Promise<UnaryResponse<PbResolveWalletAddressAliasResponse>> {
+  ): Promise<UnaryResponse<PbResolveWalletAddressByAliasResponse>> {
     const domain = call.request.hasDomain()
       ? call.request.getDomain() || null
       : null;
     const pathName = call.request.getPathName();
 
-    const walletAddressId =
-      await this._walletAddressAggregate.resolveWalletAddressAlias(
+    const wallet =
+      await this._walletAddressAggregate.resolveWalletAddressByAlias(
         domain,
         pathName
       );
 
-    const resp = new PbResolveWalletAddressAliasResponse();
+    const resp = new PbResolveWalletAddressByAliasResponse();
 
-    if (walletAddressId == null) {
+    if (wallet === null) {
       return { resp: resp };
     }
 
-    const aliasResp = new PbResolveWalletAddressNonEmptyResponse();
-    if (domain) aliasResp.setDomain(domain);
-    aliasResp.setPathName(pathName);
-    aliasResp.setWalletAddressId(walletAddressId);
+    resp.setWalletAddress(
+      new PbSingleWalletAddressResponse()
+        .setId(wallet.id)
+        .setPublicName(wallet.publicName)
+        .setAssetCode(wallet.assetCode)
+        .setAssetScale(wallet.assetScale)
+        .setIsActive(wallet.isActive)
+    );
 
-    resp.setAlias(aliasResp);
     return { resp: resp };
   }
 

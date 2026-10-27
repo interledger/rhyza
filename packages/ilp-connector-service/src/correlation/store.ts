@@ -1,12 +1,6 @@
-import { InboundReplyTarget, OutboundPacketCorrelation } from './types';
+import { OutboundPacketCorrelation } from './types';
 
 export interface ITransportCorrelationStore {
-  createInboundReplyHandle(target: InboundReplyTarget): Promise<string>;
-  resolveInboundReplyHandle(
-    replyHandle: string
-  ): Promise<InboundReplyTarget | undefined>;
-  deleteInboundReplyHandle(replyHandle: string): Promise<void>;
-
   storeOutboundCorrelation(
     packetId: string,
     correlation: OutboundPacketCorrelation

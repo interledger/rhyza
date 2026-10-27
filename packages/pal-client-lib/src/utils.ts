@@ -44,3 +44,46 @@ export function parseAddressToDomainAndPathName(address: string): {
     pathName: pathName
   };
 }
+
+/**
+ * Extract the wallet address pathName for pathName-only alias lookup.
+ * Accepts a bare pathName or a full wallet address URL.
+ */
+export function pathNameFromWalletAddress(walletAddress: string): string {
+  if (!walletAddress.includes('/') && !walletAddress.includes('://')) {
+    return walletAddress;
+  }
+
+  const toParse = walletAddress.includes('://')
+    ? walletAddress
+    : `http://${walletAddress}`;
+
+  try {
+    const url = new URL(toParse);
+    const pathName = url.pathname.startsWith('/')
+      ? url.pathname.substring(1)
+      : url.pathname;
+    if (pathName.length <= 0) {
+      throw new Error('Invalid address, if a URL it must include a path name');
+    }
+    return pathName;
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Invalid address')) {
+      throw err;
+    }
+    return walletAddress;
+  }
+}
+
+export function assertValidWalletAddressPathName(pathName: string): void {
+  if (
+    !pathName ||
+    pathName.includes('/') ||
+    pathName.includes('://') ||
+    pathName.includes('\\')
+  ) {
+    throw new Error(
+      'pathName must be a single path segment without "/" or "://"'
+    );
+  }
+}

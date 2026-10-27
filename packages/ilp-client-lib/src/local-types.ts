@@ -1,5 +1,6 @@
 export interface IIlpClientHttpOutgoing {
   endpoint: string;
+  callbackEndpoint: string;
   authToken: string;
 }
 

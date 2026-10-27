@@ -37,12 +37,11 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Fetch docker image from cache
-      uses: actions/cache/restore@v4
+    - name: Download docker image artifact
+      uses: actions/download-artifact@v4
       with:
-        path: /tmp/${{ github.sha }}-${{ inputs.package }}-${{ inputs.platform_name }}-${{ inputs.version }}.tar
-        key: ${{ github.sha }}-${{ inputs.package }}-${{ inputs.platform_name }}-${{ inputs.version }}
-        fail-on-cache-miss: true
+        name: docker-image-${{ inputs.package }}-${{ inputs.platform_name }}
+        path: /tmp
     - name: Login to GHCR
       uses: docker/login-action@v3
       with:

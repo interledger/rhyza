@@ -70,6 +70,7 @@ export class IlpClient {
   private _pbHttpFromHttp(http: IIlpClientHttp): PeerHttpSettings {
     const outgoing = new PeerHttpOutgoingSettings()
       .setEndpoint(http.outgoing.endpoint)
+      .setCallbackEndpoint(http.outgoing.callbackEndpoint)
       .setAuthToken(http.outgoing.authToken);
 
     const pbHttp = new PeerHttpSettings().setOutgoing(outgoing);
@@ -96,6 +97,7 @@ export class IlpClient {
       http: {
         outgoing: {
           endpoint: outgoing.getEndpoint(),
+          callbackEndpoint: outgoing.getCallbackEndpoint(),
           authToken: outgoing.getAuthToken()
         },
         ...(incoming
