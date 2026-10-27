@@ -363,8 +363,8 @@ paths:
       summary: List Grants
       description: >-
         List grants with cursor pagination, ordered by creation time.
-        Optionally filter by state and by the end user whose access was
-        granted.
+        Optionally filter by state and by the wallet address the granted
+        access applies to.
       tags:
         - grants
       operationId: Grants_listGrants

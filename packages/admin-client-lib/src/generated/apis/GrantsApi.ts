@@ -147,7 +147,7 @@ export class GrantsApi extends runtime.BaseAPI {
     }
 
     /**
-     * List grants with cursor pagination, ordered by creation time. Optionally filter by state and by the end user whose access was granted.
+     * List grants with cursor pagination, ordered by creation time. Optionally filter by state and by the wallet address the granted access applies to.
      * List Grants
      */
     async grantsListGrantsRaw(requestParameters: GrantsListGrantsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GrantsPage>> {
@@ -158,7 +158,7 @@ export class GrantsApi extends runtime.BaseAPI {
     }
 
     /**
-     * List grants with cursor pagination, ordered by creation time. Optionally filter by state and by the end user whose access was granted.
+     * List grants with cursor pagination, ordered by creation time. Optionally filter by state and by the wallet address the granted access applies to.
      * List Grants
      */
     async grantsListGrants(walletAddress?: string, state?: GrantState, cursor?: string, first?: number, last?: number, sortOrder?: GrantsListGrantsSortOrderEnum, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GrantsPage> {
