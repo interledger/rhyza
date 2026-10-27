@@ -144,7 +144,7 @@ export interface IInboundPayment {
 export interface IPaymentIntent {
   id: string;
   receiverWalletAddressId?: string;
-  receiverWalletAddress: string;
+  receiverWalletAddress?: string;
   state: PaymentIntentState;
   destination: PaymentIntentDestination;
   assetCode: string;

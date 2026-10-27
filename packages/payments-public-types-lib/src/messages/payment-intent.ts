@@ -178,7 +178,7 @@ export type PaymentIntentCreatedPayload = {
   incomingAmount: string | null;
   receivedAmount: string;
   state: PaymentIntentState;
-  receiverWalletAddress: string;
+  receiverWalletAddress?: string;
   receiverWalletAddressId?: string;
   destination: string;
   assetCode: string;
@@ -425,7 +425,6 @@ export type RemoteQuoteRequestedPayload = {
   quoteId: string;
   requestId: string;
   senderWalletAddress: string;
-  receiverWalletAddress: string;
   senderAssetCode: string;
   senderAssetScale: number;
   receiverAssetCode: string;

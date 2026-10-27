@@ -816,7 +816,7 @@ class InboundPayment {
 export class PaymentIntent implements IPaymentIntent {
   private _id: string;
   private _receiverWalletAddressId: string | undefined;
-  private _receiverWalletAddress: string;
+  private _receiverWalletAddress: string | undefined;
   private _state: PaymentIntentState;
   private _destination: PaymentIntentDestination;
   private _assetCode: string;
@@ -835,7 +835,7 @@ export class PaymentIntent implements IPaymentIntent {
   private constructor(
     id: string,
     receiverWalletAddressId: string | undefined,
-    receiverWalletAddress: string,
+    receiverWalletAddress: string | undefined,
     destination: PaymentIntentDestination,
     assetCode: string,
     assetScale: number,
@@ -875,7 +875,7 @@ export class PaymentIntent implements IPaymentIntent {
   static create(
     id: string,
     receiverWalletAddressId: string | undefined,
-    receiverWalletAddress: string,
+    receiverWalletAddress: string | undefined,
     destination: PaymentIntentDestination,
     assetCode: string,
     assetScale: number,
@@ -889,6 +889,12 @@ export class PaymentIntent implements IPaymentIntent {
     if (destination === 'LOCAL' && !receiverWalletAddressId) {
       throw new InvalidPaymentIntentError(
         'receiverWalletAddressId is required for LOCAL payment intents'
+      );
+    }
+
+    if (destination === 'LOCAL' && !receiverWalletAddress) {
+      throw new InvalidPaymentIntentError(
+        'receiverWalletAddress is required for LOCAL payment intents'
       );
     }
 
@@ -1817,7 +1823,7 @@ export class PaymentIntent implements IPaymentIntent {
     return this._receiverWalletAddressId;
   }
 
-  get receiverWalletAddress(): string {
+  get receiverWalletAddress(): string | undefined {
     return this._receiverWalletAddress;
   }
 
