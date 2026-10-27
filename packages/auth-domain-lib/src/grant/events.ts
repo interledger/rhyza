@@ -438,3 +438,37 @@ export class OutgoingPaymentGrantLimitValidationFailedEvent extends AuthDomainEv
     this.payload = payload;
   }
 }
+
+export interface RevertedGrantSpentAmountPayload {
+  id: string;
+  spentAmounts: IGrant['spentAmounts'];
+}
+
+export class RevertedGrantSpentAmountEvent extends AuthDomainEvent {
+  payload: RevertedGrantSpentAmountPayload;
+
+  constructor(payload: RevertedGrantSpentAmountPayload, requestId?: string) {
+    super(payload.id, requestId);
+    this.isErrorEvent = false;
+    this.payload = payload;
+  }
+}
+
+export interface RevertGrantSpentAmountFailedPayload {
+  grantId: string;
+  errorName: string;
+  message: string;
+}
+
+export class RevertGrantSpentAmountFailedEvent extends AuthDomainEvent {
+  payload: RevertGrantSpentAmountFailedPayload;
+
+  constructor(
+    payload: RevertGrantSpentAmountFailedPayload,
+    requestId?: string
+  ) {
+    super(payload.grantId, requestId);
+    this.isErrorEvent = true;
+    this.payload = payload;
+  }
+}

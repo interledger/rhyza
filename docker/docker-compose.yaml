@@ -361,6 +361,19 @@ services:
     networks:
       - rhyza
 
+  auth-event-handler-service:
+    build:
+      context: ../
+      dockerfile: ./packages/auth-event-handler-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+    networks:
+      - rhyza
+
   mongodb:
     image: mongo:7
     restart: unless-stopped

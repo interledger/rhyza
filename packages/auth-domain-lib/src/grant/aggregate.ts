@@ -11,11 +11,13 @@ import {
   RevokeTokenCmd,
   StartInteractionCmd,
   FinishInteractionCmd,
-  ValidateOutgoingPaymentGrantLimitCmd
+  ValidateOutgoingPaymentGrantLimitCmd,
+  RevertGrantSpentAmountCmd
 } from '../commands';
 import {
   DuplicateGrantError,
   GrantNotFoundError,
+  InvalidGrantError,
   UnauthorizedRequestError
 } from './errors';
 import {
@@ -37,7 +39,9 @@ import {
   GrantInteractionFinishedEvent,
   GrantInteractionFinishFailedEvent,
   OutgoingPaymentGrantLimitValidatedEvent,
-  OutgoingPaymentGrantLimitValidationFailedEvent
+  OutgoingPaymentGrantLimitValidationFailedEvent,
+  RevertedGrantSpentAmountEvent,
+  RevertGrantSpentAmountFailedEvent
 } from './events';
 import {
   AccessAction,
@@ -170,7 +174,8 @@ export class GrantAggregate {
         cmd.msgName === AcceptInteractionCmd.name ||
         cmd.msgName === RejectInteractionCmd.name ||
         cmd.msgName === FinishInteractionCmd.name ||
-        cmd.msgName === ValidateOutgoingPaymentGrantLimitCmd.name
+        cmd.msgName === ValidateOutgoingPaymentGrantLimitCmd.name ||
+        cmd.msgName === RevertGrantSpentAmountCmd.name
       ) {
         grantIdSet.add(
           (
@@ -185,6 +190,7 @@ export class GrantAggregate {
               | RejectInteractionCmd
               | FinishInteractionCmd
               | ValidateOutgoingPaymentGrantLimitCmd
+              | RevertGrantSpentAmountCmd
           ).payload.id
         );
       }
@@ -269,6 +275,10 @@ export class GrantAggregate {
       } else if (cmd.msgName === ValidateOutgoingPaymentGrantLimitCmd.name) {
         event = this.handleValidateOutgoingPaymentGrantLimitCommand(
           cmd as ValidateOutgoingPaymentGrantLimitCmd
+        );
+      } else if (cmd.msgName === RevertGrantSpentAmountCmd.name) {
+        event = this.handleRevertGrantSpentAmountCommand(
+          cmd as RevertGrantSpentAmountCmd
         );
       } else {
         this._logger.error(`Received unexpected command: ${cmd.msgName}`);
@@ -910,6 +920,41 @@ export class GrantAggregate {
       );
     } catch (err) {
       return new OutgoingPaymentGrantLimitValidationFailedEvent(
+        {
+          grantId: id,
+          errorName: (err as Error).constructor.name,
+          message: (err as Error).message
+        },
+        cmd.requestId
+      );
+    }
+  }
+
+  private handleRevertGrantSpentAmountCommand(cmd: RevertGrantSpentAmountCmd) {
+    const { id, receiveAmountValue, debitAmountValue, createdAt } = cmd.payload;
+    try {
+      const grant = this.grantMap.get(id);
+      if (!grant) throw new GrantNotFoundError();
+
+      const spentAmounts = grant.revertSpentAmounts({
+        receiveAmountValue,
+        debitAmountValue,
+        createdAt
+      });
+
+      if (!spentAmounts) throw new InvalidGrantError();
+
+      this.updatedSpentAmountsGrantIds.add(id);
+
+      return new RevertedGrantSpentAmountEvent(
+        {
+          id,
+          spentAmounts: spentAmounts ?? undefined
+        },
+        cmd.requestId
+      );
+    } catch (err) {
+      return new RevertGrantSpentAmountFailedEvent(
         {
           grantId: id,
           errorName: (err as Error).constructor.name,

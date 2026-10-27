@@ -14,7 +14,8 @@ import {
   PaymentIntentState,
   SentPaymentState,
   InboundPaymentState,
-  IWalletAddress
+  IWalletAddress,
+  QuoteState
 } from './interfaces';
 import { PaymentIntent } from './entity';
 import {
@@ -884,10 +885,29 @@ export class PaymentIntentAggregate {
       this._logger.debug(
         `handleCreatePaymentCommand — failed paymentIntentId: ${cmd.payload.paymentIntentId} error: ${(err as Error).message}`
       );
+
+      let debitAmountValue: number | undefined;
+      let receiveAmountValue: number | undefined;
+      if (debitAmount) {
+        // Failed Payment without quote
+        debitAmountValue = debitAmount;
+      } else if (quoteId) {
+        // Failed Payment with quote
+        const paymentIntent = this.paymentIntentMap.get(cmd.payload.paymentIntentId);
+        const quote = paymentIntent && paymentIntent.quotes.find(quote => quote.id === quoteId);
+        if (quote?.state !== QuoteState.FAILED) {
+          debitAmountValue = Number(quote?.debitAmount);
+          receiveAmountValue = Number(quote?.receiveAmount);
+        }
+      }
+
       const event = new PaymentCreateFailedEvent(
         {
           paymentIntentId: cmd.payload.paymentIntentId,
           grantId: cmd.payload.grantId,
+          debitAmountValue,
+          receiveAmountValue,
+          createdAt: cmd.payload.createdAt ?? new Date().toISOString(), // todo: generate new date at aggregate level if createdAt not provided & pass it into the entity creation method
           ...getErrorDetails(err)
         },
         cmd.requestId

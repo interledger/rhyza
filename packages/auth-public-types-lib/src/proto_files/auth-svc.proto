@@ -7,7 +7,8 @@ service RhyzaAuth {
 	rpc GetGrant(GetGrantRequest) returns (Grant) {}
 	rpc ContinueGrant(ContinueGrantRequest) returns (ContinueGrantResponse) {}
 	rpc RevokeGrant(RevokeGrantRequest) returns (RevokeGrantResponse) {}
-	rpc ValidateOutgoingPaymentGrantLimit(ValidateOutgoingPaymentGrantLimitRequest) returns (ValidateOutgoingPaymentGrantLimitResponse) {}
+	rpc ValidateOutgoingPaymentGrantLimit(ValidateOutgoingPaymentGrantLimitRequest) returns (GrantSpentAmountsResponse) {}
+	rpc RevertGrantSpentAmount(RevertGrantSpentAmountRequest) returns (GrantSpentAmountsResponse) {}
 	rpc AdminRevokeGrant(AdminRevokeGrantRequest) returns (RevokeGrantResponse) {}
 	// Access Token RPCs
 	rpc IntrospectToken(IntrospectTokenRequest) returns (IntrospectTokenResponse) {}
@@ -152,7 +153,14 @@ message ValidateOutgoingPaymentGrantLimitRequest {
 	string created_at = 4; // Date String
 }
 
-message ValidateOutgoingPaymentGrantLimitResponse {
+message RevertGrantSpentAmountRequest {
+	string id = 1;
+	string debit_amount_value = 2; // Debit amount to revert
+	string receive_amount_value = 3; // Receive amount to revert
+	string created_at = 4; // Date String
+}
+
+message GrantSpentAmountsResponse {
 	string id = 1;
 	string total_spent_debit_amount = 2;
 	string total_spent_receive_amount = 3;

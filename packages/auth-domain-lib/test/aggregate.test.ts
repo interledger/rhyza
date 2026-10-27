@@ -24,7 +24,8 @@ import {
   RevokeGrantCmd,
   RevokeTokenCmd,
   RotateTokenCmd,
-  ValidateOutgoingPaymentGrantLimitCmd
+  ValidateOutgoingPaymentGrantLimitCmd,
+  RevertGrantSpentAmountCmd
 } from '../src/commands';
 import {
   GrantCreatedEvent,
@@ -45,7 +46,9 @@ import {
   GrantInteractionFinishedEvent,
   GrantInteractionFinishFailedEvent,
   OutgoingPaymentGrantLimitValidatedEvent,
-  OutgoingPaymentGrantLimitValidationFailedEvent
+  OutgoingPaymentGrantLimitValidationFailedEvent,
+  RevertedGrantSpentAmountEvent,
+  RevertGrantSpentAmountFailedEvent
 } from '../src/grant/events';
 import {
   AccessAction,
@@ -1836,9 +1839,12 @@ describe('GrantAggregate.handleBatch', () => {
       });
     });
 
-    describe('handleValidateOutgoingPaymentGrantLimitCommand', () => {
+    describe('spentAmounts', () => {
       function makeIssuedOutgoingPaymentGrant(
-        limitOverrides: Partial<IAccessLimit> = {}
+        overrides: {
+          limits?: Partial<IAccessLimit>;
+          spentAmounts?: IGrant['spentAmounts'];
+        } = {}
       ): IGrant {
         return {
           id: randomUUID(),
@@ -1849,168 +1855,407 @@ describe('GrantAggregate.handleBatch', () => {
             {
               type: AccessType.OUTGOING_PAYMENT,
               actions: [AccessAction.CREATE],
-              limits: {
-                receiver: 'https://wallet.example/bob',
-                assetCode: 'USD',
-                assetScale: 2,
-                ...limitOverrides
-              } as IAccessLimit
+              ...(overrides.limits
+                ? {
+                    limits: {
+                      receiver: 'https://wallet.example/bob',
+                      assetCode: 'USD',
+                      assetScale: 2,
+                      ...overrides.limits
+                    } as IAccessLimit
+                  }
+                : {})
             }
           ],
-          spentAmounts: {
-            total: { debit: 0n, receive: 0n }
-          }
+          spentAmounts:
+            'spentAmounts' in overrides
+              ? overrides.spentAmounts
+              : { total: { debit: 0n, receive: 0n } }
         };
       }
 
-      it('validates and updates the debit total, returning OutgoingPaymentGrantLimitValidatedEvent', async () => {
-        const grant = makeIssuedOutgoingPaymentGrant({ debitAmount: 100n });
-        await repo.storeMany([grant]);
-        const requestId = randomUUID();
+      describe('handleValidateOutgoingPaymentGrantLimitCommand', () => {
+        it('validates and updates the debit total', async () => {
+          const grant = makeIssuedOutgoingPaymentGrant({
+            limits: { debitAmount: 100n }
+          });
+          await repo.storeMany([grant]);
+          const requestId = randomUUID();
 
-        const { events } = await aggregate.handleBatch([
-          new ValidateOutgoingPaymentGrantLimitCmd(
-            {
-              id: grant.id,
-              debitAmountValue: '10',
-              receiveAmountValue: '',
-              createdAt: new Date().toISOString()
-            },
-            requestId
-          )
-        ]);
+          const { events } = await aggregate.handleBatch([
+            new ValidateOutgoingPaymentGrantLimitCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '10',
+                receiveAmountValue: '',
+                createdAt: new Date().toISOString()
+              },
+              requestId
+            )
+          ]);
 
-        assert.equal(events.length, 1);
-        assert.equal(
-          events[0].msgName,
-          OutgoingPaymentGrantLimitValidatedEvent.name
-        );
-        const payload = (events[0] as OutgoingPaymentGrantLimitValidatedEvent)
-          .payload;
-        assert.equal(payload.id, grant.id);
-        assert.equal(payload.spentAmounts?.total.debit, 10n);
-        assert.equal(events[0].requestId, requestId);
+          assert.equal(events.length, 1);
+          assert.equal(
+            events[0].msgName,
+            OutgoingPaymentGrantLimitValidatedEvent.name
+          );
+          const payload = (events[0] as OutgoingPaymentGrantLimitValidatedEvent)
+            .payload;
+          assert.equal(payload.id, grant.id);
+          assert.equal(payload.spentAmounts?.total.debit, 10n);
+          assert.equal(events[0].requestId, requestId);
+        });
+
+        it('validates and updates the receive total', async () => {
+          const grant = makeIssuedOutgoingPaymentGrant({
+            limits: { receiveAmount: 100n }
+          });
+          await repo.storeMany([grant]);
+
+          const { events } = await aggregate.handleBatch([
+            new ValidateOutgoingPaymentGrantLimitCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '',
+                receiveAmountValue: '25',
+                createdAt: new Date().toISOString()
+              },
+              randomUUID()
+            )
+          ]);
+
+          assert.equal(events.length, 1);
+          assert.equal(
+            events[0].msgName,
+            OutgoingPaymentGrantLimitValidatedEvent.name
+          );
+          const payload = (events[0] as OutgoingPaymentGrantLimitValidatedEvent)
+            .payload;
+          assert.equal(payload.spentAmounts?.total.receive, 25n);
+        });
+
+        it('fails with InvalidGrantError when the debit amount would exceed the limit', async () => {
+          const grant = makeIssuedOutgoingPaymentGrant({
+            limits: { debitAmount: 100n }
+          });
+          await repo.storeMany([grant]);
+          const requestId = randomUUID();
+
+          const { events } = await aggregate.handleBatch([
+            new ValidateOutgoingPaymentGrantLimitCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '150',
+                receiveAmountValue: '',
+                createdAt: new Date().toISOString()
+              },
+              requestId
+            )
+          ]);
+
+          assert.equal(events.length, 1);
+          assert.equal(
+            events[0].msgName,
+            OutgoingPaymentGrantLimitValidationFailedEvent.name
+          );
+          const payload = (
+            events[0] as OutgoingPaymentGrantLimitValidationFailedEvent
+          ).payload;
+          assert.equal(payload.errorName, 'InvalidGrantError');
+          assert.equal(payload.grantId, grant.id);
+          assert.equal(events[0].requestId, requestId);
+
+          const stored = await repo.fetchById(grant.id);
+          assert.equal(stored?.spentAmounts?.total.debit, 0n);
+        });
+
+        it('fails with GrantNotFoundError when the grant does not exist', async () => {
+          const requestId = randomUUID();
+
+          const { events } = await aggregate.handleBatch([
+            new ValidateOutgoingPaymentGrantLimitCmd(
+              {
+                id: randomUUID(),
+                debitAmountValue: '10',
+                receiveAmountValue: '',
+                createdAt: new Date().toISOString()
+              },
+              requestId
+            )
+          ]);
+
+          assert.equal(events.length, 1);
+          assert.equal(
+            events[0].msgName,
+            OutgoingPaymentGrantLimitValidationFailedEvent.name
+          );
+          const payload = (
+            events[0] as OutgoingPaymentGrantLimitValidationFailedEvent
+          ).payload;
+          assert.equal(payload.errorName, 'GrantNotFoundError');
+          assert.equal(events[0].requestId, requestId);
+        });
+
+        it('persists the updated spent amounts via storeUpdatedSpentAmountGrants on flush', async () => {
+          const storeUpdatedSpentAmountGrantsMock = mock.method(
+            repo,
+            'storeUpdatedSpentAmountGrants'
+          );
+          const grant = makeIssuedOutgoingPaymentGrant({
+            limits: { debitAmount: 100n }
+          });
+          await repo.storeMany([grant]);
+
+          await aggregate.handleBatch([
+            new ValidateOutgoingPaymentGrantLimitCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '10',
+                receiveAmountValue: '',
+                createdAt: new Date().toISOString()
+              },
+              randomUUID()
+            )
+          ]);
+
+          assert.equal(storeUpdatedSpentAmountGrantsMock.mock.callCount(), 0);
+
+          await aggregate.flush();
+
+          assert.equal(storeUpdatedSpentAmountGrantsMock.mock.callCount(), 1);
+          const updates =
+            storeUpdatedSpentAmountGrantsMock.mock.calls[0].arguments[0];
+          assert.equal(updates.length, 1);
+          assert.equal(updates[0].id, grant.id);
+          assert.equal(updates[0].spentAmounts.total.debit, 10n);
+
+          const stored = await repo.fetchById(grant.id);
+          assert.equal(stored?.spentAmounts?.total.debit, 10n);
+        });
       });
 
-      it('validates and updates the receive total, returning OutgoingPaymentGrantLimitValidatedEvent', async () => {
-        const grant = makeIssuedOutgoingPaymentGrant({ receiveAmount: 100n });
-        await repo.storeMany([grant]);
+      describe('handleRevertGrantSpentAmountCommand', () => {
+        it('reverts the debit total', async () => {
+          const grant = makeIssuedOutgoingPaymentGrant({
+            spentAmounts: { total: { debit: 50n, receive: 0n } }
+          });
+          await repo.storeMany([grant]);
+          const requestId = randomUUID();
 
-        const { events } = await aggregate.handleBatch([
-          new ValidateOutgoingPaymentGrantLimitCmd(
-            {
-              id: grant.id,
-              debitAmountValue: '',
-              receiveAmountValue: '25',
-              createdAt: new Date().toISOString()
-            },
-            randomUUID()
-          )
-        ]);
+          const { events } = await aggregate.handleBatch([
+            new RevertGrantSpentAmountCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '20',
+                createdAt: new Date().toISOString()
+              },
+              requestId
+            )
+          ]);
 
-        assert.equal(events.length, 1);
-        assert.equal(
-          events[0].msgName,
-          OutgoingPaymentGrantLimitValidatedEvent.name
-        );
-        const payload = (events[0] as OutgoingPaymentGrantLimitValidatedEvent)
-          .payload;
-        assert.equal(payload.spentAmounts?.total.receive, 25n);
-      });
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, RevertedGrantSpentAmountEvent.name);
+          const payload = (events[0] as RevertedGrantSpentAmountEvent).payload;
+          assert.equal(payload.id, grant.id);
+          assert.equal(payload.spentAmounts?.total.debit, 30n);
+          assert.equal(events[0].requestId, requestId);
+        });
 
-      it('fails with OutgoingPaymentGrantLimitValidationFailedEvent and errorName InvalidGrantError when the debit amount would exceed the limit', async () => {
-        const grant = makeIssuedOutgoingPaymentGrant({ debitAmount: 100n });
-        await repo.storeMany([grant]);
-        const requestId = randomUUID();
+        it('reverts the receive total', async () => {
+          const grant = makeIssuedOutgoingPaymentGrant({
+            spentAmounts: { total: { debit: 0n, receive: 40n } }
+          });
+          await repo.storeMany([grant]);
 
-        const { events } = await aggregate.handleBatch([
-          new ValidateOutgoingPaymentGrantLimitCmd(
-            {
-              id: grant.id,
-              debitAmountValue: '150',
-              receiveAmountValue: '',
-              createdAt: new Date().toISOString()
-            },
-            requestId
-          )
-        ]);
+          const { events } = await aggregate.handleBatch([
+            new RevertGrantSpentAmountCmd(
+              {
+                id: grant.id,
+                receiveAmountValue: '15',
+                createdAt: new Date().toISOString()
+              },
+              randomUUID()
+            )
+          ]);
 
-        assert.equal(events.length, 1);
-        assert.equal(
-          events[0].msgName,
-          OutgoingPaymentGrantLimitValidationFailedEvent.name
-        );
-        const payload = (
-          events[0] as OutgoingPaymentGrantLimitValidationFailedEvent
-        ).payload;
-        assert.equal(payload.errorName, 'InvalidGrantError');
-        assert.equal(payload.grantId, grant.id);
-        assert.equal(events[0].requestId, requestId);
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, RevertedGrantSpentAmountEvent.name);
+          const payload = (events[0] as RevertedGrantSpentAmountEvent).payload;
+          assert.equal(payload.spentAmounts?.total.receive, 25n);
+        });
 
-        const stored = await repo.fetchById(grant.id);
-        assert.equal(stored?.spentAmounts?.total.debit, 0n);
-      });
+        it('fails with RevertGrantSpentAmountFailedEvent when the grant does not exist', async () => {
+          const requestId = randomUUID();
 
-      it('fails with GrantNotFoundError when the grant does not exist', async () => {
-        const requestId = randomUUID();
+          const { events } = await aggregate.handleBatch([
+            new RevertGrantSpentAmountCmd(
+              {
+                id: randomUUID(),
+                debitAmountValue: '10',
+                createdAt: new Date().toISOString()
+              },
+              requestId
+            )
+          ]);
 
-        const { events } = await aggregate.handleBatch([
-          new ValidateOutgoingPaymentGrantLimitCmd(
-            {
-              id: randomUUID(),
-              debitAmountValue: '10',
-              receiveAmountValue: '',
-              createdAt: new Date().toISOString()
-            },
-            requestId
-          )
-        ]);
+          assert.equal(events.length, 1);
+          assert.equal(
+            events[0].msgName,
+            RevertGrantSpentAmountFailedEvent.name
+          );
+          const payload = (events[0] as RevertGrantSpentAmountFailedEvent)
+            .payload;
+          assert.equal(payload.errorName, 'GrantNotFoundError');
+          assert.equal(events[0].requestId, requestId);
+        });
 
-        assert.equal(events.length, 1);
-        assert.equal(
-          events[0].msgName,
-          OutgoingPaymentGrantLimitValidationFailedEvent.name
-        );
-        const payload = (
-          events[0] as OutgoingPaymentGrantLimitValidationFailedEvent
-        ).payload;
-        assert.equal(payload.errorName, 'GrantNotFoundError');
-        assert.equal(events[0].requestId, requestId);
-      });
+        it('fails with RevertGrantSpentAmountFailedEvent and errorName InvalidGrantError when spent amounts have not been initialized', async () => {
+          const { grantId } = await createIssuedGrant();
+          const requestId = randomUUID();
 
-      it('persists the updated spent amounts via storeUpdatedSpentAmountGrants on flush', async () => {
-        const storeUpdatedSpentAmountGrantsMock = mock.method(
-          repo,
-          'storeUpdatedSpentAmountGrants'
-        );
-        const grant = makeIssuedOutgoingPaymentGrant({ debitAmount: 100n });
-        await repo.storeMany([grant]);
+          const { events } = await aggregate.handleBatch([
+            new RevertGrantSpentAmountCmd(
+              {
+                id: grantId,
+                debitAmountValue: '10',
+                createdAt: new Date().toISOString()
+              },
+              requestId
+            )
+          ]);
 
-        await aggregate.handleBatch([
-          new ValidateOutgoingPaymentGrantLimitCmd(
-            {
-              id: grant.id,
-              debitAmountValue: '10',
-              receiveAmountValue: '',
-              createdAt: new Date().toISOString()
-            },
-            randomUUID()
-          )
-        ]);
+          assert.equal(events.length, 1);
+          assert.equal(
+            events[0].msgName,
+            RevertGrantSpentAmountFailedEvent.name
+          );
+          const payload = (events[0] as RevertGrantSpentAmountFailedEvent)
+            .payload;
+          assert.equal(payload.errorName, 'InvalidGrantError');
+          assert.equal(payload.grantId, grantId);
+        });
 
-        assert.equal(storeUpdatedSpentAmountGrantsMock.mock.callCount(), 0);
+        it('persists the reverted spent amounts via storeUpdatedSpentAmountGrants on flush', async () => {
+          const storeUpdatedSpentAmountGrantsMock = mock.method(
+            repo,
+            'storeUpdatedSpentAmountGrants'
+          );
+          const grant = makeIssuedOutgoingPaymentGrant({
+            spentAmounts: { total: { debit: 50n, receive: 0n } }
+          });
+          await repo.storeMany([grant]);
 
-        await aggregate.flush();
+          await aggregate.handleBatch([
+            new RevertGrantSpentAmountCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '20',
+                createdAt: new Date().toISOString()
+              },
+              randomUUID()
+            )
+          ]);
 
-        assert.equal(storeUpdatedSpentAmountGrantsMock.mock.callCount(), 1);
-        const updates =
-          storeUpdatedSpentAmountGrantsMock.mock.calls[0].arguments[0];
-        assert.equal(updates.length, 1);
-        assert.equal(updates[0].id, grant.id);
-        assert.equal(updates[0].spentAmounts.total.debit, 10n);
+          assert.equal(storeUpdatedSpentAmountGrantsMock.mock.callCount(), 0);
 
-        const stored = await repo.fetchById(grant.id);
-        assert.equal(stored?.spentAmounts?.total.debit, 10n);
+          await aggregate.flush();
+
+          assert.equal(storeUpdatedSpentAmountGrantsMock.mock.callCount(), 1);
+          const updates =
+            storeUpdatedSpentAmountGrantsMock.mock.calls[0].arguments[0];
+          assert.equal(updates.length, 1);
+          assert.equal(updates[0].id, grant.id);
+          assert.equal(updates[0].spentAmounts.total.debit, 30n);
+
+          const stored = await repo.fetchById(grant.id);
+          assert.equal(stored?.spentAmounts?.total.debit, 30n);
+        });
+
+        it('persists the correct spent amount when a spent amount vaidation precedes a reversion in the same batch', async () => {
+          const storeUpdatedSpentAmountGrantsMock = mock.method(
+            repo,
+            'storeUpdatedSpentAmountGrants'
+          );
+          const grant = makeIssuedOutgoingPaymentGrant({
+            spentAmounts: { total: { debit: 0n, receive: 0n } }
+          });
+          await repo.storeMany([grant]);
+
+          await aggregate.handleBatch([
+            new ValidateOutgoingPaymentGrantLimitCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '50',
+                receiveAmountValue: '',
+                createdAt: new Date().toISOString()
+              },
+              randomUUID()
+            ),
+            new RevertGrantSpentAmountCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '20',
+                createdAt: new Date().toISOString()
+              },
+              randomUUID()
+            )
+          ]);
+
+          await aggregate.flush();
+
+          assert.equal(storeUpdatedSpentAmountGrantsMock.mock.callCount(), 1);
+          const updates =
+            storeUpdatedSpentAmountGrantsMock.mock.calls[0].arguments[0];
+          assert.equal(updates.length, 1);
+          assert.equal(updates[0].id, grant.id);
+          assert.equal(updates[0].spentAmounts.total.debit, 30n);
+
+          const stored = await repo.fetchById(grant.id);
+          assert.equal(stored?.spentAmounts?.total.debit, 30n);
+        });
+
+        it('persists the correct spent amount when a spent amount validation follows a reversion in the same batch', async () => {
+          const storeUpdatedSpentAmountGrantsMock = mock.method(
+            repo,
+            'storeUpdatedSpentAmountGrants'
+          );
+          const grant = makeIssuedOutgoingPaymentGrant({
+            spentAmounts: { total: { debit: 50n, receive: 0n } }
+          });
+          await repo.storeMany([grant]);
+
+          await aggregate.handleBatch([
+            new RevertGrantSpentAmountCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '20',
+                createdAt: new Date().toISOString()
+              },
+              randomUUID()
+            ),
+            new ValidateOutgoingPaymentGrantLimitCmd(
+              {
+                id: grant.id,
+                debitAmountValue: '15',
+                receiveAmountValue: '',
+                createdAt: new Date().toISOString()
+              },
+              randomUUID()
+            )
+          ]);
+
+          await aggregate.flush();
+
+          assert.equal(storeUpdatedSpentAmountGrantsMock.mock.callCount(), 1);
+          const updates =
+            storeUpdatedSpentAmountGrantsMock.mock.calls[0].arguments[0];
+          assert.equal(updates.length, 1);
+          assert.equal(updates[0].id, grant.id);
+          assert.equal(updates[0].spentAmounts.total.debit, 45n);
+
+          const stored = await repo.fetchById(grant.id);
+          assert.equal(stored?.spentAmounts?.total.debit, 45n);
+        });
       });
     });
   });

@@ -741,6 +741,66 @@ export class GrantEntity implements IGrant {
     return this._spentAmounts;
   }
 
+  revertSpentAmounts(input: {
+    receiveAmountValue?: string;
+    debitAmountValue?: string;
+    createdAt: string;
+  }): ISpentAmounts | void {
+    if (!this._spentAmounts) return;
+
+    if (input.receiveAmountValue) {
+      this._spentAmounts.total.receive = BigInt(
+        Math.max(
+          0,
+          Number(this._spentAmounts.total.receive) -
+            Number(input.receiveAmountValue)
+        )
+      );
+
+      if (
+        this.isGrantWithSpentAmountsInterval() &&
+        this.getSpentAmountInterval().contains(
+          DateTime.fromJSDate(new Date(input.createdAt))
+        )
+      ) {
+        this._spentAmounts.interval!.total.receive = BigInt(
+          Math.max(
+            0,
+            Number(this._spentAmounts.interval!.total.receive) -
+              Number(input.receiveAmountValue)
+          )
+        );
+      }
+    }
+
+    if (input.debitAmountValue) {
+      this._spentAmounts.total.debit = BigInt(
+        Math.max(
+          0,
+          Number(this._spentAmounts.total.debit) -
+            Number(input.debitAmountValue)
+        )
+      );
+
+      if (
+        this.isGrantWithSpentAmountsInterval() &&
+        this.getSpentAmountInterval().contains(
+          DateTime.fromJSDate(new Date(input.createdAt))
+        )
+      ) {
+        this._spentAmounts.interval!.total.debit = BigInt(
+          Math.max(
+            0,
+            Number(this._spentAmounts.interval!.total.debit) -
+              Number(input.debitAmountValue)
+          )
+        );
+      }
+    }
+
+    return this._spentAmounts;
+  }
+
   get id(): string {
     return this._id;
   }
