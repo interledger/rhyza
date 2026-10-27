@@ -1,5 +1,9 @@
 import { PacketInvalidState } from './errors';
-import { IPacketCorrelation, PacketState } from './interfaces';
+import {
+  IPacketCorrelation,
+  InboundPrepareSnapshot,
+  PacketState
+} from './interfaces';
 
 export class PacketCorrelation {
   private constructor(private readonly _data: IPacketCorrelation) {}
@@ -11,6 +15,8 @@ export class PacketCorrelation {
     expiresAt: Date;
     quoteId: string;
     requestId: string;
+    sharedSecret?: string;
+    inboundPrepare?: InboundPrepareSnapshot;
   }): PacketCorrelation {
     return new PacketCorrelation({ ...args, kind: 'QUOTE', state: 'PENDING' });
   }
@@ -22,8 +28,9 @@ export class PacketCorrelation {
     expiresAt: Date;
     paymentId: string;
     requestId: string;
-    fulfillment?: string;
     executionCondition?: string;
+    sharedSecret?: string;
+    inboundPrepare?: InboundPrepareSnapshot;
   }): PacketCorrelation {
     return new PacketCorrelation({
       ...args,
@@ -63,7 +70,13 @@ export class PacketCorrelation {
     }
   }
 
+  // Every transition here is to a terminal state, so the STREAM shared secret
+  // has done its job: it exists only to decrypt the probe or fulfill reply,
+  // which has either arrived or never will. Dropping it keeps a live key out
+  // of a record that outlives the 30-second packet by design.
   private withState(state: PacketState): PacketCorrelation {
-    return new PacketCorrelation({ ...this._data, state });
+    const next = { ...this._data, state };
+    delete next.sharedSecret;
+    return new PacketCorrelation(next);
   }
 }

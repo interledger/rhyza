@@ -1,4 +1,5 @@
 import { IMessage } from 'common-types-lib';
+import { StreamServer, type IncomingMoney } from '@interledger/stream-receiver';
 import {
   ActivatePeerCmd,
   CreatePeerCmd,
@@ -7,7 +8,6 @@ import {
   FulfillInboundPaymentCmd,
   ProcessFulfillPacketCmd,
   ProcessPreparePacketCmd,
-  ProcessPreparePacketCmdPayload,
   ProcessRejectPacketCmd,
   RejectInboundPaymentCmd,
   RespondToRemoteQuoteCmd,
@@ -15,17 +15,17 @@ import {
   StartRemoteQuoteCmd,
   UpdatePeerCmd
 } from '../commands';
-import {
-  IPeeringClient,
-  IInboundPacketReplyHandle,
-  PacketCorrelation
-} from '../packet';
+import { IPeeringClient, PacketCorrelation } from '../packet';
 import { PacketNotFound } from '../packet/errors';
 import {
-  decodeInboundStreamPrepare,
+  decodeStreamReply,
   encodeOutgoingStreamPrepare,
+  encodeStreamQuoteReply,
+  rewriteStreamReplyAmount,
+  inboundPrepareFrom,
   ResolveStreamCredentials,
-  sha256
+  sha256,
+  toIlpPrepare
 } from '../stream';
 import { Peer } from './entity';
 import { DuplicatePeer, UnknownPeer } from './errors';
@@ -41,29 +41,59 @@ import {
   ILPQuoteRequestReceivedEvent,
   ILPPaymentReceivedEvent,
   ILPPaymentFulfillmentSentEvent,
-  ILPPaymentFulfillmentFailedEvent
+  ILPPaymentFulfillmentFailedEvent,
+  ILPPaymentFailureReason
 } from './events';
 import { IPeer, IPeerRepository } from './interfaces';
 
 // ILP reject codes for inbound prepare / quote / receive-fail paths.
-// F99 (application error) is the expected quote response: the unfulfillable
-// probe is answered with a reject carrying the destination amount.
-// T00 (internal error) is the generic temporary reject (inactive peer,
-// quote calc failure, post-accept receive fail)
-// F06 / F03 are final: bad STREAM credentials / invalid amount.
-// R00 is connector wire timeout (no callback before expiresAt).
-// TODO: Move these in the future
+// F05 (wrong condition) is the only code stream-receiver uses for an
+// unfulfillable probe, so it is the sole marker of an inbound quote request.
+// F99 is the quote response we send back after Payments returns an amount;
+// inbound it means the peer closed the connection, which is a refusal and
+// must not be mistaken for a probe. T00 is the generic temporary reject
+// (inactive peer, quote calc failure, post-accept receive fail). F06 / F03
+// are final: bad STREAM credentials / invalid amount. R00 is wire timeout.
 const REJECT_CODE_QUOTE_RESPONSE = 'F99';
+const REJECT_CODE_WRONG_CONDITION = 'F05';
 const REJECT_CODE_INTERNAL = 'T00';
 const REJECT_CODE_UNEXPECTED_PAYMENT = 'F06';
 const REJECT_CODE_INVALID_AMOUNT = 'F03';
 const REJECT_CODE_TRANSFER_TIMED_OUT = 'R00';
 
+function isIncomingMoney(
+  reply: IncomingMoney | { code?: string; fulfillment?: Buffer }
+): reply is IncomingMoney {
+  return typeof (reply as IncomingMoney).accept === 'function';
+}
+
+function isFinalRejectCode(rejectCode: string | undefined): boolean {
+  return rejectCode?.startsWith('F') === true;
+}
+
+function packetHasExpired(expiresAt: Date | string): boolean {
+  const deadline =
+    expiresAt instanceof Date ? expiresAt.getTime() : Date.parse(expiresAt);
+  return !Number.isFinite(deadline) || deadline <= Date.now();
+}
+
+function parseSharedSecret(
+  sharedSecret: string | undefined
+): Buffer | undefined {
+  if (!sharedSecret) {
+    return undefined;
+  }
+  return Buffer.from(sharedSecret, 'base64url');
+}
+
 export class IlpPeerAggregate {
   constructor(
     private readonly peerRepo: IPeerRepository,
     private readonly peeringClient: IPeeringClient,
-    private readonly resolveStreamCredentials: ResolveStreamCredentials
+    private readonly resolveStreamCredentials: ResolveStreamCredentials,
+    private readonly streamServer: StreamServer,
+    /** This node's ILP address — used as `triggeredBy` on locally originated rejects. */
+    private readonly ilpAddress: string
   ) {}
 
   async createPeer(input: IPeer): Promise<IPeer> {
@@ -263,11 +293,44 @@ export class IlpPeerAggregate {
     const payload = cmd.payload;
     const peer = await this.peerRepo.fetchById(payload.peerId);
     if (!peer) {
-      throw new UnknownPeer(`Peer ${payload.peerId} not found`);
+      return [
+        new ILPQuoteFailedEvent(
+          {
+            peerId: payload.peerId,
+            paymentIntentId: payload.paymentIntentId,
+            quoteId: payload.quoteId,
+            rejectMessage: `Peer ${payload.peerId} not found`
+          },
+          cmd.requestId
+        )
+      ];
+    }
+
+    const sharedSecret = parseSharedSecret(payload.sharedSecret);
+    if (!sharedSecret) {
+      return [
+        new ILPQuoteFailedEvent(
+          {
+            peerId: payload.peerId,
+            paymentIntentId: payload.paymentIntentId,
+            quoteId: payload.quoteId,
+            rejectMessage: 'missing STREAM shared secret'
+          },
+          cmd.requestId
+        )
+      ];
     }
 
     const packetId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 30_000);
+    // A probe cannot be fulfilled, so it asserts no minimum: we are asking
+    // what arrives, not demanding a floor. Anything else risks the receiver
+    // answering F04 (insufficient destination amount) instead of telling us
+    // the rate.
+    const encoded = encodeOutgoingStreamPrepare({
+      sharedSecret,
+      minDestinationAmount: '0'
+    });
 
     const correlation = PacketCorrelation.createQuote({
       packetId,
@@ -275,7 +338,8 @@ export class IlpPeerAggregate {
       paymentIntentId: payload.paymentIntentId,
       expiresAt,
       quoteId: payload.quoteId,
-      requestId: cmd.requestId
+      requestId: cmd.requestId,
+      sharedSecret: payload.sharedSecret
     });
     await this.peerRepo.storePacket(correlation.toObject());
 
@@ -289,7 +353,8 @@ export class IlpPeerAggregate {
       sourceAmount: payload.sourceAmount,
       sourceAssetCode: payload.sourceAssetCode,
       sourceAssetScale: payload.sourceAssetScale,
-      expiresAt: expiresAt.toISOString()
+      expiresAt: expiresAt.toISOString(),
+      data: encoded.data.toString('base64')
     });
 
     return [];
@@ -301,13 +366,46 @@ export class IlpPeerAggregate {
     const payload = cmd.payload;
     const peer = await this.peerRepo.fetchById(payload.peerId);
     if (!peer) {
-      throw new UnknownPeer(`Peer ${payload.peerId} not found`);
+      return [
+        new ILPPaymentFailedEvent(
+          {
+            peerId: payload.peerId,
+            paymentIntentId: payload.paymentIntentId,
+            paymentId: payload.paymentId,
+            failedAt: new Date().toISOString(),
+            reason: ILPPaymentFailureReason.REJECTED,
+            rejectMessage: `Peer ${payload.peerId} not found`
+          },
+          cmd.requestId
+        )
+      ];
+    }
+
+    const sharedSecret = parseSharedSecret(payload.sharedSecret);
+    if (!sharedSecret) {
+      return [
+        new ILPPaymentFailedEvent(
+          {
+            peerId: payload.peerId,
+            paymentIntentId: payload.paymentIntentId,
+            paymentId: payload.paymentId,
+            failedAt: new Date().toISOString(),
+            reason: ILPPaymentFailureReason.REJECTED,
+            rejectMessage: 'missing STREAM shared secret'
+          },
+          cmd.requestId
+        )
+      ];
     }
 
     const packetId = crypto.randomUUID();
+    // Both sides of a direct peer link settle in the same peering asset, so
+    // the amount we send is the amount that arrives and doubles as the floor.
+    // That equality breaks the moment a hop applies FX — a multi-hop path or
+    // slippage policy has to supply a real minimum here instead.
     const encoded = encodeOutgoingStreamPrepare({
-      sharedSecret: Buffer.from(payload.sharedSecret, 'base64url'),
-      amount: payload.amount
+      sharedSecret,
+      minDestinationAmount: payload.amount
     });
 
     const correlation = PacketCorrelation.createPayment({
@@ -317,7 +415,8 @@ export class IlpPeerAggregate {
       expiresAt: new Date(payload.expiresAt),
       paymentId: payload.paymentId,
       requestId: cmd.requestId,
-      executionCondition: encoded.executionCondition.toString('base64')
+      executionCondition: encoded.executionCondition.toString('base64'),
+      sharedSecret: payload.sharedSecret
     });
     await this.peerRepo.storePacket(correlation.toObject());
 
@@ -345,6 +444,11 @@ export class IlpPeerAggregate {
   ): Promise<IMessage[]> {
     const payload = cmd.payload;
 
+    if (packetHasExpired(payload.expiresAt)) {
+      await this.rejectInbound(payload, REJECT_CODE_TRANSFER_TIMED_OUT);
+      return [];
+    }
+
     const peer = await this.peerRepo.fetchById(payload.peerId);
     if (!peer || peer.isActive === false) {
       await this.rejectInbound(payload, REJECT_CODE_INTERNAL);
@@ -364,13 +468,23 @@ export class IlpPeerAggregate {
       return [];
     }
 
-    const stream = decodeInboundStreamPrepare({
-      sharedSecret: resolved.sharedSecret,
-      executionCondition: Buffer.from(payload.executionCondition, 'base64'),
-      data: Buffer.from(payload.data ?? '', 'base64')
-    });
+    const inboundPrepare = inboundPrepareFrom(payload);
+    const streamReply = this.streamServer.createReply(
+      toIlpPrepare(inboundPrepare)
+    );
 
-    if (stream.fulfillable && stream.fulfillment) {
+    if (isIncomingMoney(streamReply)) {
+      // resolveStreamCredentials and StreamServer derive the payment tag from
+      // the same address by separate code paths. If they ever disagree the
+      // packet would be credited to the wrong intent, so refuse it instead.
+      if (
+        streamReply.paymentTag !== undefined &&
+        streamReply.paymentTag !== resolved.paymentIntentId
+      ) {
+        await this.rejectInbound(payload, REJECT_CODE_UNEXPECTED_PAYMENT);
+        return [];
+      }
+
       const paymentId = crypto.randomUUID();
       const requestId = cmd.requestId ?? crypto.randomUUID();
       const correlation = PacketCorrelation.createPayment({
@@ -378,17 +492,11 @@ export class IlpPeerAggregate {
         peerId: peer.peerId,
         paymentIntentId: resolved.paymentIntentId,
         expiresAt: new Date(payload.expiresAt),
-        // Inbound payment id is allocated locally until Payments BC owns it.
         paymentId,
         requestId,
-        fulfillment: stream.fulfillment.toString('base64')
+        inboundPrepare
       });
       await this.peerRepo.storePacket(correlation.toObject());
-      await this.peerRepo.storeInboundReplyHandle({
-        packetId: payload.packetId,
-        peerId: payload.peerId,
-        replyHandle: payload.replyHandle
-      });
       return [
         new ILPPaymentReceivedEvent({
           peerId: peer.peerId,
@@ -402,11 +510,45 @@ export class IlpPeerAggregate {
       ];
     }
 
-    await this.peerRepo.storeInboundReplyHandle({
+    // Zero-amount connection probe with a valid condition: stream-receiver
+    // fulfills it outright. No money moves, so Payments never hears about it.
+    if ('fulfillment' in streamReply) {
+      await this.peeringClient.dispatchFulfill({
+        peerId: payload.peerId,
+        packetId: payload.packetId,
+        callbackDeadline: payload.expiresAt,
+        fulfillment: streamReply.fulfillment.toString('base64'),
+        data: streamReply.data.toString('base64')
+      });
+      return [];
+    }
+
+    // Everything except F05 is a genuine refusal — F02/F06/F00 for a packet we
+    // cannot attribute, F04 for a short delivery, F99 for a peer closing the
+    // connection. Echo the reply stream-receiver already built rather than
+    // dragging it through the quote flow.
+    if (streamReply.code !== REJECT_CODE_WRONG_CONDITION) {
+      await this.rejectInbound(
+        payload,
+        streamReply.code,
+        streamReply.data.length
+          ? streamReply.data.toString('base64')
+          : undefined
+      );
+      return [];
+    }
+
+    const correlation = PacketCorrelation.createQuote({
       packetId: payload.packetId,
-      peerId: payload.peerId,
-      replyHandle: payload.replyHandle
+      peerId: peer.peerId,
+      paymentIntentId: resolved.paymentIntentId,
+      expiresAt: new Date(payload.expiresAt),
+      // Inbound quotes have no Payments quote id and packetId is unique per probe.
+      quoteId: payload.packetId,
+      requestId: cmd.requestId ?? crypto.randomUUID(),
+      inboundPrepare
     });
+    await this.peerRepo.storePacket(correlation.toObject());
 
     return [
       new ILPQuoteRequestReceivedEvent({
@@ -423,26 +565,50 @@ export class IlpPeerAggregate {
     cmd: RespondToRemoteQuoteCmd
   ): Promise<IMessage[]> {
     const payload = cmd.payload;
-    const replyHandle = await this.peerRepo.fetchInboundReplyHandle(
-      payload.packetId
-    );
-    if (!replyHandle) {
+    const stored = await this.peerRepo.fetchPacketById(payload.packetId);
+    if (!stored?.inboundPrepare) {
       return [];
     }
 
+    const inboundPrepare = stored.inboundPrepare;
     if (payload.destinationAmount === undefined) {
-      await this.rejectInbound(replyHandle, REJECT_CODE_INTERNAL);
+      await this.rejectInbound(stored, REJECT_CODE_INTERNAL);
+      return [];
+    }
+
+    const resolved = await this.resolveStreamCredentials(
+      inboundPrepare.destinationIlpAddress
+    );
+    if (!resolved) {
+      await this.rejectInbound(stored, REJECT_CODE_INTERNAL);
+      return [];
+    }
+
+    const data = encodeStreamQuoteReply({
+      sharedSecret: resolved.sharedSecret,
+      prepareData: Buffer.from(inboundPrepare.data, 'base64'),
+      prepareAmount: payload.destinationAmount,
+      assetCode: payload.destinationAssetCode,
+      assetScale: payload.destinationAssetScale
+    });
+    if (!data) {
+      await this.rejectInbound(stored, REJECT_CODE_INTERNAL);
       return [];
     }
 
     await this.peeringClient.dispatchReject({
       peerId: payload.peerId,
       packetId: payload.packetId,
-      replyHandle: replyHandle.replyHandle,
+      callbackDeadline: inboundPrepare.expiresAt,
       rejectCode: REJECT_CODE_QUOTE_RESPONSE,
-      destinationAmount: payload.destinationAmount
+      triggeredBy: this.ilpAddress,
+      data: data.toString('base64')
     });
-    await this.peerRepo.deleteInboundReplyHandle(payload.packetId);
+    if (stored.state === 'PENDING') {
+      await this.peerRepo.updatePacket(
+        PacketCorrelation.fromObject(stored).reject().toObject()
+      );
+    }
     return [];
   }
 
@@ -473,30 +639,44 @@ export class IlpPeerAggregate {
       return fail(`packet_${stored.state.toLowerCase()}`, stored.paymentId);
     }
 
-    if (stored.expiresAt.getTime() <= Date.now()) {
-      const expired = PacketCorrelation.fromObject(stored).expire().toObject();
-      await this.peerRepo.updatePacket(expired);
-      await this.peerRepo.deleteInboundReplyHandle(payload.packetId);
-      return fail('packet_expired', stored.paymentId);
+    if (!stored.inboundPrepare) {
+      return fail('prepare_snapshot_missing', stored.paymentId);
     }
 
-    if (!stored.fulfillment) {
-      return fail('fulfillment_missing', stored.paymentId);
-    }
-
-    const replyHandle = await this.peerRepo.fetchInboundReplyHandle(
-      payload.packetId
+    const inboundPrepare = stored.inboundPrepare;
+    const streamReply = this.streamServer.createReply(
+      toIlpPrepare(inboundPrepare)
     );
-    if (!replyHandle) {
-      return fail('reply_handle_missing', stored.paymentId);
+    if (!isIncomingMoney(streamReply)) {
+      return fail('not_fulfillable', stored.paymentId);
     }
+
+    // One packet per payment, so the credited amount is the connection total.
+    // accept() attaches a receipt when the credentials carried receipt setup.
+    // The rewrite keeps that frame and replaces the hop amount.
+    streamReply.setTotalReceived(payload.receiveAmount);
+    const fulfill = streamReply.accept();
+
+    const resolved = await this.resolveStreamCredentials(
+      inboundPrepare.destinationIlpAddress
+    );
+    const streamData = resolved
+      ? rewriteStreamReplyAmount({
+          sharedSecret: resolved.sharedSecret,
+          replyData: fulfill.data,
+          prepareAmount: payload.receiveAmount,
+          assetCode: payload.receiveAssetCode,
+          assetScale: payload.receiveAssetScale
+        })
+      : undefined;
 
     try {
       await this.peeringClient.dispatchFulfill({
         peerId: payload.peerId,
         packetId: payload.packetId,
-        replyHandle: replyHandle.replyHandle,
-        fulfillment: stored.fulfillment
+        callbackDeadline: inboundPrepare.expiresAt,
+        fulfillment: fulfill.fulfillment.toString('base64'),
+        data: streamData?.toString('base64')
       });
     } catch (err) {
       return fail(
@@ -507,7 +687,6 @@ export class IlpPeerAggregate {
 
     const fulfilled = PacketCorrelation.fromObject(stored).fulfill().toObject();
     await this.peerRepo.updatePacket(fulfilled);
-    await this.peerRepo.deleteInboundReplyHandle(payload.packetId);
 
     return [
       new ILPPaymentFulfillmentSentEvent({
@@ -526,36 +705,62 @@ export class IlpPeerAggregate {
     cmd: RejectInboundPaymentCmd
   ): Promise<IMessage[]> {
     const payload = cmd.payload;
-    const replyHandle = await this.peerRepo.fetchInboundReplyHandle(
-      payload.packetId
-    );
-    if (!replyHandle) {
+    const stored = await this.peerRepo.fetchPacketById(payload.packetId);
+    if (!stored?.inboundPrepare) {
       return [];
     }
 
-    const stored = await this.peerRepo.fetchPacketById(payload.packetId);
-    if (stored?.state === 'PENDING') {
+    if (stored.state === 'PENDING') {
       const rejected = PacketCorrelation.fromObject(stored).reject().toObject();
       await this.peerRepo.updatePacket(rejected);
     }
 
-    await this.rejectInbound(
-      replyHandle,
-      payload.rejectCode ?? REJECT_CODE_INTERNAL
+    const rejectCode = payload.rejectCode ?? REJECT_CODE_INTERNAL;
+    const inboundPrepare = stored.inboundPrepare;
+    const streamReply = this.streamServer.createReply(
+      toIlpPrepare(inboundPrepare)
     );
+    if (isIncomingMoney(streamReply)) {
+      // Take the STREAM framing from the library — finalDecline adds the
+      // ConnectionClose frame that tells the sender not to retry — but keep
+      // the reject code Payments chose. temporaryDecline/finalDecline are
+      // hardcoded to T00/F99, and collapsing every failure into one of those
+      // loses why the payment was refused.
+      const reply = isFinalRejectCode(rejectCode)
+        ? streamReply.finalDecline()
+        : streamReply.temporaryDecline();
+      await this.rejectInbound(
+        stored,
+        rejectCode,
+        reply.data.toString('base64')
+      );
+      return [];
+    }
+
+    await this.rejectInbound(stored, rejectCode);
     return [];
   }
 
   private async rejectInbound(
-    context: ProcessPreparePacketCmdPayload | IInboundPacketReplyHandle,
-    rejectCode: string = REJECT_CODE_INTERNAL
+    context: {
+      peerId: string;
+      packetId: string;
+      expiresAt: Date | string;
+    },
+    rejectCode: string = REJECT_CODE_INTERNAL,
+    data?: string
   ): Promise<void> {
-    await this.peerRepo.deleteInboundReplyHandle(context.packetId);
+    const callbackDeadline =
+      context.expiresAt instanceof Date
+        ? context.expiresAt.toISOString()
+        : context.expiresAt;
     await this.peeringClient.dispatchReject({
       peerId: context.peerId,
       packetId: context.packetId,
-      replyHandle: context.replyHandle,
-      rejectCode
+      callbackDeadline,
+      rejectCode,
+      triggeredBy: this.ilpAddress,
+      data
     });
   }
 
@@ -568,8 +773,13 @@ export class IlpPeerAggregate {
       throw new PacketNotFound(`Packet ${payload.packetId} not found`);
     }
 
+    // Read before transitioning: going terminal drops the secret so it isn't
+    // left at rest in the correlation.
+    const paymentSecret =
+      stored.kind === 'PAYMENT' ? stored.sharedSecret : undefined;
+
     if (stored.kind === 'PAYMENT') {
-      if (stored.expiresAt.getTime() <= Date.now()) {
+      if (packetHasExpired(stored.expiresAt)) {
         const expired = PacketCorrelation.fromObject(stored)
           .expire()
           .toObject();
@@ -625,13 +835,30 @@ export class IlpPeerAggregate {
     await this.peerRepo.updatePacket(transitioned);
 
     if (transitioned.kind === 'PAYMENT') {
+      const streamReply =
+        payload.data && paymentSecret
+          ? decodeStreamReply(
+              Buffer.from(paymentSecret, 'base64url'),
+              Buffer.from(payload.data, 'base64')
+            )
+          : undefined;
+      const destination =
+        streamReply && !streamReply.connectionClosed
+          ? {
+              destinationAmount: streamReply.prepareAmount,
+              destinationAssetCode: streamReply.assetCode,
+              destinationAssetScale: streamReply.assetScale
+            }
+          : undefined;
+
       return [
         new ILPPaymentConfirmedEvent(
           {
             peerId: transitioned.peerId,
             paymentIntentId: transitioned.paymentIntentId,
             paymentId: transitioned.paymentId,
-            confirmedAt: payload.fulfilledAt
+            confirmedAt: payload.fulfilledAt,
+            ...destination
           },
           transitioned.requestId
         )
@@ -650,20 +877,42 @@ export class IlpPeerAggregate {
     if (!stored) {
       throw new PacketNotFound(`Packet ${payload.packetId} not found`);
     }
+    // Read before transitioning: going terminal drops the secret so it isn't
+    // left at rest in the correlation.
+    const quoteSecret =
+      stored.kind === 'QUOTE' ? stored.sharedSecret : undefined;
+
     const transitioned = PacketCorrelation.fromObject(stored)
       .reject()
       .toObject();
     await this.peerRepo.updatePacket(transitioned);
 
     if (transitioned.kind === 'QUOTE') {
-      if (payload.destinationAmount !== undefined) {
+      const streamReply =
+        payload.data && quoteSecret
+          ? decodeStreamReply(
+              Buffer.from(quoteSecret, 'base64url'),
+              Buffer.from(payload.data, 'base64')
+            )
+          : undefined;
+      // Decrypting under our secret proves the receiver sent it, but not that
+      // it is an answer. A transient reject means "ask again" and a
+      // ConnectionClose means the receiver refused.
+      // Neither carries a rate
+      const destinationAmount =
+        streamReply &&
+        !streamReply.connectionClosed &&
+        isFinalRejectCode(payload.rejectCode)
+          ? streamReply.prepareAmount
+          : undefined;
+      if (destinationAmount !== undefined) {
         return [
           new ILPQuoteReceivedEvent(
             {
               peerId: transitioned.peerId,
               paymentIntentId: transitioned.paymentIntentId,
               quoteId: transitioned.quoteId,
-              destinationAmount: payload.destinationAmount
+              destinationAmount
             },
             transitioned.requestId
           )
@@ -714,6 +963,10 @@ export class IlpPeerAggregate {
       .expire()
       .toObject();
     await this.peerRepo.updatePacket(transitioned);
+    if (transitioned.kind === 'QUOTE' && transitioned.inboundPrepare) {
+      // Inbound quote
+      return [];
+    }
 
     if (transitioned.kind === 'QUOTE') {
       return [

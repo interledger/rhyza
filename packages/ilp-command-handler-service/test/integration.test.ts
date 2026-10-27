@@ -15,6 +15,7 @@ import {
   DispatchPreparePacketCmd,
   ExpirePacketCmd,
   createFakeResolveStreamCredentials,
+  encodeStreamQuoteReply,
   IlpPeerAggregate,
   IPeer,
   ProcessRejectPacketCmd,
@@ -110,7 +111,7 @@ class TestTransport implements IConnectorTransport {
   private _onInboundPrepare?: WireInboundPrepareHandler;
   readonly sentResponses: Array<{
     peerId: string;
-    replyHandle: string;
+    callbackDeadline: string;
     response: WireFulfill | WireReject;
   }> = [];
 
@@ -130,16 +131,16 @@ class TestTransport implements IConnectorTransport {
   async sendFulfill(
     fulfill: WireFulfill,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    this.sentResponses.push({ peerId, replyHandle, response: fulfill });
+    this.sentResponses.push({ peerId, callbackDeadline, response: fulfill });
   }
   async sendReject(
     reject: WireReject,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    this.sentResponses.push({ peerId, replyHandle, response: reject });
+    this.sentResponses.push({ peerId, callbackDeadline, response: reject });
   }
   onResponse(handler: WireResponseHandler): void {
     this._onResponse = handler;
@@ -151,9 +152,17 @@ class TestTransport implements IConnectorTransport {
 
 const PEER: IPeer = {
   peerId: 'peer-1',
-  http: { outgoing: { endpoint: 'https://peer.example/ilp', authToken: 't' } },
+  http: {
+    outgoing: {
+      endpoint: 'https://peer.example/ilp',
+      callbackEndpoint: 'https://peer.example/ilp/callback',
+      authToken: 't'
+    }
+  },
   isActive: true
 };
+
+const TEST_QUOTE_SECRET = Buffer.alloc(32, 7).toString('base64url');
 
 const startQuote = () =>
   new StartRemoteQuoteCmd(
@@ -164,7 +173,8 @@ const startQuote = () =>
       destinationIlpAddress: 'g.peer.bob',
       sourceAmount: '100',
       sourceAssetCode: 'USD',
-      sourceAssetScale: 2
+      sourceAssetScale: 2,
+      sharedSecret: TEST_QUOTE_SECRET
     },
     'req-1'
   );
@@ -194,10 +204,13 @@ async function wireSystem(autoReject: boolean) {
   await connectorConsumer.startAndWaitForRebalance();
 
   const repo = new InMemoryPeerRepository([PEER]);
+  const fake = createFakeResolveStreamCredentials();
   const aggregate = new IlpPeerAggregate(
     repo,
     new KafkaPeeringClient(producer, logger),
-    createFakeResolveStreamCredentials().resolveStreamCredentials
+    fake.resolveStreamCredentials,
+    fake.streamServer,
+    fake.serverAddress
   );
   const handler = new IlpCommandHandler(
     bus.consumer(),
@@ -282,14 +295,20 @@ describe('ILP command handler <-> connector over Kafka topics', () => {
     assert.equal(eventsOnTopic(bus, ILPPaymentFailedEvent.name).length, 0);
   });
 
-  test('a reject carrying decoded amounts -> ILPQuoteReceivedEvent', async () => {
-    // The connector cannot decode STREAM amounts yet, so we inject the reject a
-    // future connector would emit (amounts present) onto ilp-commands to prove
-    // the determined path flows through the same seam end to end.
+  test('a reject carrying STREAM prepareAmount -> ILPQuoteReceivedEvent', async () => {
     const { bus, producer } = await wireSystem(false);
 
     await producer.send(startQuote());
-    const packetId = dispatchedPacketId(bus);
+    const dispatch = bus.published.find(
+      (m) => m.msgName === DispatchPreparePacketCmd.name
+    ) as DispatchPreparePacketCmd;
+    const packetId = dispatch.payload.packetId;
+    const replyData = encodeStreamQuoteReply({
+      sharedSecret: Buffer.from(TEST_QUOTE_SECRET, 'base64url'),
+      prepareData: Buffer.from(dispatch.payload.data as string, 'base64'),
+      prepareAmount: '95'
+    });
+    assert.ok(replyData);
 
     await producer.send(
       new ProcessRejectPacketCmd({
@@ -299,7 +318,7 @@ describe('ILP command handler <-> connector over Kafka topics', () => {
         rejectCode: 'F99',
         rejectMessage: 'quote response',
         rejectedAt: new Date().toISOString(),
-        destinationAmount: '95'
+        data: replyData!.toString('base64')
       })
     );
 

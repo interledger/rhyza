@@ -3,8 +3,11 @@
 import { randomBytes } from 'node:crypto';
 import {
   StreamServer,
+  type IncomingMoney,
   type StreamCredentials
 } from '@interledger/stream-receiver';
+
+export { StreamServer, type IncomingMoney, type StreamCredentials };
 
 export interface ResolvedStreamCredentials {
   paymentIntentId: string;
@@ -19,6 +22,7 @@ export interface FakeStreamCredentials {
   resolveStreamCredentials: ResolveStreamCredentials;
   issueCredentials(paymentIntentId: string): StreamCredentials;
   streamServer: StreamServer;
+  serverAddress: string;
 }
 
 export function createFakeResolveStreamCredentials(
@@ -30,6 +34,7 @@ export function createFakeResolveStreamCredentials(
 
   return {
     streamServer,
+    serverAddress,
     issueCredentials(paymentIntentId: string): StreamCredentials {
       const credentials = streamServer.generateCredentials({
         paymentTag: paymentIntentId

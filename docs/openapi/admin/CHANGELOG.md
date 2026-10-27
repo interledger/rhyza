@@ -1,4 +1,4 @@
-# API Changelog 0.0.17 vs. 0.0.18
+# API Changelog 0.0.19 vs. 0.0.20
 
 
 ## API Changes
@@ -24,6 +24,44 @@
 
 
 
+
+## Info
+-  a breaking change was detected but the major version did not increase, from `0.0.19` to `0.0.20`
+
+# API Changelog 0.0.18 vs. 0.0.19
+
+
+## API Changes
+
+### GET /payment-intents/{intentId}/quotes/{id}
+-  endpoint added
+
+
+### POST /quotes
+- :warning: the response's body `type` changed from `object` to `any` for status `201`
+- :warning: removed the required property `debitAmount` from the response with the `201` status
+- :warning: removed the required property `exchangeRate` from the response with the `201` status
+- :warning: removed the required property `expiresAt` from the response with the `201` status
+- :warning: removed the required property `id` from the response with the `201` status
+- :warning: removed the required property `paymentIntentId` from the response with the `201` status
+- :warning: removed the required property `receiveAmount` from the response with the `201` status
+- :warning: removed the required property `senderWalletAddress` from the response with the `201` status
+- :warning: removed the required property `senderWalletAddressId` from the response with the `201` status
+-  added `#/components/schemas/QuoteBase, subschema #2` to the response body `allOf` list for the response status `201`
+
+
+
+
+## Components
+-  removed the schema `Quote`
+
+# API Changelog 0.0.17 vs. 0.0.18
+
+
+## API Changes
+
+### POST /peers
+- :warning: added the new required request property `http/outgoing/callbackEndpoint`
 
 ## Info
 -  a breaking change was detected but the major version did not increase, from `0.0.17` to `0.0.18`

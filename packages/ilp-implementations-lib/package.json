@@ -13,6 +13,8 @@
     "@interledger/stream-receiver": "0.3.3-alpha.4",
     "common-types-lib": "workspace:*",
     "ilp-domain-lib": "workspace:*",
+    "implementations-lib": "workspace:*",
+    "ioredis": "~5.10.1",
     "mongodb": "~7.1.0"
   },
   "devDependencies": {

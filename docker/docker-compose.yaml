@@ -273,12 +273,15 @@ services:
       KAFKA_URL: kafka:19092
       LOG_LEVEL: debug
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
+      REDIS_URL: redis:6379
       STREAM_SERVER_SECRET: cmFmaWtpLXYyLWRldi1zdHJlYW0tc2VjcmV0LTAwMDE
       ILP_ADDRESS: private.rhyza.a
     depends_on:
       init-kafka:
         condition: service_completed_successfully
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - rhyza
@@ -432,7 +435,7 @@ services:
     image: apache/kafka:4.0.0
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
     entrypoint: ['/bin/sh', '-c']
     working_dir: /opt/kafka/bin/
     command: |

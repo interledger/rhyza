@@ -251,12 +251,15 @@ services:
       KAFKA_URL: kafka-b:19092
       LOG_LEVEL: debug
       MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
+      REDIS_URL: redis-b:6379
       STREAM_SERVER_SECRET: cmFmaWtpLXYyLWRldi1zdHJlYW0tc2VjcmV0LTAwMDE
       ILP_ADDRESS: private.rhyza.b
     depends_on:
       init-kafka-b:
         condition: service_completed_successfully
       mongodb-b:
+        condition: service_healthy
+      redis-b:
         condition: service_healthy
     networks:
       - rhyza

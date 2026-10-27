@@ -13,8 +13,16 @@
  */
 
 import { mapValues } from '../runtime';
+import type { QuoteState } from './QuoteState';
+import {
+    QuoteStateFromJSON,
+    QuoteStateFromJSONTyped,
+    QuoteStateToJSON,
+    QuoteStateToJSONTyped,
+} from './QuoteState';
+
 /**
- * Represents a payment quote with estimated amounts and exchange rates.
+ * A quote in any state. id, paymentIntentId, state, senderWalletAddress, senderWalletAddressId, and createdAt are always present. Other fields are present only for the states that set them.
  * @export
  * @interface Quote
  */
@@ -32,6 +40,12 @@ export interface Quote {
      */
     paymentIntentId: string;
     /**
+     * The current status of the quote.
+     * @type {QuoteState}
+     * @memberof Quote
+     */
+    state: QuoteState;
+    /**
      * The wallet address of the sender.
      * @type {string}
      * @memberof Quote
@@ -44,30 +58,62 @@ export interface Quote {
      */
     senderWalletAddressId: string;
     /**
-     * The date and time when the quote expires.
+     * When the quote was created.
      * @type {Date}
      * @memberof Quote
      */
-    expiresAt: Date;
+    createdAt: Date;
     /**
-     * The amount that will be debited from the sender.
+     * When the quote expires. Set for COMPLETED quotes.
+     * @type {Date}
+     * @memberof Quote
+     */
+    expiresAt?: Date;
+    /**
+     * Amount debited from the sender. Set for COMPLETED quotes, and for PENDING quotes when it has been determined.
      * @type {string}
      * @memberof Quote
      */
-    debitAmount: string;
+    debitAmount?: string;
     /**
-     * The amount that will be received by the recipient.
+     * Amount received by the recipient. Set for COMPLETED quotes, and for PENDING quotes when it has been determined.
      * @type {string}
      * @memberof Quote
      */
-    receiveAmount: string;
+    receiveAmount?: string;
     /**
-     * The exchange rate of quote.
+     * Exchange rate applied to the quote. Set for COMPLETED quotes.
      * @type {number}
      * @memberof Quote
      */
-    exchangeRate: number;
+    exchangeRate?: number;
+    /**
+     * Source amount used while the quote is calculated. Set for PENDING quotes when present.
+     * @type {string}
+     * @memberof Quote
+     */
+    sourceAmount?: string;
+    /**
+     * Asset code of the sender amount. Set for PENDING quotes when present.
+     * @type {string}
+     * @memberof Quote
+     */
+    senderAssetCode?: string;
+    /**
+     * Name of the error that failed the quote. Set for FAILED quotes.
+     * @type {string}
+     * @memberof Quote
+     */
+    errorName?: string;
+    /**
+     * Human-readable failure message. Set for FAILED quotes.
+     * @type {string}
+     * @memberof Quote
+     */
+    message?: string;
 }
+
+
 
 /**
  * Check if a given object implements the Quote interface.
@@ -75,12 +121,10 @@ export interface Quote {
 export function instanceOfQuote(value: object): value is Quote {
     if (!('id' in value) || value['id'] === undefined) return false;
     if (!('paymentIntentId' in value) || value['paymentIntentId'] === undefined) return false;
+    if (!('state' in value) || value['state'] === undefined) return false;
     if (!('senderWalletAddress' in value) || value['senderWalletAddress'] === undefined) return false;
     if (!('senderWalletAddressId' in value) || value['senderWalletAddressId'] === undefined) return false;
-    if (!('expiresAt' in value) || value['expiresAt'] === undefined) return false;
-    if (!('debitAmount' in value) || value['debitAmount'] === undefined) return false;
-    if (!('receiveAmount' in value) || value['receiveAmount'] === undefined) return false;
-    if (!('exchangeRate' in value) || value['exchangeRate'] === undefined) return false;
+    if (!('createdAt' in value) || value['createdAt'] === undefined) return false;
     return true;
 }
 
@@ -96,12 +140,18 @@ export function QuoteFromJSONTyped(json: any, ignoreDiscriminator: boolean): Quo
         
         'id': json['id'],
         'paymentIntentId': json['paymentIntentId'],
+        'state': QuoteStateFromJSON(json['state']),
         'senderWalletAddress': json['senderWalletAddress'],
         'senderWalletAddressId': json['senderWalletAddressId'],
-        'expiresAt': (new Date(json['expiresAt'])),
-        'debitAmount': json['debitAmount'],
-        'receiveAmount': json['receiveAmount'],
-        'exchangeRate': json['exchangeRate'],
+        'createdAt': (new Date(json['createdAt'])),
+        'expiresAt': json['expiresAt'] == null ? undefined : (new Date(json['expiresAt'])),
+        'debitAmount': json['debitAmount'] == null ? undefined : json['debitAmount'],
+        'receiveAmount': json['receiveAmount'] == null ? undefined : json['receiveAmount'],
+        'exchangeRate': json['exchangeRate'] == null ? undefined : json['exchangeRate'],
+        'sourceAmount': json['sourceAmount'] == null ? undefined : json['sourceAmount'],
+        'senderAssetCode': json['senderAssetCode'] == null ? undefined : json['senderAssetCode'],
+        'errorName': json['errorName'] == null ? undefined : json['errorName'],
+        'message': json['message'] == null ? undefined : json['message'],
     };
 }
 
@@ -118,12 +168,18 @@ export function QuoteToJSONTyped(value?: Quote | null, ignoreDiscriminator: bool
         
         'id': value['id'],
         'paymentIntentId': value['paymentIntentId'],
+        'state': QuoteStateToJSON(value['state']),
         'senderWalletAddress': value['senderWalletAddress'],
         'senderWalletAddressId': value['senderWalletAddressId'],
-        'expiresAt': value['expiresAt'].toISOString(),
+        'createdAt': value['createdAt'].toISOString(),
+        'expiresAt': value['expiresAt'] == null ? value['expiresAt'] : value['expiresAt'].toISOString(),
         'debitAmount': value['debitAmount'],
         'receiveAmount': value['receiveAmount'],
         'exchangeRate': value['exchangeRate'],
+        'sourceAmount': value['sourceAmount'],
+        'senderAssetCode': value['senderAssetCode'],
+        'errorName': value['errorName'],
+        'message': value['message'],
     };
 }
 

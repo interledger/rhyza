@@ -53,7 +53,7 @@ export function parseGrantPageQuery(
 ): IGrantPageQuery {
   return {
     ...parsePageParams(query),
-    identifier: query.identifier,
+    identifier: query.walletAddress,
     state: query.state
   };
 }

@@ -11,9 +11,9 @@ import {
   IPeerRepository
 } from 'ilp-domain-lib';
 import {
+  CachedPeerRepository,
   InMemoryPeerRepository,
   KafkaPeeringClient,
-  MongoDbPeerRepository,
   createResolveStreamCredentials,
   createStreamServer,
   parseStreamServerSecret
@@ -22,6 +22,7 @@ import { IlpCommandHandler } from './cmd-handler';
 
 const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9093';
 const MONGODB_URL = process.env['MONGODB_URL'] || 'mongodb://localhost:27017';
+const REDIS_URL = process.env['REDIS_URL'];
 const CONSUMER_GROUP_ID = 'ilp-command-handler';
 const STREAM_SERVER_SECRET_RAW =
   process.env['STREAM_SERVER_SECRET'] ||
@@ -33,7 +34,7 @@ export class IlpCommandHandlerService {
   private static _producer: IMessageProducer;
   private static _consumer: IMessageConsumer;
   private static _commandHandler: IlpCommandHandler;
-  private static _peerRepo: IPeerRepository & { destroy?(): Promise<void> };
+  private static _peerRepo?: CachedPeerRepository;
 
   static async start(deps?: {
     logger?: ILogger;
@@ -73,13 +74,12 @@ export class IlpCommandHandlerService {
     } else if (deps?.seedPeers) {
       peerRepo = new InMemoryPeerRepository(deps.seedPeers);
     } else {
-      const mongoRepo = new MongoDbPeerRepository(
+      this._peerRepo = await CachedPeerRepository.connect(
         MONGODB_URL,
-        this._logger.child('peer-repo')
+        this._logger,
+        REDIS_URL
       );
-      await mongoRepo.init();
-      this._peerRepo = mongoRepo;
-      peerRepo = mongoRepo;
+      peerRepo = this._peerRepo;
     }
 
     const peeringClient =
@@ -98,7 +98,9 @@ export class IlpCommandHandlerService {
     const aggregate = new IlpPeerAggregate(
       peerRepo,
       peeringClient,
-      resolveStreamCredentials
+      resolveStreamCredentials,
+      streamServer,
+      ILP_ADDRESS
     );
 
     this._commandHandler = new IlpCommandHandler(
@@ -119,8 +121,9 @@ export class IlpCommandHandlerService {
     if (this._producer) {
       await this._producer.disconnect();
     }
-    if (this._peerRepo?.destroy) {
-      await this._peerRepo.destroy();
+    if (this._peerRepo) {
+      await this._peerRepo.disconnect();
+      this._peerRepo = undefined;
     }
   }
 }

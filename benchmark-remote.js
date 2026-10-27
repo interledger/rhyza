@@ -23,12 +23,14 @@ const PEER_AUTH_TOKEN = 'local-peer-token';
 const PEER_A_TO_B = {
   id: '04978037-26b8-4b4d-854a-278ed7548959',
   ilpStaticAddress: 'private.rhyza.b',
-  endpoint: 'http://ilp-connector-service-b:4000/ilp'
+  endpoint: 'http://ilp-connector-service-b:4000/ilp',
+  callbackEndpoint: 'http://ilp-connector-service-b:4000/ilp/callback'
 };
 const PEER_B_TO_A = {
   id: '9f3c1e2a-4b5d-4c6e-8a7f-1b2c3d4e5f60',
   ilpStaticAddress: 'private.rhyza.a',
-  endpoint: 'http://ilp-connector-service:4000/ilp'
+  endpoint: 'http://ilp-connector-service:4000/ilp',
+  callbackEndpoint: 'http://ilp-connector-service:4000/ilp/callback'
 };
 
 const INCOMING_AMOUNT = 1000;
@@ -77,6 +79,7 @@ export function setup() {
       http: {
         outgoing: {
           endpoint: PEER_A_TO_B.endpoint,
+          callbackEndpoint: PEER_A_TO_B.callbackEndpoint,
           authToken: PEER_AUTH_TOKEN
         },
         incoming: { authToken: PEER_AUTH_TOKEN }
@@ -118,6 +121,7 @@ export function setup() {
       http: {
         outgoing: {
           endpoint: PEER_B_TO_A.endpoint,
+          callbackEndpoint: PEER_B_TO_A.callbackEndpoint,
           authToken: PEER_AUTH_TOKEN
         },
         incoming: { authToken: PEER_AUTH_TOKEN }

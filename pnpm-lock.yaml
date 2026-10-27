@@ -451,6 +451,9 @@ importers:
       ilp-connector-service:
         specifier: workspace:*
         version: link:../ilp-connector-service
+      ilp-protocol-stream:
+        specifier: 2.7.2-alpha.3
+        version: 2.7.2-alpha.3
       tsx:
         specifier: ^4.19.3
         version: 4.19.3
@@ -463,6 +466,9 @@ importers:
       ilp-domain-lib:
         specifier: workspace:*
         version: link:../ilp-domain-lib
+      ilp-packet:
+        specifier: 3.1.4-alpha.2
+        version: 3.1.4-alpha.2
       implementations-lib:
         specifier: workspace:*
         version: link:../implementations-lib
@@ -532,6 +538,12 @@ importers:
       ilp-domain-lib:
         specifier: workspace:*
         version: link:../ilp-domain-lib
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
+      ioredis:
+        specifier: ~5.10.1
+        version: 5.10.1
       mongodb:
         specifier: ~7.1.0
         version: 7.1.0(socks@2.8.10)

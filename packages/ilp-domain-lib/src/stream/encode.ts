@@ -1,6 +1,10 @@
 'use strict';
 
 import {
+  ConnectionAssetDetailsFrame,
+  ConnectionNewAddressFrame,
+  Frame,
+  FrameType,
   IlpPacketType,
   Packet,
   StreamMoneyFrame
@@ -8,6 +12,7 @@ import {
 import {
   ENCRYPTION_KEY_STRING,
   FULFILLMENT_GENERATION_STRING,
+  decryptStreamData,
   encryptStreamData,
   hmacSha256,
   sha256
@@ -21,8 +26,13 @@ const DEFAULT_SEQUENCE = 1;
 
 export interface StreamEncodeInput {
   sharedSecret: Buffer;
-  /** Min destination amount carried in the STREAM prepareAmount field. */
-  amount: string;
+  /**
+   * STREAM `prepareAmount`: the minimum the receiver must see arrive before it
+   * may fulfill, expressed in the units the packet arrives in. A receiver
+   * answers `F04` when less arrives, so this is a floor, not the sent amount.
+   * Use `'0'` on unfulfillable probes, which assert no minimum.
+   */
+  minDestinationAmount: string;
   sequence?: number;
 }
 
@@ -36,6 +46,11 @@ export interface StreamEncodeResult {
 /**
  * Minimal fulfillable STREAM encode: one stream, one StreamMoney frame, no
  * flow-control frames. Condition = SHA-256(HMAC(fulfillmentKey, data)).
+ *
+ * Every v2 packet opens its own connection, so each one carries
+ * ConnectionNewAddress. Senders with no address of their own send it empty;
+ * it is what prompts the receiver to reply with its asset details, which the
+ * amount in the reply is meaningless without.
  */
 export function encodeOutgoingStreamPrepare(
   input: StreamEncodeInput
@@ -44,8 +59,11 @@ export function encodeOutgoingStreamPrepare(
   const streamPacket = new Packet(
     input.sequence ?? DEFAULT_SEQUENCE,
     IlpPacketType.Prepare,
-    input.amount,
-    [new StreamMoneyFrame(DEFAULT_STREAM_ID, DEFAULT_STREAM_SHARES)]
+    input.minDestinationAmount,
+    [
+      new ConnectionNewAddressFrame(''),
+      new StreamMoneyFrame(DEFAULT_STREAM_ID, DEFAULT_STREAM_SHARES)
+    ]
   );
   const data = encryptStreamData(encryptionKey, streamPacket._serialize());
 
@@ -57,4 +75,119 @@ export function encodeOutgoingStreamPrepare(
   const executionCondition = sha256(fulfillment);
 
   return { data, executionCondition, fulfillment };
+}
+
+export interface StreamReplyInput {
+  sharedSecret: Buffer;
+  // Encrypted STREAM prepare `data` from the inbound packet
+  prepareData: Buffer;
+  // Destination amount to put in STREAM `prepareAmount`
+  prepareAmount: string;
+  // Our asset, so the sender can interpret `prepareAmount`
+  assetCode?: string;
+  assetScale?: number;
+}
+
+/**
+ * Encrypted STREAM reject whose `prepareAmount` is the destination amount.
+ *
+ * Returns undefined when the probe data is not a STREAM packet under this
+ * secret; callers answer with a plain reject rather than propagating a throw
+ * out of a command handler and poisoning the Kafka batch.
+ */
+export function encodeStreamQuoteReply(
+  input: StreamReplyInput
+): Buffer | undefined {
+  return encodeStreamReply(input, IlpPacketType.Reject);
+}
+
+/**
+ * Encrypted STREAM fulfill whose `prepareAmount` is Payments' receive amount
+ * (units after FX), not the inbound ILP hop amount.
+ */
+export function encodeStreamFulfillReply(
+  input: StreamReplyInput
+): Buffer | undefined {
+  return encodeStreamReply(input, IlpPacketType.Fulfill);
+}
+
+function encodeStreamReply(
+  input: StreamReplyInput,
+  packetType: typeof IlpPacketType.Reject | typeof IlpPacketType.Fulfill
+): Buffer | undefined {
+  const encryptionKey = hmacSha256(input.sharedSecret, ENCRYPTION_KEY_STRING);
+
+  let request: Packet;
+  try {
+    request = Packet._deserializeUnencrypted(
+      decryptStreamData(encryptionKey, input.prepareData)
+    );
+  } catch {
+    return undefined;
+  }
+
+  // Without the asset the sender cannot tell what unit prepareAmount is in.
+  const frames: Frame[] =
+    input.assetCode !== undefined && input.assetScale !== undefined
+      ? [new ConnectionAssetDetailsFrame(input.assetCode, input.assetScale)]
+      : [];
+
+  const reply = new Packet(
+    request.sequence,
+    packetType,
+    input.prepareAmount,
+    frames
+  );
+  return encryptStreamData(encryptionKey, reply._serialize());
+}
+
+export interface RewriteStreamReplyInput {
+  sharedSecret: Buffer;
+  // Encrypted STREAM fulfill `data` from streamReply.accept().
+  replyData: Buffer;
+  // Payments' credited amount, in the wallet asset.
+  prepareAmount: string;
+  assetCode?: string;
+  assetScale?: number;
+}
+
+/**
+ * Same STREAM fulfill `accept()` built, with `prepareAmount` set to the
+ * credited amount. Frames already on the reply (receipt, asset details) stay.
+ * Asset details are added only when the library reply has none.
+ *
+ * Returns undefined when `replyData` is not a STREAM packet under this secret.
+ */
+export function rewriteStreamReplyAmount(
+  input: RewriteStreamReplyInput
+): Buffer | undefined {
+  const encryptionKey = hmacSha256(input.sharedSecret, ENCRYPTION_KEY_STRING);
+
+  let reply: Packet;
+  try {
+    reply = Packet._deserializeUnencrypted(
+      decryptStreamData(encryptionKey, input.replyData)
+    );
+  } catch {
+    return undefined;
+  }
+
+  const frames = [...reply.frames];
+  if (
+    input.assetCode !== undefined &&
+    input.assetScale !== undefined &&
+    !frames.some((frame) => frame.type === FrameType.ConnectionAssetDetails)
+  ) {
+    frames.push(
+      new ConnectionAssetDetailsFrame(input.assetCode, input.assetScale)
+    );
+  }
+
+  const rewritten = new Packet(
+    reply.sequence,
+    reply.ilpPacketType,
+    input.prepareAmount,
+    frames
+  );
+  return encryptStreamData(encryptionKey, rewritten._serialize());
 }
