@@ -84,7 +84,7 @@ export async function outgoingPaymentRoutes(
       }
     },
     async (request, reply) => {
-      const { walletAddress: walletAddressUrl } = request.body;
+      const { walletAddress: walletAddressUrl, metadata } = request.body;
 
       const pathName = pathNameFromWalletAddress(walletAddressUrl);
 
@@ -150,7 +150,11 @@ export async function outgoingPaymentRoutes(
           { paymentIntentId: quote.paymentIntentId },
           walletAddress.id,
           walletAddressUrl,
-          quote.id
+          quote.id,
+          undefined, // debitAmount
+          undefined, // createdAt
+          undefined, // grantId
+          metadata
         );
 
         return reply

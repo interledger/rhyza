@@ -312,7 +312,8 @@ export class PaymentsServiceServer {
           remotePaymentIntentUrl:
             call.request.getRemotePaymentIntentUrl() || undefined,
           createdAt: call.request.getCreatedAt() || undefined,
-          grantId: call.request.getGrantId() || undefined
+          grantId: call.request.getGrantId() || undefined,
+          metadata: call.request.getMetadata() || undefined
         },
         commandId
       );
