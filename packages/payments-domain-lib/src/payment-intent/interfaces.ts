@@ -161,6 +161,19 @@ export interface IPaymentIntent {
   metadata?: Record<string, unknown>;
 }
 
+export interface ILocalPaymentIntent extends IPaymentIntent {
+  destination: 'LOCAL';
+  receiverWalletAddressId: string;
+  receiverWalletAddress: string;
+}
+
+export interface IRemotePaymentIntent extends IPaymentIntent {
+  destination: 'REMOTE';
+  remoteUrl: string;
+  receiverWalletAddressId?: string;
+  receiverWalletAddress?: string;
+}
+
 export interface IWalletAddress {
   id: string;
   isActive: boolean;

@@ -31,13 +31,17 @@ export function toIncomingPaymentBody(
   openPaymentsUrl: string
 ): components['schemas']['incoming-payment'] {
   const pathName = pathNameFromWalletAddress(
-    paymentIntent.receiverWalletAddress
+    paymentIntent.receiverWalletAddress ?? ''
   );
+
+  const walletAddress = paymentIntent.receiverWalletAddress
+    ? `${openPaymentsUrl}/${pathName}`
+    : '';
 
   const body: components['schemas']['incoming-payment'] = {
     id: `${openPaymentsUrl}/incoming-payments/${paymentIntent.id}`,
     completed: paymentIntent.state === 'COMPLETED',
-    walletAddress: `${openPaymentsUrl}/${pathName}`,
+    walletAddress,
     createdAt: paymentIntent.createdAt,
     receivedAmount: {
       value: String(paymentIntent.receivedAmount),
@@ -80,7 +84,7 @@ export async function incomingPaymentRoutes(
   server.post<{
     Body: components['schemas']['create-incoming-payment-request'];
     Reply:
-      | components['schemas']['incoming-payment-with-grant']
+      | components['schemas']['incoming-payment-with-access-token']
       | components['schemas']['error-response'];
   }>(
     '/incoming-payments',
@@ -147,16 +151,17 @@ export async function incomingPaymentRoutes(
         assetScale: paymentIntent.assetScale
       });
 
-      const response: components['schemas']['incoming-payment-with-grant'] = {
-        ...toIncomingPaymentBody(paymentIntent, openPaymentsUrl),
-        methods: [
-          {
-            type: 'ilp',
-            ilpAddress: streamCredentials.ilpAddress,
-            sharedSecret: streamCredentials.sharedSecret
-          }
-        ]
-      };
+      const response: components['schemas']['incoming-payment-with-access-token'] =
+        {
+          ...toIncomingPaymentBody(paymentIntent, openPaymentsUrl),
+          methods: [
+            {
+              type: 'ilp',
+              ilpAddress: streamCredentials.ilpAddress,
+              sharedSecret: streamCredentials.sharedSecret
+            }
+          ]
+        };
 
       return reply.status(201).send(response);
     }
@@ -165,8 +170,8 @@ export async function incomingPaymentRoutes(
   server.get<{
     Params: { id: string };
     Reply:
-      | components['schemas']['incoming-payment-with-grant']
-      | components['schemas']['incoming-payment-without-grant']
+      | components['schemas']['incoming-payment-with-access-token']
+      | components['schemas']['incoming-payment-without-access-token']
       | components['schemas']['error-response'];
   }>(
     '/incoming-payments/:id',
@@ -197,19 +202,20 @@ export async function incomingPaymentRoutes(
       });
 
       if (request.gnapToken) {
-        const response: components['schemas']['incoming-payment-with-grant'] = {
-          ...toIncomingPaymentBody(paymentIntent, openPaymentsUrl),
-          methods: [
-            {
-              type: 'ilp',
-              ilpAddress: streamCredentials.ilpAddress,
-              sharedSecret: streamCredentials.sharedSecret
-            }
-          ]
-        };
+        const response: components['schemas']['incoming-payment-with-access-token'] =
+          {
+            ...toIncomingPaymentBody(paymentIntent, openPaymentsUrl),
+            methods: [
+              {
+                type: 'ilp',
+                ilpAddress: streamCredentials.ilpAddress,
+                sharedSecret: streamCredentials.sharedSecret
+              }
+            ]
+          };
         return reply.status(200).send(response);
       } else {
-        const response: components['schemas']['incoming-payment-without-grant'] =
+        const response: components['schemas']['incoming-payment-without-access-token'] =
           {
             ...toIncomingPaymentBody(paymentIntent, openPaymentsUrl),
             authServer: openPaymentsAuthServiceUrl,
