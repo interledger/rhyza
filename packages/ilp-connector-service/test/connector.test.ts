@@ -22,7 +22,6 @@ import {
   IConnectorTransport,
   WireFulfill,
   WireInboundPrepareHandler,
-  WireOutboundPrepareAcceptedHandler,
   WirePrepare,
   WireReject,
   WireResponse,
@@ -49,11 +48,9 @@ class ManualTransport implements IConnectorTransport {
   readonly sentResponses: SentWireReply[] = [];
   private _onResponse?: WireResponseHandler;
   private _onInboundPrepare?: WireInboundPrepareHandler;
-  private _onOutboundPrepareAccepted?: WireOutboundPrepareAcceptedHandler;
 
   async sendPrepare(prepare: WirePrepare): Promise<void> {
     this.prepares.push(prepare);
-    await this._onOutboundPrepareAccepted?.(prepare);
   }
   async sendFulfill(
     fulfill: WireFulfill,
@@ -74,9 +71,6 @@ class ManualTransport implements IConnectorTransport {
   }
   onInboundPrepare(handler: WireInboundPrepareHandler): void {
     this._onInboundPrepare = handler;
-  }
-  onOutboundPrepareAccepted(handler: WireOutboundPrepareAcceptedHandler): void {
-    this._onOutboundPrepareAccepted = handler;
   }
   async triggerResponse(response: WireResponse): Promise<void> {
     await this._onResponse?.(response);
@@ -116,7 +110,7 @@ describe('IlpConnector', () => {
     connector.init();
   });
 
-  test('dispatching a prepare stores outbound correlation and schedules expiry', async () => {
+  test('dispatching a prepare stores the outbound correlation', async () => {
     await connector.handleConnectorCommands([dispatchPrepare()]);
 
     assert.equal(transport.prepares.length, 1);
@@ -331,7 +325,7 @@ describe('IlpConnector', () => {
     assert.equal(transport.sentResponses[1].peerId, 'peer-1');
   });
 
-  test('processExpiredOutboundPackets publishes R00 when no callback arrives', async () => {
+  test('a missing callback does not synthesize a reject', async () => {
     await connector.handleConnectorCommands([
       dispatchPrepare({
         packetId: 'packet-expired',
@@ -339,12 +333,11 @@ describe('IlpConnector', () => {
       })
     ]);
 
-    await connector.processExpiredOutboundPackets();
-
-    assert.equal(producer.sent.length, 1);
-    const cmd = producer.sent[0] as ProcessRejectPacketCmd;
-    assert.equal(cmd.payload.rejectCode, 'R00');
-    assert.equal(cmd.payload.packetId, 'packet-expired');
+    assert.equal(producer.sent.length, 0);
+    assert.equal(
+      await correlationStore.hasOutboundCorrelation('packet-expired'),
+      true
+    );
   });
 });
 

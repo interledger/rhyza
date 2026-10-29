@@ -772,6 +772,19 @@ export class IlpPeerAggregate {
     if (!stored) {
       throw new PacketNotFound(`Packet ${payload.packetId} not found`);
     }
+    if (stored.state === 'EXPIRED') {
+      return [];
+    }
+    if (
+      stored.kind === 'QUOTE' &&
+      stored.state === 'PENDING' &&
+      packetHasExpired(stored.expiresAt)
+    ) {
+      await this.peerRepo.updatePacket(
+        PacketCorrelation.fromObject(stored).expire().toObject()
+      );
+      return [];
+    }
 
     // Read before transitioning: going terminal drops the secret so it isn't
     // left at rest in the correlation.
@@ -877,6 +890,19 @@ export class IlpPeerAggregate {
     if (!stored) {
       throw new PacketNotFound(`Packet ${payload.packetId} not found`);
     }
+    if (stored.state === 'EXPIRED') {
+      return [];
+    }
+    if (
+      stored.kind === 'QUOTE' &&
+      stored.state === 'PENDING' &&
+      packetHasExpired(stored.expiresAt)
+    ) {
+      await this.peerRepo.updatePacket(
+        PacketCorrelation.fromObject(stored).expire().toObject()
+      );
+      return [];
+    }
     // Read before transitioning: going terminal drops the secret so it isn't
     // left at rest in the correlation.
     const quoteSecret =
@@ -955,9 +981,13 @@ export class IlpPeerAggregate {
 
   private async handleExpirePacket(cmd: ExpirePacketCmd): Promise<IMessage[]> {
     const payload = cmd.payload;
-    const stored = await this.peerRepo.fetchPacketById(payload.packetId);
-    if (!stored) {
-      throw new PacketNotFound(`Packet ${payload.packetId} not found`);
+    const stored = payload.packetId
+      ? await this.peerRepo.fetchPacketById(payload.packetId)
+      : payload.paymentId
+        ? await this.peerRepo.fetchPendingPaymentPacket(payload.paymentId)
+        : undefined;
+    if (!stored || stored.state !== 'PENDING') {
+      return [];
     }
     const transitioned = PacketCorrelation.fromObject(stored)
       .expire()

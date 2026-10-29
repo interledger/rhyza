@@ -12,7 +12,6 @@ import {
 import { DispatchPreparePacketCmd, ILPPeerCreatedEvent } from 'ilp-domain-lib';
 import { InMemoryTransportCorrelationStore } from '../src/correlation/in-memory-store';
 import { IlpConnectorService } from '../src/service';
-import { OutboundExpiryWorker } from '../src/outbound-expiry-worker';
 import { PeerDirectory } from '../src/peer-directory';
 import { IConnectorTransport, WirePrepare } from '../src/transport';
 
@@ -65,14 +64,7 @@ class NoopTransport implements IConnectorTransport {
   async sendReject(): Promise<void> {}
   onResponse(): void {}
   onInboundPrepare(): void {}
-  onOutboundPrepareAccepted(): void {}
 }
-
-const noopExpiryWorker = () =>
-  new OutboundExpiryWorker(
-    { processExpiredOutboundPackets: async () => {} } as never,
-    10_000
-  );
 
 describe('IlpConnectorService — split consumers', () => {
   afterEach(async () => {
@@ -91,8 +83,7 @@ describe('IlpConnectorService — split consumers', () => {
       directoryConsumer,
       transport: new NoopTransport(),
       directory,
-      correlationStore: new InMemoryTransportCorrelationStore(),
-      outboundExpiryWorker: noopExpiryWorker()
+      correlationStore: new InMemoryTransportCorrelationStore()
     });
 
     assert.deepEqual(commandsConsumer.topics, ['ilp-connector-commands']);
@@ -112,8 +103,7 @@ describe('IlpConnectorService — split consumers', () => {
       directoryConsumer,
       transport,
       directory,
-      correlationStore: new InMemoryTransportCorrelationStore(),
-      outboundExpiryWorker: noopExpiryWorker()
+      correlationStore: new InMemoryTransportCorrelationStore()
     });
 
     await directoryConsumer.deliver([
@@ -150,8 +140,7 @@ describe('IlpConnectorService — split consumers', () => {
       directoryConsumer,
       transport,
       directory: new PeerDirectory(),
-      correlationStore: new InMemoryTransportCorrelationStore(),
-      outboundExpiryWorker: noopExpiryWorker()
+      correlationStore: new InMemoryTransportCorrelationStore()
     });
 
     await commandsConsumer.deliver([
@@ -182,8 +171,7 @@ describe('IlpConnectorService — split consumers', () => {
           consumer: new MockConsumer(),
           directoryConsumer: new MockConsumer(),
           transport: new NoopTransport(),
-          directory: new PeerDirectory(),
-          outboundExpiryWorker: noopExpiryWorker()
+          directory: new PeerDirectory()
         }),
       /REDIS_URL is not set/
     );

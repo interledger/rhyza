@@ -15,14 +15,12 @@ import { RedisTransportCorrelationStore } from './correlation/redis-store';
 import { ITransportCorrelationStore } from './correlation/store';
 import { IlpConnector } from './connector';
 import { HttpConnectorTransport } from './http-connector-transport';
-import { OutboundExpiryWorker } from './outbound-expiry-worker';
 import { PeerDirectory } from './peer-directory';
 import { IConnectorTransport } from './transport';
 
 const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9093';
 const CONNECTOR_COMMANDS_GROUP_ID = 'ilp-connector';
 const DEFAULT_HTTP_PORT = 4000;
-const DEFAULT_OUTBOUND_EXPIRY_POLL_MS = 250;
 const HTTP_PORT = process.env['ILP_CONNECTOR_HTTP_PORT']
   ? Number.parseInt(process.env['ILP_CONNECTOR_HTTP_PORT'], 10)
   : DEFAULT_HTTP_PORT;
@@ -30,11 +28,6 @@ const HTTP_PATH = process.env['ILP_CONNECTOR_HTTP_PATH'] || '/ilp';
 const PUBLIC_BASE_URL =
   process.env['ILP_CONNECTOR_PUBLIC_URL'] || `http://localhost:${HTTP_PORT}`;
 const ILP_ADDRESS = process.env['ILP_ADDRESS'] || 'private.rhyza';
-const OUTBOUND_EXPIRY_POLL_MS = process.env[
-  'ILP_CONNECTOR_OUTBOUND_EXPIRY_POLL_MS'
-]
-  ? Number.parseInt(process.env['ILP_CONNECTOR_OUTBOUND_EXPIRY_POLL_MS'], 10)
-  : DEFAULT_OUTBOUND_EXPIRY_POLL_MS;
 
 export class IlpConnectorService {
   private static _logger: ILogger;
@@ -45,7 +38,6 @@ export class IlpConnectorService {
   private static _transport: IConnectorTransport;
   private static _directory: PeerDirectory;
   private static _correlationStore: ITransportCorrelationStore;
-  private static _outboundExpiryWorker?: OutboundExpiryWorker;
   private static _redis?: Redis;
 
   static async start(deps?: {
@@ -56,7 +48,6 @@ export class IlpConnectorService {
     transport?: IConnectorTransport;
     directory?: PeerDirectory;
     correlationStore?: ITransportCorrelationStore;
-    outboundExpiryWorker?: OutboundExpiryWorker;
   }): Promise<void> {
     this._logger = deps?.logger ?? new PinoLogger();
     this._logger.info('Starting IlpConnectorService...');
@@ -109,19 +100,9 @@ export class IlpConnectorService {
       this._producer,
       this._transport,
       this._correlationStore,
-      this._logger,
-      ILP_ADDRESS
+      this._logger
     );
     this._connector.init();
-
-    this._outboundExpiryWorker =
-      deps?.outboundExpiryWorker ??
-      new OutboundExpiryWorker(
-        this._connector,
-        OUTBOUND_EXPIRY_POLL_MS,
-        this._logger
-      );
-    this._outboundExpiryWorker.start();
 
     await this._producer.connect();
 
@@ -147,8 +128,6 @@ export class IlpConnectorService {
   }
 
   static async stop(): Promise<void> {
-    this._outboundExpiryWorker?.stop();
-    this._outboundExpiryWorker = undefined;
     if (this._consumer) {
       await this._consumer.stop();
       await this._consumer.disconnect(true);
