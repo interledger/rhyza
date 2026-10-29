@@ -12,7 +12,8 @@ export const SentPaymentState = {
   REJECTED: 'REJECTED',
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED',
-  FAILED: 'FAILED'
+  FAILED: 'FAILED',
+  EXPIRED: 'EXPIRED'
 } as const;
 export type SentPaymentState = keyof typeof SentPaymentState;
 

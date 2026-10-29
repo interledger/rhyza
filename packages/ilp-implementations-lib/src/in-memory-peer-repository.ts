@@ -32,6 +32,21 @@ export class InMemoryPeerRepository implements IPeerRepository {
     return this._packets.get(packetId);
   }
 
+  async fetchPendingPaymentPacket(
+    paymentId: string
+  ): Promise<IPacketCorrelation | undefined> {
+    for (const packet of this._packets.values()) {
+      if (
+        packet.kind === 'PAYMENT' &&
+        packet.paymentId === paymentId &&
+        packet.state === 'PENDING'
+      ) {
+        return packet;
+      }
+    }
+    return undefined;
+  }
+
   async storePacket(packet: IPacketCorrelation): Promise<void> {
     this._packets.set(packet.packetId, packet);
   }

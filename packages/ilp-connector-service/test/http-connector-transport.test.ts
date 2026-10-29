@@ -15,13 +15,11 @@ import {
 } from 'ilp-packet';
 import {
   DispatchPreparePacketCmd,
-  ILPPeerCreatedEvent,
-  ProcessRejectPacketCmd
+  ILPPeerCreatedEvent
 } from 'ilp-domain-lib';
 import { InMemoryTransportCorrelationStore } from '../src/correlation/in-memory-store';
 import { IlpConnector } from '../src/connector';
 import { HttpConnectorTransport } from '../src/http-connector-transport';
-import { OutboundExpiryWorker } from '../src/outbound-expiry-worker';
 import { PeerDirectory } from '../src/peer-directory';
 import {
   IConnectorTransport,
@@ -393,21 +391,14 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
     }
   });
 
-  test('an outbound prepare that never gets a callback times out with R00 at its own expiry', async () => {
+  test('a missing callback does not synthesize an R00', async () => {
     const store = new InMemoryTransportCorrelationStore();
-    // Outbound-only stub: simulates 202 without looping back as inbound.
     class OutboundOnlyTransport implements IConnectorTransport {
-      private _onOutboundAccepted?: (prepare: WirePrepare) => void;
-      async sendPrepare(prepare: WirePrepare): Promise<void> {
-        await this._onOutboundAccepted?.(prepare);
-      }
+      async sendPrepare(): Promise<void> {}
       async sendFulfill(): Promise<void> {}
       async sendReject(): Promise<void> {}
       onResponse(): void {}
       onInboundPrepare(): void {}
-      onOutboundPrepareAccepted(handler: (prepare: WirePrepare) => void): void {
-        this._onOutboundAccepted = handler;
-      }
     }
     const transport = new OutboundOnlyTransport();
 
@@ -430,36 +421,20 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
     );
     connector.init();
 
-    const worker = new OutboundExpiryWorker(connector, 10);
-    worker.start();
+    await connector.handleConnectorCommands([
+      new DispatchPreparePacketCmd({
+        peerId: 'peer-1',
+        packetId: 'packet-expiring',
+        paymentIntentId: 'intent-expiring',
+        destinationIlpAddress: 'g.us.alice',
+        amount: '100',
+        expiresAt: new Date(Date.now() - 1).toISOString(),
+        executionCondition: Buffer.alloc(32).toString('base64')
+      })
+    ]);
 
-    try {
-      await connector.handleConnectorCommands([
-        new DispatchPreparePacketCmd({
-          peerId: 'peer-1',
-          packetId: 'packet-expiring',
-          paymentIntentId: 'intent-expiring',
-          destinationIlpAddress: 'g.us.alice',
-          amount: '100',
-          expiresAt: new Date(Date.now() + 50).toISOString(),
-          executionCondition: Buffer.alloc(32).toString('base64')
-        })
-      ]);
-
-      await waitFor(
-        () => sent.some((m) => m.msgName === ProcessRejectPacketCmd.name),
-        3_000
-      );
-
-      const cmd = sent.find(
-        (m) => m.msgName === ProcessRejectPacketCmd.name
-      ) as ProcessRejectPacketCmd;
-      assert.equal(cmd.payload.rejectCode, 'R00');
-      assert.equal(cmd.payload.packetId, 'packet-expiring');
-      assert.equal(cmd.payload.paymentIntentId, 'intent-expiring');
-    } finally {
-      worker.stop();
-    }
+    assert.equal(sent.length, 0);
+    assert.equal(await store.hasOutboundCorrelation('packet-expiring'), true);
   });
 });
 

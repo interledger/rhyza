@@ -3106,7 +3106,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
       function makeRemoteIntentWithPayment(
         paymentIntentId: string,
         paymentId: string,
-        paymentState: 'SENDING' | 'REJECTED' | 'PROCESSING' | 'CONFIRMED'
+        paymentState: 'SENDING' | 'REJECTED' | 'PROCESSING' | 'CONFIRMED' | 'EXPIRED'
       ): IPaymentIntent {
         return {
           id: paymentIntentId,
@@ -3172,6 +3172,33 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         assert.ok(stored && isRemoteSentPayment(stored));
         assert.equal(stored.state, 'REJECTED');
         assert.equal(stored.failReason, 'REJECTED');
+      });
+
+      it('ignores a failure for a payment that is already EXPIRED', async () => {
+        const paymentIntentId = crypto.randomUUID();
+        const paymentId = crypto.randomUUID();
+        await repo.storeMany([
+          makeRemoteIntentWithPayment(paymentIntentId, paymentId, 'EXPIRED')
+        ]);
+
+        const cmd = new RejectRemotePaymentCmd(
+          {
+            paymentIntentId,
+            paymentId,
+            reason: 'EXPIRED',
+            rejectCode: 'R00'
+          },
+          crypto.randomUUID()
+        );
+        const { events } = await aggregate.handleBatch([cmd]);
+        await aggregate.flush();
+
+        assert.equal(events.length, 0);
+        const stored = repo
+          .getAll()
+          .find((i) => i.id === paymentIntentId)
+          ?.sentPayments.find((p) => p.id === paymentId);
+        assert.equal(stored?.state, 'EXPIRED');
       });
 
       it('fails when payment state is not SENDING', async () => {

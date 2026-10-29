@@ -297,12 +297,16 @@ export class ProcessRejectPacketCmd extends CommandMsg {
   }
 }
 
-// Published by the expiry worker when a packet's `expiresAt` passes without
-// a terminal response.
+// Published when Payments emits PaymentExpiredEvent. The aggregate looks up
+// the PENDING payment packet. A direct packetId still works for tests and
+// for a quote the caller already has in hand. Outbound commands share the
+// paymentIntentId partition with the peer callback.
 export interface ExpirePacketCmdPayload {
-  peerId: string;
-  packetId: string;
   expiredAt: string;
+  paymentIntentId?: string;
+  paymentId?: string;
+  peerId?: string;
+  packetId?: string;
 }
 
 export class ExpirePacketCmd extends CommandMsg {
@@ -313,8 +317,16 @@ export class ExpirePacketCmd extends CommandMsg {
   payload: ExpirePacketCmdPayload;
 
   constructor(payload: ExpirePacketCmdPayload) {
-    super(payload.peerId);
-    this.msgKey = payload.peerId;
+    const key =
+      payload.paymentIntentId ??
+      payload.peerId ??
+      payload.paymentId ??
+      payload.packetId;
+    if (!key) {
+      throw new Error('ExpirePacketCmd requires a partition key');
+    }
+    super(key);
+    this.msgKey = key;
     this.payload = payload;
   }
 }

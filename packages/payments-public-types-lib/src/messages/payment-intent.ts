@@ -565,6 +565,21 @@ export class PaymentFailedEvent extends PaymentIntentDomainEvent {
   }
 }
 
+export type PaymentExpiredPayload = {
+  paymentIntentId: string;
+  paymentId: string;
+};
+
+export class PaymentExpiredEvent extends PaymentIntentDomainEvent {
+  payload: PaymentExpiredPayload;
+
+  constructor(payload: PaymentExpiredPayload, requestId?: string) {
+    super(payload.paymentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
 export type RemotePaymentSendConfirmedPayload = {
   paymentIntentId: string;
   paymentId: string;

@@ -131,6 +131,28 @@ export class CachedPeerRepository implements IPeerRepository {
     return stored;
   }
 
+  async fetchPendingPaymentPacket(
+    paymentId: string
+  ): Promise<IPacketCorrelation | undefined> {
+    const stored = await this._store.fetchPendingPaymentPacket(paymentId);
+    if (!stored) {
+      return undefined;
+    }
+    const cached = await this._cacheGet(stored.packetId);
+    const packet = cached ?? stored;
+    if (
+      packet.kind !== 'PAYMENT' ||
+      packet.state !== 'PENDING' ||
+      packet.paymentId !== paymentId
+    ) {
+      return undefined;
+    }
+    if (!cached) {
+      await this._cacheSet(stored);
+    }
+    return packet;
+  }
+
   async storePacket(packet: IPacketCorrelation): Promise<void> {
     await this._store.storePacket(packet);
     await this._cacheSet(packet);

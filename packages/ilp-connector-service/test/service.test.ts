@@ -11,7 +11,6 @@ import {
 } from 'common-types-lib';
 import { DispatchPreparePacketCmd, ILPPeerCreatedEvent } from 'ilp-domain-lib';
 import { IlpConnectorService } from '../src/service';
-import { OutboundExpiryWorker } from '../src/outbound-expiry-worker';
 import { PeerDirectory } from '../src/peer-directory';
 import { IConnectorTransport, WirePrepare } from '../src/transport';
 
@@ -64,14 +63,7 @@ class NoopTransport implements IConnectorTransport {
   async sendReject(): Promise<void> {}
   onResponse(): void {}
   onInboundPrepare(): void {}
-  onOutboundPrepareAccepted(): void {}
 }
-
-const noopExpiryWorker = () =>
-  new OutboundExpiryWorker(
-    { processExpiredOutboundPackets: async () => {} } as never,
-    10_000
-  );
 
 describe('IlpConnectorService — split consumers', () => {
   afterEach(async () => {
@@ -89,8 +81,7 @@ describe('IlpConnectorService — split consumers', () => {
       consumer: commandsConsumer,
       directoryConsumer,
       transport: new NoopTransport(),
-      directory,
-      outboundExpiryWorker: noopExpiryWorker()
+      directory
     });
 
     assert.deepEqual(commandsConsumer.topics, ['ilp-connector-commands']);
@@ -109,8 +100,7 @@ describe('IlpConnectorService — split consumers', () => {
       consumer: commandsConsumer,
       directoryConsumer,
       transport,
-      directory,
-      outboundExpiryWorker: noopExpiryWorker()
+      directory
     });
 
     await directoryConsumer.deliver([
@@ -146,8 +136,7 @@ describe('IlpConnectorService — split consumers', () => {
       consumer: commandsConsumer,
       directoryConsumer,
       transport,
-      directory: new PeerDirectory(),
-      outboundExpiryWorker: noopExpiryWorker()
+      directory: new PeerDirectory()
     });
 
     await commandsConsumer.deliver([

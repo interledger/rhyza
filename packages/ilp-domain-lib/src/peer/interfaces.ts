@@ -36,6 +36,9 @@ export interface IPeerStore extends IPeerReader {
   store(peer: IPeer): Promise<void>;
   update(peer: IPeer): Promise<void>;
   fetchPacketById(packetId: string): Promise<IPacketCorrelation | undefined>;
+  fetchPendingPaymentPacket(
+    paymentId: string
+  ): Promise<IPacketCorrelation | undefined>;
   storePacket(packet: IPacketCorrelation): Promise<void>;
   updatePacket(packet: IPacketCorrelation): Promise<void>;
 }

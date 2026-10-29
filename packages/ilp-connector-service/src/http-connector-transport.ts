@@ -14,7 +14,6 @@ import {
   IConnectorTransport,
   WireFulfill,
   WireInboundPrepareHandler,
-  WireOutboundPrepareAcceptedHandler,
   WirePrepare,
   WireReject,
   WireResponse,
@@ -56,7 +55,6 @@ export class HttpConnectorTransport implements IConnectorTransport {
   private _server?: http.Server;
   private _responseHandler?: WireResponseHandler;
   private _inboundPrepareHandler?: WireInboundPrepareHandler;
-  private _outboundPrepareAcceptedHandler?: WireOutboundPrepareAcceptedHandler;
 
   constructor(options: HttpConnectorTransportOptions) {
     this._directory = options.directory;
@@ -115,10 +113,6 @@ export class HttpConnectorTransport implements IConnectorTransport {
     this._inboundPrepareHandler = handler;
   }
 
-  onOutboundPrepareAccepted(handler: WireOutboundPrepareAcceptedHandler): void {
-    this._outboundPrepareAcceptedHandler = handler;
-  }
-
   async sendPrepare(prepare: WirePrepare): Promise<void> {
     const outgoing = this._directory.getOutgoing(prepare.peerId);
     if (!outgoing) {
@@ -161,7 +155,6 @@ export class HttpConnectorTransport implements IConnectorTransport {
       );
 
       if (res.status === 202) {
-        void this._outboundPrepareAcceptedHandler?.(prepare);
         return;
       }
       if (res.status >= 500) {
