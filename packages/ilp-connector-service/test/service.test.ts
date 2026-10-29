@@ -10,6 +10,7 @@ import {
   IMessageProducerAcks
 } from 'common-types-lib';
 import { DispatchPreparePacketCmd, ILPPeerCreatedEvent } from 'ilp-domain-lib';
+import { InMemoryTransportCorrelationStore } from '../src/correlation/in-memory-store';
 import { IlpConnectorService } from '../src/service';
 import { OutboundExpiryWorker } from '../src/outbound-expiry-worker';
 import { PeerDirectory } from '../src/peer-directory';
@@ -90,6 +91,7 @@ describe('IlpConnectorService — split consumers', () => {
       directoryConsumer,
       transport: new NoopTransport(),
       directory,
+      correlationStore: new InMemoryTransportCorrelationStore(),
       outboundExpiryWorker: noopExpiryWorker()
     });
 
@@ -110,6 +112,7 @@ describe('IlpConnectorService — split consumers', () => {
       directoryConsumer,
       transport,
       directory,
+      correlationStore: new InMemoryTransportCorrelationStore(),
       outboundExpiryWorker: noopExpiryWorker()
     });
 
@@ -147,6 +150,7 @@ describe('IlpConnectorService — split consumers', () => {
       directoryConsumer,
       transport,
       directory: new PeerDirectory(),
+      correlationStore: new InMemoryTransportCorrelationStore(),
       outboundExpiryWorker: noopExpiryWorker()
     });
 
@@ -164,5 +168,30 @@ describe('IlpConnectorService — split consumers', () => {
 
     assert.equal(transport.prepares.length, 1);
     assert.equal(transport.prepares[0].packetId, 'packet-1');
+  });
+
+  test('refuses to start without REDIS_URL when no correlation store is injected', async () => {
+    const previous = process.env['REDIS_URL'];
+    delete process.env['REDIS_URL'];
+
+    await assert.rejects(
+      () =>
+        IlpConnectorService.start({
+          logger: new ConsoleLogger(),
+          producer: new MockProducer(),
+          consumer: new MockConsumer(),
+          directoryConsumer: new MockConsumer(),
+          transport: new NoopTransport(),
+          directory: new PeerDirectory(),
+          outboundExpiryWorker: noopExpiryWorker()
+        }),
+      /REDIS_URL is not set/
+    );
+
+    if (previous === undefined) {
+      delete process.env['REDIS_URL'];
+    } else {
+      process.env['REDIS_URL'] = previous;
+    }
   });
 });
