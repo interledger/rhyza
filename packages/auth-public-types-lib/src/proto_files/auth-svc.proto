@@ -7,6 +7,7 @@ service RhyzaAuth {
 	rpc GetGrant(GetGrantRequest) returns (Grant) {}
 	rpc ContinueGrant(ContinueGrantRequest) returns (ContinueGrantResponse) {}
 	rpc RevokeGrant(RevokeGrantRequest) returns (RevokeGrantResponse) {}
+	rpc ValidateOutgoingPaymentGrantLimit(ValidateOutgoingPaymentGrantLimitRequest) returns (ValidateOutgoingPaymentGrantLimitResponse) {}
 	rpc AdminRevokeGrant(AdminRevokeGrantRequest) returns (RevokeGrantResponse) {}
 	// Access Token RPCs
 	rpc IntrospectToken(IntrospectTokenRequest) returns (IntrospectTokenResponse) {}
@@ -142,6 +143,21 @@ message AdminRevokeGrantRequest {
 
 message RevokeGrantResponse {
 	string id = 1;
+}
+
+message ValidateOutgoingPaymentGrantLimitRequest {
+	string id = 1;
+	string debit_amount_value = 2;
+	string receive_amount_value = 3;
+	string created_at = 4; // Date String
+}
+
+message ValidateOutgoingPaymentGrantLimitResponse {
+	string id = 1;
+	string total_spent_debit_amount = 2;
+	string total_spent_receive_amount = 3;
+	string interval_spent_debit_amount = 4;
+	string interval_spent_receive_amount = 5;
 }
 
 message IntrospectTokenResponse {
