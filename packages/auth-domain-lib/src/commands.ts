@@ -243,3 +243,20 @@ export class ValidateOutgoingPaymentGrantLimitCmd extends AuthCmd {
     this.payload = payload;
   }
 }
+
+export interface RevertGrantSpentAmountCmdPayload {
+  id: string;
+  debitAmountValue?: string;
+  receiveAmountValue?: string;
+  createdAt: string;
+}
+
+export class RevertGrantSpentAmountCmd extends AuthCmd {
+  payload: RevertGrantSpentAmountCmdPayload;
+
+  constructor(payload: RevertGrantSpentAmountCmdPayload, requestId: string) {
+    super(payload.id, requestId);
+    this.msgKey = payload.id;
+    this.payload = payload;
+  }
+}

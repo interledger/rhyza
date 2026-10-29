@@ -1459,6 +1459,179 @@ describe('GrantEntity', () => {
     });
   });
 
+  describe('revertSpentAmounts', () => {
+    function makeGrantWithSpentAmounts(
+      spentAmounts?: ISpentAmounts
+    ): GrantEntity {
+      return GrantEntity.fromObject({
+        id: randomUUID(),
+        createdAt: new Date(),
+        state: GrantState.ISSUED,
+        accessTokens: [],
+        accesses: [
+          { type: AccessType.OUTGOING_PAYMENT, actions: [AccessAction.CREATE] }
+        ],
+        spentAmounts
+      } as IGrant);
+    }
+
+    it('returns undefined and does nothing when spent amounts have not been initialized', () => {
+      const entity = makeGrantWithSpentAmounts(undefined);
+
+      const result = entity.revertSpentAmounts({
+        debitAmountValue: '10',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result, undefined);
+    });
+
+    it('reverts the lifetime debit total', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 50n, receive: 0n }
+      });
+
+      const result = entity.revertSpentAmounts({
+        debitAmountValue: '20',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result?.total.debit, 30n);
+    });
+
+    it('reverts the lifetime receive total', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 0n, receive: 50n }
+      });
+
+      const result = entity.revertSpentAmounts({
+        receiveAmountValue: '15',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result?.total.receive, 35n);
+    });
+
+    it('reverts both the debit and receive totals in a single call', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 50n, receive: 50n }
+      });
+
+      const result = entity.revertSpentAmounts({
+        debitAmountValue: '20',
+        receiveAmountValue: '10',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result?.total.debit, 30n);
+      assert.equal(result?.total.receive, 40n);
+    });
+
+    it('leaves the totals unchanged when neither amount is given', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 50n, receive: 50n }
+      });
+
+      const result = entity.revertSpentAmounts({
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result?.total.debit, 50n);
+      assert.equal(result?.total.receive, 50n);
+    });
+
+    it('clamps the lifetime totals at zero rather than going negative', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 10n, receive: 10n }
+      });
+
+      const result = entity.revertSpentAmounts({
+        debitAmountValue: '50',
+        receiveAmountValue: '50',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(result?.total.debit, 0n);
+      assert.equal(result?.total.receive, 0n);
+    });
+
+    it('also reverts the interval debit total when the reverted payment falls within the currently tracked interval', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 100n, receive: 0n },
+        interval: {
+          start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+          end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+          total: { debit: 30n, receive: 0n }
+        }
+      });
+
+      const result = entity.revertSpentAmounts({
+        debitAmountValue: '20',
+        createdAt: '2024-01-15T00:00:00.000Z'
+      });
+
+      assert.equal(result?.total.debit, 80n);
+      assert.equal(result?.interval?.total.debit, 10n);
+    });
+
+    it('also reverts the interval receive total when the reverted payment falls within the currently tracked interval', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 0n, receive: 60n },
+        interval: {
+          start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+          end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+          total: { debit: 0n, receive: 25n }
+        }
+      });
+
+      const result = entity.revertSpentAmounts({
+        receiveAmountValue: '10',
+        createdAt: '2024-01-15T00:00:00.000Z'
+      });
+
+      assert.equal(result?.total.receive, 50n);
+      assert.equal(result?.interval?.total.receive, 15n);
+    });
+
+    it('leaves the interval total unchanged when the reverted payment falls outside the currently tracked interval', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 100n, receive: 0n },
+        interval: {
+          start: new Date('2024-02-01T00:00:00.000Z').getTime(),
+          end: new Date('2024-03-01T00:00:00.000Z').getTime(),
+          total: { debit: 15n, receive: 0n }
+        }
+      });
+
+      const result = entity.revertSpentAmounts({
+        debitAmountValue: '20',
+        createdAt: '2024-01-15T00:00:00.000Z'
+      });
+
+      assert.equal(result?.total.debit, 80n);
+      assert.equal(result?.interval?.total.debit, 15n);
+    });
+
+    it('clamps the interval total at zero rather than going negative', () => {
+      const entity = makeGrantWithSpentAmounts({
+        total: { debit: 100n, receive: 0n },
+        interval: {
+          start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+          end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+          total: { debit: 10n, receive: 0n }
+        }
+      });
+
+      const result = entity.revertSpentAmounts({
+        debitAmountValue: '50',
+        createdAt: '2024-01-15T00:00:00.000Z'
+      });
+
+      assert.equal(result?.total.debit, 50n);
+      assert.equal(result?.interval?.total.debit, 0n);
+    });
+  });
+
   describe('handleInteractionChoice', () => {
     function makeGrantWithInteraction(
       overrides: Partial<IInteraction> = {}

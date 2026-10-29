@@ -2,6 +2,7 @@
   "admin-api-service",
   "auth-api-service",
   "auth-command-handler-service",
+  "auth-event-handler-service",
   "idp-interaction-service",
   "ilp-api-service",
   "ilp-command-handler-service",
