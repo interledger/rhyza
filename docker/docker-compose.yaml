@@ -92,6 +92,7 @@ services:
     environment:
       MONGO_URL: mongodb://root:mongoPass@mongodb:27017/
       KAFKA_URL: kafka:19092
+      REDIS_URL: redis:6379
     ports:
       - '50051:50051'
     depends_on:

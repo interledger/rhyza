@@ -68,6 +68,7 @@ services:
     environment:
       MONGO_URL: mongodb://root:mongoPass@mongodb-b:27017/
       KAFKA_URL: kafka-b:19092
+      REDIS_URL: redis-b:6379
     ports:
       - '4051:50051'
     depends_on:
