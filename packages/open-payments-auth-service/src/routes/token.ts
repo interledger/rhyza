@@ -3,7 +3,11 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { AuthClient } from 'auth-client-lib';
 import { components } from '../types/generated/auth-server-types';
-import { createAccessTokenResponse, decodeCompoundId } from '../utils';
+import {
+  createAccessTokenResponse,
+  decodeAccessTokenValue,
+  decodeCompoundId
+} from '../utils';
 import {
   extractSignatureData,
   getGnapTokenOrThrow,
@@ -37,11 +41,10 @@ export async function tokenRoutes(
       }
     },
     async (request, reply) => {
-      const tokenValue = request.gnapToken!;
-
       const { grantId, otherId: managementId } = decodeCompoundId(
         request.params.id
       );
+      const tokenValue = decodeAccessTokenValue(request.gnapToken!, grantId);
 
       const result = await authClient.rotateToken(
         grantId,
@@ -74,11 +77,10 @@ export async function tokenRoutes(
       }
     },
     async (request, reply) => {
-      const tokenValue = request.gnapToken!;
-
       const { grantId, otherId: managementId } = decodeCompoundId(
         request.params.id
       );
+      const tokenValue = decodeAccessTokenValue(request.gnapToken!, grantId);
 
       await authClient.revokeToken(
         grantId,

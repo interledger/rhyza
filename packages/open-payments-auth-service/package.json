@@ -6,6 +6,7 @@
     "start": "node dist/index.js",
     "dev": "node --import tsx src/index.ts",
     "build": "tsc --build",
+    "test": "node --import tsx --test test/*.test.ts",
     "generate:types": "openapi-typescript ../../open-payments-specifications/openapi/auth-server.yaml --output src/types/generated/auth-server-types.ts",
     "prebuild": "pnpm generate:types"
   },
