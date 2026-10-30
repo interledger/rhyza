@@ -6,7 +6,7 @@
 import lightLogo from '../assets/light-logo.svg'
 import darkLogo from '../assets/dark-logo.svg'
 
-const fallback = { href: '/apis/api-overview/', label: '← Documentation' }
+const fallback = { href: '/apis/', label: '← Documentation' }
 ---
 
 <header class='op-header'>
@@ -41,10 +41,9 @@ const fallback = { href: '/apis/api-overview/', label: '← Documentation' }
 
     if (refUrl.origin !== location.origin) return
     // Came from the API reference itself (for example, a reload). Keep the
-    // default out to the docs instead of looping back into /apis/. The
-    // pattern also matches the old per-spec URLs, which redirect here.
-    // /apis/api-overview/ is a docs page and does not match.
-    if (/^\/apis\/(scalar(\/|$).*)?$/.test(refUrl.pathname)) return
+    // default out to the docs instead of looping back into /apis/reference/.
+    // /apis/ is now a written docs page and does not match.
+    if (/^\/apis\/(reference|scalar)(\/|$)/.test(refUrl.pathname)) return
 
     const backLink = document.getElementById('back-link')
     if (backLink) {

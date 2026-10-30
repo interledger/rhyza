@@ -5,6 +5,7 @@ import remarkMath from 'remark-math'
 import rehypeMathjax from 'rehype-mathjax'
 import starlightLinksValidator from 'starlight-links-validator'
 import starlightLlmsTxt from 'starlight-llms-txt'
+import starlightGroupPages from 'starlight-group-pages'
 import starlightFullViewMode from 'starlight-fullview-mode'
 import { unified, rehypeHeadingIds } from '@astrojs/markdown-remark'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
@@ -13,12 +14,15 @@ import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 export default defineConfig({
   site: 'https://rhyza.dev',
   outDir: './build',
-  // The three specs had a page each before they merged onto /apis/.
+  // The three specs had a page each before they merged onto /apis/reference/.
   redirects: {
-    '/apis/scalar/admin-api': '/apis/#tag/admin-api-overview',
-    '/apis/scalar/webhooks': '/apis/#tag/webhooks-api-overview',
+    '/apis/scalar/admin-api': '/apis/reference/#tag/admin-api-overview',
+    '/apis/scalar/webhooks': '/apis/reference/#tag/webhooks-api-overview',
     '/apis/scalar/idp-service-api':
-      '/apis/#tag/identity-provider-service-api-overview'
+      '/apis/reference/#tag/identity-provider-service-api-overview',
+    // /apis/ moved from the Scalar reference to a written overview page when
+    // the API Specifications sidebar group became clickable.
+    '/apis/api-overview': '/apis/'
   },
   markdown: {
     processor: unified({
@@ -48,6 +52,7 @@ export default defineConfig({
         }
       },
       components: {
+        Sidebar: './src/components/Sidebar.astro',
         PageSidebar: './src/components/PageSidebar.astro',
         Footer: './src/components/Footer.astro',
         PageTitle: './src/components/PageTitle.astro',
@@ -162,20 +167,20 @@ export default defineConfig({
           collapsed: true,
           items: [
             {
-              label: 'Overview',
-              link: '/apis/api-overview'
+              label: 'Conventions',
+              link: '/apis/conventions'
             },
             {
               label: 'Admin API',
-              link: '/apis/#tag/admin-api-overview'
+              link: '/apis/reference/#tag/admin-api-overview'
             },
             {
               label: 'Identity Provider Service API',
-              link: '/apis/#tag/identity-provider-service-api-overview'
+              link: '/apis/reference/#tag/identity-provider-service-api-overview'
             },
             {
               label: 'Webhooks API',
-              link: '/apis/#tag/webhooks-api-overview'
+              link: '/apis/reference/#tag/webhooks-api-overview'
             }
           ]
         },
@@ -255,10 +260,14 @@ Key terminology notes:
             }
           ]
         }),
+        starlightGroupPages({
+          sidebarLink: 'label',
+          extendIndexPages: false
+        }),
         starlightLinksValidator({
           // The API reference is a custom page, which the validator cannot see
-          // into. /apis/api-overview/ is a docs page and stays validated.
-          exclude: ['/apis/', '/apis/#*/**'],
+          // into. /apis/ is a docs page and stays validated.
+          exclude: ['/apis/reference/', '/apis/reference/#*/**'],
           errorOnLocalLinks: false,
           errorOnFallbackPages: false,
           errorOnInvalidHashes: false

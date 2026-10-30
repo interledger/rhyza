@@ -32,7 +32,7 @@ Kubernetes details coming soon.
 
 ### Assets
 
-Rhyza must be configured to support at least one asset. An asset represents an item of value, such as the US dollar, that can be transferred via the Interledger Protocol. Assets are added through the Admin API's <LinkOut href="/apis/#tag/assets">Create Asset</LinkOut> endpoint.
+Rhyza must be configured to support at least one asset. An asset represents an item of value, such as the US dollar, that can be transferred via the Interledger Protocol. Assets are added through the Admin API's <LinkOut href="/apis/reference/#tag/assets">Create Asset</LinkOut> endpoint.
 
 ### Exchange rates
 
@@ -58,7 +58,7 @@ Peer and intra-FSP rates for the same asset pair are set, cached, and expired in
 
 #### Push model
 
-In this model, the FSP sets exchange rates in Rhyza directly via the Admin API's <LinkOut href="/apis/#tag/rates/POST/rates">Set Exchange Rate</LinkOut> endpoint. Including a `peerId` in the payload sets a peer rate. Omitting it allows the FSP to set an intra-FSP rate for the asset pair instead.
+In this model, the FSP sets exchange rates in Rhyza directly via the Admin API's <LinkOut href="/apis/reference/#tag/rates/POST/rates">Set Exchange Rate</LinkOut> endpoint. Including a `peerId` in the payload sets a peer rate. Omitting it allows the FSP to set an intra-FSP rate for the asset pair instead.
 
 #### Pull model
 
@@ -98,7 +98,7 @@ The FSP can specify how long Rhyza caches exchange rates in their configuration/
 
 ##### Push model
 
-Pushed rates are **not** refreshed in the background. The `rateTtlSecs` provided in the Admin API's <LinkOut href="/apis/#tag/rates/POST/rates">Set Exchange Rate</LinkOut> endpoint determines the lifetime of the specific rate. Once a pushed rate's `rateTtlSecs` elapses, it's only replaced the next time that rate is requested, at which point Rhyza falls back to the pull model synchronously.
+Pushed rates are **not** refreshed in the background. The `rateTtlSecs` provided in the Admin API's <LinkOut href="/apis/reference/#tag/rates/POST/rates">Set Exchange Rate</LinkOut> endpoint determines the lifetime of the specific rate. Once a pushed rate's `rateTtlSecs` elapses, it's only replaced the next time that rate is requested, at which point Rhyza falls back to the pull model synchronously.
 
 If the pull model isn't configured or also fails to provide a rate, Rhyza will fail the payment or quote request with an error.
 
@@ -112,7 +112,7 @@ An IdP, or identity provider, is a system or service that stores and manages use
 To prevent clickjacking, the FSP and IdP should work together to create a Content Security Policy (CSP). The IdP must then use this policy on its consent screen.
 :::
 
-The IdP will call the internal <LinkOut href="/apis/#tag/identity-provider-service-api-overview">Identity Provider Service API</LinkOut> to look up grant details for an in-progress interaction and to record the user's accept/reject decision.
+The IdP will call the internal <LinkOut href="/apis/reference/#tag/identity-provider-service-api-overview">Identity Provider Service API</LinkOut> to look up grant details for an in-progress interaction and to record the user's accept/reject decision.
 
 ### Peers
 
@@ -122,7 +122,7 @@ For two FSPs to exchange Interledger payments with each other, they must be peer
 If an FSP is using Rhyza solely for transfers between accounts on its own ledger, peers are not required.
 :::
 
-Peering relationships are created by calling the Admin API's <LinkOut href="/apis/#tag/peers/POST/peers">Create Peer</LinkOut> endpoint.
+Peering relationships are created by calling the Admin API's <LinkOut href="/apis/reference/#tag/peers/POST/peers">Create Peer</LinkOut> endpoint.
 
 Before becoming peers, both FSPs must:
 
@@ -205,13 +205,13 @@ Wallet addresses are created and hosted in Rhyza. However, the mapping of a wall
     ::: 
     Create wallet addresses with a bare `pathName` only (for example `sarah`). The Admin API builds the public wallet address URL from the Open Payments resource server base URL plus that pathName. Values containing `/` or `://` are rejected.
 
-    Wallet addresses are created one-by-one by calling the Admin API's <LinkOut href='/apis/#tag/wallet-addresses/POST/wallet-addresses'>Create Wallet Address</LinkOut> endpoint. To bulk-assign wallet addresses to existing customers, the FSP should write a script that calls the Create Wallet Address endpoint and loops through their list of accounts.
+    Wallet addresses are created one-by-one by calling the Admin API's <LinkOut href='/apis/reference/#tag/wallet-addresses/POST/wallet-addresses'>Create Wallet Address</LinkOut> endpoint. To bulk-assign wallet addresses to existing customers, the FSP should write a script that calls the Create Wallet Address endpoint and loops through their list of accounts.
   </TabItem>
 </Tabs>
 
 ### Webhooks
 
-The FSP must expose a webhook endpoint that listens for <LinkOut href="/apis/#tag/webhook-events">events</LinkOut> dispatched by Rhyza.
+The FSP must expose a webhook endpoint that listens for <LinkOut href="/apis/reference/#tag/webhook-events">events</LinkOut> dispatched by Rhyza.
 
 When an event is received, the FSP can react accordingly. For example, if the FSP receives a `payment.created` event but the sender has insufficient funds, the FSP can cancel the payment by calling the Admin API's Cancel Payment endpoint.
 
