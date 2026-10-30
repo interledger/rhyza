@@ -4,7 +4,8 @@ import {
 } from 'pal-public-types-lib';
 import {
   DuplicateWalletAddressKeyError,
-  IPalWalletAddressRepository
+  IPalWalletAddressRepository,
+  IPalWalletAddressWithKeysDto
 } from '../../src';
 
 export class MockWalletRepo implements IPalWalletAddressRepository {
@@ -49,30 +50,29 @@ export class MockWalletRepo implements IPalWalletAddressRepository {
   fetch(ids: string[]): Promise<IPalWalletAddressDto[]> {
     const ret = Array.from(this._data.values())
       .filter((item) => ids.includes(item.id))
-      .map((wallet) => this._withKeys(wallet));
+      .map((wallet) => ({ ...wallet }));
     return Promise.resolve(ret);
+  }
+
+  fetchWithKeys(id: string): Promise<IPalWalletAddressWithKeysDto | null> {
+    const wallet = this._data.get(id);
+    if (!wallet) return Promise.resolve(null);
+
+    return Promise.resolve({
+      ...wallet,
+      keys: [...(this._keys.get(id) ?? [])]
+    });
   }
 
   getByAlias(
     domain: string | null,
     pathName: string
   ): Promise<IPalWalletAddressDto | null> {
-    let found: IPalWalletAddressDto | null = null;
-    this._data.forEach((wallet) => {
-      wallet.aliases.forEach((alias) => {
-        if (alias.domain === domain && alias.pathName === pathName) {
-          found = wallet;
-          return;
-        }
-      });
-    });
-    return Promise.resolve(found ? this._withKeys(found) : null);
-  }
-
-  private _withKeys(wallet: IPalWalletAddressDto): IPalWalletAddressDto {
-    return {
-      ...wallet,
-      keys: this._keys.get(wallet.id) ?? []
-    };
+    const found = Array.from(this._data.values()).find((wallet) =>
+      wallet.aliases.some(
+        (alias) => alias.domain === domain && alias.pathName === pathName
+      )
+    );
+    return Promise.resolve(found ? { ...found } : null);
   }
 }

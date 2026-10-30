@@ -60,7 +60,7 @@ export async function grantRoutes(
     try {
       const grant = await authClient.getGrant(id);
       if (!grant) {
-        return reply.status(404);
+        return reply.status(404).send({ error: 'Grant not found' });
       }
       return reply.status(200).send(toAdminApiGrant(grant));
     } catch (error) {

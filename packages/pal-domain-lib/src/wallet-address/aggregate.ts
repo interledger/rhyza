@@ -185,7 +185,7 @@ export class WalletAddressAggregate {
     walletAddressId: string,
     jwk: IPalJsonWebKeyDto
   ): Promise<string> {
-    const [walletDto] = await this._repo.fetch([walletAddressId]);
+    const walletDto = await this._repo.fetchWithKeys(walletAddressId);
     if (!walletDto) {
       throw new WalletAddressNotFoundError(
         `Wallet Address with id ${walletAddressId} does not exist`
@@ -205,7 +205,7 @@ export class WalletAddressAggregate {
   async getWalletAddressKeys(
     walletAddressId: string
   ): Promise<IPalWalletAddressKeyDto[]> {
-    const [walletDto] = await this._repo.fetch([walletAddressId]);
+    const walletDto = await this._repo.fetchWithKeys(walletAddressId);
     if (!walletDto) return [];
 
     return PalWalletAddress.fromDto(walletDto).keys.map((key) =>
@@ -217,7 +217,7 @@ export class WalletAddressAggregate {
     walletAddressId: string,
     keyId: string
   ): Promise<void> {
-    const [walletDto] = await this._repo.fetch([walletAddressId]);
+    const walletDto = await this._repo.fetchWithKeys(walletAddressId);
     if (!walletDto) {
       throw new WalletAddressKeyNotFoundError(
         `Wallet address key ${keyId} does not exist for wallet ${walletAddressId}`
