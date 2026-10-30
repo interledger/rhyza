@@ -47,7 +47,7 @@ export interface SignedCommandPayload {
   signatureData: {
     url: string;
     method: string;
-    body: string;
+    body?: string;
     headers: Record<string, string>;
     kid: string;
   };

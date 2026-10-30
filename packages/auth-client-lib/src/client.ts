@@ -179,7 +179,7 @@ export class AuthClient {
     const msg = new PbSignatureData();
     msg.setUrl(signatureData.url);
     msg.setMethod(signatureData.method);
-    msg.setBody(signatureData.body);
+    if (signatureData.body !== undefined) msg.setBody(signatureData.body);
     msg.setKid(signatureData.kid);
     msg.setHeaders(JSON.stringify(signatureData.headers));
     return msg;

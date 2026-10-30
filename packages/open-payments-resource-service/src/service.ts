@@ -10,6 +10,7 @@ import { outgoingPaymentRoutes } from './routes/outgoing-payments.js';
 
 import resourceServerOpenApiJsonSchema from '../../../open-payments-specifications/json/resource-server.json';
 import { errorHandler } from './errors.js';
+import { allowEmptyJsonBody } from './utils.js';
 import { quoteRoutes } from './routes/quotes.js';
 
 import { FastifyOpenApiValidator } from './validator.js';
@@ -85,6 +86,8 @@ export class OpenPaymentsResourceServer {
     this.server.setValidatorCompiler(({ schema }) => validator.compile(schema));
 
     this.server.setErrorHandler(errorHandler);
+
+    allowEmptyJsonBody(this.server);
 
     this.server.register(incomingPaymentRoutes, {
       palClient: this.palClient,

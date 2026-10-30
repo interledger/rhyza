@@ -51,7 +51,7 @@ export function extractSignatureData(
   return {
     url: `${request.protocol}://${request.headers.host}${request.url}`,
     method: request.method,
-    body: JSON.stringify(request.body ?? {}),
+    body: request.body === undefined ? undefined : JSON.stringify(request.body),
     headers: cleanHeaders(request.headers),
     kid: keyId
   };

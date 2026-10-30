@@ -294,7 +294,9 @@ export class AuthServiceServer {
       const signatureData = {
         url: signatureDataMsg.getUrl(),
         method: signatureDataMsg.getMethod(),
-        body: signatureDataMsg.getBody(),
+        body: signatureDataMsg.hasBody()
+          ? signatureDataMsg.getBody()
+          : undefined,
         headers: JSON.parse(signatureDataMsg.getHeaders()),
         kid: signatureDataMsg.getKid()
       };
@@ -325,7 +327,9 @@ export class AuthServiceServer {
       const signatureData = {
         url: signatureDataMsg.getUrl(),
         method: signatureDataMsg.getMethod(),
-        body: signatureDataMsg.getBody(),
+        body: signatureDataMsg.hasBody()
+          ? signatureDataMsg.getBody()
+          : undefined,
         headers: JSON.parse(signatureDataMsg.getHeaders()),
         kid: signatureDataMsg.getKid()
       };
@@ -353,7 +357,9 @@ export class AuthServiceServer {
       const signatureData = {
         url: signatureDataMsg.getUrl(),
         method: signatureDataMsg.getMethod(),
-        body: signatureDataMsg.getBody(),
+        body: signatureDataMsg.hasBody()
+          ? signatureDataMsg.getBody()
+          : undefined,
         headers: JSON.parse(signatureDataMsg.getHeaders()),
         kid: signatureDataMsg.getKid()
       };
@@ -463,7 +469,9 @@ export class AuthServiceServer {
       const signatureData = {
         url: signatureDataMsg.getUrl(),
         method: signatureDataMsg.getMethod(),
-        body: signatureDataMsg.getBody(),
+        body: signatureDataMsg.hasBody()
+          ? signatureDataMsg.getBody()
+          : undefined,
         headers: JSON.parse(signatureDataMsg.getHeaders()),
         kid: signatureDataMsg.getKid()
       };
@@ -490,7 +498,9 @@ export class AuthServiceServer {
       const signatureData = {
         url: signatureDataMsg.getUrl(),
         method: signatureDataMsg.getMethod(),
-        body: signatureDataMsg.getBody(),
+        body: signatureDataMsg.hasBody()
+          ? signatureDataMsg.getBody()
+          : undefined,
         headers: JSON.parse(signatureDataMsg.getHeaders()),
         kid: signatureDataMsg.getKid()
       };
