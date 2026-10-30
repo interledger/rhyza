@@ -1,11 +1,30 @@
-import type { components } from 'open-payments-resource-service/dist/types/generated/resource-server-types.js';
 import {
+  IRemotePaymentIntentDetails,
   IRemotePaymentIntentService,
-  IRemotePaymentIntentDetails
+  PaymentIntentDestination,
+  PaymentIntentState
 } from '../../src/payment-intent/interfaces';
 
-type IncomingPaymentWithMethods =
-  components['schemas']['incoming-payment-with-methods'];
+type IncomingPaymentAmount = {
+  value: string;
+  assetCode: string;
+  assetScale: number;
+};
+
+type IncomingPaymentWithMethods = {
+  id: string;
+  completed: boolean;
+  walletAddress?: string;
+  createdAt: string;
+  receivedAmount: IncomingPaymentAmount;
+  incomingAmount?: IncomingPaymentAmount;
+  expiresAt?: string;
+  methods: {
+    type: 'ilp';
+    ilpAddress: string;
+    sharedSecret: string;
+  }[];
+};
 
 export function toIncomingPaymentWithMethods(
   overrides: Partial<IncomingPaymentWithMethods> &
@@ -56,9 +75,35 @@ export function toIncomingPaymentWithMethods(
   return response;
 }
 
+export function stubRemotePaymentIntent(
+  overrides: Partial<IRemotePaymentIntentDetails> = {}
+): IRemotePaymentIntentDetails {
+  const now = new Date();
+  return {
+    id: 'remote-intent',
+    destination: PaymentIntentDestination.REMOTE,
+    remoteUrl: 'https://remote.domain.com/incoming-payments/abc',
+    receiverWalletAddress: 'remote.domain.com/alice',
+    state: PaymentIntentState.CREATED,
+    assetCode: 'USD',
+    assetScale: 2,
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + 60_000),
+    incomingAmount: null,
+    receivedAmount: 0n,
+    quotes: [],
+    sentPayments: [],
+    inboundPayments: [],
+    destinationIlpAddress: 'g.peer.123',
+    sharedSecret: 'stub-shared-secret',
+    ...overrides
+  };
+}
+
 // mirrors RemotePaymentIntentAdapter return data structure
 export function toRemotePaymentIntentDetails(
-  data: IncomingPaymentWithMethods
+  data: IncomingPaymentWithMethods,
+  url: string
 ): IRemotePaymentIntentDetails {
   const ilpMethod = data.methods.find((method) => method.type === 'ilp');
   if (!ilpMethod?.sharedSecret) {
@@ -71,14 +116,24 @@ export function toRemotePaymentIntentDetails(
   }
 
   return {
-    walletAddress: data.walletAddress,
+    id: data.id,
+    destination: PaymentIntentDestination.REMOTE,
+    remoteUrl: url,
+    receiverWalletAddress: data.walletAddress,
+    state: data.completed
+      ? PaymentIntentState.COMPLETED
+      : PaymentIntentState.CREATED,
     assetCode: data.receivedAmount.assetCode,
     assetScale: data.receivedAmount.assetScale,
+    createdAt: new Date(data.createdAt),
+    expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
     incomingAmount: data.incomingAmount
       ? BigInt(data.incomingAmount.value)
-      : undefined,
+      : null,
     receivedAmount: BigInt(data.receivedAmount.value),
-    expiresAt: data.expiresAt,
+    quotes: [],
+    sentPayments: [],
+    inboundPayments: [],
     destinationIlpAddress: ilpMethod.ilpAddress,
     sharedSecret: ilpMethod.sharedSecret
   };
@@ -95,13 +150,10 @@ export class MockRemotePaymentIntentService
     this.response = response;
   }
 
-  async fetchPaymentIntent(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _url: string
-  ): Promise<IRemotePaymentIntentDetails> {
+  async fetchPaymentIntent(url: string): Promise<IRemotePaymentIntentDetails> {
     if (!this.response) {
       throw new Error('Not implemented');
     }
-    return toRemotePaymentIntentDetails(this.response);
+    return toRemotePaymentIntentDetails(this.response, url);
   }
 }
