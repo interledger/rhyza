@@ -4,7 +4,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "node --import tsx --test test/*.test.ts",
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "test:integration": "tsc -p tsconfig.test.json && node --import tsx --test test/integration/*.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -13,9 +14,11 @@
     "@interledger/open-payments": "^7.4.0",
     "auth-domain-lib": "workspace:*",
     "common-types-lib": "workspace:*",
+    "implementations-lib": "workspace:*",
     "mongodb": "~7.1.0"
   },
   "devDependencies": {
+    "testcontainers": "^12.0.4",
     "tsx": "^4.19.3"
   }
 }

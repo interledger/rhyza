@@ -152,10 +152,3 @@ export class MissingFxRateError extends FailedPrecondition {
     this.name = 'MissingFxRateError';
   }
 }
-
-export class InvalidCursorError extends InvalidArgument {
-  constructor(message?: string) {
-    super(message);
-    this.name = 'InvalidCursorError';
-  }
-}

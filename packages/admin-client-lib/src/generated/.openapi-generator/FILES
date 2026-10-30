@@ -29,6 +29,7 @@ models/FxRateSet.ts
 models/GetQuote200Response.ts
 models/Grant.ts
 models/GrantState.ts
+models/GrantsPage.ts
 models/Interaction.ts
 models/JsonWebKey.ts
 models/LiquidityDeposit200Response.ts

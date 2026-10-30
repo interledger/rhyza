@@ -20,6 +20,7 @@ export * from './FxRateSet';
 export * from './GetQuote200Response';
 export * from './Grant';
 export * from './GrantState';
+export * from './GrantsPage';
 export * from './Interaction';
 export * from './JsonWebKey';
 export * from './LiquidityDeposit200Response';

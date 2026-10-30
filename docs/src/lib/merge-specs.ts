@@ -172,9 +172,8 @@ function mergeTags(docs: OpenAPIV3_1.Document[]): DisplayTagObject[] {
 }
 
 // Methods on the same path combine across specs. Two specs can also define
-// the same method on the same path - the Admin API and the IDP service both
-// expose GET /grant/{id}, as two different services that happen to share a
-// literal path. On a collision, both the earlier and the later spec's
+// the same method on the same path, as two different services that happen to
+// share a literal path. On a collision, both the earlier and the later spec's
 // operation move to a path tagged with their own spec's title, rather than
 // one spec's bare path silently winning over the other's, with a warning so
 // a future collision is never silent again.
