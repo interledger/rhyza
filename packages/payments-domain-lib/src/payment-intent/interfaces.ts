@@ -212,14 +212,12 @@ export interface IRemoteStreamCredentials {
   sharedSecret: string;
 }
 
-export interface IRemotePaymentIntentDetails extends IRemoteStreamCredentials {
-  walletAddress: string;
-  assetCode: string;
-  assetScale: number;
-  incomingAmount?: bigint;
-  receivedAmount: bigint;
-  expiresAt?: string;
-}
+export type IRemotePaymentIntentDetails = Omit<
+  IRemotePaymentIntent & IRemoteStreamCredentials,
+  'expiresAt'
+> & {
+  expiresAt?: Date;
+};
 
 export interface IRemotePaymentIntentService {
   fetchPaymentIntent(url: string): Promise<IRemotePaymentIntentDetails>;

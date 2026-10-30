@@ -884,7 +884,8 @@ export class PaymentIntent implements IPaymentIntent {
     receivedAmount: bigint = 0n,
     destinationIlpAddress?: string,
     remoteUrl?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    state: PaymentIntentState = PaymentIntentState.CREATED
   ): PaymentIntent {
     if (destination === 'LOCAL' && !receiverWalletAddressId) {
       throw new InvalidPaymentIntentError(
@@ -929,7 +930,7 @@ export class PaymentIntent implements IPaymentIntent {
       resolvedExpiresAt,
       incomingAmount,
       receivedAmount,
-      undefined,
+      state,
       undefined,
       undefined,
       undefined,

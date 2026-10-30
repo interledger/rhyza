@@ -26,22 +26,34 @@ interface IncomingPaymentRouteOptions extends FastifyPluginOptions {
   openPaymentsAuthServiceUrl: string;
 }
 
-export function toIncomingPaymentBody(
+function toIncomingPaymentDetails(
+  paymentIntent: GetPaymentIntentResult | CompletePaymentIntentResult,
+  openPaymentsUrl: string,
+  metadata?: Record<string, unknown>
+): components['schemas']['incoming-payment-base-with-details'] {
+  const receiverWalletAddress = paymentIntent.receiverWalletAddress;
+  const pathName = receiverWalletAddress
+    ? pathNameFromWalletAddress(receiverWalletAddress)
+    : '';
+  const details: components['schemas']['incoming-payment-base-with-details'] = {
+    ...toIncomingPaymentBase(paymentIntent, openPaymentsUrl),
+    walletAddress: receiverWalletAddress ? `${openPaymentsUrl}/${pathName}` : ''
+  };
+
+  if (metadata) {
+    details.metadata = metadata;
+  }
+
+  return details;
+}
+
+export function toIncomingPaymentBase(
   paymentIntent: GetPaymentIntentResult | CompletePaymentIntentResult,
   openPaymentsUrl: string
-): components['schemas']['incoming-payment'] {
-  const pathName = pathNameFromWalletAddress(
-    paymentIntent.receiverWalletAddress ?? ''
-  );
-
-  const walletAddress = paymentIntent.receiverWalletAddress
-    ? `${openPaymentsUrl}/${pathName}`
-    : '';
-
-  const body: components['schemas']['incoming-payment'] = {
+): components['schemas']['incoming-payment-base'] {
+  const body: components['schemas']['incoming-payment-base'] = {
     id: `${openPaymentsUrl}/incoming-payments/${paymentIntent.id}`,
     completed: paymentIntent.state === 'COMPLETED',
-    walletAddress,
     createdAt: paymentIntent.createdAt,
     receivedAmount: {
       value: String(paymentIntent.receivedAmount),
@@ -60,10 +72,6 @@ export function toIncomingPaymentBody(
 
   if (paymentIntent.expiresAt) {
     body.expiresAt = paymentIntent.expiresAt;
-  }
-
-  if ('metadata' in paymentIntent && paymentIntent.metadata) {
-    body.metadata = paymentIntent.metadata;
   }
 
   return body;
@@ -153,7 +161,7 @@ export async function incomingPaymentRoutes(
 
       const response: components['schemas']['incoming-payment-with-access-token'] =
         {
-          ...toIncomingPaymentBody(paymentIntent, openPaymentsUrl),
+          ...toIncomingPaymentDetails(paymentIntent, openPaymentsUrl, metadata),
           methods: [
             {
               type: 'ilp',
@@ -204,7 +212,11 @@ export async function incomingPaymentRoutes(
       if (request.gnapToken) {
         const response: components['schemas']['incoming-payment-with-access-token'] =
           {
-            ...toIncomingPaymentBody(paymentIntent, openPaymentsUrl),
+            ...toIncomingPaymentDetails(
+              paymentIntent,
+              openPaymentsUrl,
+              paymentIntent.metadata
+            ),
             methods: [
               {
                 type: 'ilp',
@@ -217,7 +229,7 @@ export async function incomingPaymentRoutes(
       } else {
         const response: components['schemas']['incoming-payment-without-access-token'] =
           {
-            ...toIncomingPaymentBody(paymentIntent, openPaymentsUrl),
+            ...toIncomingPaymentBase(paymentIntent, openPaymentsUrl),
             authServer: openPaymentsAuthServiceUrl,
             methods: [
               {
@@ -282,7 +294,7 @@ export async function incomingPaymentRoutes(
       return reply.status(200).send({
         pagination: page.pagination,
         result: page.items.map((item) =>
-          toIncomingPaymentBody(item, openPaymentsUrl)
+          toIncomingPaymentDetails(item, openPaymentsUrl, item.metadata)
         )
       });
     } catch (err) {
@@ -308,7 +320,7 @@ export async function incomingPaymentRoutes(
     }
 
     const response: components['schemas']['incoming-payment'] =
-      toIncomingPaymentBody(paymentIntent, openPaymentsUrl);
+      toIncomingPaymentDetails(paymentIntent, openPaymentsUrl);
 
     return reply.status(200).send(response);
   });

@@ -2106,15 +2106,19 @@ export class PaymentIntentAggregate {
         const entity = PaymentIntent.create(
           canonicalId,
           undefined,
-          remotePaymentIntent.walletAddress,
+          remotePaymentIntent.receiverWalletAddress,
           PaymentIntentDestination.REMOTE,
           remotePaymentIntent.assetCode,
           remotePaymentIntent.assetScale,
-          remotePaymentIntent.expiresAt ?? null,
+          remotePaymentIntent.expiresAt
+            ? remotePaymentIntent.expiresAt.toISOString()
+            : null,
           remotePaymentIntent.incomingAmount ?? null,
           remotePaymentIntent.receivedAmount,
           remotePaymentIntent.destinationIlpAddress,
-          url
+          url,
+          undefined,
+          remotePaymentIntent.state
         );
         this.paymentIntentMap.set(canonicalId, entity.toObject());
         this.newPaymentIntentIds.push(canonicalId);
