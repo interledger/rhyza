@@ -601,9 +601,6 @@ export class PaymentsServiceServer {
   ): PaymentIntent {
     const pbPaymentIntent = new PaymentIntent();
     pbPaymentIntent.setId(paymentIntent.id);
-    pbPaymentIntent.setReceiverWalletAddress(
-      paymentIntent.receiverWalletAddress
-    );
     pbPaymentIntent.setState(paymentIntent.state);
     pbPaymentIntent.setDestination(paymentIntent.destination);
     pbPaymentIntent.setReceivedAmount(Number(paymentIntent.receivedAmount));
@@ -612,6 +609,11 @@ export class PaymentsServiceServer {
     pbPaymentIntent.setCreatedAt(
       new Date(paymentIntent.createdAt).toISOString()
     );
+    if (paymentIntent.receiverWalletAddress) {
+      pbPaymentIntent.setReceiverWalletAddress(
+        paymentIntent.receiverWalletAddress
+      );
+    }
     if (paymentIntent.incomingAmount != null) {
       pbPaymentIntent.setIncomingAmount(Number(paymentIntent.incomingAmount));
     }

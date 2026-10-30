@@ -111,7 +111,7 @@ export interface CancelPaymentResult {
 
 export interface GetPaymentIntentResult {
   id: string;
-  receiverWalletAddress: string;
+  receiverWalletAddress?: string;
   state: string;
   destination: string;
   receivedAmount: bigint;

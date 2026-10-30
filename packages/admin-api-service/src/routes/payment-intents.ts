@@ -49,7 +49,7 @@ function toPaymentIntentBody(
     id: paymentIntent.id,
     state: paymentIntent.state,
     destination: paymentIntent.destination,
-    walletAddress: paymentIntent.receiverWalletAddress,
+    walletAddress: paymentIntent.receiverWalletAddress ?? '',
     receivedAmount: {
       value: String(paymentIntent.receivedAmount),
       assetCode: paymentIntent.assetCode,

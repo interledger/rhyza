@@ -51,7 +51,7 @@ message Amount {
 // A payment intent resource (Open Payments incoming payment).
 message PaymentIntent {
   string id = 1;
-  string receiver_wallet_address = 2;
+  optional string receiver_wallet_address = 2;
   string state = 3;
   string destination = 4;
   optional uint64 incoming_amount = 5;

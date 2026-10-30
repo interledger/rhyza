@@ -425,7 +425,7 @@ export type RemoteQuoteRequestedPayload = {
   quoteId: string;
   requestId: string;
   senderWalletAddress: string;
-  receiverWalletAddress: string;
+  receiverWalletAddress?: string;
   senderAssetCode: string;
   senderAssetScale: number;
   receiverAssetCode: string;

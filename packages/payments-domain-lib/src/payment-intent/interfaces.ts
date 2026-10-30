@@ -144,7 +144,7 @@ export interface IInboundPayment {
 export interface IPaymentIntent {
   id: string;
   receiverWalletAddressId?: string;
-  receiverWalletAddress: string;
+  receiverWalletAddress?: string;
   state: PaymentIntentState;
   destination: PaymentIntentDestination;
   assetCode: string;
@@ -159,6 +159,19 @@ export interface IPaymentIntent {
   destinationIlpAddress?: string;
   remoteUrl?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface ILocalPaymentIntent extends IPaymentIntent {
+  destination: 'LOCAL';
+  receiverWalletAddressId: string;
+  receiverWalletAddress: string;
+}
+
+export interface IRemotePaymentIntent extends IPaymentIntent {
+  destination: 'REMOTE';
+  remoteUrl: string;
+  receiverWalletAddressId?: string;
+  receiverWalletAddress?: string;
 }
 
 export interface IWalletAddress {
@@ -199,14 +212,12 @@ export interface IRemoteStreamCredentials {
   sharedSecret: string;
 }
 
-export interface IRemotePaymentIntentDetails extends IRemoteStreamCredentials {
-  walletAddress: string;
-  assetCode: string;
-  assetScale: number;
-  incomingAmount?: bigint;
-  receivedAmount: bigint;
-  expiresAt?: string;
-}
+export type IRemotePaymentIntentDetails = Omit<
+  IRemotePaymentIntent & IRemoteStreamCredentials,
+  'expiresAt'
+> & {
+  expiresAt?: Date;
+};
 
 export interface IRemotePaymentIntentService {
   fetchPaymentIntent(url: string): Promise<IRemotePaymentIntentDetails>;

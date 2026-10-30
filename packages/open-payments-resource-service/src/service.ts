@@ -35,6 +35,12 @@ const STREAM_SERVER_SECRET_RAW =
   Buffer.from('rhyza-dev-stream-secret-0001').toString('base64url');
 const ILP_ADDRESS = process.env['ILP_ADDRESS'] || 'private.rhyza';
 
+declare module 'fastify' {
+  interface FastifyRequest {
+    gnapToken: string | null;
+  }
+}
+
 export class OpenPaymentsResourceServer {
   private static logger: ILogger;
   private static server: FastifyInstance;
@@ -90,6 +96,7 @@ export class OpenPaymentsResourceServer {
       palClient: this.palClient,
       paymentsClient: this.paymentsClient,
       openPaymentsUrl: OPEN_PAYMENTS_RESOURCE_SERVICE_URL,
+      openPaymentsAuthServiceUrl: OPEN_PAYMENTS_AUTH_SERVICE_URL,
       streamServer: createStreamServer({
         serverSecret: parseStreamServerSecret(STREAM_SERVER_SECRET_RAW),
         serverAddress: ILP_ADDRESS
