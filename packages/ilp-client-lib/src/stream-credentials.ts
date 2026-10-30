@@ -47,3 +47,14 @@ export function parseStreamServerSecret(raw: string): Buffer {
   }
   return secret;
 }
+
+export function requireStreamServerSecret(
+  raw: string | undefined = process.env['STREAM_SERVER_SECRET']
+): Buffer {
+  if (!raw) {
+    throw new Error(
+      'STREAM_SERVER_SECRET is not set; refusing to start with a default secret'
+    );
+  }
+  return parseStreamServerSecret(raw);
+}

@@ -16,7 +16,7 @@ import {
   KafkaPeeringClient,
   createResolveStreamCredentials,
   createStreamServer,
-  parseStreamServerSecret
+  requireStreamServerSecret
 } from 'ilp-implementations-lib';
 import { IlpCommandHandler } from './cmd-handler';
 
@@ -24,9 +24,6 @@ const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9093';
 const MONGODB_URL = process.env['MONGODB_URL'] || 'mongodb://localhost:27017';
 const REDIS_URL = process.env['REDIS_URL'];
 const CONSUMER_GROUP_ID = 'ilp-command-handler';
-const STREAM_SERVER_SECRET_RAW =
-  process.env['STREAM_SERVER_SECRET'] ||
-  Buffer.from('rhyza-dev-stream-secret-0001').toString('base64url');
 const ILP_ADDRESS = process.env['ILP_ADDRESS'] || 'private.rhyza';
 
 export class IlpCommandHandlerService {
@@ -47,6 +44,14 @@ export class IlpCommandHandlerService {
   }): Promise<void> {
     this._logger = deps?.logger ?? new PinoLogger();
     this._logger.info('Starting IlpCommandHandlerService...');
+
+    let serverSecret: Buffer;
+    try {
+      serverSecret = requireStreamServerSecret();
+    } catch (err) {
+      this._logger.error((err as Error).message);
+      throw err;
+    }
 
     let producer = deps?.producer;
     let consumer = deps?.consumer;
@@ -85,7 +90,6 @@ export class IlpCommandHandlerService {
     const peeringClient =
       deps?.peeringClient ??
       new KafkaPeeringClient(this._producer, this._logger);
-    const serverSecret = parseStreamServerSecret(STREAM_SERVER_SECRET_RAW);
     const streamServer = createStreamServer({
       serverSecret,
       serverAddress: ILP_ADDRESS
