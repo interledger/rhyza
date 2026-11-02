@@ -3106,7 +3106,12 @@ describe('PaymentIntentAggregate.handleBatch', () => {
       function makeRemoteIntentWithPayment(
         paymentIntentId: string,
         paymentId: string,
-        paymentState: 'SENDING' | 'REJECTED' | 'PROCESSING' | 'CONFIRMED' | 'EXPIRED'
+        paymentState:
+          | 'SENDING'
+          | 'REJECTED'
+          | 'PROCESSING'
+          | 'CONFIRMED'
+          | 'EXPIRED'
       ): IPaymentIntent {
         return {
           id: paymentIntentId,

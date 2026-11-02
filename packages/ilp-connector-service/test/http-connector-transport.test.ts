@@ -13,10 +13,7 @@ import {
   serializeIlpPrepare,
   serializeIlpReject
 } from 'ilp-packet';
-import {
-  DispatchPreparePacketCmd,
-  ILPPeerCreatedEvent
-} from 'ilp-domain-lib';
+import { DispatchPreparePacketCmd, ILPPeerCreatedEvent } from 'ilp-domain-lib';
 import { InMemoryTransportCorrelationStore } from '../src/correlation/in-memory-store';
 import { IlpConnector } from '../src/connector';
 import { HttpConnectorTransport } from '../src/http-connector-transport';

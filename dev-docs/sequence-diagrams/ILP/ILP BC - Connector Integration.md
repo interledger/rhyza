@@ -61,14 +61,14 @@ Two dedicated topics carry the connector - ILP aggregate traffic. Domain events 
 
 Command verbs match existing ILP BC conventions: `Process*` for commands handled by the aggregate, `Dispatch*` for commands handled by the connector (mirroring the existing `IPeeringClient.dispatch` interface). The set is symmetric across the two directions.
 
-| Command                    | Topic                    | Producer  | Consumer  | Purpose                                                       |
-| -------------------------- | ------------------------ | --------- | --------- | ------------------------------------------------------------- |
-| `ProcessPreparePacketCmd`  | `ilp-commands`           | Connector | Aggregate | An ILP prepare arrived from a peer                            |
-| `ProcessFulfillPacketCmd`  | `ilp-commands`           | Connector | Aggregate | Fulfill received for a previously dispatched outbound prepare |
-| `ProcessRejectPacketCmd`   | `ilp-commands`           | Connector | Aggregate | Reject received for a previously dispatched outbound prepare  |
-| `DispatchPreparePacketCmd` | `ilp-connector-commands` | Aggregate | Connector | Send an ILP prepare to a peer                                 |
-| `DispatchFulfillPacketCmd` | `ilp-connector-commands` | Aggregate | Connector | Send a fulfill back to the source peer of an inbound prepare  |
-| `DispatchRejectPacketCmd`  | `ilp-connector-commands` | Aggregate | Connector | Send a reject back to the source peer of an inbound prepare   |
+| Command                    | Topic                    | Producer          | Consumer  | Purpose                                                       |
+| -------------------------- | ------------------------ | ----------------- | --------- | ------------------------------------------------------------- |
+| `ProcessPreparePacketCmd`  | `ilp-commands`           | Connector         | Aggregate | An ILP prepare arrived from a peer                            |
+| `ProcessFulfillPacketCmd`  | `ilp-commands`           | Connector         | Aggregate | Fulfill received for a previously dispatched outbound prepare |
+| `ProcessRejectPacketCmd`   | `ilp-commands`           | Connector         | Aggregate | Reject received for a previously dispatched outbound prepare  |
+| `DispatchPreparePacketCmd` | `ilp-connector-commands` | Aggregate         | Connector | Send an ILP prepare to a peer                                 |
+| `DispatchFulfillPacketCmd` | `ilp-connector-commands` | Aggregate         | Connector | Send a fulfill back to the source peer of an inbound prepare  |
+| `DispatchRejectPacketCmd`  | `ilp-connector-commands` | Aggregate         | Connector | Send a reject back to the source peer of an inbound prepare   |
 | `ExpirePacketCmd`          | `ilp-commands`           | ILP event handler | Aggregate | Expire the PENDING payment packet after `PaymentExpiredEvent` |
 
 ## Partitioning
