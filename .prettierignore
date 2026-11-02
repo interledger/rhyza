@@ -6,5 +6,8 @@ pnpm-lock.yaml
 open-payments-specifications/**
 packages/open-payments-resource-service/src/types/generated
 .astro
-docs/
 packages/admin-client-lib/src/generated/**
+
+# Only format docs/openapi, ignore the rest of the docs site
+docs/*
+!docs/openapi/
