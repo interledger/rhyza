@@ -34,5 +34,6 @@ export enum SnapshotEventTopics {
 // For private timer related events, like check for expired transfers
 // or if a snapshot needed.
 export enum TimerEventTopics {
-  'LedgerTimerEvents' = 'ledger-timer-events'
+  'LedgerTimerEvents' = 'ledger-timer-events',
+  'PaymentExpiredTimeEvents' = 'payment-expired-time-events'
 }
