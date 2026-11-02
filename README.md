@@ -82,7 +82,7 @@ pnpm test
 The easiest way to run the entire stack is using Docker Compose.
 
 ```shell
-pnpm docker compose up -d --build
+pnpm docker up -d --build
 ```
 
 ### Monitoring & Dashboards

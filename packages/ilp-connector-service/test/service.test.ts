@@ -117,7 +117,11 @@ describe('IlpConnectorService — split consumers', () => {
       new ILPPeerCreatedEvent({
         peerId: 'peer-1',
         http: {
-          outgoing: { endpoint: 'http://peer.example/ilp', authToken: 't' }
+          outgoing: {
+            endpoint: 'http://peer.example/ilp',
+            callbackEndpoint: 'http://peer.example/ilp/callback',
+            authToken: 't'
+          }
         },
         isActive: true
       })

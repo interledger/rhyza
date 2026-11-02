@@ -97,6 +97,19 @@ export class RevokeGrantCmd extends AuthCmd {
   }
 }
 
+export interface AdminRevokeGrantCmdPayload {
+  id: string;
+}
+
+export class AdminRevokeGrantCmd extends AuthCmd {
+  payload: AdminRevokeGrantCmdPayload;
+
+  constructor(payload: AdminRevokeGrantCmdPayload, requestId: string) {
+    super(payload.id, requestId);
+    this.payload = payload;
+  }
+}
+
 export interface ContinueGrantCmdPayload
   extends Omit<SignedCommandPayload, 'client'> {
   id: string;

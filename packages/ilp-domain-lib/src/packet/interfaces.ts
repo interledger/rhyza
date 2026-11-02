@@ -12,6 +12,12 @@ interface BasePacketCorrelation {
   paymentIntentId: string;
   expiresAt: Date;
   state: PacketState;
+  // Present on inbound packets so a later fulfill/reject can rebuild the
+  // STREAM reply. Outbound packets never have one.
+  inboundPrepare?: InboundPrepareSnapshot;
+  // Outbound packets store the STREAM shared secret to decrypt the reply
+  // (quote reject or payment fulfill). Dropped when the packet goes terminal.
+  sharedSecret?: string;
 }
 
 interface QuotePacketCorrelation extends BasePacketCorrelation {
@@ -24,10 +30,6 @@ interface PaymentPacketCorrelation extends BasePacketCorrelation {
   kind: 'PAYMENT';
   paymentId: string;
   requestId: string;
-  // Optional because this type covers both directions. Inbound fulfillable
-  // packets store the base64 STREAM fulfillment here for a later fulfill
-  // reply. Outgoing prepares leave it unset.
-  fulfillment?: string;
   // Outbound prepares store the base64 execution condition so a later
   // fulfill can be hashed against it.
   executionCondition?: string;
@@ -37,12 +39,12 @@ export type IPacketCorrelation =
   | QuotePacketCorrelation
   | PaymentPacketCorrelation;
 
-// Connector-issued id for answering an inbound prepare later. Domain stores
-// and forwards it and the connector resolves how to deliver on the wire.
-export interface IInboundPacketReplyHandle {
-  packetId: string;
-  peerId: string;
-  replyHandle: string;
+export interface InboundPrepareSnapshot {
+  destinationIlpAddress: string;
+  amount: string;
+  expiresAt: string;
+  executionCondition: string;
+  data: string;
 }
 
 // To be implemented by the adapter for sending packets.
@@ -55,7 +57,9 @@ export interface IPeeringClient {
 export interface InboundReplyDispatch {
   peerId: string;
   packetId: string;
-  replyHandle: string;
+  // Prepare `expiresAt`, used as the RFC 0035 callback retry budget.
+  // Fulfill/reject packets have no expiry of their own.
+  callbackDeadline: string;
 }
 
 export interface FulfillDispatch extends InboundReplyDispatch {
@@ -67,7 +71,7 @@ export interface RejectDispatch extends InboundReplyDispatch {
   rejectCode: string;
   rejectMessage?: string;
   triggeredBy?: string;
-  destinationAmount?: string;
+  data?: string;
 }
 
 export type PacketDispatch = QuoteDispatch | PaymentDispatch;
@@ -83,6 +87,7 @@ export interface QuoteDispatch {
   sourceAssetCode: string;
   sourceAssetScale: number;
   expiresAt: string;
+  data: string;
 }
 
 export interface PaymentDispatch {

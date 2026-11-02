@@ -21,7 +21,7 @@ const defaultResponder = (prepare: WirePrepare): WireResponse => ({
 
 export type SentWireReply = {
   peerId: string;
-  replyHandle: string;
+  callbackDeadline: string;
   response: WireFulfill | WireReject;
 };
 
@@ -51,17 +51,17 @@ export class LoopbackConnectorTransport implements IConnectorTransport {
   async sendFulfill(
     fulfill: WireFulfill,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    this.sentResponses.push({ peerId, replyHandle, response: fulfill });
+    this.sentResponses.push({ peerId, callbackDeadline, response: fulfill });
   }
 
   async sendReject(
     reject: WireReject,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    this.sentResponses.push({ peerId, replyHandle, response: reject });
+    this.sentResponses.push({ peerId, callbackDeadline, response: reject });
   }
 
   onResponse(handler: WireResponseHandler): void {
@@ -73,12 +73,9 @@ export class LoopbackConnectorTransport implements IConnectorTransport {
   }
 
   // Test helper: simulate a peer initiating an inbound prepare.
-  async simulateInboundPrepare(
-    prepare: WirePrepare,
-    callbackUrl: string
-  ): Promise<void> {
+  async simulateInboundPrepare(prepare: WirePrepare): Promise<void> {
     if (this._inboundPrepareHandler) {
-      await this._inboundPrepareHandler(prepare, callbackUrl);
+      await this._inboundPrepareHandler(prepare);
     }
   }
 }

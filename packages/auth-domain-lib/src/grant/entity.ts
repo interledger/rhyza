@@ -293,7 +293,11 @@ export class GrantEntity implements IGrant {
     GrantState,
     readonly GrantState[]
   > = {
-    [GrantState.PROCESSING]: [GrantState.PENDING, GrantState.ISSUED],
+    [GrantState.PROCESSING]: [
+      GrantState.PENDING,
+      GrantState.ISSUED,
+      GrantState.REVOKED
+    ],
     [GrantState.PENDING]: [
       GrantState.PENDING,
       GrantState.APPROVED,
@@ -409,18 +413,7 @@ export class GrantEntity implements IGrant {
     }
   }
 
-  /**
-   * 1. Updates the state of the grant if it was not a final state.
-   * 2. Revokes any active access tokens on the grant.
-   * @param continueToken - The continue token to revoke the grant.
-   * @param continueId - The continue id to revoke the grant.
-   * @returns The revoked access tokens which will be persisted to the db in the aggregate.
-   */
-  revoke(continueToken: string, continueId: string): IAccessToken[] {
-    this.assertContinueCredentials(continueToken, continueId);
-
-    this.stateTransition(GrantState.REVOKED);
-
+  revokeAccessTokens(): IAccessToken[] {
     const revokedTokens: IAccessToken[] = [];
     const now = new Date();
     for (const accessToken of this._accessTokens.values()) {
@@ -433,8 +426,28 @@ export class GrantEntity implements IGrant {
         revokedTokens.push(accessToken);
       }
     }
-
     return revokedTokens;
+  }
+
+  /**
+   * 1. Updates the state of the grant if it was not a final state.
+   * 2. Revokes any active access tokens on the grant.
+   * @param continueToken - The continue token to revoke the grant.
+   * @param continueId - The continue id to revoke the grant.
+   * @returns The revoked access tokens which will be persisted to the db in the aggregate.
+   */
+  revoke(continueToken: string, continueId: string): IAccessToken[] {
+    this.assertContinueCredentials(continueToken, continueId);
+
+    this.stateTransition(GrantState.REVOKED);
+
+    return this.revokeAccessTokens();
+  }
+
+  // Revokes a grant as invoked by an Admin-level request.
+  adminRevoke(): IAccessToken[] {
+    this.stateTransition(GrantState.REVOKED);
+    return this.revokeAccessTokens();
   }
 
   // Issues a new access token for this grant.

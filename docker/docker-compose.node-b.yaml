@@ -20,6 +20,7 @@ services:
       PAYMENTS_GRPC_URL: payments-api-service-b:50052
       OPEN_PAYMENTS_URL: http://open-payments-resource-service-b:3002
       ILP_GRPC_URL: ilp-api-service-b:50053
+      AUTH_GRPC_URL: auth-api-service-b:50054
       MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
       KAFKA_URL: kafka-b:19092
     ports:
@@ -250,12 +251,15 @@ services:
       KAFKA_URL: kafka-b:19092
       LOG_LEVEL: debug
       MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
+      REDIS_URL: redis-b:6379
       STREAM_SERVER_SECRET: cmFmaWtpLXYyLWRldi1zdHJlYW0tc2VjcmV0LTAwMDE
       ILP_ADDRESS: private.rhyza.b
     depends_on:
       init-kafka-b:
         condition: service_completed_successfully
       mongodb-b:
+        condition: service_healthy
+      redis-b:
         condition: service_healthy
     networks:
       - rhyza
@@ -288,6 +292,22 @@ services:
       LOG_LEVEL: debug
     depends_on:
       init-kafka-b:
+        condition: service_completed_successfully
+    networks:
+      - rhyza
+
+  auth-api-service-b:
+    build:
+      context: ../
+      dockerfile: ./packages/auth-api-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka-b:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
+    ports:
+      - '40054:50054'
+    depends_on:
+      init-kafka:
         condition: service_completed_successfully
     networks:
       - rhyza

@@ -1,4 +1,4 @@
-import { DomainEventTopics, DomainEvent } from 'common-types-lib';
+import { DomainEventTopics, DomainEvent, AppErrorType } from 'common-types-lib';
 import {
   GrantState,
   IAccessItem,
@@ -14,6 +14,7 @@ const AGGREGATE_NAME = 'grant';
 interface GrantDomainErrorPayload {
   grantId: string;
   errorName: string;
+  errorType: AppErrorType;
   message: string;
 }
 
@@ -147,11 +148,7 @@ export class GrantCreatedEvent extends AuthDomainEvent {
   }
 }
 
-export interface GrantCreateFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type GrantCreateFailedPayload = GrantDomainErrorPayload;
 
 export class GrantCreateFailedEvent extends AuthDomainEvent {
   payload: GrantCreateFailedPayload;
@@ -185,11 +182,7 @@ export class GrantContinuedEvent extends AuthDomainEvent {
   }
 }
 
-export interface GrantContinueFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type GrantContinueFailedPayload = GrantDomainErrorPayload;
 
 export class GrantContinueFailedEvent extends AuthDomainEvent {
   payload: GrantContinueFailedPayload;
@@ -225,11 +218,7 @@ export class GrantRevokedEvent extends AuthDomainEvent {
   }
 }
 
-export interface GrantRevokeFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type GrantRevokeFailedPayload = GrantDomainErrorPayload;
 
 export class GrantRevokeFailedEvent extends AuthDomainEvent {
   payload: GrantRevokeFailedPayload;
@@ -278,11 +267,7 @@ export class TokenRotatedEvent extends AuthDomainEvent {
   }
 }
 
-export interface TokenRotationFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type TokenRotationFailedPayload = GrantDomainErrorPayload;
 
 export class TokenRotationFailedEvent extends AuthDomainEvent {
   payload: TokenRotationFailedPayload;
@@ -311,11 +296,7 @@ export class GrantInteractionStartedEvent extends AuthDomainEvent {
   }
 }
 
-export interface GrantInteractionStartFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type GrantInteractionStartFailedPayload = GrantDomainErrorPayload;
 
 export class GrantInteractionStartFailedEvent extends AuthDomainEvent {
   payload: GrantInteractionStartFailedPayload;
@@ -342,11 +323,7 @@ export class TokenRevokedEvent extends AuthDomainEvent {
   }
 }
 
-export interface TokenRevokeFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type TokenRevokeFailedPayload = GrantDomainErrorPayload;
 
 export class TokenRevokeFailedEvent extends AuthDomainEvent {
   payload: TokenRevokeFailedPayload;
@@ -409,11 +386,7 @@ export class GrantInteractionChoiceHandledEvent extends AuthDomainEvent {
   }
 }
 
-export interface GrantInteractionChoiceFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type GrantInteractionChoiceFailedPayload = GrantDomainErrorPayload;
 
 export class GrantInteractionChoiceFailedEvent extends AuthDomainEvent {
   payload: GrantInteractionChoiceFailedPayload;

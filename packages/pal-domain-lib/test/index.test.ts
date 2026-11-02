@@ -26,7 +26,7 @@ import {
   MockPeerRepo,
   MockWalletRepo
 } from './mocks';
-import { ConsoleLogger, DomainEvent, IMessage } from 'common-types-lib';
+import { DomainEvent, IMessage, NullLogger } from 'common-types-lib';
 import {
   PeerActivatedEvent,
   PeerCreatedEvent,
@@ -37,7 +37,7 @@ import {
 } from 'pal-public-types-lib';
 import { MockAseFxService } from './mocks/mock-ase-fx-service';
 
-const logger = new ConsoleLogger();
+const logger = new NullLogger();
 
 const mockMessageStore: IMessage[] = [];
 const msgPublisher = new MockMessageProducer(mockMessageStore);
@@ -436,13 +436,17 @@ test('PAL WalletAddress Domain - get non existing wallet address should fail', a
 });
 
 test('PAL WalletAddress Domain - alias should exist for created wallet address', async () => {
-  const walletId = await walletAggregate.resolveWalletAddressAlias(
+  const wallet = await walletAggregate.resolveWalletAddressByAlias(
     ALIAS_DOMAIN,
     ALIAS_PATHNAME
   );
 
-  assert.ok(walletId);
-  assert.equal(walletId, createdWalletAddressInternalId);
+  assert.ok(wallet);
+  assert.equal(wallet.id, createdWalletAddressInternalId);
+  assert.equal(wallet.publicName, PUBLIC_NAME);
+  assert.equal(wallet.assetCode, ASSET_CODE);
+  assert.equal(wallet.assetScale, ASSET_SCALE);
+  assert.equal(wallet.isActive, true);
 });
 
 test('PAL WalletAddress Domain - create wallet address alias without domain', async () => {
@@ -528,41 +532,43 @@ test('PAL WalletAddress Domain - create alias that exists in another wallet addr
 });
 
 test('PAL WalletAddress Domain - resolve wallet address alias without domain', async () => {
-  const walletId = await walletAggregate.resolveWalletAddressAlias(
+  const wallet = await walletAggregate.resolveWalletAddressByAlias(
     null,
     ALIAS_PATHNAME
   );
 
-  assert.ok(walletId);
-  assert.equal(walletId, createdWalletAddressInternalId);
+  assert.ok(wallet);
+  assert.equal(wallet.id, createdWalletAddressInternalId);
+  assert.equal(wallet.publicName, PUBLIC_NAME);
 });
 
 test('PAL WalletAddress Domain - resolve wallet address alias with domain', async () => {
-  const walletId = await walletAggregate.resolveWalletAddressAlias(
+  const wallet = await walletAggregate.resolveWalletAddressByAlias(
     ALIAS_DOMAIN,
     ALIAS_PATHNAME
   );
 
-  assert.ok(walletId);
-  assert.equal(walletId, createdWalletAddressInternalId);
+  assert.ok(wallet);
+  assert.equal(wallet.id, createdWalletAddressInternalId);
+  assert.equal(wallet.assetCode, ASSET_CODE);
 });
 
 test('PAL WalletAddress Domain - resolve non existing wallet address alias with domain should fail', async () => {
-  const walletId = await walletAggregate.resolveWalletAddressAlias(
+  const wallet = await walletAggregate.resolveWalletAddressByAlias(
     ALIAS_DOMAIN,
     'NON_EXISTING'
   );
 
-  assert.equal(walletId === null, true);
+  assert.equal(wallet === null, true);
 });
 
 test('PAL WalletAddress Domain - resolve non existing wallet address alias without domain should fail', async () => {
-  const walletId = await walletAggregate.resolveWalletAddressAlias(
+  const wallet = await walletAggregate.resolveWalletAddressByAlias(
     null,
     'NON_EXISTING'
   );
 
-  assert.equal(walletId === null, true);
+  assert.equal(wallet === null, true);
 });
 
 test('PAL WalletAddress Domain - deactivate wallet address', async () => {

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import yaml from 'js-yaml'
 import type { OpenAPIV3_1 } from 'openapi-types'
-import { HTTP_METHODS } from './http-methods.js'
+import { HTTP_METHODS, type HttpMethod } from './http-methods.js'
 
 // process.cwd() is the docs/ directory both when Astro loads astro.config.mjs
 // and when it prerenders pages. import.meta.url does not work for the latter,
@@ -171,19 +171,65 @@ function mergeTags(docs: OpenAPIV3_1.Document[]): DisplayTagObject[] {
   })
 }
 
-// No two specs share a path today. If they ever do, the methods combine
-// rather than one spec's path item replacing the other's.
+// Methods on the same path combine across specs. Two specs can also define
+// the same method on the same path - the Admin API and the IDP service both
+// expose GET /grant/{id}, as two different services that happen to share a
+// literal path. On a collision, both the earlier and the later spec's
+// operation move to a path tagged with their own spec's title, rather than
+// one spec's bare path silently winning over the other's, with a warning so
+// a future collision is never silent again.
 // `paths` and `webhooks` use different map types, so this takes either.
-function mergePathMaps<T extends object | undefined>(
-  maps: (Record<string, T> | undefined)[]
+function mergePathMaps<T extends object>(
+  entries: {
+    spec: SpecConfig
+    map: Record<string, T | undefined> | undefined
+  }[]
 ): Record<string, T> {
-  const result: Record<string, T> = {}
-  for (const map of maps) {
+  const result: Record<string, Record<string, unknown>> = {}
+  const claimedPaths: Record<
+    string,
+    Partial<Record<HttpMethod, SpecConfig>>
+  > = {}
+
+  for (const { spec, map } of entries) {
     for (const [path, item] of Object.entries(map ?? {})) {
-      result[path] = { ...(result[path] ?? {}), ...item }
+      const asMethodMap = (item ?? {}) as Record<HttpMethod, unknown>
+      const claims = (claimedPaths[path] ??= {})
+
+      for (const method of HTTP_METHODS) {
+        const operation = asMethodMap[method]
+        if (operation === undefined) continue
+
+        const existingSpec = claims[method]
+        if (existingSpec) {
+          const existingPath = `${path} (${existingSpec.title})`
+          if (result[path]?.[method] !== undefined) {
+            result[existingPath] = {
+              ...result[existingPath],
+              [method]: result[path][method]
+            }
+            delete result[path][method]
+            if (Object.keys(result[path]).length === 0) delete result[path]
+          }
+
+          const mergedPath = `${path} (${spec.title})`
+          // This runs during the docs build, not in the browser; the build
+          // log is where a new collision needs to surface.
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[merge-specs] ${method.toUpperCase()} ${path} is defined in more than one spec. ` +
+              `${existingSpec.title}'s copy now appears at ${existingPath} and ${spec.title}'s at ${mergedPath} in the merged reference.`
+          )
+          result[mergedPath] = { ...result[mergedPath], [method]: operation }
+        } else {
+          result[path] = { ...result[path], [method]: operation }
+          claims[method] = spec
+        }
+      }
     }
   }
-  return result
+
+  return result as Record<string, T>
 }
 
 export function mergeSpecs(): string {
@@ -205,8 +251,12 @@ export function mergeSpecs(): string {
     },
     // No document-level servers or security. Each operation carries its own.
     tags: mergeTags(docs),
-    paths: mergePathMaps(docs.map((doc) => doc.paths)),
-    webhooks: mergePathMaps(docs.map((doc) => doc.webhooks)),
+    paths: mergePathMaps(
+      docs.map((doc, index) => ({ spec: SPECS[index], map: doc.paths }))
+    ),
+    webhooks: mergePathMaps(
+      docs.map((doc, index) => ({ spec: SPECS[index], map: doc.webhooks }))
+    ),
     components
   }
 

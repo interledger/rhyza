@@ -72,7 +72,8 @@ export class IlpEventHandler {
             destinationIlpAddress: payload.destinationIlpAddress,
             sourceAmount: payload.sourceAmount,
             sourceAssetCode: payload.senderAssetCode,
-            sourceAssetScale: payload.senderAssetScale
+            sourceAssetScale: payload.senderAssetScale,
+            sharedSecret: payload.sharedSecret
           },
           payload.requestId
         );
@@ -86,7 +87,9 @@ export class IlpEventHandler {
         return new RespondToRemoteQuoteCmd({
           peerId: payload.peerId,
           packetId: payload.packetId,
-          destinationAmount: payload.receiveAmount
+          destinationAmount: payload.receiveAmount,
+          destinationAssetCode: payload.receiveAssetCode,
+          destinationAssetScale: payload.receiveAssetScale
         });
       }
       case RemoteQuoteCalculationFailedEvent.name: {
@@ -134,7 +137,10 @@ export class IlpEventHandler {
           packetId: payload.packetId,
           paymentIntentId: payload.paymentIntentId,
           inboundPaymentId: payload.inboundPaymentId,
-          requestId: payload.requestId
+          requestId: payload.requestId,
+          receiveAmount: payload.receiveAmount,
+          receiveAssetCode: payload.receiveAssetCode,
+          receiveAssetScale: payload.receiveAssetScale
         });
       }
       case InboundPaymentFailedEvent.name: {

@@ -8,6 +8,9 @@ import {
   PalClient,
   PalClientLedgerInsufficientFundsForWithdrawalError,
   PalClientDuplicateWalletAddressKeyError,
+  PalClientPeerAlreadyActiveError,
+  PalClientPeerAlreadyInactiveError,
+  PalClientPeerNotFoundError,
   PalClientWalletAddressKeyAlreadyRevokedError,
   PalClientWalletAddressKeyNotFoundError,
   PalClientWalletAddressNotFoundError,
@@ -241,6 +244,20 @@ test('pal client - deactivate peer', async () => {
   assert.equal(peer.active, false);
 });
 
+test('pal client - deactivating an inactive peer fails', async () => {
+  await assert.rejects(
+    client.deactivatePeer(PEER_ONE_ID),
+    PalClientPeerAlreadyInactiveError
+  );
+});
+
+test('pal client - deactivating an unknown peer fails', async () => {
+  await assert.rejects(
+    client.deactivatePeer(`${testPrefix}_no_such_peer`),
+    PalClientPeerNotFoundError
+  );
+});
+
 test('pal client - re-activating peer', async () => {
   await client.activatePeer(PEER_ONE_ID);
 
@@ -249,6 +266,20 @@ test('pal client - re-activating peer', async () => {
   assert.ok(peer);
   assert.equal(peer.id, PEER_ONE_ID);
   assert.equal(peer.active, true);
+});
+
+test('pal client - activating an active peer fails', async () => {
+  await assert.rejects(
+    client.activatePeer(PEER_ONE_ID),
+    PalClientPeerAlreadyActiveError
+  );
+});
+
+test('pal client - activating an unknown peer fails', async () => {
+  await assert.rejects(
+    client.activatePeer(`${testPrefix}_no_such_peer`),
+    PalClientPeerNotFoundError
+  );
 });
 
 test('pal client - created peer must have an new set of ledger accounts', async () => {
@@ -670,17 +701,19 @@ test('pal client - create wallet address', async () => {
 
 // must run this here to resolve / get the internal wallet address id
 test('pal client - resolve created wallet address', async () => {
-  const alias = await client.resolveWalletAddressAlias(
+  const walletAddress = await client.resolveWalletAddressByAlias(
     ALIAS_DOMAIN,
     ALIAS_PATHNAME
   );
 
-  createdWalletAddressId = alias.walletAddressId;
+  assert.ok(walletAddress);
+  assert.ok(walletAddress.id);
+  assert.equal(walletAddress.publicName, PUBLIC_NAME);
+  assert.equal(walletAddress.assetCode, STORED_ASSET_CODE);
+  assert.equal(walletAddress.assetScale, ASSET_SCALE);
+  assert.equal(walletAddress.isActive, true);
 
-  assert.ok(alias);
-  assert.ok(alias.walletAddressId);
-  assert.equal(alias.domain, ALIAS_DOMAIN);
-  assert.equal(alias.pathName, ALIAS_PATHNAME);
+  createdWalletAddressId = walletAddress.id;
 });
 
 test('pal client - get wallet', async () => {
@@ -737,29 +770,31 @@ test('pal client - create wallet address alias with domain', async () => {
   );
 });
 
-test('pal client - resolve wallet address alias without domain', async () => {
-  const alias = await client.resolveWalletAddressAlias(null, ALIAS_PATHNAME);
+test('pal client - resolve wallet address by alias without domain', async () => {
+  const walletAddress = await client.resolveWalletAddressByAlias(
+    null,
+    ALIAS_PATHNAME
+  );
 
-  assert.ok(alias);
-  assert.ok(alias.walletAddressId);
-  assert.equal(alias.domain, null);
-  assert.equal(alias.pathName, ALIAS_PATHNAME);
+  assert.ok(walletAddress);
+  assert.equal(walletAddress.id, createdWalletAddressId);
+  assert.equal(walletAddress.publicName, PUBLIC_NAME);
 });
 
-test('pal client - resolve wallet address alias with domain', async () => {
-  const address = await client.resolveWalletAddressAlias(
+test('pal client - resolve wallet address by alias with domain', async () => {
+  const walletAddress = await client.resolveWalletAddressByAlias(
     ALIAS_DOMAIN,
     ALIAS_PATHNAME
   );
 
-  assert.ok(address);
-  assert.equal(address.domain, ALIAS_DOMAIN);
-  assert.equal(address.pathName, ALIAS_PATHNAME);
-  assert.equal(address.walletAddressId, createdWalletAddressId);
+  assert.ok(walletAddress);
+  assert.equal(walletAddress.id, createdWalletAddressId);
+  assert.equal(walletAddress.publicName, PUBLIC_NAME);
+  assert.equal(walletAddress.assetCode, STORED_ASSET_CODE);
 });
 
 test('pal client - resolve non existing wallet address alias with domain should fail', async () => {
-  const address = await client.resolveWalletAddressAlias(
+  const address = await client.resolveWalletAddressByAlias(
     ALIAS_DOMAIN,
     'NON_EXISTING'
   );
@@ -768,7 +803,10 @@ test('pal client - resolve non existing wallet address alias with domain should 
 });
 
 test('pal client - resolve non existing wallet address alias without domain should fail', async () => {
-  const address = await client.resolveWalletAddressAlias(null, 'NON_EXISTING');
+  const address = await client.resolveWalletAddressByAlias(
+    null,
+    'NON_EXISTING'
+  );
 
   assert.equal(address === null, true);
 });

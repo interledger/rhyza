@@ -9,6 +9,7 @@ import {
   CreateGrantCmd,
   ContinueGrantCmd,
   RevokeGrantCmd,
+  AdminRevokeGrantCmd,
   IntrospectTokenCmd,
   RotateTokenCmd,
   RevokeTokenCmd,
@@ -58,6 +59,7 @@ export class AuthCommandHandler {
         case CreateGrantCmd.name:
         case ContinueGrantCmd.name:
         case RevokeGrantCmd.name:
+        case AdminRevokeGrantCmd.name:
         case IntrospectTokenCmd.name:
         case RotateTokenCmd.name:
         case RevokeTokenCmd.name:

@@ -1,6 +1,6 @@
 import { before, test } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { ConsoleLogger } from 'common-types-lib';
+import { NullLogger } from 'common-types-lib';
 import { IPalJsonWebKeyDto } from 'pal-public-types-lib';
 import {
   DuplicateWalletAddressKeyError,
@@ -13,7 +13,7 @@ import {
 } from '../src';
 import { MockWalletRepo } from './mocks';
 
-const logger = new ConsoleLogger();
+const logger = new NullLogger();
 
 const VALID_JWK: IPalJsonWebKeyDto = {
   kid: 'key-1',
@@ -147,4 +147,27 @@ test('PAL WalletAddress Keys - revoke missing key should fail', async () => {
     () => walletAggregate.revokeWalletAddressKey(walletId, 'missing-key'),
     WalletAddressKeyNotFoundError
   );
+});
+
+test('PAL WalletAddress Keys - fetch and getByAlias return the wallet without keys', async () => {
+  const [fetched] = await walletRepo.fetch([walletId]);
+  assert.ok(fetched);
+  assert.equal(fetched.keys, undefined);
+
+  const byAlias = await walletRepo.getByAlias('example.com', 'sarah');
+  assert.ok(byAlias);
+  assert.equal(byAlias.id, walletId);
+  assert.equal(byAlias.keys, undefined);
+});
+
+test('PAL WalletAddress Keys - fetchWithKeys returns the wallet with its keys', async () => {
+  const wallet = await walletRepo.fetchWithKeys(walletId);
+  assert.ok(wallet);
+  assert.equal(wallet.id, walletId);
+  assert.equal(wallet.keys?.length, 2);
+  assert.ok(wallet.keys.every((key) => key.walletAddressId === walletId));
+});
+
+test('PAL WalletAddress Keys - fetchWithKeys returns null for a missing wallet', async () => {
+  assert.equal(await walletRepo.fetchWithKeys('missing-wallet'), null);
 });

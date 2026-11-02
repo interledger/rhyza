@@ -1,10 +1,11 @@
-import { ILogger, IMessage } from 'common-types-lib';
+import { getErrorDetails, ILogger, IMessage } from 'common-types-lib';
 import {
   ContinueGrantCmd,
   CreateGrantCmd,
   AcceptInteractionCmd,
   RejectInteractionCmd,
   RevokeGrantCmd,
+  AdminRevokeGrantCmd,
   IntrospectTokenCmd,
   RotateTokenCmd,
   RevokeTokenCmd,
@@ -158,6 +159,7 @@ export class GrantAggregate {
           ).payload.signatureData.kid
         });
       } else if (
+        cmd.msgName === AdminRevokeGrantCmd.name ||
         cmd.msgName === IntrospectTokenCmd.name ||
         cmd.msgName === StartInteractionCmd.name ||
         cmd.msgName === AcceptInteractionCmd.name ||
@@ -168,6 +170,7 @@ export class GrantAggregate {
           (
             cmd as
               | RevokeGrantCmd
+              | AdminRevokeGrantCmd
               | IntrospectTokenCmd
               | RotateTokenCmd
               | RevokeTokenCmd
@@ -234,6 +237,8 @@ export class GrantAggregate {
         event = await this.handleContinueGrantCommand(cmd as ContinueGrantCmd);
       } else if (cmd.msgName === RevokeGrantCmd.name) {
         event = await this.handleRevokeGrantCommand(cmd as RevokeGrantCmd);
+      } else if (cmd.msgName === AdminRevokeGrantCmd.name) {
+        event = this.handleAdminRevokeGrantCommand(cmd as AdminRevokeGrantCmd);
       } else if (cmd.msgName === IntrospectTokenCmd.name) {
         event = this.handleIntrospectTokenCommand(cmd as IntrospectTokenCmd);
       } else if (cmd.msgName === RotateTokenCmd.name) {
@@ -412,8 +417,7 @@ export class GrantAggregate {
       return new GrantCreateFailedEvent(
         {
           grantId: cmd.payload.id,
-          errorName: (err as Error).constructor.name,
-          message: (err as Error).message
+          ...getErrorDetails(err)
         },
         cmd.requestId
       );
@@ -477,8 +481,7 @@ export class GrantAggregate {
       return new GrantContinueFailedEvent(
         {
           grantId: cmd.payload.id,
-          errorName: (err as Error).constructor.name,
-          message: (err as Error).message
+          ...getErrorDetails(err)
         },
         cmd.requestId
       );
@@ -547,8 +550,41 @@ export class GrantAggregate {
       return new GrantRevokeFailedEvent(
         {
           grantId: id,
-          errorName: (error as Error).constructor.name,
-          message: (error as Error).message
+          ...getErrorDetails(error)
+        },
+        cmd.requestId
+      );
+    }
+  }
+
+  private handleAdminRevokeGrantCommand(cmd: AdminRevokeGrantCmd) {
+    const { id } = cmd.payload;
+    try {
+      const grant = this.grantMap.get(id);
+      if (!grant) {
+        throw new GrantNotFoundError(`Grant ${id} not found`);
+      }
+      const revokedTokens = grant.adminRevoke();
+
+      this.grantMap.set(id, grant);
+      this.revokedGrantIds.add(id);
+      for (const token of revokedTokens) {
+        this.revokedTokens.set(token.value, token);
+      }
+
+      return new GrantRevokedEvent(
+        {
+          id,
+          status: grant.state,
+          createdAt: grant.createdAt
+        },
+        cmd.requestId
+      );
+    } catch (error) {
+      return new GrantRevokeFailedEvent(
+        {
+          grantId: id,
+          ...getErrorDetails(error)
         },
         cmd.requestId
       );
@@ -662,8 +698,7 @@ export class GrantAggregate {
       return new TokenRotationFailedEvent(
         {
           grantId: cmd.payload.id,
-          errorName: (err as Error).constructor.name,
-          message: (err as Error).message
+          ...getErrorDetails(err)
         },
         cmd.requestId
       );
@@ -715,8 +750,7 @@ export class GrantAggregate {
       return new TokenRevokeFailedEvent(
         {
           grantId: id,
-          errorName: (error as Error).constructor.name,
-          message: (error as Error).message
+          ...getErrorDetails(error)
         },
         cmd.requestId
       );
@@ -744,8 +778,7 @@ export class GrantAggregate {
       return new GrantInteractionStartFailedEvent(
         {
           grantId: id,
-          errorName: (error as Error).constructor.name,
-          message: (error as Error).message
+          ...getErrorDetails(error)
         },
         cmd.requestId
       );
@@ -781,8 +814,7 @@ export class GrantAggregate {
       return new GrantInteractionFinishFailedEvent(
         {
           grantId: id,
-          errorName: (error as Error).constructor.name,
-          message: (error as Error).message
+          ...getErrorDetails(error)
         },
         cmd.requestId
       );
@@ -815,8 +847,7 @@ export class GrantAggregate {
       return new GrantInteractionChoiceFailedEvent(
         {
           grantId: id,
-          errorName: (error as Error).constructor.name,
-          message: (error as Error).message
+          ...getErrorDetails(error)
         },
         requestId
       );

@@ -71,6 +71,8 @@ export class PalClientLedgerInsufficientFundsForWithdrawalError extends Error {}
 // peer errors
 export class PalClientPeerAlreadyExistsError extends Error {}
 export class PalClientPeerNotFoundError extends Error {}
+export class PalClientPeerAlreadyInactiveError extends Error {}
+export class PalClientPeerAlreadyActiveError extends Error {}
 
 // wallet address key errors
 export class PalClientWalletAddressNotFoundError extends Error {}
