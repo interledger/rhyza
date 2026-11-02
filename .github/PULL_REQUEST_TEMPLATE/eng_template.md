@@ -6,12 +6,15 @@ In order to make sure your PR is handled as smoothly as possible we request that
 -->
 
 ## Changes proposed in this pull request
+
 <!--
 Provide a succinct description of what this pull request entails.
 -->
-- 
+
+-
 
 ## Context
+
 <!--
 What were you trying to do?
 Provide further details about how the feature should be tested/reviewed if necessary.
@@ -19,6 +22,7 @@ Link issues here -  using `fixes #number`
 -->
 
 ## Checklist
+
 <!--
 Checklist items become clickable check boxes once the pull request is created. There is no need to edit them now.
 -->
