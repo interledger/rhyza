@@ -532,6 +532,15 @@ describe('PaymentIntentAggregate.handleBatch', () => {
       });
 
       it('emits RemoteQuoteRequestedEvent for remote payment intent', async () => {
+        const remoteUrl = 'https://remote.domain.com/incoming-payments/abc';
+        mockRemotePaymentIntentService.fetchPaymentIntent = async () => ({
+          walletAddress: 'remote.domain.com/alice',
+          assetCode: 'USD',
+          assetScale: 2,
+          receivedAmount: 0n,
+          destinationIlpAddress: 'g.peer.123',
+          sharedSecret: 'stub-shared-secret'
+        });
         const paymentIntent: IPaymentIntent = {
           id: crypto.randomUUID(),
           receivedAmount: 0n,
@@ -546,7 +555,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           quotes: [],
           sentPayments: [],
           inboundPayments: [],
-          destinationIlpAddress: 'g.peer.123'
+          destinationIlpAddress: 'g.peer.123',
+          remoteUrl
         };
         await repo.storeMany([paymentIntent]);
 
@@ -562,6 +572,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         assert.equal(payload.paymentIntentId, paymentIntent.id);
         assert.equal(payload.quoteId, cmd.payload.id);
         assert.equal(payload.peerId, 'peer-1');
+        assert.equal(payload.sharedSecret, 'stub-shared-secret');
         assert.equal(
           payload.receiverWalletAddress,
           paymentIntent.receiverWalletAddress
@@ -572,6 +583,111 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         );
         assert.equal(payload.senderAssetCode, 'USD');
         assert.equal(payload.senderAssetScale, 2);
+      });
+
+      it('quotes against the ILP address the shared secret was minted with', async () => {
+        // The OP server re-mints the connection token on every fetch, so the
+        // address stored at import time is stale by the time we quote. Pairing
+        // it with a freshly fetched secret gives the receiver a packet it
+        // cannot decrypt and it answers F06.
+        const remoteUrl = 'https://remote.domain.com/incoming-payments/abc';
+        mockRemotePaymentIntentService.fetchPaymentIntent = async () => ({
+          walletAddress: 'remote.domain.com/alice',
+          assetCode: 'USD',
+          assetScale: 2,
+          receivedAmount: 0n,
+          destinationIlpAddress: 'g.peer.fresh-token',
+          sharedSecret: 'fresh-shared-secret'
+        });
+        const paymentIntent: IPaymentIntent = {
+          id: crypto.randomUUID(),
+          receivedAmount: 0n,
+          receiverWalletAddress: 'remote.domain.com/alice',
+          assetCode: 'USD',
+          assetScale: 2,
+          state: 'CREATED',
+          destination: 'REMOTE',
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          incomingAmount: null,
+          quotes: [],
+          sentPayments: [],
+          inboundPayments: [],
+          destinationIlpAddress: 'g.peer.stale-token',
+          remoteUrl
+        };
+        await repo.storeMany([paymentIntent]);
+
+        const { events } = await aggregate.handleBatch([
+          makeCreateQuoteCmd({
+            paymentIntentId: paymentIntent.id,
+            debitAmount: 500
+          })
+        ]);
+
+        const payload = (events[0] as RemoteQuoteRequestedEvent).payload;
+        assert.equal(payload.sharedSecret, 'fresh-shared-secret');
+        assert.equal(payload.destinationIlpAddress, 'g.peer.fresh-token');
+      });
+
+      it('does not carry STREAM credentials across batches', async () => {
+        const remoteUrl = 'https://remote.domain.com/incoming-payments/abc';
+        let fetchCount = 0;
+        mockRemotePaymentIntentService.fetchPaymentIntent = async () => {
+          fetchCount++;
+          return {
+            walletAddress: 'remote.domain.com/alice',
+            assetCode: 'USD',
+            assetScale: 2,
+            receivedAmount: 0n,
+            destinationIlpAddress: `g.peer.token-${fetchCount}`,
+            sharedSecret: `secret-${fetchCount}`
+          };
+        };
+        const paymentIntent: IPaymentIntent = {
+          id: crypto.randomUUID(),
+          receivedAmount: 0n,
+          receiverWalletAddress: 'remote.domain.com/alice',
+          assetCode: 'USD',
+          assetScale: 2,
+          state: 'CREATED',
+          destination: 'REMOTE',
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          incomingAmount: null,
+          quotes: [],
+          sentPayments: [],
+          inboundPayments: [],
+          destinationIlpAddress: 'g.peer.token-0',
+          remoteUrl
+        };
+        await repo.storeMany([paymentIntent]);
+
+        const first = await aggregate.handleBatch([
+          makeCreateQuoteCmd({
+            paymentIntentId: paymentIntent.id,
+            debitAmount: 500
+          })
+        ]);
+        await aggregate.flush();
+        const second = await aggregate.handleBatch([
+          makeCreateQuoteCmd({
+            paymentIntentId: paymentIntent.id,
+            debitAmount: 500
+          })
+        ]);
+
+        // Holding credentials past the batch is both a stale-token bug and an
+        // unbounded map keyed by payment intent id.
+        assert.equal(fetchCount, 2);
+        assert.equal(
+          (first.events[0] as RemoteQuoteRequestedEvent).payload.sharedSecret,
+          'secret-1'
+        );
+        assert.equal(
+          (second.events[0] as RemoteQuoteRequestedEvent).payload.sharedSecret,
+          'secret-2'
+        );
       });
 
       it('fails with MissingDestinationIlpAddressError for remote intent without ilp address', async () => {
@@ -1891,6 +2007,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         );
         assert.equal(payload.senderAssetCode, 'USD');
         assert.equal(payload.senderAssetScale, 2);
+        assert.equal(payload.sharedSecret, 'stub-shared-secret');
       });
 
       it('deduplicates intra-batch: second cmd with same url uses first intent id', async () => {
@@ -3391,6 +3508,17 @@ describe('PaymentIntentAggregate.handleBatch', () => {
     });
 
     describe('prefetch (peers & FX)', () => {
+      beforeEach(() => {
+        mockRemotePaymentIntentService.fetchPaymentIntent = async () => ({
+          walletAddress: 'remote.domain.com/alice',
+          assetCode: 'USD',
+          assetScale: 2,
+          receivedAmount: 0n,
+          destinationIlpAddress: 'g.peer.123',
+          sharedSecret: 'stub-shared-secret'
+        });
+      });
+
       function makeRemoteIntentWithIlp(ilpAddress: string): IPaymentIntent {
         return {
           id: crypto.randomUUID(),
@@ -3406,7 +3534,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           quotes: [],
           sentPayments: [],
           inboundPayments: [],
-          destinationIlpAddress: ilpAddress
+          destinationIlpAddress: ilpAddress,
+          remoteUrl: `https://remote.domain.com/incoming-payments/${ilpAddress}`
         };
       }
 

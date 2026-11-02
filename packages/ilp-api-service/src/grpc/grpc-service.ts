@@ -34,7 +34,7 @@ import {
   ILPPeerUpdatedEvent,
   ILPPeerUpdateFailedEvent,
   IPeer,
-  IPeerRepository
+  IPeerReader
 } from 'ilp-domain-lib';
 import { CreatePeerCmd, UpdatePeerCmd } from 'ilp-domain-lib';
 import {
@@ -58,7 +58,7 @@ export class IlpServiceServer {
   private readonly _server: grpc.Server;
   private readonly _msgProducer: IMessageProducer;
   private readonly _msgConsumer: IMessageConsumer;
-  private readonly _peerRepo: IPeerRepository;
+  private readonly _peerRepo: IPeerReader;
   private readonly _responseTimeoutMs: number;
   private readonly _responseMap: Map<string, PendingResponse> = new Map();
   private readonly _logger: ILogger;
@@ -69,7 +69,7 @@ export class IlpServiceServer {
     serverUrl: string,
     msgProducer: IMessageProducer,
     msgConsumer: IMessageConsumer,
-    peerRepo: IPeerRepository,
+    peerRepo: IPeerReader,
     logger: ILogger,
     responseTimeoutMs: number = DEFAULT_RESPONSE_TIMEOUT_MS
   ) {
@@ -189,13 +189,24 @@ export class IlpServiceServer {
       return;
     }
 
+    let http: IPeer['http'];
+    try {
+      http = this._pbHttpToDomain(peer.getHttp());
+    } catch (err) {
+      callback({
+        code: grpc.status.INVALID_ARGUMENT,
+        message: (err as Error).message
+      });
+      return;
+    }
+
     const requestId = crypto.randomUUID();
     this._storePendingResponse(requestId, call, callback);
 
     const cmd = new CreatePeerCmd(
       {
         peerId: peer.getId(),
-        http: this._pbHttpToDomain(peer.getHttp()),
+        http,
         isActive: peer.hasIsActive() ? peer.getIsActive() : undefined
       },
       requestId
@@ -216,13 +227,24 @@ export class IlpServiceServer {
       return;
     }
 
+    let http: IPeer['http'];
+    try {
+      http = this._pbHttpToDomain(peer.getHttp());
+    } catch (err) {
+      callback({
+        code: grpc.status.INVALID_ARGUMENT,
+        message: (err as Error).message
+      });
+      return;
+    }
+
     const requestId = crypto.randomUUID();
     this._storePendingResponse(requestId, call, callback);
 
     const cmd = new UpdatePeerCmd(
       {
         peerId: peer.getId(),
-        http: this._pbHttpToDomain(peer.getHttp()),
+        http,
         isActive: peer.hasIsActive() ? peer.getIsActive() : undefined
       },
       requestId
@@ -269,11 +291,15 @@ export class IlpServiceServer {
     if (!outgoing) {
       throw new Error('peer.http.outgoing is required');
     }
+    if (!outgoing.getCallbackEndpoint()) {
+      throw new Error('peer.http.outgoing.callbackEndpoint is required');
+    }
     const incoming = http.getIncoming();
 
     return {
       outgoing: {
         endpoint: outgoing.getEndpoint(),
+        callbackEndpoint: outgoing.getCallbackEndpoint(),
         authToken: outgoing.getAuthToken()
       },
       ...(incoming
@@ -285,6 +311,7 @@ export class IlpServiceServer {
   private _domainToPbPeer(peer: IPeer): PbPeer {
     const outgoing = new PeerHttpOutgoingSettings()
       .setEndpoint(peer.http.outgoing.endpoint)
+      .setCallbackEndpoint(peer.http.outgoing.callbackEndpoint)
       .setAuthToken(peer.http.outgoing.authToken);
 
     const http = new PeerHttpSettings().setOutgoing(outgoing);

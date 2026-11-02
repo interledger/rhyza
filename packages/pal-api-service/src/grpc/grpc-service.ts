@@ -357,8 +357,8 @@ export class PalGrpcServer {
       )
     );
     this._requestHandlerRegistry.register(
-      PalGrpcService.resolveWalletAddressAlias,
-      this._walletAddressGrpcHandler.handleResolveWalletAddressAliasRequest.bind(
+      PalGrpcService.resolveWalletAddressByAlias,
+      this._walletAddressGrpcHandler.handleResolveWalletAddressByAliasRequest.bind(
         this._walletAddressGrpcHandler
       )
     );

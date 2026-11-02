@@ -5,29 +5,6 @@ import { describe, test } from 'node:test';
 import { InMemoryTransportCorrelationStore } from '../src/correlation/in-memory-store';
 
 describe('InMemoryTransportCorrelationStore', () => {
-  test('inbound reply handles resolve delivery details for any consumer', async () => {
-    const store = new InMemoryTransportCorrelationStore();
-    const replyHandle = await store.createInboundReplyHandle({
-      peerId: 'peer-1',
-      packetId: 'packet-1',
-      expiresAt: new Date(Date.now() + 30_000).toISOString(),
-      delivery: { kind: 'http', callbackUrl: 'https://peer.example/callback' }
-    });
-
-    const resolved = await store.resolveInboundReplyHandle(replyHandle);
-    assert.ok(resolved);
-    assert.equal(resolved.delivery.kind, 'http');
-    if (resolved.delivery.kind === 'http') {
-      assert.equal(
-        resolved.delivery.callbackUrl,
-        'https://peer.example/callback'
-      );
-    }
-
-    await store.deleteInboundReplyHandle(replyHandle);
-    assert.equal(await store.resolveInboundReplyHandle(replyHandle), undefined);
-  });
-
   test('outbound correlations are taken exactly once across replicas', async () => {
     const store = new InMemoryTransportCorrelationStore();
     await store.storeOutboundCorrelation('packet-1', {

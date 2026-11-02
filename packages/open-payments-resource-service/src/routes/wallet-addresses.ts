@@ -21,12 +21,12 @@ export async function walletAddressRoutes(
   }>('/:walletAddressPath/jwks.json', async (request, reply) => {
     const { walletAddressPath } = request.params;
 
-    const alias = await opts.palClient.resolveWalletAddressAlias(
+    const walletAddress = await opts.palClient.resolveWalletAddressByAlias(
       null,
       walletAddressPath
     );
 
-    if (!alias) {
+    if (!walletAddress) {
       throw new OpenPaymentsResourceServerRouteError(
         404,
         'Wallet address not found',
@@ -35,7 +35,7 @@ export async function walletAddressRoutes(
     }
 
     const storedKeys = await opts.palClient.getWalletAddressKeys(
-      alias.walletAddressId
+      walletAddress.id
     );
 
     return reply.status(200).send({
@@ -58,34 +58,12 @@ export async function walletAddressRoutes(
   }>('/:walletAddressPath', async (request, reply) => {
     const { walletAddressPath } = request.params;
 
-    const alias = await opts.palClient.resolveWalletAddressAlias(
+    const walletAddress = await opts.palClient.resolveWalletAddressByAlias(
       null,
       walletAddressPath
     );
 
-    if (!alias) {
-      throw new OpenPaymentsResourceServerRouteError(
-        404,
-        'Wallet address not found',
-        'not_found'
-      );
-    }
-
-    const walletAddresses = await opts.palClient.getWalletAddresses([
-      alias.walletAddressId
-    ]);
-
-    if (!walletAddresses.length) {
-      throw new OpenPaymentsResourceServerRouteError(
-        404,
-        'Wallet address not found',
-        'not_found'
-      );
-    }
-
-    const walletAddress = walletAddresses[0];
-
-    if (!walletAddress.isActive) {
+    if (!walletAddress || !walletAddress.isActive) {
       throw new OpenPaymentsResourceServerRouteError(
         404,
         'Wallet address not found',
@@ -94,7 +72,7 @@ export async function walletAddressRoutes(
     }
 
     return reply.status(200).send({
-      id: `${opts.openPaymentsResourceServiceUrl}/${alias.pathName}`,
+      id: `${opts.openPaymentsResourceServiceUrl}/${walletAddressPath}`,
       publicName: walletAddress.publicName,
       assetCode: walletAddress.assetCode,
       assetScale: walletAddress.assetScale,

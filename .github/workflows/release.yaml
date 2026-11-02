@@ -71,10 +71,17 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: write
     strategy:
       matrix:
         platform: ${{ fromJSON(needs.config.outputs.platforms) }}
         package: ${{ fromJSON(needs.config.outputs.packages) }}
+        include:
+          # Test-only image for e2e; amd64 only; push skips it (not in release-packages.json).
+          - platform:
+              arch: linux/amd64
+              name: amd64
+            package: ase-mock-service
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -91,21 +98,100 @@ jobs:
           push: false
           platforms: ${{ matrix.platform.arch }}
           file: packages/${{ matrix.package }}/Dockerfile
-          tags: ghcr.io/${{ github.repository_owner }}/rhyza-${{ matrix.package }}-${{ matrix.platform.name }}:${{ needs.version-generator.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/rhyza-${{ matrix.package }}-${{ matrix.platform.name }}:${{ needs.version-generator.outputs.version }}
+            rhyza-${{ matrix.package }}-${{ matrix.platform.name }}:${{ needs.version-generator.outputs.version }}
           outputs: type=docker,dest=/tmp/${{ github.sha }}-${{ matrix.package }}-${{ matrix.platform.name }}-${{ needs.version-generator.outputs.version }}.tar
-      - name: Save docker image to cache
-        uses: actions/cache@v4
+      - name: Upload docker image artifact
+        uses: actions/upload-artifact@v4
         with:
+          name: docker-image-${{ matrix.package }}-${{ matrix.platform.name }}
           path: /tmp/${{ github.sha }}-${{ matrix.package }}-${{ matrix.platform.name }}-${{ needs.version-generator.outputs.version }}.tar
-          key: ${{ github.sha }}-${{ matrix.package }}-${{ matrix.platform.name }}-${{ needs.version-generator.outputs.version }}
+          retention-days: 1
+          if-no-files-found: error
+
+  e2e:
+    name: E2E (release images)
+    runs-on: ubuntu-latest
+    needs: [config, version-generator, docker-build]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Download amd64 image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: docker-image-*-amd64
+          path: /tmp/images
+          merge-multiple: true
+
+      - name: Load amd64 images
+        env:
+          VERSION: ${{ needs.version-generator.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          tars=(/tmp/images/*.tar)
+          if [[ ${#tars[@]} -eq 0 ]]; then
+            echo "No amd64 image tars downloaded" >&2
+            exit 1
+          fi
+          for tar in "${tars[@]}"; do
+            echo "Loading $tar"
+            docker load --input "$tar"
+          done
+          mapfile -t loaded < <(docker images --format '{{.Repository}}:{{.Tag}}' | grep "^rhyza-.*-amd64:${VERSION}$" || true)
+          expected=$(( $(jq 'length' .github/release-packages.json) + 1 ))
+          if [[ ${#loaded[@]} -ne "$expected" ]]; then
+            echo "Expected ${expected} rhyza-*-amd64:${VERSION} images, found ${#loaded[@]}" >&2
+            printf '%s\n' "${loaded[@]}"
+            docker images
+            exit 1
+          fi
+          printf 'Loaded %s release e2e images\n' "${#loaded[@]}"
+          printf '%s\n' "${loaded[@]}"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build admin-client-lib
+        run: pnpm --filter admin-client-lib build
+
+      - name: Run E2E tests against release images
+        env:
+          VERSION: ${{ needs.version-generator.outputs.version }}
+          E2E_COMPOSE_OVERRIDE: docker-compose.release.yaml
+          E2E_COMPOSE_PROJECT: rhyza-e2e-release
+          E2E_COMPOSE_LOGS_PATH: ${{ runner.temp }}/e2e-compose-logs.txt
+        run: pnpm e2e
+
+      - name: Upload compose logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-compose-logs
+          path: ${{ runner.temp }}/e2e-compose-logs.txt
+          if-no-files-found: warn
+          retention-days: 7
 
   push:
     name: Push to registry
-    needs: [config, version-generator, docker-build]
+    needs: [config, version-generator, docker-build, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read
       packages: write
     if: needs.version-generator.outputs.dockerPush == 'true'
     strategy:

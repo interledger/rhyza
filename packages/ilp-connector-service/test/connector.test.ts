@@ -58,16 +58,16 @@ class ManualTransport implements IConnectorTransport {
   async sendFulfill(
     fulfill: WireFulfill,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    this.sentResponses.push({ peerId, replyHandle, response: fulfill });
+    this.sentResponses.push({ peerId, callbackDeadline, response: fulfill });
   }
   async sendReject(
     reject: WireReject,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    this.sentResponses.push({ peerId, replyHandle, response: reject });
+    this.sentResponses.push({ peerId, callbackDeadline, response: reject });
   }
   onResponse(handler: WireResponseHandler): void {
     this._onResponse = handler;
@@ -81,17 +81,12 @@ class ManualTransport implements IConnectorTransport {
   async triggerResponse(response: WireResponse): Promise<void> {
     await this._onResponse?.(response);
   }
-  async triggerInboundPrepare(
-    prepare: WirePrepare,
-    callbackUrl: string
-  ): Promise<void> {
-    await this._onInboundPrepare?.(prepare, callbackUrl);
+  async triggerInboundPrepare(prepare: WirePrepare): Promise<void> {
+    await this._onInboundPrepare?.(prepare);
   }
 }
 
-const TEST_CALLBACK_URL = 'https://peer.example/callback';
 const TEST_EXPIRES_AT = new Date(Date.now() + 30_000).toISOString();
-const TEST_REPLY_HANDLE = 'reply-handle-1';
 
 const dispatchPrepare = (
   overrides: Partial<DispatchPreparePacketCmd['payload']> = {}
@@ -148,7 +143,7 @@ describe('IlpConnector', () => {
     assert.equal(cmd.payload.paymentIntentId, 'intent-1');
     assert.equal(cmd.payload.packetId, 'packet-1');
     assert.equal(cmd.payload.rejectCode, 'F99');
-    assert.equal(cmd.payload.destinationAmount, undefined);
+    assert.equal(cmd.payload.data, undefined);
     assert.equal(cmd.msgKey, 'intent-1');
     assert.equal(
       await correlationStore.hasOutboundCorrelation('packet-1'),
@@ -156,20 +151,23 @@ describe('IlpConnector', () => {
     );
   });
 
-  test('a quote reject with destinationAmount in data forwards it on ProcessRejectPacketCmd', async () => {
+  test('a quote reject forwards opaque data without parsing destinationAmount', async () => {
     await connector.handleConnectorCommands([dispatchPrepare()]);
+    const data = Buffer.from('opaque-stream-reject').toString('base64');
     await transport.triggerResponse({
       kind: 'REJECT',
       packetId: 'packet-1',
       rejectCode: 'F99',
       rejectMessage: 'quote response',
-      data: Buffer.from(JSON.stringify({ destinationAmount: '95' })).toString(
-        'base64'
-      )
+      data
     });
 
     const cmd = producer.sent[0] as ProcessRejectPacketCmd;
-    assert.equal(cmd.payload.destinationAmount, '95');
+    assert.equal(cmd.payload.data, data);
+    assert.equal(
+      (cmd.payload as { destinationAmount?: string }).destinationAmount,
+      undefined
+    );
   });
 
   test('a peer fulfill produces a ProcessFulfillPacketCmd keyed by paymentIntentId', async () => {
@@ -192,6 +190,24 @@ describe('IlpConnector', () => {
     );
   });
 
+  test('a peer fulfill forwards opaque data without parsing it', async () => {
+    await connector.handleConnectorCommands([dispatchPrepare()]);
+    const data = Buffer.from('opaque-stream-fulfill').toString('base64');
+    await transport.triggerResponse({
+      kind: 'FULFILL',
+      packetId: 'packet-1',
+      fulfillment: Buffer.alloc(32).toString('base64'),
+      data
+    });
+
+    const cmd = producer.sent[0] as ProcessFulfillPacketCmd;
+    assert.equal(cmd.payload.data, data);
+    assert.equal(
+      (cmd.payload as { destinationAmount?: string }).destinationAmount,
+      undefined
+    );
+  });
+
   test('paymentIntentId is recovered from the correlation store, never from the response packet', async () => {
     await connector.handleConnectorCommands([
       dispatchPrepare({ packetId: 'p-xyz', paymentIntentId: 'intent-xyz' })
@@ -206,25 +222,21 @@ describe('IlpConnector', () => {
     assert.equal(cmd.payload.paymentIntentId, 'intent-xyz');
   });
 
-  test('an inbound prepare is published as a ProcessPreparePacketCmd with an opaque replyHandle', async () => {
-    await transport.triggerInboundPrepare(
-      {
-        peerId: 'peer-9',
-        packetId: 'inbound-1',
-        destinationIlpAddress: 'g.us.alice',
-        amount: '250',
-        expiresAt: TEST_EXPIRES_AT,
-        executionCondition: Buffer.alloc(32).toString('base64')
-      },
-      TEST_CALLBACK_URL
-    );
+  test('an inbound prepare is published as a ProcessPreparePacketCmd', async () => {
+    await transport.triggerInboundPrepare({
+      peerId: 'peer-9',
+      packetId: 'inbound-1',
+      destinationIlpAddress: 'g.us.alice',
+      amount: '250',
+      expiresAt: TEST_EXPIRES_AT,
+      executionCondition: Buffer.alloc(32).toString('base64')
+    });
 
     assert.equal(producer.sent.length, 1);
     const cmd = producer.sent[0] as ProcessPreparePacketCmd;
     assert.equal(cmd.msgName, ProcessPreparePacketCmd.name);
     assert.equal(cmd.payload.packetId, 'inbound-1');
-    assert.ok(cmd.payload.replyHandle);
-    assert.notEqual(cmd.payload.replyHandle, TEST_CALLBACK_URL);
+    assert.equal(cmd.payload.peerId, 'peer-9');
     assert.equal(cmd.msgKey, 'inbound-1');
   });
 
@@ -298,25 +310,25 @@ describe('IlpConnector', () => {
     );
   });
 
-  test('dispatch fulfill/reject commands are forwarded to the transport with replyHandle', async () => {
+  test('dispatch fulfill/reject commands are forwarded to the transport', async () => {
     await connector.handleConnectorCommands([
       new DispatchFulfillPacketCmd({
         peerId: 'peer-1',
         packetId: 'inbound-1',
-        replyHandle: TEST_REPLY_HANDLE,
+        callbackDeadline: TEST_EXPIRES_AT,
         fulfillment: Buffer.alloc(32).toString('base64')
       }),
       new DispatchRejectPacketCmd({
         peerId: 'peer-1',
         packetId: 'inbound-2',
-        replyHandle: 'reply-handle-2',
+        callbackDeadline: TEST_EXPIRES_AT,
         rejectCode: 'F06'
       })
     ]);
 
     assert.equal(transport.sentResponses.length, 2);
-    assert.equal(transport.sentResponses[0].replyHandle, TEST_REPLY_HANDLE);
-    assert.equal(transport.sentResponses[1].replyHandle, 'reply-handle-2');
+    assert.equal(transport.sentResponses[0].peerId, 'peer-1');
+    assert.equal(transport.sentResponses[1].peerId, 'peer-1');
   });
 
   test('processExpiredOutboundPackets publishes R00 when no callback arrives', async () => {

@@ -5,7 +5,7 @@ import * as assert from 'node:assert/strict';
 import { randomUUID } from 'crypto';
 import { status } from '@grpc/grpc-js';
 import { PaymentsClient, isGrpcServiceError } from '../src';
-import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
+import { PalClient } from 'pal-client-lib';
 
 function assertGrpcServiceError(err: unknown, expectedCode: status): void {
   assert.ok(isGrpcServiceError(err), 'expected a gRPC ServiceError');
@@ -33,10 +33,14 @@ describe('Payments Client', () => {
 
   const ASSET_CODE = 'USD';
   const ASSET_SCALE = 2;
-  const RECEIVER_WALLET_ADDRESS = 'payments-client-test.com/receiver';
+  const RECEIVER_WALLET_ADDRESS =
+    'http://open-payments-resource-service:3002/payments-client-receiver';
   const PUBLIC_NAME = 'Test Receiver';
-  const SENDER_WALLET_ADDRESS = 'payments-client-test.com/sender';
+  const SENDER_WALLET_ADDRESS =
+    'http://open-payments-resource-service:3002/payments-client-sender';
   const SENDER_PUBLIC_NAME = 'Test Sender';
+  const RECEIVER_PATH_NAME = 'payments-client-receiver';
+  const SENDER_PATH_NAME = 'payments-client-sender';
 
   let palClient: PalClient;
   let paymentsClient: PaymentsClient;
@@ -54,14 +58,11 @@ describe('Payments Client', () => {
       // already exists — fine for reruns
     }
 
-    // Ensure wallet address exists
-    const { domain: receiverDomain, pathName: receiverPathName } =
-      parseAddressToDomainAndPathName(RECEIVER_WALLET_ADDRESS);
-
+    // Ensure wallet address exists (pathName-only alias, domain null)
     try {
       await palClient.createWalletAddress(
-        receiverDomain,
-        receiverPathName,
+        null,
+        RECEIVER_PATH_NAME,
         PUBLIC_NAME,
         ASSET_CODE
       );
@@ -69,14 +70,10 @@ describe('Payments Client', () => {
       // already exists — fine for reruns
     }
 
-    // Ensure sender wallet address exists
-    const { domain: senderDomain, pathName: senderPathName } =
-      parseAddressToDomainAndPathName(SENDER_WALLET_ADDRESS);
-
     try {
       await palClient.createWalletAddress(
-        senderDomain,
-        senderPathName,
+        null,
+        SENDER_PATH_NAME,
         SENDER_PUBLIC_NAME,
         ASSET_CODE
       );
@@ -84,23 +81,23 @@ describe('Payments Client', () => {
       // already exists — fine for reruns
     }
 
-    const receiverAlias = await palClient.resolveWalletAddressAlias(
-      receiverDomain,
-      receiverPathName
+    const receiverWallet = await palClient.resolveWalletAddressByAlias(
+      null,
+      RECEIVER_PATH_NAME
     );
 
-    assert.ok(receiverAlias, 'receiver wallet address alias must resolve');
+    assert.ok(receiverWallet, 'receiver wallet address alias must resolve');
 
-    receiverWalletAddressId = receiverAlias.walletAddressId;
+    receiverWalletAddressId = receiverWallet.id;
 
-    const senderAlias = await palClient.resolveWalletAddressAlias(
-      senderDomain,
-      senderPathName
+    const senderWallet = await palClient.resolveWalletAddressByAlias(
+      null,
+      SENDER_PATH_NAME
     );
 
-    assert.ok(senderAlias, 'sender wallet address alias must resolve');
+    assert.ok(senderWallet, 'sender wallet address alias must resolve');
 
-    senderWalletAddressId = senderAlias.walletAddressId;
+    senderWalletAddressId = senderWallet.id;
 
     paymentsClient = new PaymentsClient(PAYMENTS_GRPC_URL);
     await paymentsClient.init();
@@ -707,23 +704,25 @@ describe('Payments Client', () => {
   describe('getPaymentIntentsPage', () => {
     // Fresh wallet address per test run so pagination assertions are
     // isolated from data left behind by earlier runs.
-    const PAGE_RECEIVER_ADDRESS = `payments-client-test.com/page-receiver-${randomUUID()}`;
+    const PAGE_RECEIVER_PATH = `page-receiver-${randomUUID()}`;
+    const PAGE_RECEIVER_ADDRESS = `http://open-payments-resource-service:3002/${PAGE_RECEIVER_PATH}`;
     let pageReceiverWalletAddressId: string;
     const intentIds: string[] = [];
 
     before(async () => {
-      const { domain, pathName } = parseAddressToDomainAndPathName(
-        PAGE_RECEIVER_ADDRESS
-      );
       await palClient.createWalletAddress(
-        domain,
-        pathName,
+        null,
+        PAGE_RECEIVER_PATH,
         'Page Receiver',
         ASSET_CODE
       );
-      const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
-      assert.ok(alias, 'page receiver wallet address alias must resolve');
-      pageReceiverWalletAddressId = alias.walletAddressId;
+
+      const wallet = await palClient.resolveWalletAddressByAlias(
+        null,
+        PAGE_RECEIVER_PATH
+      );
+      assert.ok(wallet, 'page receiver wallet address alias must resolve');
+      pageReceiverWalletAddressId = wallet.id;
 
       for (let i = 0; i < 5; i++) {
         const id = randomUUID();
@@ -850,23 +849,26 @@ describe('Payments Client', () => {
 
   describe('getPaymentsPage', () => {
     // Fresh sender wallet address per test run isolates these payments.
-    const PAGE_SENDER_ADDRESS = `payments-client-test.com/page-sender-${randomUUID()}`;
+    const PAGE_SENDER_PATH = `page-sender-${randomUUID()}`;
+    const PAGE_SENDER_ADDRESS = `http://open-payments-resource-service:3002/${PAGE_SENDER_PATH}`;
     let pageSenderWalletAddressId: string;
     const paymentIds: string[] = [];
     let firstIntentId: string;
 
     before(async () => {
-      const { domain, pathName } =
-        parseAddressToDomainAndPathName(PAGE_SENDER_ADDRESS);
       await palClient.createWalletAddress(
-        domain,
-        pathName,
+        null,
+        PAGE_SENDER_PATH,
         'Page Sender',
         ASSET_CODE
       );
-      const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
-      assert.ok(alias, 'page sender wallet address alias must resolve');
-      pageSenderWalletAddressId = alias.walletAddressId;
+
+      const wallet = await palClient.resolveWalletAddressByAlias(
+        null,
+        PAGE_SENDER_PATH
+      );
+      assert.ok(wallet, 'page sender wallet address alias must resolve');
+      pageSenderWalletAddressId = wallet.id;
 
       // three payments across two intents
       firstIntentId = await createPaymentIntent(100);

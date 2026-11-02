@@ -1,32 +1,15 @@
-import { InboundReplyTarget, OutboundPacketCorrelation } from './types';
+import { OutboundPacketCorrelation } from './types';
 import { expiryScore } from './expiry';
 import { ITransportCorrelationStore } from './store';
 
 export class InMemoryTransportCorrelationStore
   implements ITransportCorrelationStore
 {
-  private readonly _inboundByHandle = new Map<string, InboundReplyTarget>();
   private readonly _outboundByPacketId = new Map<
     string,
     OutboundPacketCorrelation
   >();
   private readonly _outboundExpiryAt = new Map<string, number>();
-
-  async createInboundReplyHandle(target: InboundReplyTarget): Promise<string> {
-    const replyHandle = crypto.randomUUID();
-    this._inboundByHandle.set(replyHandle, target);
-    return replyHandle;
-  }
-
-  async resolveInboundReplyHandle(
-    replyHandle: string
-  ): Promise<InboundReplyTarget | undefined> {
-    return this._inboundByHandle.get(replyHandle);
-  }
-
-  async deleteInboundReplyHandle(replyHandle: string): Promise<void> {
-    this._inboundByHandle.delete(replyHandle);
-  }
 
   async storeOutboundCorrelation(
     packetId: string,

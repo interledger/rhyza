@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "dev": "node --import tsx src/index.ts",
     "build": "tsc --build",
+    "test": "node --import tsx --test test/*.test.ts",
     "lint:openapi": "redocly lint ../../docs/openapi/admin/admin-api.yaml --lint-config error --format=stylish"
   },
   "keywords": [],

@@ -31,6 +31,7 @@ const HTTP_PATH = process.env['ILP_CONNECTOR_HTTP_PATH'] || '/ilp';
 const PUBLIC_BASE_URL =
   process.env['ILP_CONNECTOR_PUBLIC_URL'] || `http://localhost:${HTTP_PORT}`;
 const REDIS_URL = process.env['REDIS_URL'];
+const ILP_ADDRESS = process.env['ILP_ADDRESS'] || 'private.rhyza';
 const OUTBOUND_EXPIRY_POLL_MS = process.env[
   'ILP_CONNECTOR_OUTBOUND_EXPIRY_POLL_MS'
 ]
@@ -98,11 +99,11 @@ export class IlpConnectorService {
       deps?.transport ??
       new HttpConnectorTransport({
         directory: this._directory,
-        correlationStore: this._correlationStore,
         port: HTTP_PORT,
         publicBaseUrl: PUBLIC_BASE_URL,
         path: HTTP_PATH,
-        logger: this._logger
+        logger: this._logger,
+        ilpAddress: ILP_ADDRESS
       });
     await this._transport.start?.();
 
@@ -110,7 +111,8 @@ export class IlpConnectorService {
       this._producer,
       this._transport,
       this._correlationStore,
-      this._logger
+      this._logger,
+      ILP_ADDRESS
     );
     this._connector.init();
 

@@ -1,0 +1,11 @@
+meta {
+  name: Get Quote
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://{{adminApiUrl}}/payment-intents/{{paymentIntentId}}/quotes/{{quoteId}}
+  body: none
+  auth: none
+}
