@@ -547,19 +547,30 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
 
     if (paymentIntents.length === 0) return;
 
-    try {
-      await this._paymentIntentCollection.bulkWrite(
-        paymentIntents.map((paymentIntent) => ({
+    const ops = paymentIntents.flatMap((paymentIntent) =>
+      paymentIntent.quotes.flatMap((quote) => [
+        // Insert the quote if it doesn't exist.
+        {
+          updateOne: {
+            filter: { id: paymentIntent.id, 'quotes.id': { $ne: quote.id } },
+            update: { $push: { quotes: quote } }
+          }
+        },
+        // Update the quote if it already exists.
+        {
           updateOne: {
             filter: { id: paymentIntent.id },
-            update: {
-              $set: {
-                quotes: paymentIntent.quotes
-              }
-            }
+            update: { $set: { 'quotes.$[q]': quote } },
+            arrayFilters: [{ 'q.id': quote.id }]
           }
-        }))
-      );
+        }
+      ])
+    );
+
+    if (ops.length === 0) return;
+
+    try {
+      await this._paymentIntentCollection.bulkWrite(ops);
     } catch (e) {
       this._logger.error(e);
       throw new Error(

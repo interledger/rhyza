@@ -3,12 +3,6 @@
 /**
  * Two command-handler instances adding a quote to the SAME payment intent.
  *
- * This test FAILS on this branch and PASSES on main, with no change to the
- * test itself. The only difference is the write `storeQuotes` issues:
- *
- *   main:        $push of just the new quote -> additive, both quotes survive
- *   this branch: $set of the whole array     -> last writer wins, one is lost
- *
  * Why two instances can touch one intent at once: commands are Kafka-keyed by
  * `payload.paymentIntentId` (payments-domain-lib/src/commands.ts), but a quote
  * against a REMOTE intent is addressed by URL — the caller cannot know the
