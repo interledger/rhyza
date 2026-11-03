@@ -25,6 +25,8 @@ const HOST = process.env['HOST'] || '0.0.0.0';
 const AUTH_GRPC_URL = process.env['AUTH_GRPC_URL'] || 'localhost:50054';
 const OPEN_PAYMENTS_AUTH_SERVER_URL =
   process.env['OPEN_PAYMENTS_AUTH_SERVER_URL'] || 'http://localhost:3003';
+// TODO: validate that this is set on startup
+const IDP_URL = process.env['IDP_URL'] as string;
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -93,7 +95,8 @@ export class OpenPaymentsAuthServer {
     });
     this.server.register(interactionRoutes, {
       authClient: this.authClient,
-      openPaymentsAuthServerUrl: OPEN_PAYMENTS_AUTH_SERVER_URL
+      openPaymentsAuthServerUrl: OPEN_PAYMENTS_AUTH_SERVER_URL,
+      idpUrl: IDP_URL
     });
 
     await this.server.listen({ port: PORT, host: HOST });
