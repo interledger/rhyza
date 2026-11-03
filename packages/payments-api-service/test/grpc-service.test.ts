@@ -10,8 +10,12 @@ import {
   IMessageConsumer,
   IMessageProducer
 } from 'common-types-lib';
-import { CreatePaymentIntentRequest } from 'payments-public-types-lib';
 import {
+  CreatePaymentIntentRequest,
+  CreatePaymentRequest
+} from 'payments-public-types-lib';
+import {
+  CreatePaymentCmd,
   CreatePaymentIntentCmd,
   IPaymentIntentRepository
 } from 'payments-domain-lib';
@@ -94,5 +98,39 @@ describe('CreatePaymentIntentRequest handler', () => {
     await callUnary(server, req);
 
     assert.equal(sent[0].payload.incomingAmount, 500);
+  });
+});
+
+const buildPaymentRequest = () => {
+  const req = new CreatePaymentRequest();
+  req.setId(randomUUID());
+  req.setWalletAddressId('wallet-1');
+  req.setWalletAddress('https://example.com/alice');
+  req.setPaymentIntentId(randomUUID());
+  req.setQuoteId(randomUUID());
+  return req;
+};
+
+describe('CreatePaymentRequest handler', () => {
+  test('passes metadata through when the request sets it', async () => {
+    const { server, sent } = createServer();
+    const req = buildPaymentRequest();
+    const metadata = JSON.stringify({ description: 'Order #4711' });
+    req.setMetadata(metadata);
+
+    await callUnary(server, req);
+
+    assert.equal(sent.length, 1);
+    assert.ok(sent[0] instanceof CreatePaymentCmd);
+    assert.equal(sent[0].payload.metadata, metadata);
+  });
+
+  test('leaves metadata undefined when the request omits it', async () => {
+    const { server, sent } = createServer();
+
+    await callUnary(server, buildPaymentRequest());
+
+    assert.ok(sent[0] instanceof CreatePaymentCmd);
+    assert.equal(sent[0].payload.metadata, undefined);
   });
 });
