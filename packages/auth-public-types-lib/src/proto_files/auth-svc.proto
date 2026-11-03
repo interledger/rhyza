@@ -80,7 +80,7 @@ message SubjectId {
 message SignatureData {
 	string url = 1;
 	string method = 2;
-	string body = 3;
+	optional string body = 3;
 	string headers = 4; // JSON string
 	string kid = 5;
 }

@@ -1,3 +1,4 @@
+import { FastifyInstance } from 'fastify';
 import * as crypto from 'crypto';
 import { AccessItem } from 'auth-client-lib';
 import { OpenPaymentsAuthServerRouteError } from './errors';
@@ -86,4 +87,21 @@ export function createInteractResponse(
     redirect: `${openPaymentsAuthServerUrl}/interact/${grantId}`,
     finish: interactionNonce
   };
+}
+
+export function allowEmptyJsonBody(server: FastifyInstance): void {
+  const defaultJsonParser = server.getDefaultJsonParser('error', 'error');
+
+  server.removeContentTypeParser('application/json');
+  server.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (request, body: string, done) => {
+      if (body === '') {
+        done(null, undefined);
+        return;
+      }
+      defaultJsonParser(request, body, done);
+    }
+  );
 }
