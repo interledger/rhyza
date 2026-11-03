@@ -1,7 +1,6 @@
 import { Collection, CollectionInfo, Db, Filter, MongoClient } from 'mongodb';
 import {
   DEFAULT_SORT_ORDER,
-  FinalizedRemoteQuoteUpdate,
   InvalidCursorError,
   IPage,
   IPageOpts,
@@ -543,30 +542,35 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     };
   }
 
-  async storeQuotes(
-    quoteUpdates: { quoteIds: string[]; paymentIntent: IPaymentIntent }[]
-  ): Promise<void> {
+  async storeQuotes(paymentIntents: IPaymentIntent[]): Promise<void> {
     this._checkInitialisedOrThrow();
 
-    if (quoteUpdates.length === 0) return;
+    if (paymentIntents.length === 0) return;
+
+    const ops = paymentIntents.flatMap((paymentIntent) =>
+      paymentIntent.quotes.flatMap((quote) => [
+        // Insert the quote if it doesn't exist.
+        {
+          updateOne: {
+            filter: { id: paymentIntent.id, 'quotes.id': { $ne: quote.id } },
+            update: { $push: { quotes: quote } }
+          }
+        },
+        // Update the quote if it already exists.
+        {
+          updateOne: {
+            filter: { id: paymentIntent.id },
+            update: { $set: { 'quotes.$[q]': quote } },
+            arrayFilters: [{ 'q.id': quote.id }]
+          }
+        }
+      ])
+    );
+
+    if (ops.length === 0) return;
 
     try {
-      await this._paymentIntentCollection.bulkWrite(
-        quoteUpdates.map((update) => ({
-          updateOne: {
-            filter: { id: update.paymentIntent.id },
-            update: {
-              $push: {
-                quotes: {
-                  $each: update.paymentIntent.quotes.filter((q) =>
-                    update.quoteIds.includes(q.id)
-                  )
-                }
-              }
-            }
-          }
-        }))
-      );
+      await this._paymentIntentCollection.bulkWrite(ops);
     } catch (e) {
       this._logger.error(e);
       throw new Error(
@@ -817,46 +821,6 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
       this._logger.error(e);
       throw new Error(
         `Unable to store finalized inbound payments - error: ${(e as Error).message}`
-      );
-    }
-  }
-
-  async storeFinalizedRemoteQuotes(
-    updates: FinalizedRemoteQuoteUpdate[]
-  ): Promise<void> {
-    this._checkInitialisedOrThrow();
-
-    if (updates.length === 0) return;
-
-    try {
-      await this._paymentIntentCollection.bulkWrite(
-        updates.map((u) => ({
-          updateOne: {
-            filter: { id: u.paymentIntentId },
-            update: {
-              $set:
-                u.state === 'COMPLETED'
-                  ? {
-                      'quotes.$[q].state': 'COMPLETED',
-                      'quotes.$[q].debitAmount': u.debitAmount,
-                      'quotes.$[q].receiveAmount': u.receiveAmount,
-                      'quotes.$[q].exchangeRate': u.exchangeRate,
-                      'quotes.$[q].expiresAt': u.expiresAt
-                    }
-                  : {
-                      'quotes.$[q].state': 'FAILED',
-                      'quotes.$[q].errorName': u.errorName,
-                      'quotes.$[q].message': u.message
-                    }
-            },
-            arrayFilters: [{ 'q.id': u.quoteId }]
-          }
-        }))
-      );
-    } catch (e) {
-      this._logger.error(e);
-      throw new Error(
-        `Unable to finalize remote quotes - error: ${(e as Error).message}`
       );
     }
   }
