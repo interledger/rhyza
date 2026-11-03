@@ -17,7 +17,8 @@ import {
   ILPQuoteRequestReceivedEvent,
   RespondToRemoteQuoteCmd,
   StartRemotePaymentCmd,
-  StartRemoteQuoteCmd
+  StartRemoteQuoteCmd,
+  ExpirePacketCmd
 } from 'ilp-domain-lib';
 import {
   RemoteQuoteCalculatedEvent,
@@ -25,7 +26,8 @@ import {
   RemoteQuoteRequestedEvent,
   InboundPaymentFulfillableEvent,
   InboundPaymentFailedEvent,
-  RemotePaymentPreparedEvent
+  RemotePaymentPreparedEvent,
+  PaymentExpiredEvent
 } from 'payments-public-types-lib';
 import { PeerActivatedEvent, PeerDeactivatedEvent } from 'pal-public-types-lib';
 import { IlpEventHandler } from '../src/event-handler';
@@ -360,6 +362,32 @@ describe('IlpEventHandler', () => {
     ]);
 
     assert.equal(producer.sent.length, 0);
+  });
+
+  test('maps PaymentExpiredEvent to ExpirePacketCmd for that payment', async () => {
+    const producer = new MockProducer();
+    const consumer = new MockConsumer();
+    const handler = new IlpEventHandler(
+      consumer,
+      producer,
+      new ConsoleLogger()
+    );
+    await handler.start();
+
+    await consumer.deliver([
+      new PaymentExpiredEvent({
+        paymentIntentId: 'intent-1',
+        paymentId: 'pay-1'
+      })
+    ]);
+
+    assert.equal(producer.sent.length, 1);
+    const cmd = producer.sent[0] as ExpirePacketCmd;
+    assert.equal(cmd.msgName, ExpirePacketCmd.name);
+    assert.equal(cmd.msgKey, 'intent-1');
+    assert.equal(cmd.payload.paymentId, 'pay-1');
+    assert.equal(cmd.payload.paymentIntentId, 'intent-1');
+    assert.ok(cmd.payload.expiredAt);
   });
 });
 

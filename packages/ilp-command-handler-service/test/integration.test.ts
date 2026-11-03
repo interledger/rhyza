@@ -279,7 +279,6 @@ describe('ILP command handler <-> connector over Kafka topics', () => {
 
     await producer.send(startQuote());
     const packetId = dispatchedPacketId(bus);
-    // No wire response arrived; the expiry worker publishes ExpirePacketCmd.
     await producer.send(
       new ExpirePacketCmd({
         peerId: 'peer-1',

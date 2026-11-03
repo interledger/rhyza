@@ -11,6 +11,7 @@ import {
   DeactivatePeerCmd,
   FulfillInboundPaymentCmd,
   RejectInboundPaymentCmd,
+  ExpirePacketCmd,
   RespondToRemoteQuoteCmd,
   StartRemotePaymentCmd,
   StartRemoteQuoteCmd
@@ -21,7 +22,8 @@ import {
   RemoteQuoteRequestedEvent,
   RemotePaymentPreparedEvent,
   InboundPaymentFulfillableEvent,
-  InboundPaymentFailedEvent
+  InboundPaymentFailedEvent,
+  PaymentExpiredEvent
 } from 'payments-public-types-lib';
 import { PeerActivatedEvent, PeerDeactivatedEvent } from 'pal-public-types-lib';
 
@@ -161,6 +163,17 @@ export class IlpEventHandler {
           inboundPaymentId: payload.inboundPaymentId,
           requestId: message.requestId ?? crypto.randomUUID(),
           rejectMessage: payload.message
+        });
+      }
+      case PaymentExpiredEvent.name: {
+        const payload = message.payload as PaymentExpiredEvent['payload'];
+        this._logger.debug(
+          `Expiring ILP packet for payment ${payload.paymentId}`
+        );
+        return new ExpirePacketCmd({
+          paymentId: payload.paymentId,
+          paymentIntentId: payload.paymentIntentId,
+          expiredAt: new Date().toISOString()
         });
       }
       case PeerActivatedEvent.name: {
