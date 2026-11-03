@@ -5,6 +5,7 @@ import fastifyCookie from '@fastify/cookie';
 import fastifySession from '@fastify/session';
 import { AuthClient } from 'auth-client-lib';
 import { createInteractResponse } from '../src/utils';
+import { interactionRoutes } from '../src/routes/interaction';
 
 const AUTH_SERVER_URL = 'https://auth.example';
 const IDP_URL = 'https://idp.example/consent';
@@ -15,10 +16,6 @@ describe('interact.redirect', () => {
   const startedFor: string[] = [];
 
   before(async () => {
-    // interaction.ts reads IDP_URL when it is loaded
-    process.env['IDP_URL'] = IDP_URL;
-    const { interactionRoutes } = await import('../src/routes/interaction.js');
-
     app = Fastify();
     // same session setup as service.ts
     app.register(fastifyCookie);
@@ -39,7 +36,8 @@ describe('interact.redirect', () => {
           };
         }
       } as unknown as AuthClient,
-      openPaymentsAuthServerUrl: AUTH_SERVER_URL
+      openPaymentsAuthServerUrl: AUTH_SERVER_URL,
+      idpUrl: IDP_URL
     });
   });
 

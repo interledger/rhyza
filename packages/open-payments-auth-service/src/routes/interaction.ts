@@ -5,10 +5,8 @@ import { calculateInteractionHash } from '../utils';
 interface InteractionRouteOptions extends FastifyPluginOptions {
   authClient: AuthClient;
   openPaymentsAuthServerUrl: string;
+  idpUrl: string;
 }
-
-// TODO: validate that this is set on startup
-const IDP_URL = process.env['IDP_URL'];
 
 export async function interactionRoutes(
   server: FastifyInstance,
@@ -18,14 +16,14 @@ export async function interactionRoutes(
     Params: { grantId: string };
     session: { authenticated: boolean };
   }>('/interaction/:grantId/start', async (request, reply) => {
-    const { authClient } = opts;
+    const { authClient, idpUrl } = opts;
     const { grantId } = request.params;
     const { id, nonce, clientUri, clientName } =
       await authClient.startInteraction(grantId);
 
     request.session.interactionSessionId = nonce;
 
-    const redirectUrl = new URL(IDP_URL as string);
+    const redirectUrl = new URL(idpUrl);
     redirectUrl.searchParams.set('interactId', id);
     redirectUrl.searchParams.set('clientName', clientName);
     redirectUrl.searchParams.set('clientUri', clientUri);
