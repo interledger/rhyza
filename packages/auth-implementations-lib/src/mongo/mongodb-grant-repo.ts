@@ -7,7 +7,8 @@ import {
   IRotatedGrantUpdate,
   IContinuedGrantUpdate,
   IFinishedInteractiveGrantUpdate,
-  IUpdatedSpentAmountGrant
+  IUpdatedSpentAmountGrant,
+  ISpentAmounts
 } from 'auth-domain-lib';
 import { ILogger } from 'common-types-lib';
 
@@ -108,6 +109,27 @@ export class MongoDbGrantRepo implements IGrantRepository {
     await this._client.close();
   }
 
+  private _spentAmountsDocToGrantSpentAmounts(
+    docSpentAmount: GrantDoc['spentAmounts']
+  ): ISpentAmounts | undefined {
+    if (!docSpentAmount) return undefined;
+    return {
+      total: {
+        debit: BigInt(docSpentAmount.total.debit),
+        receive: BigInt(docSpentAmount?.total.receive)
+      },
+      interval: docSpentAmount.interval
+        ? {
+            ...docSpentAmount.interval,
+            total: {
+              debit: BigInt(docSpentAmount.interval.total.debit),
+              receive: BigInt(docSpentAmount.interval.total.receive)
+            }
+          }
+        : undefined
+    };
+  }
+
   private _docToGrant(
     doc: WithId<GrantDoc>,
     tokenDocs: AccessTokenDoc[]
@@ -130,7 +152,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
       finishUri: doc.finishUri,
       interactionNonce: doc.interactionNonce,
       interaction: doc.interaction,
-      spentAmounts: doc.spentAmounts,
+      spentAmounts: this._spentAmountsDocToGrantSpentAmounts(doc.spentAmounts),
       accessTokens: tokenDocs.map((token) => ({
         ...token,
         expiresInMs: token.expiresInMs,
@@ -401,7 +423,10 @@ export class MongoDbGrantRepo implements IGrantRepository {
     this._checkInitialisedOrThrow();
 
     try {
-      const doc = await this._grantCollection.findOne({ id });
+      const doc = await this._grantCollection.findOne(
+        { id },
+        { useBigInt64: true }
+      );
       if (!doc) return undefined;
 
       const tokenDocs = await this._accessTokenCollection
@@ -424,7 +449,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
 
     try {
       const docs = await this._grantCollection
-        .find({ id: { $in: ids } })
+        .find({ id: { $in: ids } }, { useBigInt64: true })
         .toArray();
 
       const tokenDocs = await this._accessTokenCollection
