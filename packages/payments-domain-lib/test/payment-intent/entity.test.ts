@@ -2,7 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isRemoteSentPayment } from '../../src/payment-intent/interfaces';
 
-import { PaymentIntent } from '../../src/payment-intent/entity';
+import {
+  PaymentIntent,
+  PAYMENT_EXPIRED_REASON,
+  PAYMENT_EXPIRY_GRACE_MS
+} from '../../src/payment-intent/entity';
 import {
   InvalidPaymentAmountError,
   InvalidPaymentIntentExpiryError,
@@ -19,7 +23,8 @@ import {
 } from '../../src/payment-intent/errors';
 import {
   IPaymentIntent,
-  PaymentIntentDestination
+  PaymentIntentDestination,
+  SentPaymentState
 } from '../../src/payment-intent/interfaces';
 
 describe('PaymentIntent Entity', () => {
@@ -2072,13 +2077,53 @@ describe('PaymentIntent Entity', () => {
       const { paymentIntent, paymentId } =
         makeRemoteIntentWithPaymentInState('PROCESSING');
 
-      const payment = paymentIntent.prepareRemotePayment({
+      const { payment } = paymentIntent.prepareRemotePayment({
         id: paymentId,
         ledgerTransferId: 'ledger-1'
       });
 
       assert.equal(payment.state, 'SENDING');
       assert.equal(payment.ledgerTransferId, 'ledger-1');
+    });
+
+    it('sets the packet deadline 30s out and the payment expiry a grace period after it', () => {
+      const { paymentIntent, paymentId } =
+        makeRemoteIntentWithPaymentInState('PROCESSING');
+      const now = new Date();
+
+      const { payment, packetExpiresAt } = paymentIntent.prepareRemotePayment({
+        id: paymentId,
+        ledgerTransferId: 'ledger-1',
+        now
+      });
+
+      assert.equal(packetExpiresAt.getTime(), now.getTime() + 30_000);
+      assert.equal(
+        payment.expiresAt?.getTime(),
+        packetExpiresAt.getTime() + PAYMENT_EXPIRY_GRACE_MS
+      );
+    });
+
+    it('caps the packet deadline at the intent expiry', () => {
+      const { paymentIntent, paymentId } =
+        makeRemoteIntentWithPaymentInState('PROCESSING');
+      // The intent expires in 60s, so 40s from now the 30s cap is past it.
+      const now = new Date(paymentIntent.expiresAt.getTime() - 10_000);
+
+      const { payment, packetExpiresAt } = paymentIntent.prepareRemotePayment({
+        id: paymentId,
+        ledgerTransferId: 'ledger-1',
+        now
+      });
+
+      assert.equal(
+        packetExpiresAt.getTime(),
+        paymentIntent.expiresAt.getTime()
+      );
+      assert.equal(
+        payment.expiresAt?.getTime(),
+        paymentIntent.expiresAt.getTime() + PAYMENT_EXPIRY_GRACE_MS
+      );
     });
 
     it('throws PaymentNotFoundError if payment not on intent', () => {
@@ -2133,6 +2178,215 @@ describe('PaymentIntent Entity', () => {
           assert(err instanceof PaymentInvalidStateError);
           return true;
         }
+      );
+    });
+  });
+
+  describe('expireRemotePayment', () => {
+    const paymentExpiresAt = new Date(Date.now() + 10_000);
+
+    function makeRemoteIntentWithPaymentInState(
+      paymentState: SentPaymentState
+    ) {
+      const paymentIntentId = crypto.randomUUID();
+      const paymentId = crypto.randomUUID();
+      return {
+        paymentId,
+        paymentIntent: PaymentIntent.fromObject({
+          id: paymentIntentId,
+          receiverWalletAddress: 'remote.domain.com/alice',
+          destination: PaymentIntentDestination.REMOTE,
+          assetCode: 'USD',
+          assetScale: 2,
+          incomingAmount: null,
+          receivedAmount: 0n,
+          state: 'CREATED',
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          destinationIlpAddress: 'g.peer.123',
+          quotes: [],
+          inboundPayments: [],
+          sentPayments: [
+            {
+              destination: 'REMOTE',
+              peerId: 'peer-1',
+              id: paymentId,
+              state: paymentState,
+              senderWalletAddress: 'sender',
+              senderWalletAddressId: crypto.randomUUID(),
+              paymentIntentId,
+              assetCode: 'USD',
+              assetScale: 2,
+              createdAt: new Date(),
+              debitAmount: 500n,
+              receiveAmount: 100n,
+              sentAmount: 0n,
+              ledgerTransferId: 'ledger-1',
+              expiresAt: paymentExpiresAt
+            }
+          ]
+        })
+      };
+    }
+
+    it('transitions a SENDING payment past its expiry to EXPIRED with a fail reason', () => {
+      const { paymentIntent, paymentId } =
+        makeRemoteIntentWithPaymentInState('SENDING');
+
+      const { expired, payment } = paymentIntent.expireRemotePayment({
+        id: paymentId,
+        now: new Date(paymentExpiresAt.getTime() + 1)
+      });
+
+      assert.equal(expired, true);
+      assert.equal(payment.state, 'EXPIRED');
+      assert.equal(payment.failReason, PAYMENT_EXPIRED_REASON);
+    });
+
+    it('expires a SENDING payment exactly at its expiry', () => {
+      const { paymentIntent, paymentId } =
+        makeRemoteIntentWithPaymentInState('SENDING');
+
+      const { expired } = paymentIntent.expireRemotePayment({
+        id: paymentId,
+        now: paymentExpiresAt
+      });
+
+      assert.equal(expired, true);
+    });
+
+    it('leaves a SENDING payment that is not yet due', () => {
+      const { paymentIntent, paymentId } =
+        makeRemoteIntentWithPaymentInState('SENDING');
+
+      const { expired, payment } = paymentIntent.expireRemotePayment({
+        id: paymentId,
+        now: new Date(paymentExpiresAt.getTime() - 1)
+      });
+
+      assert.equal(expired, false);
+      assert.equal(payment.state, 'SENDING');
+    });
+
+    for (const state of [
+      'CONFIRMED',
+      'REJECTED',
+      'COMPLETED',
+      'FAILED',
+      'EXPIRED'
+    ] as const) {
+      it(`leaves a ${state} payment alone`, () => {
+        const { paymentIntent, paymentId } =
+          makeRemoteIntentWithPaymentInState(state);
+
+        const { expired, payment } = paymentIntent.expireRemotePayment({
+          id: paymentId,
+          now: new Date(paymentExpiresAt.getTime() + 1)
+        });
+
+        assert.equal(expired, false);
+        assert.equal(payment.state, state);
+      });
+    }
+
+    it('throws PaymentNotFoundError if payment not on intent', () => {
+      const { paymentIntent } = makeRemoteIntentWithPaymentInState('SENDING');
+
+      assert.throws(
+        () =>
+          paymentIntent.expireRemotePayment({
+            id: crypto.randomUUID(),
+            now: new Date()
+          }),
+        PaymentNotFoundError
+      );
+    });
+
+    it('fails an EXPIRED payment and keeps the expiry reason', () => {
+      const { paymentIntent, paymentId } =
+        makeRemoteIntentWithPaymentInState('SENDING');
+      paymentIntent.expireRemotePayment({
+        id: paymentId,
+        now: new Date(paymentExpiresAt.getTime() + 1)
+      });
+
+      const payment = paymentIntent.failRemotePayment({ id: paymentId });
+
+      assert.equal(payment.state, 'FAILED');
+      assert.equal(payment.failReason, PAYMENT_EXPIRED_REASON);
+    });
+  });
+
+  describe('expire', () => {
+    function makeIntent(state: 'CREATED' | 'COMPLETED' | 'EXPIRED') {
+      return PaymentIntent.fromObject({
+        id: crypto.randomUUID(),
+        receiverWalletAddressId: crypto.randomUUID(),
+        receiverWalletAddress: 'receiver',
+        destination: PaymentIntentDestination.LOCAL,
+        assetCode: 'USD',
+        assetScale: 2,
+        incomingAmount: null,
+        receivedAmount: 0n,
+        state,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+        quotes: [],
+        sentPayments: [],
+        inboundPayments: []
+      });
+    }
+
+    it('transitions a CREATED intent past its expiry to EXPIRED', () => {
+      const paymentIntent = makeIntent('CREATED');
+
+      const expired = paymentIntent.expire(
+        new Date(paymentIntent.expiresAt.getTime() + 1)
+      );
+
+      assert.equal(expired, true);
+      assert.equal(paymentIntent.state, 'EXPIRED');
+    });
+
+    it('leaves a CREATED intent that is not yet due', () => {
+      const paymentIntent = makeIntent('CREATED');
+
+      const expired = paymentIntent.expire(
+        new Date(paymentIntent.expiresAt.getTime() - 1)
+      );
+
+      assert.equal(expired, false);
+      assert.equal(paymentIntent.state, 'CREATED');
+    });
+
+    for (const state of ['COMPLETED', 'EXPIRED'] as const) {
+      it(`leaves a ${state} intent alone`, () => {
+        const paymentIntent = makeIntent(state);
+
+        const expired = paymentIntent.expire(
+          new Date(paymentIntent.expiresAt.getTime() + 1)
+        );
+
+        assert.equal(expired, false);
+        assert.equal(paymentIntent.state, state);
+      });
+    }
+
+    it('refuses new inbound payments once expired', () => {
+      const paymentIntent = makeIntent('CREATED');
+      paymentIntent.expire(new Date(paymentIntent.expiresAt.getTime() + 1));
+
+      assert.throws(
+        () =>
+          paymentIntent.addInboundPayment({
+            id: crypto.randomUUID(),
+            packetId: crypto.randomUUID(),
+            peerId: 'peer-1',
+            peerAssetCode: 'USD',
+            peerAssetScale: 2,
+            sourceAmount: 100n
+          }),
+        PaymentIntentInvalidState
       );
     });
   });

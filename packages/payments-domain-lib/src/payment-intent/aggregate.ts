@@ -1270,7 +1270,7 @@ export class PaymentIntentAggregate {
           paymentIntent.remoteUrl
         );
 
-      const payment = paymentIntent.prepareRemotePayment({
+      const { payment, packetExpiresAt } = paymentIntent.prepareRemotePayment({
         id: paymentId,
         ledgerTransferId
       });
@@ -1303,8 +1303,9 @@ export class PaymentIntentAggregate {
           assetCode: payment.assetCode,
           assetScale: payment.assetScale,
           sharedSecret: remoteDetails.sharedSecret,
-          // TODO: packet expiry — picked 30s to match the ILP quote handler.
-          expiresAt: new Date(Date.now() + 30_000).toISOString()
+          // The packet deadline. The payment itself expires a grace period
+          // later, so a fulfill that arrives in time reaches Payments first.
+          expiresAt: packetExpiresAt.toISOString()
         },
         cmd.requestId
       );
@@ -2697,6 +2698,7 @@ export class PaymentIntentAggregate {
           id: string;
           state: SentPaymentState;
           ledgerTransferId: string;
+          expiresAt: Date;
         }[];
       }[] = [];
 
@@ -2719,7 +2721,8 @@ export class PaymentIntentAggregate {
             (p) => ({
               id: p.id,
               state: p.state,
-              ledgerTransferId: p.ledgerTransferId ?? ''
+              ledgerTransferId: p.ledgerTransferId ?? '',
+              expiresAt: p.expiresAt ?? new Date()
             })
           )
         });

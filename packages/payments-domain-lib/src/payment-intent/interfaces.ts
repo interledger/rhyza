@@ -96,7 +96,12 @@ export interface IRemoteSentPayment extends IBaseSentPayment {
   receiveAmount: bigint | null;
   /** Set when the payment is prepared. */
   ledgerTransferId?: string;
-  /** Set when the payment is rejected or fails. */
+  /**
+   * Set when the payment is prepared: its packet's deadline plus a grace
+   * period. Past it, a SENDING payment is expired.
+   */
+  expiresAt?: Date;
+  /** Set when the payment is rejected, expires or fails. */
   failReason?: string;
 }
 
@@ -122,6 +127,7 @@ export interface IStoredSentPayment extends IBaseSentPayment {
   peerId?: string;
   receiveAmount: bigint | null;
   ledgerTransferId?: string;
+  expiresAt?: Date;
   failReason?: string;
 }
 
@@ -333,6 +339,7 @@ export interface IPaymentIntentRepository {
         id: string;
         state: SentPaymentState;
         ledgerTransferId: string;
+        expiresAt: Date;
       }[];
     }[]
   ): Promise<void>;
@@ -359,6 +366,25 @@ export interface IPaymentIntentRepository {
       }[];
     }[]
   ): Promise<void>;
+  storeExpiredPaymentIntents(
+    paymentIntents: { id: string; state: PaymentIntentState }[]
+  ): Promise<void>;
+  storeExpiredRemotePayments(
+    paymentUpdates: {
+      sentPayments: {
+        id: string;
+        state: SentPaymentState;
+        failReason?: string;
+      }[];
+    }[]
+  ): Promise<void>;
+  /** Ids of CREATED intents whose expiresAt is at or before `now`, oldest first. */
+  fetchExpiredPaymentIntentIds(now: Date, limit: number): Promise<string[]>;
+  /** SENDING remote payments whose expiresAt is at or before `now`, oldest first. */
+  fetchExpiredRemotePayments(
+    now: Date,
+    limit: number
+  ): Promise<{ paymentIntentId: string; paymentId: string }[]>;
   storeCompletedRemotePayments(
     paymentUpdates: {
       paymentIntent: {
