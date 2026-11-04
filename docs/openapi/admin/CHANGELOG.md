@@ -1,3 +1,33 @@
+# API Changelog 0.0.19 vs. 0.0.20
+
+
+## API Changes
+
+### GET /payment-intents
+- :warning: added the new `EXPIRED` enum value to the `result/items/state` response property for the response status `200`
+
+
+### GET /payment-intents/{id}
+- :warning: added the new `EXPIRED` enum value to the `state` response property for the response status `200`
+
+
+### GET /payment-intents/{intentId}/payments/{id}
+- :warning: added the new `EXPIRED` enum value to the `state` response property for the response status `200`
+
+
+### POST /payment-intents/{intentId}/payments/{id}/approve
+- :warning: added the new `EXPIRED` enum value to the `state` response property for the response status `200`
+
+
+### GET /payments
+- :warning: added the new `EXPIRED` enum value to the `result/items/state` response property for the response status `200`
+
+
+
+
+## Info
+-  a breaking change was detected but the major version did not increase, from `0.0.19` to `0.0.20`
+
 # API Changelog 0.0.18 vs. 0.0.19
 
 
