@@ -16,7 +16,7 @@ import {
   InboundPaymentState,
   IWalletAddress
 } from './interfaces';
-import { PaymentIntent } from './entity';
+import { PaymentIntent, PAYMENT_EXPIRED_REASON } from './entity';
 import {
   CreatePaymentIntentCmd,
   CompletePaymentIntentCmd,
@@ -36,7 +36,9 @@ import {
   AcceptInboundPaymentCmd,
   FailInboundPaymentCmd,
   MarkInboundPaymentFulfillableCmd,
-  FinalizeInboundPaymentCmd
+  FinalizeInboundPaymentCmd,
+  ExpirePaymentIntentCmd,
+  ExpirePaymentCmd
 } from '../commands';
 import {
   CannotCreateDuplicatePaymentIntentError,
@@ -79,7 +81,9 @@ import {
   InboundPaymentFailedEvent,
   InboundPaymentFinalizedEvent,
   PaymentIntentCompletedPayload,
-  PaymentCompleteFailedAdditionalData
+  PaymentCompleteFailedAdditionalData,
+  PaymentIntentExpiredEvent,
+  PaymentExpiredEvent
 } from 'payments-public-types-lib';
 
 const fxKey = (
@@ -104,6 +108,8 @@ export class PaymentIntentAggregate {
   private rejectedRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private completedRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private failedRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
+  private expiredRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
+  private expiredPaymentIntentIds: string[] = [];
   private cancelledPayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private newInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
   private acceptedInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
@@ -131,8 +137,9 @@ export class PaymentIntentAggregate {
     private _logger: ILogger
   ) {}
 
-  async handleBatch(cmds: IMessage[]): Promise<{ events: IMessage[] }> {
-    this._logger.debug(`handleBatch — ${cmds.length} cmd(s)`);
+  async handleBatch(batch: IMessage[]): Promise<{ events: IMessage[] }> {
+    this._logger.debug(`handleBatch — ${batch.length} cmd(s)`);
+    const cmds = this._orderExpiryLast(batch);
     const outputEvents: IMessage[] = [];
 
     // prefetch any external data needed to process the batch
@@ -213,6 +220,12 @@ export class PaymentIntentAggregate {
         paymentIntentIdsSet.add(payload.paymentIntentId);
       } else if (cmd.msgName === FinalizeInboundPaymentCmd.name) {
         const payload = (cmd as FinalizeInboundPaymentCmd).payload;
+        paymentIntentIdsSet.add(payload.paymentIntentId);
+      } else if (cmd.msgName === ExpirePaymentIntentCmd.name) {
+        const payload = (cmd as ExpirePaymentIntentCmd).payload;
+        paymentIntentIdsSet.add(payload.paymentIntentId);
+      } else if (cmd.msgName === ExpirePaymentCmd.name) {
+        const payload = (cmd as ExpirePaymentCmd).payload;
         paymentIntentIdsSet.add(payload.paymentIntentId);
       }
     }
@@ -400,6 +413,12 @@ export class PaymentIntentAggregate {
         event = this.handleFinalizeInboundPaymentCommand(
           cmd as FinalizeInboundPaymentCmd
         );
+      } else if (cmd.msgName === ExpirePaymentIntentCmd.name) {
+        event = this.handleExpirePaymentIntentCommand(
+          cmd as ExpirePaymentIntentCmd
+        );
+      } else if (cmd.msgName === ExpirePaymentCmd.name) {
+        event = this.handleExpirePaymentCommand(cmd as ExpirePaymentCmd);
       } else {
         throw new Error('Unexpected command');
       }
@@ -408,6 +427,30 @@ export class PaymentIntentAggregate {
     }
 
     return { events: outputEvents };
+  }
+
+  /**
+   * Moves expire commands after every other command in the batch, and drops
+   * repeats. A confirm or reject for the same payment in this batch then
+   * settles it first, and the expiry finds it no longer expirable. The expiry
+   * check can resend a command before the first is handled, hence the dedupe.
+   */
+  private _orderExpiryLast(cmds: IMessage[]): IMessage[] {
+    const others: IMessage[] = [];
+    const expiries = new Map<string, IMessage>();
+    for (const cmd of cmds) {
+      if (cmd.msgName === ExpirePaymentIntentCmd.name) {
+        const { paymentIntentId } = (cmd as ExpirePaymentIntentCmd).payload;
+        expiries.set(`intent:${paymentIntentId}`, cmd);
+      } else if (cmd.msgName === ExpirePaymentCmd.name) {
+        const { paymentIntentId, paymentId } = (cmd as ExpirePaymentCmd)
+          .payload;
+        expiries.set(`payment:${paymentIntentId}:${paymentId}`, cmd);
+      } else {
+        others.push(cmd);
+      }
+    }
+    return [...others, ...expiries.values()];
   }
 
   private handleCreatePaymentIntentCommand(cmd: CreatePaymentIntentCmd) {
@@ -1372,7 +1415,9 @@ export class PaymentIntentAggregate {
           assetScale: payment.assetScale,
           receiveAssetCode: paymentIntent.assetCode,
           receiveAssetScale: paymentIntent.assetScale,
-          reason,
+          // PAL's release reply carries no reason; keep the one recorded
+          // when the payment was rejected or expired.
+          reason: reason ?? payment.failReason,
           grantId: payment.grantId
         },
         cmd.requestId
@@ -1417,6 +1462,24 @@ export class PaymentIntentAggregate {
         throw new PaymentNotFoundError(
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
+      }
+      if (existingPayment.state === 'EXPIRED') {
+        // The fulfill reached Payments after the expiry check. The payment's
+        // reservation may already be released, so the sender was not debited
+        // for money the peer delivered. Nothing reconciles this yet.
+        this._logger.error(
+          {
+            paymentIntentId,
+            paymentId,
+            ledgerTransferId: existingPayment.ledgerTransferId,
+            peerId: existingPayment.peerId,
+            debitAmount: String(existingPayment.debitAmount),
+            assetCode: existingPayment.assetCode,
+            expiresAt: existingPayment.expiresAt?.toISOString()
+          },
+          `Payment ${paymentId} was fulfilled after it expired; needs reconciliation`
+        );
+        return [];
       }
       errorContext = {
         sentAmount: existingPayment.sentAmount.toString(),
@@ -1498,6 +1561,14 @@ export class PaymentIntentAggregate {
         throw new PaymentNotFoundError(
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
+      }
+      if (existingPayment.state === 'EXPIRED') {
+        // Expiry already started releasing the reservation; ILP's late
+        // failure has nothing left to do.
+        this._logger.debug(
+          `Ignoring ILP failure for already expired payment ${paymentId}`
+        );
+        return [];
       }
       errorContext = {
         sentAmount: existingPayment.sentAmount.toString(),
@@ -2016,6 +2087,109 @@ export class PaymentIntentAggregate {
         },
         cmd.requestId
       );
+    }
+  }
+
+  // Expire commands come from the expiry check, not a caller, so nobody waits
+  // on a failure event: failures are logged, and a no-op returns no event.
+  private handleExpirePaymentIntentCommand(
+    cmd: ExpirePaymentIntentCmd
+  ): IMessage[] {
+    const { paymentIntentId } = cmd.payload;
+    this._logger.debug(
+      `handleExpirePaymentIntentCommand — paymentIntentId: ${paymentIntentId}`
+    );
+
+    const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
+    if (!paymentIntentObj) {
+      this._logger.warn(
+        `Cannot expire payment intent ${paymentIntentId}: not found`
+      );
+      return [];
+    }
+
+    const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
+    if (!paymentIntent.expire(new Date())) {
+      this._logger.debug(
+        `Payment intent ${paymentIntentId} not expired: state ${paymentIntent.state}, expiresAt ${paymentIntent.expiresAt.toISOString()}`
+      );
+      return [];
+    }
+    this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
+    this.expiredPaymentIntentIds.push(paymentIntent.id);
+
+    return [
+      new PaymentIntentExpiredEvent(
+        {
+          id: paymentIntent.id,
+          state: paymentIntent.state,
+          expiresAt: paymentIntent.expiresAt
+        },
+        cmd.requestId
+      )
+    ];
+  }
+
+  private handleExpirePaymentCommand(cmd: ExpirePaymentCmd): IMessage[] {
+    const { paymentIntentId, paymentId } = cmd.payload;
+    this._logger.debug(
+      `handleExpirePaymentCommand — paymentId: ${paymentId} paymentIntentId: ${paymentIntentId}`
+    );
+
+    try {
+      const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
+      if (!paymentIntentObj) {
+        throw new PaymentIntentNotFoundError(
+          `Payment intent ${paymentIntentId} not found`
+        );
+      }
+
+      const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
+      const { expired, payment } = paymentIntent.expireRemotePayment({
+        id: paymentId,
+        now: new Date()
+      });
+      if (!expired) {
+        this._logger.debug(
+          `Payment ${paymentId} not expired: state ${payment.state}, expiresAt ${payment.expiresAt?.toISOString()}`
+        );
+        return [];
+      }
+      // Only a SENDING payment expires, and prepare set both of these.
+      if (!payment.ledgerTransferId || !payment.expiresAt) {
+        throw new Error(
+          `Payment ${paymentId} is missing ledgerTransferId or expiresAt at expiry`
+        );
+      }
+      this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
+      this._appendToMap(
+        this.expiredRemotePayments,
+        paymentIntent.id,
+        paymentId
+      );
+
+      return [
+        new PaymentExpiredEvent(
+          {
+            paymentIntentId: paymentIntent.id,
+            paymentId: payment.id,
+            ledgerTransferId: payment.ledgerTransferId,
+            peerId: payment.peerId,
+            requestId: cmd.requestId,
+            debitAmount: String(payment.debitAmount),
+            assetCode: payment.assetCode,
+            assetScale: payment.assetScale,
+            expiresAt: payment.expiresAt,
+            reason: payment.failReason ?? PAYMENT_EXPIRED_REASON
+          },
+          cmd.requestId
+        )
+      ];
+    } catch (err) {
+      this._logger.warn(
+        `Cannot expire payment ${paymentId} of payment intent ${paymentIntentId}: ${(err as Error).message}`
+      );
+      return [];
     }
   }
 
@@ -2826,6 +3000,59 @@ export class PaymentIntentAggregate {
       promises.push(this._repo.storeFailedRemotePayments(updates));
     }
 
+    if (this.expiredPaymentIntentIds.length > 0) {
+      const expiredEntities: { id: string; state: PaymentIntentState }[] = [];
+      for (const id of this.expiredPaymentIntentIds) {
+        const paymentIntent = this.paymentIntentMap.get(id);
+        if (!paymentIntent) {
+          this._logger.error(
+            `Payment intent ${id} missing from paymentIntentMap during flush (expired payment intents)`
+          );
+          continue;
+        }
+
+        expiredEntities.push({
+          id: paymentIntent.id,
+          state: paymentIntent.state
+        });
+      }
+
+      promises.push(this._repo.storeExpiredPaymentIntents(expiredEntities));
+    }
+
+    if (this.expiredRemotePayments.size > 0) {
+      const updates: {
+        sentPayments: {
+          id: string;
+          state: SentPaymentState;
+          failReason?: string;
+        }[];
+      }[] = [];
+
+      for (const [
+        paymentIntentId,
+        paymentIds
+      ] of this.expiredRemotePayments.entries()) {
+        const paymentIntent = this.paymentIntentMap.get(paymentIntentId);
+        if (!paymentIntent) {
+          this._logger.error(
+            `Payment intent ${paymentIntentId} missing from paymentIntentMap during flush (expired remote payments)`
+          );
+          continue;
+        }
+
+        updates.push({
+          sentPayments: this._collectRemotePayments(
+            paymentIntent.sentPayments,
+            paymentIds,
+            (p) => ({ id: p.id, state: p.state, failReason: p.failReason })
+          )
+        });
+      }
+
+      promises.push(this._repo.storeExpiredRemotePayments(updates));
+    }
+
     if (this.cancelledPayments.size > 0) {
       const updates: {
         sentPayments: {
@@ -2885,6 +3112,8 @@ export class PaymentIntentAggregate {
       this.completedRemotePayments.clear();
       this.failedRemotePayments.clear();
       this.cancelledPayments.clear();
+      this.expiredRemotePayments.clear();
+      this.expiredPaymentIntentIds = [];
       this.updatedQuotePaymentIntentIds.clear();
       this.newPaymentIntentIds = [];
       this.completedPaymentIntentIds = [];
