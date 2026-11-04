@@ -1,6 +1,5 @@
 import { getErrorDetails, ILogger, IMessage } from 'common-types-lib';
 import {
-  FinalizedRemoteQuoteUpdate,
   IFxRateRequest,
   IPalService,
   IPeer,
@@ -10,6 +9,7 @@ import {
   IPaymentIntent,
   IPaymentIntentRepository,
   IRemotePaymentIntentService,
+  IRemoteStreamCredentials,
   PaymentIntentDestination,
   PaymentIntentState,
   SentPaymentState,
@@ -94,7 +94,8 @@ const intraFxKey = (sourceAssetCode: string, destinationAssetCode: string) =>
 export class PaymentIntentAggregate {
   private newPaymentIntentIds: string[] = [];
   private completedPaymentIntentIds: string[] = [];
-  private newPaymentIntentQuotes = new Map<string, string[]>(); // paymentIntentId, quoteIds
+  /** Payment intents with quotes array that changed this batch. */
+  private updatedQuotePaymentIntentIds = new Set<string>();
   private newSentPaymentsMap = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private completedLocalPayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private approvedRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
@@ -109,10 +110,13 @@ export class PaymentIntentAggregate {
   private failedInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
   private fulfillableInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
   private finalizedInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
-  private finalizedRemoteQuotes = new Map<string, string[]>(); // paymentIntentId, quoteIds
   private paymentIntentMap = new Map<string, IPaymentIntent>();
   private walletAddressMap = new Map<string, IWalletAddress>();
   private remotePaymentIntentFetchErrors = new Map<string, Error>();
+  // The OP server mints a fresh connection token on every fetch, so the ILP
+  // address and the shared secret are only valid as a pair. Cache them
+  // together, never separately. Cleared per batch like every other map here.
+  private remoteStreamCredentials = new Map<string, IRemoteStreamCredentials>();
   private peerMap = new Map<string, IPeer | null>(); // ilpAddress, peer
   private peerFetchErrors = new Map<string, Error>(); // ilpAddress, error
   private peersById = new Map<string, IPeer | null>(); // peerId, peer
@@ -611,11 +615,7 @@ export class PaymentIntentAggregate {
         });
 
         this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
-        this._appendToMap(
-          this.newPaymentIntentQuotes,
-          paymentIntent.id,
-          quoteId
-        );
+        this.updatedQuotePaymentIntentIds.add(paymentIntent.id);
 
         this._logger.debug(
           `handleCreateQuoteCommand — LOCAL quote completed quoteId: ${quoteId}, paymentIntentId: ${paymentIntent.id}`
@@ -675,11 +675,20 @@ export class PaymentIntentAggregate {
       });
 
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
-      this._appendToMap(this.newPaymentIntentQuotes, paymentIntent.id, quoteId);
+      this.updatedQuotePaymentIntentIds.add(paymentIntent.id);
 
       this._logger.debug(
         `handleCreateQuoteCommand — REMOTE quote pending quoteId: ${quoteId} destinationIlpAddress: ${destinationIlpAddress} peerId: ${peer.peerId}`
       );
+
+      // Peer routing above used the stored address, which is fine as every
+      // token for this receiver shares the same routable prefix. The packet
+      // itself must use the address these credentials were minted with.
+      const streamCredentials = await this._resolveRemoteStreamCredentials(
+        paymentIntent.id,
+        paymentIntent.remoteUrl ?? remoteUrl
+      );
+
       return new RemoteQuoteRequestedEvent(
         {
           paymentIntentId: paymentIntent.id,
@@ -695,7 +704,8 @@ export class PaymentIntentAggregate {
           peerAssetCode: peer.assetCode,
           peerAssetScale: peer.assetScale,
           sourceAmount: sourceAmount.toString(),
-          destinationIlpAddress
+          destinationIlpAddress: streamCredentials.destinationIlpAddress,
+          sharedSecret: streamCredentials.sharedSecret
         },
         cmd.requestId
       );
@@ -958,7 +968,7 @@ export class PaymentIntentAggregate {
       });
 
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
-      this._appendToMap(this.finalizedRemoteQuotes, paymentIntent.id, quoteId);
+      this.updatedQuotePaymentIntentIds.add(paymentIntent.id);
 
       return new QuoteCompletedEvent(
         {
@@ -1005,7 +1015,7 @@ export class PaymentIntentAggregate {
       paymentIntent.failRemoteQuote({ id: quoteId, errorName, message });
 
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
-      this._appendToMap(this.finalizedRemoteQuotes, paymentIntent.id, quoteId);
+      this.updatedQuotePaymentIntentIds.add(paymentIntent.id);
 
       return new QuoteCreateFailedEvent(
         { paymentIntentId, errorName, errorType, message },
@@ -2100,6 +2110,10 @@ export class PaymentIntentAggregate {
         );
         this.paymentIntentMap.set(canonicalId, entity.toObject());
         this.newPaymentIntentIds.push(canonicalId);
+        this.remoteStreamCredentials.set(canonicalId, {
+          destinationIlpAddress: remotePaymentIntent.destinationIlpAddress,
+          sharedSecret: remotePaymentIntent.sharedSecret
+        });
       }
     }
 
@@ -2116,6 +2130,10 @@ export class PaymentIntentAggregate {
       const resolvedError = this.remotePaymentIntentFetchErrors.get(resolvedId);
       if (resolvedError) {
         this.remotePaymentIntentFetchErrors.set(proposedId, resolvedError);
+      }
+      const resolvedCredentials = this.remoteStreamCredentials.get(resolvedId);
+      if (resolvedCredentials) {
+        this.remoteStreamCredentials.set(proposedId, resolvedCredentials);
       }
     }
   }
@@ -2141,6 +2159,39 @@ export class PaymentIntentAggregate {
       assetScale: paymentIntent.assetScale,
       metadata: paymentIntent.metadata
     };
+  }
+
+  /**
+   * STREAM credentials for a remote incoming payment, as a pair.
+   *
+   * `sharedSecret` is derived from the connection token embedded in
+   * `destinationIlpAddress`, and the OP server re-mints that token on every
+   * fetch. Pairing an address stored at import time with a secret from a later
+   * fetch produces a packet the receiver cannot decrypt, and it answers F06.
+   * So both fields always come from the same response — never from the payment
+   * intent for one and a fetch for the other.
+   */
+  private async _resolveRemoteStreamCredentials(
+    paymentIntentId: string,
+    remoteUrl?: string
+  ): Promise<IRemoteStreamCredentials> {
+    const cached = this.remoteStreamCredentials.get(paymentIntentId);
+    if (cached) return cached;
+
+    if (!remoteUrl) {
+      throw new Error(
+        `Payment intent ${paymentIntentId} is missing remoteUrl; cannot fetch STREAM credentials`
+      );
+    }
+
+    const remoteDetails =
+      await this._remotePaymentIntentService.fetchPaymentIntent(remoteUrl);
+    const credentials = {
+      destinationIlpAddress: remoteDetails.destinationIlpAddress,
+      sharedSecret: remoteDetails.sharedSecret
+    };
+    this.remoteStreamCredentials.set(paymentIntentId, credentials);
+    return credentials;
   }
 
   private _collectIlpAddress(
@@ -2321,15 +2372,14 @@ export class PaymentIntentAggregate {
       promises.push(this._repo.storeCompletedPaymentIntents(completedEntities));
     }
 
-    if (this.newPaymentIntentQuotes.size > 0) {
-      const updates: {
-        paymentIntent: IPaymentIntent;
-        quoteIds: string[];
-      }[] = [];
-      for (const [
-        paymentIntentId,
-        quoteIds
-      ] of this.newPaymentIntentQuotes.entries()) {
+    // New intents are inserted with their quotes via storeMany. Existing
+    // intents get a full $set of the quotes array from the in-memory aggregate.
+    if (this.updatedQuotePaymentIntentIds.size > 0) {
+      const newIds = new Set(this.newPaymentIntentIds);
+      const paymentIntents: IPaymentIntent[] = [];
+      for (const paymentIntentId of this.updatedQuotePaymentIntentIds) {
+        if (newIds.has(paymentIntentId)) continue;
+
         const paymentIntent = this.paymentIntentMap.get(paymentIntentId);
         if (!paymentIntent) {
           this._logger.error(
@@ -2338,10 +2388,12 @@ export class PaymentIntentAggregate {
           continue;
         }
 
-        updates.push({ paymentIntent, quoteIds });
+        paymentIntents.push(paymentIntent);
       }
 
-      promises.push(this._repo.storeQuotes(updates));
+      if (paymentIntents.length > 0) {
+        promises.push(this._repo.storeQuotes(paymentIntents));
+      }
     }
 
     if (this.newSentPaymentsMap.size > 0) {
@@ -2810,58 +2862,6 @@ export class PaymentIntentAggregate {
       promises.push(this._repo.storeCancelledPayments(updates));
     }
 
-    if (this.finalizedRemoteQuotes.size > 0) {
-      const updates: FinalizedRemoteQuoteUpdate[] = [];
-
-      for (const [
-        paymentIntentId,
-        quoteIds
-      ] of this.finalizedRemoteQuotes.entries()) {
-        const paymentIntent = this.paymentIntentMap.get(paymentIntentId);
-        if (!paymentIntent) {
-          this._logger.error(
-            `Payment intent ${paymentIntentId} missing from paymentIntentMap during flush (finalized remote quotes)`
-          );
-          continue;
-        }
-
-        for (const quoteId of quoteIds) {
-          const quote = paymentIntent.quotes.find((q) => q.id === quoteId);
-          if (!quote) {
-            this._logger.error(
-              `Quote ${quoteId} missing from paymentIntentMap during flush`
-            );
-            continue;
-          }
-          if (quote.state === 'COMPLETED') {
-            updates.push({
-              paymentIntentId,
-              quoteId,
-              state: 'COMPLETED',
-              debitAmount: quote.debitAmount,
-              receiveAmount: quote.receiveAmount,
-              exchangeRate: quote.exchangeRate,
-              expiresAt: quote.expiresAt
-            });
-          } else if (quote.state === 'FAILED') {
-            updates.push({
-              paymentIntentId,
-              quoteId,
-              state: 'FAILED',
-              errorName: quote.errorName,
-              message: quote.message
-            });
-          } else {
-            this._logger.error(
-              `Quote ${quoteId} has unexpected state "${quote.state}" during flush`
-            );
-          }
-        }
-      }
-
-      promises.push(this._repo.storeFinalizedRemoteQuotes(updates));
-    }
-
     // TODO handle gracefully
     try {
       await Promise.all(promises);
@@ -2882,11 +2882,11 @@ export class PaymentIntentAggregate {
       this.completedRemotePayments.clear();
       this.failedRemotePayments.clear();
       this.cancelledPayments.clear();
-      this.finalizedRemoteQuotes.clear();
-      this.newPaymentIntentQuotes.clear();
+      this.updatedQuotePaymentIntentIds.clear();
       this.newPaymentIntentIds = [];
       this.completedPaymentIntentIds = [];
       this.remotePaymentIntentFetchErrors.clear();
+      this.remoteStreamCredentials.clear();
       this.peerMap.clear();
       this.peerFetchErrors.clear();
       this.peersById.clear();

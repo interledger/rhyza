@@ -340,8 +340,8 @@ export class GrantAggregate {
     key: JWK,
     url: string,
     method: string,
-    body: string,
-    headers: Record<string, string>
+    headers: Record<string, string>,
+    body?: string
   ): Promise<boolean> {
     const requestLike = {
       method,
@@ -371,8 +371,8 @@ export class GrantAggregate {
         clientKey as JWK,
         url,
         method,
-        body,
-        headers
+        headers,
+        body
       );
       if (!isValidSignature) {
         throw new UnauthorizedRequestError();
@@ -456,8 +456,8 @@ export class GrantAggregate {
         clientKey as JWK,
         url,
         method,
-        body,
-        headers
+        headers,
+        body
       );
       if (!isValidSignature) {
         throw new UnauthorizedRequestError();
@@ -524,8 +524,8 @@ export class GrantAggregate {
         clientKey as JWK,
         url,
         method,
-        body,
-        headers
+        headers,
+        body
       );
       if (!isValidSignature) {
         throw new UnauthorizedRequestError();
@@ -676,8 +676,8 @@ export class GrantAggregate {
         clientKey as JWK,
         url,
         method,
-        body,
-        headers
+        headers,
+        body
       );
       if (!isValidSignature) {
         throw new UnauthorizedRequestError();
@@ -740,8 +740,8 @@ export class GrantAggregate {
         clientKey as JWK,
         url,
         method,
-        body,
-        headers
+        headers,
+        body
       );
       if (!isValidSignature) {
         throw new UnauthorizedRequestError();

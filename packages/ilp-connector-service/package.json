@@ -13,6 +13,7 @@
   "dependencies": {
     "common-types-lib": "workspace:*",
     "ilp-domain-lib": "workspace:*",
+    "ilp-packet": "3.1.4-alpha.2",
     "implementations-lib": "workspace:*",
     "ioredis": "~5.10.1"
   },

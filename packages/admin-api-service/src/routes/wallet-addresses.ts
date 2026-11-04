@@ -10,31 +10,38 @@ import {
   PalClientWalletAddressAlreadyActiveError,
   PalClientWalletAddressAlreadyInactiveError,
   PalClientWalletAddressNotFoundError,
-  parseAddressToDomainAndPathName
+  assertValidWalletAddressPathName
 } from 'pal-client-lib';
 import { JsonWebKey, WalletAddressCreate } from 'admin-client-lib';
 
 interface WalletAddressRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
+  openPaymentsUrl: string | undefined;
 }
 
 export async function walletAddressRoutes(
   server: FastifyInstance,
   opts: WalletAddressRouteOptions
 ): Promise<void> {
-  const { palClient } = opts;
+  const { palClient, openPaymentsUrl } = opts;
 
   server.post<{
     Body: WalletAddressCreate;
   }>('/wallet-addresses', async (request, reply) => {
-    const { address, publicName, assetCode, isActive } = request.body;
+    const { pathName, publicName, assetCode, isActive } = request.body;
 
-    const { domain, pathName } = parseAddressToDomainAndPathName(address);
+    try {
+      assertValidWalletAddressPathName(pathName);
+    } catch (err) {
+      return reply.status(400).send({
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
 
     let result;
     try {
       result = await palClient.createWalletAddress(
-        domain,
+        null,
         pathName,
         publicName,
         assetCode,
@@ -53,11 +60,12 @@ export async function walletAddressRoutes(
       throw err;
     }
 
+    const baseUrl = openPaymentsUrl?.replace(/\/$/, '');
+    const address = baseUrl ? `${baseUrl}/${result.pathName}` : result.pathName;
+
     return reply.status(201).send({
       id: result.id,
-      address: result.domain
-        ? `${result.domain}/${result.pathName}`
-        : result.pathName
+      address
     });
   });
 

@@ -186,38 +186,31 @@ export interface IPalService {
   getRates(request: IFxRateRequest): Promise<number | null>;
 }
 
-export interface IRemotePaymentIntentDetails {
+/**
+ * STREAM credentials for a remote incoming payment.
+ *
+ * The two fields are one unit: `sharedSecret` is derived from the connection
+ * token encoded in `destinationIlpAddress`. The OP server mints a new token
+ * per fetch, so mixing an address and a secret from different responses gives
+ * the receiver a packet it cannot decrypt.
+ */
+export interface IRemoteStreamCredentials {
+  destinationIlpAddress: string;
+  sharedSecret: string;
+}
+
+export interface IRemotePaymentIntentDetails extends IRemoteStreamCredentials {
   walletAddress: string;
   assetCode: string;
   assetScale: number;
   incomingAmount?: bigint;
   receivedAmount: bigint;
   expiresAt?: string;
-  destinationIlpAddress: string;
-  sharedSecret: string;
 }
 
 export interface IRemotePaymentIntentService {
   fetchPaymentIntent(url: string): Promise<IRemotePaymentIntentDetails>;
 }
-
-export type FinalizedRemoteQuoteUpdate =
-  | {
-      paymentIntentId: string;
-      quoteId: string;
-      state: 'COMPLETED';
-      debitAmount: bigint;
-      receiveAmount: bigint;
-      exchangeRate: number;
-      expiresAt: Date;
-    }
-  | {
-      paymentIntentId: string;
-      quoteId: string;
-      state: 'FAILED';
-      errorName: string;
-      message: string;
-    };
 
 export type SortOrder = 'asc' | 'desc';
 export const DEFAULT_SORT_ORDER: SortOrder = 'desc';
@@ -262,9 +255,7 @@ export interface IPaymentIntentRepository {
   fetchSentPaymentsPage(
     opts: IPageOpts & { paymentIntentId?: string }
   ): Promise<IPage<IStoredSentPayment>>;
-  storeQuotes(
-    quoteUpdates: { quoteIds: string[]; paymentIntent: IPaymentIntent }[]
-  ): Promise<void>;
+  storeQuotes(paymentIntents: IPaymentIntent[]): Promise<void>;
   storeSentPayments(
     paymentUpdates: { paymentIds: string[]; paymentIntent: IPaymentIntent }[]
   ): Promise<void>;
@@ -381,8 +372,5 @@ export interface IPaymentIntentRepository {
         sentAmount: bigint;
       }[];
     }[]
-  ): Promise<void>;
-  storeFinalizedRemoteQuotes(
-    updates: FinalizedRemoteQuoteUpdate[]
   ): Promise<void>;
 }

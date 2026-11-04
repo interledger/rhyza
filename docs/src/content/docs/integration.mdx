@@ -180,11 +180,9 @@ Wallet addresses are created and hosted in Rhyza. However, the mapping of a wall
 <Tabs>
   <TabItem label='1️⃣ Configure the base wallet address'>
     The base wallet address is the portion of the address that will be the same
-    for all customers. **Once the base is set, it cannot be changed.** 
-    
-    ```bash title="Example base address" 
-    https://wallet.example.com
-    ```
+    for all customers. For example, `https://wallet.example.com`.
+
+    The base wallet address URL comes from the configured Open Payments resource server base URL. Because wallet addresses are stored and resolved by `pathName` only, that base URL can be changed after deployment without migrating existing wallet address records.
   </TabItem>
   <TabItem label='2️⃣ Decide wallet address structure'>
     This step defines the structure of what comes after the base wallet address.
@@ -205,6 +203,8 @@ Wallet addresses are created and hosted in Rhyza. However, the mapping of a wall
     Rhyza must be set up with at least one asset before wallet addresses
     can be created. 
     ::: 
+    Create wallet addresses with a bare `pathName` only (for example `sarah`). The Admin API builds the public wallet address URL from the Open Payments resource server base URL plus that pathName. Values containing `/` or `://` are rejected.
+
     Wallet addresses are created one-by-one by calling the Admin API's <LinkOut href='/apis/#tag/wallet-addresses/POST/wallet-addresses'>Create Wallet Address</LinkOut> endpoint. To bulk-assign wallet addresses to existing customers, the FSP should write a script that calls the Create Wallet Address endpoint and loops through their list of accounts.
   </TabItem>
 </Tabs>

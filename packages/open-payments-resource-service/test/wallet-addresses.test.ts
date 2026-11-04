@@ -7,22 +7,17 @@ import { errorHandler } from '../src/errors';
 
 function palClient(state: 'active' | 'inactive' | 'missing'): PalClient {
   return {
-    ResolveWalletAddressAlias: async () =>
+    resolveWalletAddressByAlias: async () =>
       state === 'missing'
         ? null
-        : { domain: null, pathName: 'alice', walletAddressId: 'wa-1' },
-    getWalletAddresses: async () =>
-      state === 'missing'
-        ? []
-        : [
-            {
-              id: 'wa-1',
-              publicName: 'Alice',
-              assetCode: 'USD',
-              assetScale: 2,
-              isActive: state === 'active'
-            }
-          ]
+        : {
+            id: 'wa-1',
+            publicName: 'Alice',
+            assetCode: 'USD',
+            assetScale: 2,
+            isActive: state === 'active'
+          },
+    getWalletAddressKeys: async () => []
   } as unknown as PalClient;
 }
 
@@ -58,22 +53,16 @@ test('GET wallet address returns the document again after the address is reactiv
   let active = false;
   const app = Fastify();
   app.setErrorHandler(errorHandler);
+
   await app.register(walletAddressRoutes, {
     palClient: {
-      ResolveWalletAddressAlias: async () => ({
-        domain: null,
-        pathName: 'alice',
-        walletAddressId: 'wa-1'
-      }),
-      getWalletAddresses: async () => [
-        {
-          id: 'wa-1',
-          publicName: 'Alice',
-          assetCode: 'USD',
-          assetScale: 2,
-          isActive: active
-        }
-      ]
+      resolveWalletAddressByAlias: async () => ({
+        id: 'wa-1',
+        publicName: 'Alice',
+        assetCode: 'USD',
+        assetScale: 2,
+        isActive: active
+      })
     } as unknown as PalClient,
     openPaymentsResourceServiceUrl: 'https://op.example',
     openPaymentsAuthServiceUrl: 'https://auth.example'

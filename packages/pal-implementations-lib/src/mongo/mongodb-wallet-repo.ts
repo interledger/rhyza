@@ -11,7 +11,8 @@ import {
 } from 'mongodb';
 import {
   DuplicateWalletAddressKeyError,
-  IPalWalletAddressRepository
+  IPalWalletAddressRepository,
+  IPalWalletAddressWithKeysDto
 } from 'pal-domain-lib';
 import { ILogger } from 'common-types-lib';
 
@@ -164,11 +165,38 @@ export class MongoDbWalletRepo implements IPalWalletAddressRepository {
         return [];
       }
 
-      return this._withKeys(docs.map((doc) => this._toWalletDto(doc)));
+      return docs.map((doc) => this._toWalletDto(doc));
     } catch (e) {
       this._logger.error(e);
       throw new Error(
         `Unable to get wallet by address - error: ${(e as Error).message}`
+      );
+    }
+  }
+
+  async fetchWithKeys(
+    id: string
+  ): Promise<IPalWalletAddressWithKeysDto | null> {
+    this._checkInitialisedOrThrow();
+
+    try {
+      const [doc, keyDocs] = await Promise.all([
+        this._collection.findOne({ id: id }),
+        this._keyCollection.find({ walletAddressId: id }).toArray()
+      ]);
+
+      if (!doc) {
+        return null;
+      }
+
+      return {
+        ...this._toWalletDto(doc),
+        keys: keyDocs.map((keyDoc) => this._toKeyDto(keyDoc))
+      };
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to get wallet with keys - error: ${(e as Error).message}`
       );
     }
   }
@@ -188,8 +216,7 @@ export class MongoDbWalletRepo implements IPalWalletAddressRepository {
         return null;
       }
 
-      const [wallet] = await this._withKeys([this._toWalletDto(doc)]);
-      return wallet;
+      return this._toWalletDto(doc);
     } catch (e) {
       this._logger.error(e);
       throw new Error(
@@ -224,30 +251,5 @@ export class MongoDbWalletRepo implements IPalWalletAddressRepository {
       revoked: doc.revoked === true,
       ...(doc.revokedAt ? { revokedAt: new Date(doc.revokedAt) } : {})
     };
-  }
-
-  private async _withKeys(
-    wallets: IPalWalletAddressDto[]
-  ): Promise<IPalWalletAddressDto[]> {
-    if (wallets.length === 0) return wallets;
-
-    const ids = wallets.map((wallet) => wallet.id);
-    const keyDocs = await this._keyCollection
-      .find({ walletAddressId: { $in: ids } })
-      .toArray();
-
-    const keysByWallet = new Map<string, IPalWalletAddressKeyDto[]>();
-    for (const doc of keyDocs) {
-      const keys = keysByWallet.get(doc.walletAddressId) ?? [];
-      keys.push(this._toKeyDto(doc));
-      keysByWallet.set(doc.walletAddressId, keys);
-    }
-
-    return wallets.map((wallet) => {
-      return {
-        ...wallet,
-        keys: keysByWallet.get(wallet.id) ?? []
-      };
-    });
   }
 }

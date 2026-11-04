@@ -238,7 +238,9 @@ export class PaymentsServiceServer {
           id: commandId,
           receiverWalletAddressId: call.request.getWalletAddressId(),
           receiverWalletAddress: call.request.getWalletAddress(),
-          incomingAmount: call.request.getIncomingAmount(),
+          incomingAmount: call.request.hasIncomingAmount()
+            ? call.request.getIncomingAmount()
+            : undefined,
           expiresAt: call.request.getExpiresAt(),
           metadata: call.request.getMetadata()
         },
@@ -310,7 +312,8 @@ export class PaymentsServiceServer {
           remotePaymentIntentUrl:
             call.request.getRemotePaymentIntentUrl() || undefined,
           createdAt: call.request.getCreatedAt() || undefined,
-          grantId: call.request.getGrantId() || undefined
+          grantId: call.request.getGrantId() || undefined,
+          metadata: call.request.getMetadata() || undefined
         },
         commandId
       );

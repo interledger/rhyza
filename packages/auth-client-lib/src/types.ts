@@ -8,7 +8,7 @@ export interface IClientErrorResponse {
 export interface SignatureRequestData {
   url: string;
   method: string;
-  body: string;
+  body?: string;
   kid: string;
   headers: Record<string, string>;
 }

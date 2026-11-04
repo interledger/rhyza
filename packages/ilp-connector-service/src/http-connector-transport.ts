@@ -1,7 +1,14 @@
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ConsoleLogger, ILogger } from 'common-types-lib';
-import { ITransportCorrelationStore } from './correlation/store';
+import {
+  deserializeIlpPrepare,
+  deserializeIlpReply,
+  isFulfill,
+  serializeIlpFulfill,
+  serializeIlpPrepare,
+  serializeIlpReject
+} from 'ilp-packet';
 import { PeerDirectory } from './peer-directory';
 import {
   IConnectorTransport,
@@ -14,6 +21,7 @@ import {
   WireResponseHandler
 } from './transport';
 
+const ILP_CONTENT_TYPE = 'application/octet-stream';
 const DEFAULT_PATH = '/ilp';
 const DEFAULT_CALLBACK_PATH = '/ilp/callback';
 const DEFAULT_ACCEPT_TIMEOUT_MS = 5_000;
@@ -23,7 +31,6 @@ const CALLBACK_URL_HEADER = 'callback-url';
 
 export interface HttpConnectorTransportOptions {
   directory: PeerDirectory;
-  correlationStore: ITransportCorrelationStore;
   port: number;
   publicBaseUrl?: string;
   path?: string;
@@ -31,11 +38,12 @@ export interface HttpConnectorTransportOptions {
   logger?: ILogger;
   acceptTimeoutMs?: number;
   callbackRetryDelayMs?: number;
+  /** This node's ILP address — set as `triggeredBy` on connector-originated rejects. */
+  ilpAddress?: string;
 }
 
 export class HttpConnectorTransport implements IConnectorTransport {
   private readonly _directory: PeerDirectory;
-  private readonly _correlationStore: ITransportCorrelationStore;
   private readonly _port: number;
   private readonly _publicBaseUrl?: string;
   private readonly _path: string;
@@ -43,6 +51,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
   private readonly _logger: ILogger;
   private readonly _acceptTimeoutMs: number;
   private readonly _callbackRetryDelayMs: number;
+  private readonly _ilpAddress?: string;
 
   private _server?: http.Server;
   private _responseHandler?: WireResponseHandler;
@@ -51,7 +60,6 @@ export class HttpConnectorTransport implements IConnectorTransport {
 
   constructor(options: HttpConnectorTransportOptions) {
     this._directory = options.directory;
-    this._correlationStore = options.correlationStore;
     this._port = options.port;
     this._publicBaseUrl = options.publicBaseUrl
       ? trimTrailingSlashes(options.publicBaseUrl)
@@ -63,6 +71,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
       options.acceptTimeoutMs ?? DEFAULT_ACCEPT_TIMEOUT_MS;
     this._callbackRetryDelayMs =
       options.callbackRetryDelayMs ?? DEFAULT_CALLBACK_RETRY_DELAY_MS;
+    this._ilpAddress = options.ilpAddress;
   }
 
   async start(): Promise<void> {
@@ -120,7 +129,8 @@ export class HttpConnectorTransport implements IConnectorTransport {
         kind: 'REJECT',
         packetId: prepare.packetId,
         rejectCode: 'T00',
-        rejectMessage: 'no outgoing connector config for peer'
+        rejectMessage: 'no outgoing connector config for peer',
+        triggeredBy: this._ilpAddress
       });
       return;
     }
@@ -136,18 +146,13 @@ export class HttpConnectorTransport implements IConnectorTransport {
       const res = await fetch(outgoing.endpoint, {
         method: 'POST',
         headers: {
-          'content-type': 'application/json',
+          'content-type': ILP_CONTENT_TYPE,
+          accept: ILP_CONTENT_TYPE,
           authorization: `Bearer ${outgoing.authToken}`,
           [REQUEST_ID_HEADER]: prepare.packetId,
           [CALLBACK_URL_HEADER]: `${this._resolvedPublicBaseUrl}${this._callbackPath}`
         },
-        body: JSON.stringify({
-          destinationIlpAddress: prepare.destinationIlpAddress,
-          amount: prepare.amount,
-          expiresAt: prepare.expiresAt,
-          executionCondition: prepare.executionCondition,
-          data: prepare.data
-        }),
+        body: new Uint8Array(serializeWirePrepare(prepare)),
         signal: controller.signal
       });
 
@@ -182,7 +187,8 @@ export class HttpConnectorTransport implements IConnectorTransport {
         kind: 'REJECT',
         packetId: prepare.packetId,
         rejectCode,
-        rejectMessage: message
+        rejectMessage: message,
+        triggeredBy: this._ilpAddress
       });
     } finally {
       clearTimeout(timeout);
@@ -192,35 +198,28 @@ export class HttpConnectorTransport implements IConnectorTransport {
   async sendFulfill(
     fulfill: WireFulfill,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    await this._sendInboundReply(replyHandle, peerId, fulfill);
+    await this._sendInboundReply(peerId, fulfill, callbackDeadline);
   }
 
   async sendReject(
     reject: WireReject,
     peerId: string,
-    replyHandle: string
+    callbackDeadline: string
   ): Promise<void> {
-    await this._sendInboundReply(replyHandle, peerId, reject);
+    await this._sendInboundReply(peerId, reject, callbackDeadline);
   }
 
   private async _sendInboundReply(
-    replyHandle: string,
     peerId: string,
-    response: WireResponse
+    response: WireResponse,
+    callbackDeadline: string
   ): Promise<void> {
-    const target =
-      await this._correlationStore.resolveInboundReplyHandle(replyHandle);
-    if (!target) {
+    const outgoing = this._directory.getOutgoing(peerId);
+    if (!outgoing) {
       this._logger.warn(
-        `No inbound reply target for handle ${replyHandle} (packet ${response.packetId})`
-      );
-      return;
-    }
-    if (target.delivery.kind !== 'http') {
-      this._logger.warn(
-        `Unsupported inbound delivery kind for handle ${replyHandle}`
+        `Peer ${peerId} has no outgoing config; dropping callback for packet ${response.packetId}`
       );
       return;
     }
@@ -228,39 +227,30 @@ export class HttpConnectorTransport implements IConnectorTransport {
     await this._sendCallback(
       response.packetId,
       response,
-      target.delivery.callbackUrl,
-      target.expiresAt,
-      peerId
+      outgoing.callbackEndpoint,
+      callbackDeadline,
+      outgoing.authToken
     );
-    await this._correlationStore.deleteInboundReplyHandle(replyHandle);
   }
 
   private async _sendCallback(
     packetId: string,
     response: WireResponse,
     callbackUrl: string,
-    expiresAt: string,
-    peerId: string
+    callbackDeadline: string,
+    authToken: string
   ): Promise<void> {
-    const outgoing = this._directory.getOutgoing(peerId);
-    if (!outgoing) {
-      this._logger.warn(
-        `Peer ${peerId} has no outgoing config anymore; dropping callback for packet ${packetId}`
-      );
-      return;
-    }
-
-    const deadline = Date.parse(expiresAt);
+    const deadline = Date.parse(callbackDeadline);
     while (true) {
       try {
         const res = await fetch(callbackUrl, {
           method: 'POST',
           headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${outgoing.authToken}`,
+            'content-type': ILP_CONTENT_TYPE,
+            authorization: `Bearer ${authToken}`,
             [REQUEST_ID_HEADER]: packetId
           },
-          body: JSON.stringify(response)
+          body: new Uint8Array(serializeWireResponse(response))
         });
 
         if (res.ok || (res.status >= 400 && res.status < 500)) {
@@ -270,7 +260,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
       } catch (err) {
         if (!Number.isFinite(deadline) || Date.now() >= deadline) {
           this._logger.warn(
-            `Giving up delivering callback for packet ${packetId}: expired. Last error: ${(err as Error).message}`
+            `Giving up delivering callback for packet ${packetId}: callback deadline passed. Last error: ${(err as Error).message}`
           );
           return;
         }
@@ -322,29 +312,22 @@ export class HttpConnectorTransport implements IConnectorTransport {
     }
 
     const requestId = req.headers[REQUEST_ID_HEADER];
-    const callbackUrl = req.headers[CALLBACK_URL_HEADER];
-    if (typeof requestId !== 'string' || typeof callbackUrl !== 'string') {
+    if (typeof requestId !== 'string') {
       res.writeHead(400).end();
       return;
     }
 
     this._readBody(req, (body) => {
-      let parsed: Omit<WirePrepare, 'peerId' | 'packetId'>;
+      let prepare: WirePrepare;
       try {
-        parsed = JSON.parse(body);
+        prepare = deserializeWirePrepare(body, peerId, requestId);
       } catch {
         res.writeHead(400).end();
         return;
       }
 
-      const prepare: WirePrepare = {
-        ...parsed,
-        peerId,
-        packetId: requestId
-      };
-
       res.writeHead(202).end();
-      void this._inboundPrepareHandler?.(prepare, callbackUrl);
+      void this._inboundPrepareHandler?.(prepare);
     });
   }
 
@@ -367,7 +350,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
     this._readBody(req, (body) => {
       let response: WireResponse;
       try {
-        response = { ...JSON.parse(body), packetId: requestId };
+        response = deserializeWireResponse(body, requestId);
       } catch {
         res.writeHead(400).end();
         return;
@@ -387,13 +370,13 @@ export class HttpConnectorTransport implements IConnectorTransport {
 
   private _readBody(
     req: http.IncomingMessage,
-    onComplete: (body: string) => void
+    onComplete: (body: Buffer) => void
   ): void {
-    let body = '';
+    const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => {
-      body += chunk;
+      chunks.push(chunk);
     });
-    req.on('end', () => onComplete(body));
+    req.on('end', () => onComplete(Buffer.concat(chunks)));
   }
 
   private _extractBearerToken(header: string = ''): string | undefined {
@@ -421,4 +404,74 @@ function trimTrailingSlashes(value: string): string {
     end--;
   }
   return value.slice(0, end);
+}
+
+function serializeWirePrepare(prepare: WirePrepare): Buffer {
+  return serializeIlpPrepare({
+    amount: prepare.amount,
+    executionCondition: Buffer.from(prepare.executionCondition, 'base64'),
+    expiresAt: new Date(prepare.expiresAt),
+    destination: prepare.destinationIlpAddress,
+    data: optionalDataBuffer(prepare.data)
+  });
+}
+
+function deserializeWirePrepare(
+  body: Buffer,
+  peerId: string,
+  packetId: string
+): WirePrepare {
+  const parsed = deserializeIlpPrepare(body);
+  return {
+    peerId,
+    packetId,
+    destinationIlpAddress: parsed.destination,
+    amount: parsed.amount,
+    expiresAt: parsed.expiresAt.toISOString(),
+    executionCondition: parsed.executionCondition.toString('base64'),
+    data: optionalDataBase64(parsed.data)
+  };
+}
+
+function serializeWireResponse(response: WireResponse): Buffer {
+  if (response.kind === 'FULFILL') {
+    return serializeIlpFulfill({
+      fulfillment: Buffer.from(response.fulfillment, 'base64'),
+      data: optionalDataBuffer(response.data)
+    });
+  }
+  return serializeIlpReject({
+    code: response.rejectCode,
+    triggeredBy: response.triggeredBy ?? '',
+    message: response.rejectMessage ?? '',
+    data: optionalDataBuffer(response.data)
+  });
+}
+
+function deserializeWireResponse(body: Buffer, packetId: string): WireResponse {
+  const reply = deserializeIlpReply(body);
+  if (isFulfill(reply)) {
+    return {
+      kind: 'FULFILL',
+      packetId,
+      fulfillment: reply.fulfillment.toString('base64'),
+      data: optionalDataBase64(reply.data)
+    };
+  }
+  return {
+    kind: 'REJECT',
+    packetId,
+    rejectCode: reply.code,
+    rejectMessage: reply.message || undefined,
+    triggeredBy: reply.triggeredBy || undefined,
+    data: optionalDataBase64(reply.data)
+  };
+}
+
+function optionalDataBuffer(data?: string): Buffer {
+  return data ? Buffer.from(data, 'base64') : Buffer.alloc(0);
+}
+
+function optionalDataBase64(data: Buffer): string | undefined {
+  return data.length > 0 ? data.toString('base64') : undefined;
 }

@@ -53,20 +53,22 @@ await client.createWalletAddressAlias('domain.com', 'pedrobarreto', '123');
 // Create a wallet address alias with no prefix, a suffix and the internal wallet address id - returns void
 await client.createWalletAddressAlias(null, 'pedrobarreto', '123');
 
-// Tries to get the internal wallet address id from the alias definition,
-// ie, an optional prefix and mandatory suffix - returns alias obj or null
-const alias = await client.resolveWalletAddressAlias(
+// Tries to get the wallet address from the alias definition,
+// ie, an optional domain and mandatory path name - returns the wallet address or null
+const wallet = await client.resolveWalletAddressByAlias(
   'domain.com',
   'pedrobarreto'
 );
-// Tries to get the internal wallet address id without the optional prefix
-const alias2 = await client.resolveWalletAddressAlias(null, 'pedrobarreto');
+// Tries to get the wallet address without the optional domain
+const wallet2 = await client.resolveWalletAddressByAlias(null, 'pedrobarreto');
 
-/* alias response type is:
+/* wallet response type is:
 {
-  prefix: string | null,
-  suffix: string,
-  walletAddressId:string
+  id: string,
+  publicName: string,
+  assetCode: string,
+  assetScale: number,
+  isActive: boolean
 }
 */
 ```

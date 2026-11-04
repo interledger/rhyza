@@ -53,7 +53,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.head_ref }}
+          # The head commit, not the branch name: a pull request from a fork has no branch of that name here.
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Fetch Base Branch
         run: git fetch origin ${{ github.base_ref }}

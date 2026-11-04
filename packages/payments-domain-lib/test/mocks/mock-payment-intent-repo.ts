@@ -1,6 +1,5 @@
 import {
   DEFAULT_SORT_ORDER,
-  FinalizedRemoteQuoteUpdate,
   IPage,
   IPageOpts,
   IPaymentIntent,
@@ -179,11 +178,13 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
     };
   }
 
-  async storeQuotes(
-    quoteUpdates: { quoteIds: string[]; paymentIntent: IPaymentIntent }[]
-  ): Promise<void> {
-    for (const update of quoteUpdates) {
-      this._store.set(update.paymentIntent.id, update.paymentIntent);
+  async storeQuotes(paymentIntents: IPaymentIntent[]): Promise<void> {
+    for (const paymentIntent of paymentIntents) {
+      const existing = this._store.get(paymentIntent.id);
+      if (!existing) {
+        throw new Error('Could not find paymentIntent in store');
+      }
+      existing.quotes = paymentIntent.quotes;
     }
   }
 
@@ -513,38 +514,6 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
         }
         foundPayment.state = payment.state;
         foundPayment.sentAmount = payment.sentAmount;
-      }
-    }
-  }
-
-  async storeFinalizedRemoteQuotes(
-    updates: FinalizedRemoteQuoteUpdate[]
-  ): Promise<void> {
-    for (const update of updates) {
-      const paymentIntent = this._store.get(update.paymentIntentId);
-      if (!paymentIntent) {
-        throw new Error('Could not find paymentIntent in store');
-      }
-
-      const quote = paymentIntent.quotes.find((q) => q.id === update.quoteId);
-      if (!quote) {
-        throw new Error('Could not find quote in store');
-      }
-
-      if (update.state === 'COMPLETED') {
-        Object.assign(quote, {
-          state: 'COMPLETED',
-          debitAmount: update.debitAmount,
-          receiveAmount: update.receiveAmount,
-          exchangeRate: update.exchangeRate,
-          expiresAt: update.expiresAt
-        });
-      } else {
-        Object.assign(quote, {
-          state: 'FAILED',
-          errorName: update.errorName,
-          message: update.message
-        });
       }
     }
   }
