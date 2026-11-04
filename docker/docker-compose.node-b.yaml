@@ -161,7 +161,10 @@ services:
     restart: always
     environment:
       KAFKA_URL: kafka-b:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
     depends_on:
+      mongodb-b:
+        condition: service_healthy
       init-kafka-b:
         condition: service_completed_successfully
     networks:
@@ -382,6 +385,7 @@ services:
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ledger-snapshot-events
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ledger-state-events
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ledger-timer-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic payment-timer-events
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic wallet-address-domain-events
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic fxrate-domain-events
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ilp-domain-events
