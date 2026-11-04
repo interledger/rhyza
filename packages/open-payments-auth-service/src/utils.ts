@@ -107,7 +107,7 @@ export function createInteractResponse(
   openPaymentsAuthServerUrl: string
 ): components['schemas']['interact-response'] {
   return {
-    redirect: `${openPaymentsAuthServerUrl}/interact/${grantId}`,
+    redirect: `${openPaymentsAuthServerUrl}/interaction/${grantId}/start`,
     finish: interactionNonce
   };
 }
