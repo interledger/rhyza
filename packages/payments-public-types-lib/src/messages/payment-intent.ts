@@ -252,6 +252,22 @@ export class PaymentIntentCompleteFailedEvent extends PaymentIntentDomainEvent {
   }
 }
 
+export type PaymentIntentExpiredPayload = {
+  id: string;
+  state: PaymentIntentState;
+  expiresAt: Date;
+};
+
+export class PaymentIntentExpiredEvent extends PaymentIntentDomainEvent {
+  payload: PaymentIntentExpiredPayload;
+
+  constructor(payload: PaymentIntentExpiredPayload, requestId?: string) {
+    super(payload.id);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
 export type QuoteCompletedPayload = {
   id: string;
   paymentIntentId: string;
@@ -559,6 +575,34 @@ export class PaymentFailedEvent extends PaymentIntentDomainEvent {
   isErrorEvent = true;
 
   constructor(payload: PaymentFailedPayload, requestId?: string) {
+    super(payload.paymentIntentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+/**
+ * A remote payment passed its expiry while still SENDING. It carries what PAL
+ * needs to release the reservation (as for RemotePaymentSendRejectedEvent) and
+ * what ILP needs to expire the payment's packet.
+ */
+export type PaymentExpiredPayload = {
+  paymentIntentId: string;
+  paymentId: string;
+  ledgerTransferId: string;
+  peerId: string;
+  requestId: string;
+  debitAmount: string;
+  assetCode: string;
+  assetScale: number;
+  expiresAt: Date;
+  reason: string;
+};
+
+export class PaymentExpiredEvent extends PaymentIntentDomainEvent {
+  payload: PaymentExpiredPayload;
+
+  constructor(payload: PaymentExpiredPayload, requestId?: string) {
     super(payload.paymentIntentId);
     this.payload = payload;
     this.requestId = requestId;

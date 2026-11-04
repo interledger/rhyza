@@ -1,6 +1,7 @@
 export const PaymentIntentState = {
   CREATED: 'CREATED',
-  COMPLETED: 'COMPLETED'
+  COMPLETED: 'COMPLETED',
+  EXPIRED: 'EXPIRED'
 } as const;
 export type PaymentIntentState = keyof typeof PaymentIntentState;
 
@@ -12,7 +13,10 @@ export const SentPaymentState = {
   REJECTED: 'REJECTED',
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED',
-  FAILED: 'FAILED'
+  FAILED: 'FAILED',
+  // Expired before ILP settled it. Like REJECTED, it moves to FAILED once
+  // PAL releases the reservation.
+  EXPIRED: 'EXPIRED'
 } as const;
 export type SentPaymentState = keyof typeof SentPaymentState;
 
