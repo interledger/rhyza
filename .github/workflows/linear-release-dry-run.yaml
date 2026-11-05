@@ -36,7 +36,6 @@ jobs:
           command: sync
           name: ${{ inputs.version || 'v0.0.0-dry-run' }}
           version: ${{ inputs.version || 'v0.0.0-dry-run' }}
-          issue_pattern: '\b(RHY-[0-9]+)\b'
-          base_ref: ${{ inputs.base_ref }}
+          base_ref: ${{ inputs.base_ref || 'eceb22c3' }}
           dry_run: true
           log_level: verbose

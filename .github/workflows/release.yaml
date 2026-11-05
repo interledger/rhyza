@@ -275,4 +275,3 @@ jobs:
           command: sync
           name: ${{ needs.version-generator.outputs.version }}
           version: ${{ needs.version-generator.outputs.version }}
-          issue_pattern: '\b(RHY-[0-9]+)\b'
