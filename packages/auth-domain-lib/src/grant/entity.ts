@@ -618,6 +618,16 @@ export class GrantEntity implements IGrant {
     };
   }
 
+  private validateAmountValue(value: string): void {
+    let parsed: bigint;
+    try {
+      parsed = BigInt(value);
+    } catch {
+      throw new InvalidGrantInputError();
+    }
+    if (parsed <= 0n) throw new InvalidGrantInputError();
+  }
+
   private validateSpentAmount(
     amountType: SpentAmountType,
     value: string,
@@ -706,10 +716,17 @@ export class GrantEntity implements IGrant {
     createdAt: string;
   }): ISpentAmounts {
     const outgoingPaymentAccessItem = this.getOutgoingPaymentAccess();
-    if (!outgoingPaymentAccessItem || !this._spentAmounts)
+    if (
+      !outgoingPaymentAccessItem ||
+      !this._spentAmounts ||
+      this._state !== GrantState.ISSUED
+    )
       throw new InvalidGrantError();
 
     const { receiveAmountValue, debitAmountValue, createdAt } = input;
+
+    if (debitAmountValue) this.validateAmountValue(debitAmountValue);
+    if (receiveAmountValue) this.validateAmountValue(receiveAmountValue);
 
     const { limits } = outgoingPaymentAccessItem;
 

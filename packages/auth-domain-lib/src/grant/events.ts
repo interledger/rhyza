@@ -2,7 +2,6 @@ import { DomainEventTopics, DomainEvent, AppErrorType } from 'common-types-lib';
 import {
   GrantState,
   IAccessItem,
-  IGrant,
   IJsonWebKey,
   ISubjectId,
   InteractionChoice,
@@ -404,7 +403,20 @@ export class GrantInteractionChoiceFailedEvent extends AuthDomainEvent {
 
 export interface OutgoingPaymentGrantLimitValidatedPayload {
   id: string;
-  spentAmounts: IGrant['spentAmounts'];
+  spentAmounts: {
+    total: {
+      debit: string;
+      receive: string;
+    };
+    interval?: {
+      start: number;
+      end: number;
+      total: {
+        debit: string;
+        receive: string;
+      };
+    };
+  };
 }
 
 export class OutgoingPaymentGrantLimitValidatedEvent extends AuthDomainEvent {

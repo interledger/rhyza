@@ -1118,12 +1118,13 @@ describe('GrantEntity', () => {
       overrides: {
         limits?: IAccessLimit;
         spentAmounts?: ISpentAmounts;
+        state?: GrantState;
       } = {}
     ): GrantEntity {
       return GrantEntity.fromObject({
         id: randomUUID(),
         createdAt: new Date(),
-        state: GrantState.ISSUED,
+        state: overrides.state ?? GrantState.ISSUED,
         accessTokens: [],
         accesses: [
           {
@@ -1179,6 +1180,77 @@ describe('GrantEntity', () => {
           }),
         InvalidGrantError
       );
+    });
+
+    const nonIssuedStates = (Object.keys(GrantState) as GrantState[]).filter(
+      (state) => state !== GrantState.ISSUED
+    );
+
+    for (const state of nonIssuedStates) {
+      it(`throws InvalidGrantError when the grant state is ${state}`, () => {
+        const entity = makeGrantWithOutgoingPaymentAccess({ state });
+
+        assert.throws(
+          () =>
+            entity.validateAndUpdateSpentAmounts({
+              debitAmountValue: '10',
+              createdAt: new Date().toISOString()
+            }),
+          InvalidGrantError
+        );
+      });
+    }
+
+    const invalidAmountValues = [
+      { description: 'not a valid integer string', value: 'abc' },
+      { description: 'a decimal string', value: '10.5' },
+      { description: 'zero', value: '0' },
+      { description: 'negative', value: '-10' }
+    ];
+
+    const amountFields = ['debitAmountValue', 'receiveAmountValue'] as const;
+
+    for (const field of amountFields) {
+      for (const { description, value } of invalidAmountValues) {
+        it(`throws InvalidGrantInputError when ${field} is ${description}`, () => {
+          const entity = makeGrantWithOutgoingPaymentAccess({
+            limits: limits({ debitAmount: 100n, receiveAmount: 100n })
+          });
+
+          assert.throws(
+            () =>
+              entity.validateAndUpdateSpentAmounts({
+                [field]: value,
+                createdAt: new Date().toISOString()
+              }),
+            InvalidGrantInputError
+          );
+
+          const obj = entity.toObject();
+          assert.equal(obj.spentAmounts?.total.debit, 0n);
+          assert.equal(obj.spentAmounts?.total.receive, 0n);
+        });
+      }
+    }
+
+    it('leaves both totals unchanged when one amount value is invalid, even if the other is valid', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({ debitAmount: 100n, receiveAmount: 100n })
+      });
+
+      assert.throws(
+        () =>
+          entity.validateAndUpdateSpentAmounts({
+            debitAmountValue: '10',
+            receiveAmountValue: '-5',
+            createdAt: new Date().toISOString()
+          }),
+        InvalidGrantInputError
+      );
+
+      const obj = entity.toObject();
+      assert.equal(obj.spentAmounts?.total.debit, 0n);
+      assert.equal(obj.spentAmounts?.total.receive, 0n);
     });
 
     it('updates the debit and receive totals without validating a limit when the access has no limits', () => {

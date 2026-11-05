@@ -901,10 +901,26 @@ export class GrantAggregate {
 
       this.updatedSpentAmountsGrantIds.add(id);
 
+      const intervalSpentAmount = spentAmounts.interval;
       return new OutgoingPaymentGrantLimitValidatedEvent(
         {
           id,
-          spentAmounts
+          spentAmounts: {
+            total: {
+              debit: String(spentAmounts.total.debit),
+              receive: String(spentAmounts.total.receive)
+            },
+            interval: intervalSpentAmount
+              ? {
+                  start: intervalSpentAmount.start,
+                  end: intervalSpentAmount.end,
+                  total: {
+                    debit: String(intervalSpentAmount.total.debit),
+                    receive: String(intervalSpentAmount.total.receive)
+                  }
+                }
+              : undefined
+          }
         },
         cmd.requestId
       );

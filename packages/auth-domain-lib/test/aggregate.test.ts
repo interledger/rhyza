@@ -1888,7 +1888,7 @@ describe('GrantAggregate.handleBatch', () => {
         const payload = (events[0] as OutgoingPaymentGrantLimitValidatedEvent)
           .payload;
         assert.equal(payload.id, grant.id);
-        assert.equal(payload.spentAmounts?.total.debit, 10n);
+        assert.equal(payload.spentAmounts?.total.debit, '10');
         assert.equal(events[0].requestId, requestId);
       });
 
@@ -1915,7 +1915,7 @@ describe('GrantAggregate.handleBatch', () => {
         );
         const payload = (events[0] as OutgoingPaymentGrantLimitValidatedEvent)
           .payload;
-        assert.equal(payload.spentAmounts?.total.receive, 25n);
+        assert.equal(payload.spentAmounts?.total.receive, '25');
       });
 
       it('fails with OutgoingPaymentGrantLimitValidationFailedEvent and errorName InsufficientGrantError when the debit amount would exceed the limit', async () => {
