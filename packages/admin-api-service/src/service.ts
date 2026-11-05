@@ -4,6 +4,7 @@ import Fastify, { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { PalClient } from 'pal-client-lib';
 import { PaymentsClient } from 'payments-client-lib';
 import { IlpClient } from 'ilp-client-lib';
+import { AuthClient } from 'auth-client-lib';
 import { assetRoutes } from './routes/assets.js';
 import { walletAddressRoutes } from './routes/wallet-addresses.js';
 import { peerRoutes } from './routes/peers.js';
@@ -21,7 +22,6 @@ import {
   MessageSerializationFactory
 } from 'implementations-lib';
 import crypto from 'crypto';
-import { AuthClient } from 'auth-client-lib';
 
 const BC_NAME = 'ADMIN';
 const APP_NAME = `${BC_NAME}_API_SVC`;
@@ -135,5 +135,6 @@ export class AdminApiService {
     await this.palClient?.disconnect();
     await this.paymentsClient?.disconnect();
     await this.ilpClient?.disconnect();
+    await this.authClient?.disconnect();
   }
 }
