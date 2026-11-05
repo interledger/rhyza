@@ -37,6 +37,7 @@ import {
   MockPaymentIntentRepo,
   MockRemotePaymentIntentService,
   MockPalService,
+  stubRemotePaymentIntent,
   toIncomingPaymentWithMethods
 } from '../mocks';
 import {
@@ -533,14 +534,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
 
       it('emits RemoteQuoteRequestedEvent for remote payment intent', async () => {
         const remoteUrl = 'https://remote.domain.com/incoming-payments/abc';
-        mockRemotePaymentIntentService.fetchPaymentIntent = async () => ({
-          walletAddress: 'remote.domain.com/alice',
-          assetCode: 'USD',
-          assetScale: 2,
-          receivedAmount: 0n,
-          destinationIlpAddress: 'g.peer.123',
-          sharedSecret: 'stub-shared-secret'
-        });
+        mockRemotePaymentIntentService.fetchPaymentIntent = async () =>
+          stubRemotePaymentIntent();
         const paymentIntent: IPaymentIntent = {
           id: crypto.randomUUID(),
           receivedAmount: 0n,
@@ -591,14 +586,11 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         // it with a freshly fetched secret gives the receiver a packet it
         // cannot decrypt and it answers F06.
         const remoteUrl = 'https://remote.domain.com/incoming-payments/abc';
-        mockRemotePaymentIntentService.fetchPaymentIntent = async () => ({
-          walletAddress: 'remote.domain.com/alice',
-          assetCode: 'USD',
-          assetScale: 2,
-          receivedAmount: 0n,
-          destinationIlpAddress: 'g.peer.fresh-token',
-          sharedSecret: 'fresh-shared-secret'
-        });
+        mockRemotePaymentIntentService.fetchPaymentIntent = async () =>
+          stubRemotePaymentIntent({
+            destinationIlpAddress: 'g.peer.fresh-token',
+            sharedSecret: 'fresh-shared-secret'
+          });
         const paymentIntent: IPaymentIntent = {
           id: crypto.randomUUID(),
           receivedAmount: 0n,
@@ -635,14 +627,10 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         let fetchCount = 0;
         mockRemotePaymentIntentService.fetchPaymentIntent = async () => {
           fetchCount++;
-          return {
-            walletAddress: 'remote.domain.com/alice',
-            assetCode: 'USD',
-            assetScale: 2,
-            receivedAmount: 0n,
+          return stubRemotePaymentIntent({
             destinationIlpAddress: `g.peer.token-${fetchCount}`,
             sharedSecret: `secret-${fetchCount}`
-          };
+          });
         };
         const paymentIntent: IPaymentIntent = {
           id: crypto.randomUUID(),
@@ -2316,15 +2304,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         }
 
         beforeEach(() => {
-          mockRemotePaymentIntentService.fetchPaymentIntent = async () => ({
-            walletAddress: 'remote.domain.com/alice',
-            assetCode: 'USD',
-            assetScale: 2,
-            receivedAmount: 0n,
-            destinationIlpAddress: 'g.peer.123',
-            expiresAt: new Date(Date.now() + 60_000).toISOString(),
-            sharedSecret: 'stub-shared-secret'
-          });
+          mockRemotePaymentIntentService.fetchPaymentIntent = async () =>
+            stubRemotePaymentIntent();
         });
 
         it('fails when both quoteId and debitAmount are missing', async () => {
@@ -3509,14 +3490,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
 
     describe('prefetch (peers & FX)', () => {
       beforeEach(() => {
-        mockRemotePaymentIntentService.fetchPaymentIntent = async () => ({
-          walletAddress: 'remote.domain.com/alice',
-          assetCode: 'USD',
-          assetScale: 2,
-          receivedAmount: 0n,
-          destinationIlpAddress: 'g.peer.123',
-          sharedSecret: 'stub-shared-secret'
-        });
+        mockRemotePaymentIntentService.fetchPaymentIntent = async () =>
+          stubRemotePaymentIntent();
       });
 
       function makeRemoteIntentWithIlp(ilpAddress: string): IPaymentIntent {
