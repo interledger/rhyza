@@ -47,7 +47,7 @@ export class WalletAddressAggregate {
     assetScale: number,
     isActive?: boolean
   ): Promise<string> {
-    const alias = await this.resolveWalletAddressAlias(domain, pathName);
+    const alias = await this.resolveWalletAddressByAlias(domain, pathName);
 
     if (alias) {
       this._logger.warn(
@@ -135,14 +135,14 @@ export class WalletAddressAggregate {
     return found.map(PalWalletAddress.fromDto);
   }
 
-  async resolveWalletAddressAlias(
+  async resolveWalletAddressByAlias(
     domain: string | null,
     pathName: string
-  ): Promise<string | null> {
+  ): Promise<IPalWalletAddressDto | null> {
     const found = await this._repo.getByAlias(domain || null, pathName);
 
     if (!found) return null;
-    return found.id;
+    return PalWalletAddress.fromDto(found);
   }
 
   async createWalletAddressAlias(
@@ -185,7 +185,7 @@ export class WalletAddressAggregate {
     walletAddressId: string,
     jwk: IPalJsonWebKeyDto
   ): Promise<string> {
-    const [walletDto] = await this._repo.fetch([walletAddressId]);
+    const walletDto = await this._repo.fetchWithKeys(walletAddressId);
     if (!walletDto) {
       throw new WalletAddressNotFoundError(
         `Wallet Address with id ${walletAddressId} does not exist`
@@ -205,7 +205,7 @@ export class WalletAddressAggregate {
   async getWalletAddressKeys(
     walletAddressId: string
   ): Promise<IPalWalletAddressKeyDto[]> {
-    const [walletDto] = await this._repo.fetch([walletAddressId]);
+    const walletDto = await this._repo.fetchWithKeys(walletAddressId);
     if (!walletDto) return [];
 
     return PalWalletAddress.fromDto(walletDto).keys.map((key) =>
@@ -217,7 +217,7 @@ export class WalletAddressAggregate {
     walletAddressId: string,
     keyId: string
   ): Promise<void> {
-    const [walletDto] = await this._repo.fetch([walletAddressId]);
+    const walletDto = await this._repo.fetchWithKeys(walletAddressId);
     if (!walletDto) {
       throw new WalletAddressKeyNotFoundError(
         `Wallet address key ${keyId} does not exist for wallet ${walletAddressId}`

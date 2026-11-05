@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'util';
 import { v4 as uuid } from 'uuid';
 import {
   InvalidGrantError,
+  InsufficientGrantError,
   InvalidGrantInputError,
   InvalidInteractionError,
   NonInteractiveGrantError,
@@ -180,9 +181,12 @@ export class GrantEntity implements IGrant {
   } {
     const createdAt = new Date();
 
-    const isInteractiveGrant = input.accesses?.some((access) =>
-      InteractiveAccessType.includes(access.type)
-    );
+    let hasOutgoingPaymentAccess = false;
+    const isInteractiveGrant = input.accesses?.some((access) => {
+      if (access.type === AccessType.OUTGOING_PAYMENT)
+        hasOutgoingPaymentAccess = true;
+      return InteractiveAccessType.includes(access.type);
+    });
 
     if (
       isInteractiveGrant &&
@@ -197,13 +201,14 @@ export class GrantEntity implements IGrant {
         createdAt,
         interactionNonce: generateNonce(),
         accessTokens: [],
-        // Init spent amounts, as an interactive grant implies outgoing payemnt access type.
-        spentAmounts: {
-          total: {
-            debit: 0n,
-            receive: 0n
-          }
-        }
+        spentAmounts: hasOutgoingPaymentAccess
+          ? {
+              total: {
+                debit: 0n,
+                receive: 0n
+              }
+            }
+          : undefined
       });
       entity.stateTransition(GrantState.PENDING);
       return {
@@ -574,28 +579,72 @@ export class GrantEntity implements IGrant {
     return outgoingPaymentAccess.limits?.interval;
   }
 
-  private getSpentAmountInterval(): Interval {
-    if (!this.isGrantWithSpentAmountsInterval()) throw new InvalidGrantError();
+  private getSpentAmountInterval(): Interval | null {
+    if (!this.isGrantWithSpentAmountsInterval()) return null;
     return Interval.fromDateTimes(
       new Date(this._spentAmounts!.interval!.start),
       new Date(this._spentAmounts!.interval!.end)
     );
   }
 
+  // Ensures _spentAmounts.interval reflects the repetition that contains
+  // createdAt. Leaves it alone if it already does; otherwise rolls it over
+  // to the repetition of the grant's configured interval that contains
+  // createdAt, if any does.
+  getOrUpdateCurrentInterval(createdAt: Date): void {
+    if (!this._spentAmounts) return;
+
+    const createdAtDateTime = DateTime.fromJSDate(createdAt);
+
+    if (
+      this._spentAmounts.interval &&
+      this.getSpentAmountInterval()?.contains(createdAtDateTime)
+    ) {
+      return;
+    }
+
+    const outgoingPaymentAccessItem = this.getOutgoingPaymentAccess();
+    const intervalString = outgoingPaymentAccessItem?.limits?.interval;
+    if (!intervalString) return;
+
+    const interval = getInterval(intervalString, createdAt);
+    if (!interval || !interval.contains(createdAtDateTime))
+      throw new InvalidGrantError();
+
+    this._spentAmounts.interval = {
+      start: (interval.start as DateTime).toMillis(),
+      end: (interval.end as DateTime).toMillis(),
+      total: { debit: 0n, receive: 0n }
+    };
+  }
+
+  private validateAmountValue(value: string): void {
+    let parsed: bigint;
+    try {
+      parsed = BigInt(value);
+    } catch {
+      throw new InvalidGrantInputError();
+    }
+    if (parsed <= 0n) throw new InvalidGrantInputError();
+  }
+
   private validateSpentAmount(
     amountType: SpentAmountType,
     value: string,
-    createdAt: string,
+    createdAt: Date,
     amountLimit?: bigint
   ): boolean {
     if (!this._spentAmounts) throw new InvalidGrantError();
-    if (!amountLimit) return true;
+    if (amountLimit === undefined) return true; // Avoid falsy 0n case
+
+    this.getOrUpdateCurrentInterval(createdAt);
+
     if (
       !this.getGrantIntervalString() &&
       this._spentAmounts.total[amountType] + BigInt(value) > amountLimit
     ) {
       // Throw if the amount will exceed the grant spend limit and there is no interval.
-      throw new InvalidGrantError();
+      throw new InsufficientGrantError();
     }
 
     if (
@@ -606,11 +655,8 @@ export class GrantEntity implements IGrant {
         createdAt
       )
     ) {
-      // Throw if the amount will exceed the grant spend limit within the interval, if the payment creation date is within the currently tracked interval..
-      throw new InvalidGrantError();
-    } else if (this.hasNoFutureIntervalSpendAvailable(createdAt)) {
-      // Throw if payment creation date is after the currently tracked interval and is not contained in a subsequent one.
-      throw new InvalidGrantError();
+      // Throw if the amount will exceed the grant spend limit within the interval.
+      throw new InsufficientGrantError();
     }
 
     return true;
@@ -622,30 +668,13 @@ export class GrantEntity implements IGrant {
     amountType: SpentAmountType,
     value: string,
     amountLimit: bigint,
-    createdAt: string
+    createdAt: Date
   ): boolean {
     return !!(
       this._spentAmounts?.interval &&
-      this.getSpentAmountInterval().contains(
-        DateTime.fromJSDate(new Date(createdAt))
-      ) &&
+      this.getSpentAmountInterval()?.contains(DateTime.fromJSDate(createdAt)) &&
       this._spentAmounts.interval.total[amountType] + BigInt(value) >
         amountLimit
-    );
-  }
-
-  // Determines if an outgoing payment was created in an interval subsequent to the
-  // currently tracked one, if the grant tracks intervals, and if its desired spend amount
-  // will exceed the spend limit in that subsequent interval.
-  private hasNoFutureIntervalSpendAvailable(createdAt: string): boolean {
-    const grantIntervalString = this.getGrantIntervalString();
-    return !!(
-      this._spentAmounts?.interval &&
-      this.getSpentAmountInterval().isBefore(
-        DateTime.fromJSDate(new Date(createdAt))
-      ) &&
-      grantIntervalString &&
-      !getInterval(grantIntervalString, new Date(createdAt))
     );
   }
 
@@ -659,29 +688,11 @@ export class GrantEntity implements IGrant {
     }
     this._spentAmounts.total[amountType] += BigInt(value);
 
-    if (this._spentAmounts.interval) {
-      const spentAmountInterval = this.getSpentAmountInterval();
-      if (
-        spentAmountInterval.contains(DateTime.fromJSDate(new Date(createdAt)))
-      ) {
-        this._spentAmounts.interval.total[amountType] += BigInt(value);
-      } else {
-        const interval = getInterval(
-          this.getGrantIntervalString() as string,
-          new Date(createdAt)
-        );
-        const total =
-          amountType === 'debit'
-            ? { debit: BigInt(value), receive: 0n }
-            : { receive: BigInt(value), debit: 0n };
-        this._spentAmounts.interval = {
-          total,
-          start: (
-            (interval as Interval).start as DateTime
-          ).toMillis() as number,
-          end: ((interval as Interval).end as DateTime).toMillis() as number
-        };
-      }
+    const interval = this.getSpentAmountInterval();
+    if (interval?.contains(DateTime.fromJSDate(new Date(createdAt)))) {
+      // We expect that either the interval has been initialized by this.getOrUpdateCurrentInterval()
+      // in this method's caller before this.
+      this._spentAmounts.interval!.total[amountType] += BigInt(value);
     } else if (this.getGrantIntervalString()) {
       const interval = getInterval(
         this.getGrantIntervalString() as string,
@@ -705,37 +716,47 @@ export class GrantEntity implements IGrant {
     createdAt: string;
   }): ISpentAmounts {
     const outgoingPaymentAccessItem = this.getOutgoingPaymentAccess();
-    if (!outgoingPaymentAccessItem || !this._spentAmounts)
+    if (
+      !outgoingPaymentAccessItem ||
+      !this._spentAmounts ||
+      this._state !== GrantState.ISSUED
+    )
       throw new InvalidGrantError();
 
     const { receiveAmountValue, debitAmountValue, createdAt } = input;
 
+    if (debitAmountValue) this.validateAmountValue(debitAmountValue);
+    if (receiveAmountValue) this.validateAmountValue(receiveAmountValue);
+
     const { limits } = outgoingPaymentAccessItem;
+
+    if (debitAmountValue && limits) {
+      this.validateSpentAmount(
+        'debit',
+        debitAmountValue,
+        new Date(createdAt),
+        limits.debitAmount
+      );
+    }
+
+    if (receiveAmountValue && limits) {
+      this.validateSpentAmount(
+        'receive',
+        receiveAmountValue,
+        new Date(createdAt),
+        limits.receiveAmount
+      );
+    }
+
     if (debitAmountValue) {
       if (!limits) this._spentAmounts.total.debit += BigInt(debitAmountValue);
-      else {
-        this.validateSpentAmount(
-          'debit',
-          debitAmountValue,
-          createdAt,
-          limits.debitAmount
-        );
-        this.updateSpentAmount('debit', debitAmountValue, createdAt);
-      }
+      else this.updateSpentAmount('debit', debitAmountValue, createdAt);
     }
 
     if (receiveAmountValue) {
       if (!limits)
         this._spentAmounts.total.receive += BigInt(receiveAmountValue);
-      else {
-        this.validateSpentAmount(
-          'receive',
-          receiveAmountValue,
-          createdAt,
-          limits.receiveAmount
-        );
-        this.updateSpentAmount('receive', receiveAmountValue, createdAt);
-      }
+      else this.updateSpentAmount('receive', receiveAmountValue, createdAt);
     }
 
     return this._spentAmounts;
@@ -759,7 +780,7 @@ export class GrantEntity implements IGrant {
 
       if (
         this.isGrantWithSpentAmountsInterval() &&
-        this.getSpentAmountInterval().contains(
+        this.getSpentAmountInterval()?.contains(
           DateTime.fromJSDate(new Date(input.createdAt))
         )
       ) {
@@ -784,7 +805,7 @@ export class GrantEntity implements IGrant {
 
       if (
         this.isGrantWithSpentAmountsInterval() &&
-        this.getSpentAmountInterval().contains(
+        this.getSpentAmountInterval()?.contains(
           DateTime.fromJSDate(new Date(input.createdAt))
         )
       ) {

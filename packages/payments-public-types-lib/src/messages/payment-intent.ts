@@ -438,6 +438,7 @@ export type RemoteQuoteRequestedPayload = {
   peerAssetScale: number;
   sourceAmount: string;
   destinationIlpAddress: string;
+  sharedSecret: string;
 };
 
 export class RemoteQuoteRequestedEvent extends PaymentIntentDomainEvent {

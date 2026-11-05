@@ -1,3 +1,5 @@
+import { IPage, IPageOpts } from 'common-types-lib';
+
 import { JWK } from '@interledger/http-signature-utils';
 
 export const AccessType = {
@@ -230,6 +232,11 @@ export interface IUpdatedSpentAmountGrant {
   spentAmounts: ISpentAmounts;
 }
 
+export interface IGrantPageOpts extends IPageOpts {
+  identifier?: string;
+  state?: GrantState;
+}
+
 export interface IGrantRepository {
   storeMany(grants: IGrant[]): Promise<void>;
   storeRotatedGrants(updates: IRotatedGrantUpdate[]): Promise<void>;
@@ -244,5 +251,6 @@ export interface IGrantRepository {
   ): Promise<void>;
   fetchById(id: string): Promise<IGrant | undefined>;
   fetchByIds(ids: string[]): Promise<IGrant[]>;
+  fetchGrantsPage(opts: IGrantPageOpts): Promise<IPage<IGrant>>;
   storeInteractions(grants: IGrant[]): Promise<void>;
 }

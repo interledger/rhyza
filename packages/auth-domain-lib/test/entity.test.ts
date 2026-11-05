@@ -5,6 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { GrantEntity } from '../src/grant/entity';
 import {
   InvalidGrantError,
+  InsufficientGrantError,
   InvalidGrantInputError,
   InvalidInteractionError,
   UnknownAccessTokenError,
@@ -1117,12 +1118,13 @@ describe('GrantEntity', () => {
       overrides: {
         limits?: IAccessLimit;
         spentAmounts?: ISpentAmounts;
+        state?: GrantState;
       } = {}
     ): GrantEntity {
       return GrantEntity.fromObject({
         id: randomUUID(),
         createdAt: new Date(),
-        state: GrantState.ISSUED,
+        state: overrides.state ?? GrantState.ISSUED,
         accessTokens: [],
         accesses: [
           {
@@ -1180,6 +1182,77 @@ describe('GrantEntity', () => {
       );
     });
 
+    const nonIssuedStates = (Object.keys(GrantState) as GrantState[]).filter(
+      (state) => state !== GrantState.ISSUED
+    );
+
+    for (const state of nonIssuedStates) {
+      it(`throws InvalidGrantError when the grant state is ${state}`, () => {
+        const entity = makeGrantWithOutgoingPaymentAccess({ state });
+
+        assert.throws(
+          () =>
+            entity.validateAndUpdateSpentAmounts({
+              debitAmountValue: '10',
+              createdAt: new Date().toISOString()
+            }),
+          InvalidGrantError
+        );
+      });
+    }
+
+    const invalidAmountValues = [
+      { description: 'not a valid integer string', value: 'abc' },
+      { description: 'a decimal string', value: '10.5' },
+      { description: 'zero', value: '0' },
+      { description: 'negative', value: '-10' }
+    ];
+
+    const amountFields = ['debitAmountValue', 'receiveAmountValue'] as const;
+
+    for (const field of amountFields) {
+      for (const { description, value } of invalidAmountValues) {
+        it(`throws InvalidGrantInputError when ${field} is ${description}`, () => {
+          const entity = makeGrantWithOutgoingPaymentAccess({
+            limits: limits({ debitAmount: 100n, receiveAmount: 100n })
+          });
+
+          assert.throws(
+            () =>
+              entity.validateAndUpdateSpentAmounts({
+                [field]: value,
+                createdAt: new Date().toISOString()
+              }),
+            InvalidGrantInputError
+          );
+
+          const obj = entity.toObject();
+          assert.equal(obj.spentAmounts?.total.debit, 0n);
+          assert.equal(obj.spentAmounts?.total.receive, 0n);
+        });
+      }
+    }
+
+    it('leaves both totals unchanged when one amount value is invalid, even if the other is valid', () => {
+      const entity = makeGrantWithOutgoingPaymentAccess({
+        limits: limits({ debitAmount: 100n, receiveAmount: 100n })
+      });
+
+      assert.throws(
+        () =>
+          entity.validateAndUpdateSpentAmounts({
+            debitAmountValue: '10',
+            receiveAmountValue: '-5',
+            createdAt: new Date().toISOString()
+          }),
+        InvalidGrantInputError
+      );
+
+      const obj = entity.toObject();
+      assert.equal(obj.spentAmounts?.total.debit, 0n);
+      assert.equal(obj.spentAmounts?.total.receive, 0n);
+    });
+
     it('updates the debit and receive totals without validating a limit when the access has no limits', () => {
       const entity = makeGrantWithOutgoingPaymentAccess();
 
@@ -1207,7 +1280,7 @@ describe('GrantEntity', () => {
       assert.equal(result.total.debit, 40n);
     });
 
-    it('throws InvalidGrantError and leaves the total unchanged when the debit amount would exceed the limit', () => {
+    it('throws InsufficientGrantError and leaves the total unchanged when the debit amount would exceed the limit', () => {
       const entity = makeGrantWithOutgoingPaymentAccess({
         limits: limits({ debitAmount: 100n }),
         spentAmounts: { total: { debit: 60n, receive: 0n } }
@@ -1219,7 +1292,7 @@ describe('GrantEntity', () => {
             debitAmountValue: '50',
             createdAt: new Date().toISOString()
           }),
-        InvalidGrantError
+        InsufficientGrantError
       );
 
       const obj = entity.toObject();
@@ -1239,7 +1312,7 @@ describe('GrantEntity', () => {
       assert.equal(result.total.receive, 30n);
     });
 
-    it('throws InvalidGrantError and leaves the total unchanged when the receive amount would exceed the limit', () => {
+    it('throws InsufficientGrantError and leaves the total unchanged when the receive amount would exceed the limit', () => {
       const entity = makeGrantWithOutgoingPaymentAccess({
         limits: limits({ receiveAmount: 100n }),
         spentAmounts: { total: { debit: 0n, receive: 70n } }
@@ -1251,7 +1324,7 @@ describe('GrantEntity', () => {
             receiveAmountValue: '40',
             createdAt: new Date().toISOString()
           }),
-        InvalidGrantError
+        InsufficientGrantError
       );
 
       const obj = entity.toObject();
@@ -1325,26 +1398,6 @@ describe('GrantEntity', () => {
       );
     });
 
-    // NOTE: the limit/lifetime-total checks in validateSpentAmount both
-    // require an *existing* spentAmounts.interval to run, so the very first
-    // spend that bootstraps the interval tracker is not itself validated
-    // against the limit - only spends after that are.
-    it('does not validate the first spend against the limit when it is what initializes the interval tracker', () => {
-      const entity = makeGrantWithOutgoingPaymentAccess({
-        limits: limits({
-          debitAmount: 100n,
-          interval: 'R/2024-01-01T00:00:00.000Z/P1M'
-        })
-      });
-
-      const result = entity.validateAndUpdateSpentAmounts({
-        debitAmountValue: '500',
-        createdAt: '2024-01-15T00:00:00.000Z'
-      });
-
-      assert.equal(result.interval?.total.debit, 500n);
-    });
-
     it('accumulates within an already-tracked interval', () => {
       const entity = makeGrantWithOutgoingPaymentAccess({
         limits: limits({
@@ -1370,7 +1423,7 @@ describe('GrantEntity', () => {
       assert.equal(result.interval?.total.debit, 30n);
     });
 
-    it('throws InvalidGrantError when the spend would exceed the limit within the currently tracked interval', () => {
+    it('throws InsufficientGrantError when the spend would exceed the limit within the currently tracked interval', () => {
       const entity = makeGrantWithOutgoingPaymentAccess({
         limits: limits({
           debitAmount: 100n,
@@ -1392,7 +1445,7 @@ describe('GrantEntity', () => {
             debitAmountValue: '30',
             createdAt: '2024-01-20T00:00:00.000Z'
           }),
-        InvalidGrantError
+        InsufficientGrantError
       );
     });
 
@@ -1457,6 +1510,105 @@ describe('GrantEntity', () => {
         InvalidGrantError
       );
     });
+    const noIntervalExceedsCases = [
+      {
+        description:
+          'the receive amount exceeds its limit but the debit amount does not',
+        debitAmountValue: '10',
+        receiveAmountValue: '60'
+      },
+      {
+        description:
+          'the debit amount exceeds its limit but the receive amount does not',
+        debitAmountValue: '110',
+        receiveAmountValue: '10'
+      }
+    ];
+
+    for (const {
+      description,
+      debitAmountValue,
+      receiveAmountValue
+    } of noIntervalExceedsCases) {
+      it(`leaves both totals unchanged when ${description}, with no interval configured`, () => {
+        const entity = makeGrantWithOutgoingPaymentAccess({
+          limits: limits({ debitAmount: 100n, receiveAmount: 50n }),
+          spentAmounts: { total: { debit: 0n, receive: 0n } }
+        });
+
+        assert.throws(
+          () =>
+            entity.validateAndUpdateSpentAmounts({
+              debitAmountValue,
+              receiveAmountValue,
+              createdAt: new Date().toISOString()
+            }),
+          InsufficientGrantError
+        );
+
+        const obj = entity.toObject();
+        assert.equal(obj.spentAmounts?.total.debit, 0n);
+        assert.equal(obj.spentAmounts?.total.receive, 0n);
+      });
+    }
+
+    const intervalExceedsCases = [
+      {
+        description:
+          'the debit amount exceeds its limit but the receive amount does not',
+        total: { debit: 90n, receive: 10n },
+        debitAmountValue: '20',
+        receiveAmountValue: '5'
+      },
+      {
+        description:
+          'the receive amount exceeds its limit but the debit amount does not',
+        total: { debit: 10n, receive: 40n },
+        debitAmountValue: '5',
+        receiveAmountValue: '20'
+      }
+    ];
+
+    for (const {
+      description,
+      total,
+      debitAmountValue,
+      receiveAmountValue
+    } of intervalExceedsCases) {
+      it(`leaves both totals unchanged when ${description}, within a tracked interval`, () => {
+        const entity = makeGrantWithOutgoingPaymentAccess({
+          limits: limits({
+            debitAmount: 100n,
+            receiveAmount: 50n,
+            interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+          }),
+          spentAmounts: {
+            total,
+            interval: {
+              start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+              end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+              total
+            }
+          }
+        });
+
+        assert.throws(
+          () =>
+            entity.validateAndUpdateSpentAmounts({
+              debitAmountValue,
+              receiveAmountValue,
+              createdAt: '2024-01-20T00:00:00.000Z'
+            }),
+          InsufficientGrantError
+        );
+
+        const obj = entity.toObject();
+        assert.equal(obj.spentAmounts?.total.debit, total.debit);
+        assert.equal(obj.spentAmounts?.total.receive, total.receive);
+        assert.equal(obj.spentAmounts?.interval?.total.debit, total.debit);
+        assert.equal(obj.spentAmounts?.interval?.total.receive, total.receive);
+      });
+    }
   });
 
   describe('revertSpentAmounts', () => {

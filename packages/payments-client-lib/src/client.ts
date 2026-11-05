@@ -40,7 +40,7 @@ import {
   IPayment,
   GetQuoteResult,
   IAmount,
-  IPage,
+  IPageResult,
   IPageQuery,
   PaymentIntentInput
 } from './local-types';
@@ -525,7 +525,7 @@ export class PaymentsClient {
 
   async getPaymentIntentsPage(
     query: IPageQuery = {}
-  ): Promise<IPage<GetPaymentIntentResult>> {
+  ): Promise<IPageResult<GetPaymentIntentResult>> {
     const { cursor, limit, backwards, sortOrder } =
       PaymentsClient._pageArgs(query);
 
@@ -562,7 +562,7 @@ export class PaymentsClient {
 
   async getPaymentsPage(
     query: IPageQuery & { paymentIntentId?: string } = {}
-  ): Promise<IPage<IPayment>> {
+  ): Promise<IPageResult<IPayment>> {
     const { cursor, limit, backwards, sortOrder } =
       PaymentsClient._pageArgs(query);
 

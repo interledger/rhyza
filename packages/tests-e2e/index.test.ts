@@ -1,4 +1,6 @@
 import assert from 'assert';
+import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { test, describe, before, after } from 'node:test';
 import { setTimeout } from 'node:timers/promises';
 import path from 'path';
@@ -10,23 +12,46 @@ import {
 import { AdminApiClient, createAdminClient } from 'admin-client-lib';
 
 const ADMIN_API_PORT = 3001;
+const ASE_MOCK_PORT = 3000;
 const ADMIN_API_URL = 'http://localhost:' + ADMIN_API_PORT;
 const COMPOSE_FILE = 'docker-compose.yaml';
+const composeDir = path.resolve(__dirname, '../../docker');
+const composeOverride = process.env.E2E_COMPOSE_OVERRIDE;
+const composeFiles = composeOverride
+  ? [COMPOSE_FILE, composeOverride]
+  : COMPOSE_FILE;
+const composeProject = process.env.E2E_COMPOSE_PROJECT;
+const composeLogsPath = process.env.E2E_COMPOSE_LOGS_PATH;
 
 describe('E2E tests', () => {
   let environment: StartedDockerComposeEnvironment;
   let adminClient: AdminApiClient;
   before(async () => {
-    const composeDir = path.resolve(__dirname, '../../docker');
-    environment = await new DockerComposeEnvironment(composeDir, COMPOSE_FILE)
-      .withEnvironment({
-        WEBHOOK_URL: 'http://ase-mock-service:3000/webhooks'
-      })
-      .withWaitStrategy(
-        'ase-mock-service',
-        Wait.forHttp('/healthz', ADMIN_API_PORT)
-      )
-      .up();
+    let environmentBuilder = new DockerComposeEnvironment(
+      composeDir,
+      composeFiles
+    ).withEnvironment({
+      WEBHOOK_URL: 'http://ase-mock-service:3000/webhooks',
+      ...(process.env.VERSION ? { VERSION: process.env.VERSION } : {})
+    });
+
+    if (composeProject) {
+      environmentBuilder = environmentBuilder.withProjectName(composeProject);
+    }
+
+    // Release override sets pull_policy: never and clears build, so a missing
+    // local image fails instead of building from source or pulling from a registry.
+    try {
+      environment = await environmentBuilder
+        .withWaitStrategy(
+          'ase-mock-service',
+          Wait.forHttp('/healthz', ASE_MOCK_PORT)
+        )
+        .up();
+    } catch (error) {
+      dumpComposeLogs();
+      throw error;
+    }
 
     adminClient = createAdminClient(ADMIN_API_URL);
   });
@@ -39,14 +64,19 @@ describe('E2E tests', () => {
     });
     assert.equal(asset.code, assetCode);
 
-    const senderAddress = 'test.com/sender';
-    await createWalletAddress(assetCode, senderAddress, 'test sender');
-
-    const receiverAddress = 'test.com/receiver';
-    await createWalletAddress(assetCode, receiverAddress, 'test receiver');
+    const sender = await createWalletAddress(
+      assetCode,
+      'sender',
+      'test sender'
+    );
+    const receiver = await createWalletAddress(
+      assetCode,
+      'receiver',
+      'test receiver'
+    );
 
     const paymentIntent = await adminClient.paymentIntents.createPaymentIntent({
-      walletAddress: receiverAddress,
+      walletAddress: receiver.address,
       incomingAmount: 100
     });
 
@@ -55,7 +85,7 @@ describe('E2E tests', () => {
 
     const quote = await adminClient.quotes.createQuote({
       paymentIntentId,
-      walletAddress: senderAddress
+      walletAddress: sender.address
     });
 
     assert.ok(quote.id);
@@ -63,7 +93,7 @@ describe('E2E tests', () => {
 
     const payment = await adminClient.payments.createPayment({
       quoteId,
-      walletAddress: senderAddress,
+      walletAddress: sender.address,
       paymentIntentId
     });
 
@@ -83,21 +113,48 @@ describe('E2E tests', () => {
 
   const createWalletAddress = async (
     assetCode: string,
-    address: string,
+    pathName: string,
     publicName: string
   ) => {
     const walletAddress = await adminClient.walletAddresses.createWalletAddress(
       {
         assetCode,
-        address,
+        pathName,
         publicName
       }
     );
     assert.ok(walletAddress.id);
-    assert.equal(walletAddress.address, address);
+    assert.ok(walletAddress.address.endsWith(`/${pathName}`));
+    return walletAddress;
   };
 
   after(async () => {
+    dumpComposeLogs();
     await environment?.down();
   });
 });
+
+function dumpComposeLogs(): void {
+  if (!composeLogsPath || !composeProject) {
+    return;
+  }
+
+  try {
+    const args = ['compose', '-p', composeProject, '-f', COMPOSE_FILE];
+    if (composeOverride) {
+      args.push('-f', composeOverride);
+    }
+    args.push('logs', '--no-color');
+
+    const logs = execFileSync('docker', args, {
+      cwd: composeDir,
+      encoding: 'utf8',
+      env: process.env,
+      maxBuffer: 50 * 1024 * 1024
+    });
+    writeFileSync(composeLogsPath, logs);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    writeFileSync(composeLogsPath, `Failed to dump compose logs: ${message}\n`);
+  }
+}

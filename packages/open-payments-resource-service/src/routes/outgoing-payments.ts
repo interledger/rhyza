@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { PalClient, parseAddressToDomainAndPathName } from 'pal-client-lib';
+import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import {
   httpStatusFromGrpcError,
   toClientApiErrorResponse,
@@ -84,34 +84,22 @@ export async function outgoingPaymentRoutes(
       }
     },
     async (request, reply) => {
-      const { walletAddress: walletAddressUrl } = request.body;
+      const { walletAddress: walletAddressUrl, metadata } = request.body;
 
-      const { domain, pathName } =
-        parseAddressToDomainAndPathName(walletAddressUrl);
+      const pathName = pathNameFromWalletAddress(walletAddressUrl);
 
-      const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
+      const walletAddress = await palClient.resolveWalletAddressByAlias(
+        null,
+        pathName
+      );
 
-      if (!alias) {
+      if (!walletAddress) {
         throw new OpenPaymentsResourceServerRouteError(
           404,
           'Wallet address not found',
           'not_found'
         );
       }
-
-      const walletAddresses = await palClient.getWalletAddresses([
-        alias.walletAddressId
-      ]);
-
-      if (!walletAddresses.length) {
-        throw new OpenPaymentsResourceServerRouteError(
-          404,
-          'Wallet address not found',
-          'not_found'
-        );
-      }
-
-      const walletAddress = walletAddresses[0];
 
       if (
         'debitAmount' in request.body &&
@@ -152,7 +140,7 @@ export async function outgoingPaymentRoutes(
             : await paymentsClient.createQuote(
                 randomUUID(),
                 { paymentIntentUrl: quoteSource.incomingPaymentUrl },
-                alias.walletAddressId,
+                walletAddress.id,
                 walletAddressUrl,
                 quoteSource.debitAmountValue
               );
@@ -160,9 +148,13 @@ export async function outgoingPaymentRoutes(
         const { payment } = await paymentsClient.createPayment(
           randomUUID(),
           { paymentIntentId: quote.paymentIntentId },
-          alias.walletAddressId,
+          walletAddress.id,
           walletAddressUrl,
-          quote.id
+          quote.id,
+          undefined, // debitAmount
+          undefined, // createdAt
+          undefined, // grantId
+          metadata
         );
 
         return reply
@@ -216,11 +208,14 @@ export async function outgoingPaymentRoutes(
       );
     }
 
-    const { domain, pathName } =
-      parseAddressToDomainAndPathName(walletAddressUrl);
-    const alias = await palClient.resolveWalletAddressAlias(domain, pathName);
+    const pathName = pathNameFromWalletAddress(walletAddressUrl);
 
-    if (!alias) {
+    const walletAddress = await palClient.resolveWalletAddressByAlias(
+      null,
+      pathName
+    );
+
+    if (!walletAddress) {
       // An unknown wallet address returns an empty page rather than an
       // error — indistinguishable from a wallet address with no payments,
       // so wallet address existence is not leaked.
@@ -236,7 +231,7 @@ export async function outgoingPaymentRoutes(
       // consistency with Rafiki.
       const page = await paymentsClient.getPaymentsPage({
         sortOrder: 'desc',
-        walletAddressId: alias.walletAddressId,
+        walletAddressId: walletAddress.id,
         cursor: request.query.cursor,
         first:
           request.query.first != null ? Number(request.query.first) : undefined,

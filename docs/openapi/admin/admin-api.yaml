@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.15
+  version: 0.0.20
   license:
     name: ISC
     identifier: ISC
@@ -67,6 +67,38 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PeerCreate'
+  /peers/{id}/activate:
+    post:
+      summary: Activate Peer
+      description: >-
+        Activate a peer that was deactivated. The ILP connector can send and
+        receive packets from the peer after activation takes effect.
+        Activating a peer that is already active returns 409.
+      tags:
+        - peers
+      operationId: activatePeer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The id of the peer.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The peer is activated.
+        '404':
+          description: Peer not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The peer is already active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /peers/{id}/deactivate:
     post:
       summary: Deactivate Peer
@@ -157,6 +189,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WalletAddressCreateResponse'
+        '400':
+          description: Invalid pathName (must be a single path segment).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Wallet address already exists.
           content:
@@ -320,6 +358,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /grants:
+    get:
+      summary: List Grants
+      description: >-
+        List grants with cursor pagination, ordered by creation time.
+        Optionally filter by state and by the wallet address the granted
+        access applies to.
+      tags:
+        - grants
+      operationId: Grants_listGrants
+      parameters:
+        - name: walletAddress
+          in: query
+          description: >-
+            Filter by the wallet address the granted access applies to.
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: Filter by grant state
+          required: false
+          schema:
+            $ref: '#/components/schemas/GrantState'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageFirst'
+        - $ref: '#/components/parameters/PageLast'
+        - $ref: '#/components/parameters/PageSortOrder'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantsPage'
+        '400':
+          description: Invalid pagination parameters, or a cursor that was not issued for this query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /payment-intents:
     get:
       summary: List Payment Intents
@@ -336,41 +415,10 @@ paths:
           required: false
           schema:
             type: string
-        - name: cursor
-          in: query
-          description: >-
-            Opaque cursor from a previous page's startCursor/endCursor. Valid
-            only for the query that produced it. Reusing a cursor with a
-            different sortOrder or filter returns 400.
-          required: false
-          schema:
-            type: string
-        - name: first
-          in: query
-          description: Page size, paginating forward from the cursor. Mutually exclusive with last.
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-        - name: last
-          in: query
-          description: Page size, paginating backward from the cursor (requires cursor). Mutually exclusive with first.
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-        - name: sortOrder
-          in: query
-          description: Ordering by creation time. Defaults to desc (newest first).
-          required: false
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-            default: desc
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageFirst'
+        - $ref: '#/components/parameters/PageLast'
+        - $ref: '#/components/parameters/PageSortOrder'
       responses:
         '200':
           description: The request has succeeded.
@@ -485,7 +533,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Quote'
+                $ref: '#/components/schemas/CompletedQuote'
         '400':
           description: Either paymentIntentId or paymentIntentUrl is required.
           content:
@@ -508,6 +556,42 @@ paths:
               oneOf:
                 - $ref: '#/components/schemas/QuoteCreateFromPaymentIntentId'
                 - $ref: '#/components/schemas/QuoteCreateFromPaymentIntentUrl'
+  /payment-intents/{intentId}/quotes/{id}:
+    get:
+      summary: Get Quote
+      description: Retrieve a quote in any state. The response shape depends on whether the quote is pending, completed, or failed. 
+      tags:
+        - quotes
+      operationId: getQuote
+      parameters:
+        - name: intentId
+          in: path
+          description: Unique identifier for the payment intent
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: Unique identifier for the quote
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PendingQuote'
+                  - $ref: '#/components/schemas/CompletedQuote'
+                  - $ref: '#/components/schemas/FailedQuote'
+        '404':
+          description: Quote not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /payments:
     get:
       summary: List Payments
@@ -531,41 +615,10 @@ paths:
           required: false
           schema:
             type: string
-        - name: cursor
-          in: query
-          description: >-
-            Opaque cursor from a previous page's startCursor/endCursor. Valid
-            only for the query that produced it. Reusing a cursor with a
-            different sortOrder or filter returns 400.
-          required: false
-          schema:
-            type: string
-        - name: first
-          in: query
-          description: Page size, paginating forward from the cursor. Mutually exclusive with last.
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-        - name: last
-          in: query
-          description: Page size, paginating backward from the cursor (requires cursor). Mutually exclusive with first.
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-        - name: sortOrder
-          in: query
-          description: Ordering by creation time. Defaults to desc (newest first).
-          required: false
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-            default: desc
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageFirst'
+        - $ref: '#/components/parameters/PageLast'
+        - $ref: '#/components/parameters/PageSortOrder'
       responses:
         '200':
           description: The request has succeeded.
@@ -617,12 +670,7 @@ paths:
         - payments
       operationId: approvePayment
       parameters:
-        - name: intentId
-          in: path
-          description: Unique identifier for the payment intent
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/PaymentIntentId'
         - name: id
           in: path
           description: Unique identifier for the payment to be approved
@@ -653,12 +701,7 @@ paths:
         - payments
       operationId: cancelPayment
       parameters:
-        - name: intentId
-          in: path
-          description: Unique identifier for the payment intent
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/PaymentIntentId'
         - name: id
           in: path
           description: Unique identifier for the payment to be cancelled
@@ -693,12 +736,7 @@ paths:
         - payments
       operationId: getPayment
       parameters:
-        - name: intentId
-          in: path
-          description: Unique identifier for the payment intent
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/PaymentIntentId'
         - name: id
           in: path
           description: Unique identifier for the payment
@@ -780,9 +818,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /grant/{id}:
+  /grants/{id}:
     get:
-      summary: Get grant
+      summary: Get Grant
       description: >-
         Get the grant associated with the provided id.
       tags:
@@ -808,12 +846,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /grants/{id}/revoke:
     post:
-      summary: Revoke grant
+      summary: Revoke Grant
       description: >-
         Revoke the grant associated with the provided id.
       tags:
-        - payments
+        - grants
       operationId: revokeGrant
       parameters:
         - name: id
@@ -828,7 +867,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Grant'
+                $ref: '#/components/schemas/GrantRevokeResponse'
         '404':
           description: Grant not found.
           content:
@@ -876,6 +915,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
+  parameters:
+    PageCursor:
+      name: cursor
+      in: query
+      description: >-
+        Opaque cursor from a previous page's startCursor/endCursor. Valid
+        only for the query that produced it. Reusing a cursor with a
+        different sortOrder or filter returns 400.
+      required: false
+      schema:
+        type: string
+    PageFirst:
+      name: first
+      in: query
+      description: Page size, paginating forward from the cursor. Mutually exclusive with last.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    PageLast:
+      name: last
+      in: query
+      description: Page size, paginating backward from the cursor (requires cursor). Mutually exclusive with first.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    PageSortOrder:
+      name: sortOrder
+      in: query
+      description: Ordering by creation time. Defaults to desc (newest first).
+      required: false
+      schema:
+        type: string
+        enum:
+          - asc
+          - desc
+        default: desc
+    PaymentIntentId:
+      name: intentId
+      in: path
+      description: Unique identifier for the payment intent
+      required: true
+      schema:
+        type: string
   schemas:
     FxRateSet:
       type: object
@@ -968,11 +1054,15 @@ components:
       description: Connector settings for sending ILP packets to this peer.
       required:
         - endpoint
+        - callbackEndpoint
         - authToken
       properties:
         endpoint:
           type: string
-          description: The HTTP endpoint of the peer's ILP connector.
+          description: Where we POST ILP prepares to this peer.
+        callbackEndpoint:
+          type: string
+          description: Where we POST fulfills and rejects for prepares this peer sent us.
         authToken:
           type: string
           description: The bearer token sent to the peer when dispatching packets.
@@ -1037,13 +1127,17 @@ components:
       type: object
       description: Schema for creating a new wallet address.
       required:
-        - address
+        - pathName
         - assetCode
         - publicName
       properties:
-        address:
+        pathName:
           type: string
-          description: The full wallet address (e.g., "example.com/alice").
+          description: >-
+            The wallet address path name (e.g., "alice"). Must be a single path
+            segment — values containing "/" or "://" are rejected. The full
+            wallet address URL is built from the configured Open Payments
+            resource server base URL plus this pathName.
         assetCode:
           type: string
           description: The code of the asset associated with this wallet address.
@@ -1243,6 +1337,13 @@ components:
         receiveAmount:
           type: string
           description: The amount to be received by the recipient.
+    QuoteState:
+      type: string
+      description: The current status of a quote.
+      enum:
+        - PENDING
+        - COMPLETED
+        - FAILED
     QuoteCreateFromPaymentIntentId:
       description: >-
         Quotes a payment intent this instance already holds, named by its local
@@ -1272,18 +1373,17 @@ components:
               format: uri
               description: >-
                 The URL of the payment intent this quote is for.
-    Quote:
+    QuoteBase:
       type: object
-      description: Represents a payment quote with estimated amounts and exchange rates.
+      description: >-
+        Fields common to every quote response.
       required:
         - id
         - paymentIntentId
         - senderWalletAddress
         - senderWalletAddressId
-        - expiresAt
-        - debitAmount
-        - receiveAmount
-        - exchangeRate
+        - createdAt
+        - state
       properties:
         id:
           type: string
@@ -1297,19 +1397,79 @@ components:
         senderWalletAddressId:
           type: string
           description: The unique identifier of the sender's wallet address.
-        expiresAt:
+        createdAt:
           type: string
           format: date-time
-          description: The date and time when the quote expires.
-        debitAmount:
-          type: string
-          description: The amount that will be debited from the sender.
-        receiveAmount:
-          type: string
-          description: The amount that will be received by the recipient.
-        exchangeRate:
-          type: number
-          description: The exchange rate of quote.
+          description: When the quote was created.
+    PendingQuote:
+      description: >-
+        A quote that is still being calculated. Optional fields are present
+        only when they have been determined so far.
+      allOf:
+        - $ref: '#/components/schemas/QuoteBase'
+        - type: object
+          required:
+            - state
+          properties:
+            state:
+              type: string
+              const: PENDING
+              description: The quote is still being calculated.
+            debitAmount:
+              type: string
+              description: Amount debited from the sender, when determined.
+            receiveAmount:
+              type: string
+              description: Amount received by the recipient, when determined.
+            sourceAmount:
+              type: string
+              description: Source amount used while the quote is calculated.
+            senderAssetCode:
+              type: string
+              description: Asset code of the sender amount.
+    CompletedQuote:
+      description: A successfully calculated quote with amounts and exchange rate.
+      allOf:
+        - $ref: '#/components/schemas/QuoteBase'
+        - type: object
+          required:
+            - state
+          properties:
+            state:
+              type: string
+              const: COMPLETED
+              description: The quote completed successfully.
+            expiresAt:
+              type: string
+              format: date-time
+              description: When the quote expires.
+            debitAmount:
+              type: string
+              description: Amount debited from the sender.
+            receiveAmount:
+              type: string
+              description: Amount received by the recipient.
+            exchangeRate:
+              type: number
+              description: Exchange rate applied to the quote.
+    FailedQuote:
+      description: A quote that failed during calculation.
+      allOf:
+        - $ref: '#/components/schemas/QuoteBase'
+        - type: object
+          required:
+            - state
+          properties:
+            state:
+              type: string
+              const: FAILED
+              description: The quote failed.
+            errorName:
+              type: string
+              description: Name of the error that failed the quote.
+            message:
+              type: string
+              description: Human-readable failure message.
     PaymentCreateBase:
       type: object
       description: >-
@@ -1434,6 +1594,19 @@ components:
         failReason:
           type: string
           description: Failure detail when the payment failed.
+    GrantsPage:
+      type: object
+      description: A page of grants in the requested creation order.
+      required:
+        - result
+        - pagination
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/components/schemas/Grant'
+        pagination:
+          $ref: '#/components/schemas/PageInfo'
     PageInfo:
       type: object
       description: Cursor pagination metadata for a page of results.
@@ -1500,14 +1673,16 @@ components:
       description: Represents an Open Payments grant.
       required:
         - id
+        - createdAt
         - state
       properties:
         id:
           type: string
           description: The unique identifier for the grant.
-        interactionNonce:
+        createdAt:
           type: string
-          description: The nonce used by the client to verify an interaction hash.
+          format: date-time
+          description: When the grant was created. The sort key for grant listings.
         state:
           $ref: '#/components/schemas/GrantState'
           description: The current state of the grant.
@@ -1527,6 +1702,16 @@ components:
         interaction:
           $ref: '#/components/schemas/Interaction'
           description: The grant's interaction session.
+    GrantRevokeResponse:
+      type: object
+      description: The result of revoking a grant.
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: The unique identifier of the revoked grant.
+      additionalProperties: false
     GrantState:
       type: string
       description: The current state of a grant.

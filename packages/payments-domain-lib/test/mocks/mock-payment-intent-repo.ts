@@ -1,19 +1,20 @@
 import {
-  DEFAULT_SORT_ORDER,
-  FinalizedRemoteQuoteUpdate,
-  IPage,
-  IPageOpts,
+  IPaymentPageOpts,
   IPaymentIntent,
   IPaymentIntentRepository,
   ISentPayment,
   isRemoteSentPayment,
   PaymentIntentState,
   SentPaymentState,
-  SortOrder,
   InboundPaymentState
 } from '../../src/payment-intent/interfaces';
-import { InvalidCursorError } from '../../src/payment-intent/errors';
-import { InvalidArgument } from 'common-types-lib';
+import {
+  DEFAULT_SORT_ORDER,
+  InvalidArgument,
+  InvalidCursorError,
+  IPage,
+  SortOrder
+} from 'common-types-lib';
 
 export class MockPaymentIntentRepo implements IPaymentIntentRepository {
   private _store: Map<string, IPaymentIntent> = new Map();
@@ -91,7 +92,7 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchPaymentIntentsPage(
-    opts: IPageOpts
+    opts: IPaymentPageOpts
   ): Promise<IPage<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>>> {
     const all = this.getAll();
     const filtered =
@@ -111,7 +112,7 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchSentPaymentsPage(
-    opts: IPageOpts & { paymentIntentId?: string }
+    opts: IPaymentPageOpts & { paymentIntentId?: string }
   ): Promise<IPage<ISentPayment>> {
     const all = this.getAll().flatMap((intent) => intent.sentPayments);
     const filtered = all.filter(
@@ -179,11 +180,13 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
     };
   }
 
-  async storeQuotes(
-    quoteUpdates: { quoteIds: string[]; paymentIntent: IPaymentIntent }[]
-  ): Promise<void> {
-    for (const update of quoteUpdates) {
-      this._store.set(update.paymentIntent.id, update.paymentIntent);
+  async storeQuotes(paymentIntents: IPaymentIntent[]): Promise<void> {
+    for (const paymentIntent of paymentIntents) {
+      const existing = this._store.get(paymentIntent.id);
+      if (!existing) {
+        throw new Error('Could not find paymentIntent in store');
+      }
+      existing.quotes = paymentIntent.quotes;
     }
   }
 
@@ -513,38 +516,6 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
         }
         foundPayment.state = payment.state;
         foundPayment.sentAmount = payment.sentAmount;
-      }
-    }
-  }
-
-  async storeFinalizedRemoteQuotes(
-    updates: FinalizedRemoteQuoteUpdate[]
-  ): Promise<void> {
-    for (const update of updates) {
-      const paymentIntent = this._store.get(update.paymentIntentId);
-      if (!paymentIntent) {
-        throw new Error('Could not find paymentIntent in store');
-      }
-
-      const quote = paymentIntent.quotes.find((q) => q.id === update.quoteId);
-      if (!quote) {
-        throw new Error('Could not find quote in store');
-      }
-
-      if (update.state === 'COMPLETED') {
-        Object.assign(quote, {
-          state: 'COMPLETED',
-          debitAmount: update.debitAmount,
-          receiveAmount: update.receiveAmount,
-          exchangeRate: update.exchangeRate,
-          expiresAt: update.expiresAt
-        });
-      } else {
-        Object.assign(quote, {
-          state: 'FAILED',
-          errorName: update.errorName,
-          message: update.message
-        });
       }
     }
   }

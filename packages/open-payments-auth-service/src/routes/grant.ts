@@ -144,7 +144,7 @@ export async function grantRoutes(
 
   server.post<{
     Params: { id: string };
-    Body: components['schemas']['continuation-request'];
+    Body: components['schemas']['continuation-request'] | undefined;
     Reply: ContinueGrantSuccessResponse;
   }>(
     '/continue/:id',
@@ -154,7 +154,13 @@ export async function grantRoutes(
         getGnapTokenOrThrow(request);
       },
       schema: {
-        body: { $ref: '#/components/schemas/continuation-request#' }
+        // The body is optional, e.g. when polling. Fastify validates a missing body as null.
+        body: {
+          anyOf: [
+            { $ref: '#/components/schemas/continuation-request#' },
+            { type: 'null' }
+          ]
+        }
       }
     },
     async (request, reply) => {
@@ -169,7 +175,7 @@ export async function grantRoutes(
         extractSignatureData(request),
         continueId,
         continueToken,
-        request.body.interact_ref
+        request.body?.interact_ref
       );
 
       const continueResponse = createContinueResponse(

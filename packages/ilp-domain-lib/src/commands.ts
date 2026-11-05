@@ -99,6 +99,7 @@ export interface StartRemoteQuoteCmdPayload {
   sourceAmount: string;
   sourceAssetCode: string;
   sourceAssetScale: number;
+  sharedSecret: string;
 }
 
 export class StartRemoteQuoteCmd extends CommandMsg {
@@ -147,6 +148,10 @@ export interface RespondToRemoteQuoteCmdPayload {
   peerId: string;
   packetId: string;
   destinationAmount?: string;
+  // Asset `destinationAmount` is denominated in. Sent back as a STREAM
+  // ConnectionAssetDetails frame
+  destinationAssetCode?: string;
+  destinationAssetScale?: number;
 }
 
 export class RespondToRemoteQuoteCmd extends CommandMsg {
@@ -169,6 +174,10 @@ export interface FulfillInboundPaymentCmdPayload {
   paymentIntentId: string;
   inboundPaymentId: string;
   requestId: string;
+  // Payments' credited amount in the wallet asset (after FX), not the ILP hop amount.
+  receiveAmount: string;
+  receiveAssetCode: string;
+  receiveAssetScale: number;
 }
 
 // Payments BC: inbound payment is fulfillable - dispatch stored STREAM fulfillment.
@@ -219,8 +228,6 @@ export interface ProcessPreparePacketCmdPayload {
   destinationIlpAddress: string;
   amount: string;
   expiresAt: string;
-  // Connector-issued id for the later fulfill/reject. Connector resolves it.
-  replyHandle: string;
   // base64-encoded 32-byte execution condition.
   executionCondition: string;
   // base64-encoded ILP packet data (opaque STREAM payload) - decoded by the
@@ -248,6 +255,8 @@ export interface ProcessFulfillPacketCmdPayload {
   packetId: string;
   fulfilledAt: string;
   fulfillment: string;
+  // Opaque STREAM fulfill `data`. Connector forwards bytes; aggregate decrypts.
+  data?: string;
 }
 
 export class ProcessFulfillPacketCmd extends CommandMsg {
@@ -271,8 +280,7 @@ export interface ProcessRejectPacketCmdPayload {
   rejectCode: string;
   rejectMessage: string;
   rejectedAt: string;
-  // Only populated when this reject is destined as a quote response.
-  destinationAmount?: string;
+  data?: string;
 }
 
 export class ProcessRejectPacketCmd extends CommandMsg {
@@ -339,7 +347,7 @@ export class DispatchPreparePacketCmd extends CommandMsg {
 export interface DispatchFulfillPacketCmdPayload {
   peerId: string;
   packetId: string;
-  replyHandle: string;
+  callbackDeadline: string;
   fulfillment: string;
   data?: string;
 }
@@ -361,7 +369,7 @@ export class DispatchFulfillPacketCmd extends CommandMsg {
 export interface DispatchRejectPacketCmdPayload {
   peerId: string;
   packetId: string;
-  replyHandle: string;
+  callbackDeadline: string;
   rejectCode: string;
   rejectMessage?: string;
   triggeredBy?: string;
