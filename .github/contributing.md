@@ -157,17 +157,16 @@ If you encounter any issues or have a feature request, please [create a new issu
 4. Create a pull request (PR) to `main`.
 5. Ensure your PR includes a clear title and description following the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/).
 6. If your PR addresses an issue, reference the issue in the description using `Closes #123`.
-7. If your PR addresses a Linear issue, add its ID to the end of the PR title in square brackets, for example `fix: decode the GNAP access token [RHY-123]`. See [Linear issue references](#linear-issue-references).
+7. If your PR addresses a Linear issue, include its ID in the branch name, for example `raul/rhy-123-decode-gnap-token`. See [Linear issue references](#linear-issue-references).
 8. Be patient and be prepared to address feedback and make changes if needed.
 
 ### Linear issue references
 
-PRs are squash-merged, so the PR title becomes the commit subject on `main`. Each release scans those subjects for `RHY-<number>` and links the matching Linear issues to the Linear release for that version.
+Each release links the Linear issues it ships to a Linear release for that version. It finds them through the PRs referenced as `(#123)` in squash-merge commit subjects, so a PR's issue is linked only if the PR is linked to it in Linear.
 
-- Put the ID in the PR title, not only in the branch name or description. Squash merges drop the branch, so the title is the only reference the release sync reliably sees.
-- Use one ID per PR. If a PR covers several Linear issues, use the main one.
+- Include the issue ID in the branch name. Linear's GitHub integration then links the PR to the issue automatically. Linear's **Copy git branch name** action on an issue gives you a suitable name.
 - Leave the ID out when there is no Linear issue, for example for dependency updates or outside contributions.
-- If you forget, edit the PR title before merging. After merging, the commit subject can't be changed and the issue won't be linked to a release.
+- If the branch name has no ID, link the PR to the issue from the issue in Linear before the release.
 
 ## Review Process
 
