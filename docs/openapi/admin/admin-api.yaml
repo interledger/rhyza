@@ -820,7 +820,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /grants/{id}:
     get:
-      summary: Get grant
+      summary: Get Grant
       description: >-
         Get the grant associated with the provided id.
       tags:
@@ -848,7 +848,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /grants/{id}/revoke:
     post:
-      summary: Revoke grant
+      summary: Revoke Grant
       description: >-
         Revoke the grant associated with the provided id.
       tags:
@@ -867,7 +867,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Grant'
+                $ref: '#/components/schemas/GrantRevokeResponse'
         '404':
           description: Grant not found.
           content:
@@ -1702,6 +1702,16 @@ components:
         interaction:
           $ref: '#/components/schemas/Interaction'
           description: The grant's interaction session.
+    GrantRevokeResponse:
+      type: object
+      description: The result of revoking a grant.
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: The unique identifier of the revoked grant.
+      additionalProperties: false
     GrantState:
       type: string
       description: The current state of a grant.

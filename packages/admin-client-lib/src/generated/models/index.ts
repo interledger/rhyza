@@ -19,6 +19,7 @@ export * from './FailedQuote';
 export * from './FxRateSet';
 export * from './GetQuote200Response';
 export * from './Grant';
+export * from './GrantRevokeResponse';
 export * from './GrantState';
 export * from './GrantsPage';
 export * from './Interaction';

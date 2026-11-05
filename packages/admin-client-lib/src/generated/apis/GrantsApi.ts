@@ -24,6 +24,11 @@ import {
     GrantToJSON,
 } from '../models/Grant';
 import {
+    type GrantRevokeResponse,
+    GrantRevokeResponseFromJSON,
+    GrantRevokeResponseToJSON,
+} from '../models/GrantRevokeResponse';
+import {
     type GrantState,
     GrantStateFromJSON,
     GrantStateToJSON,
@@ -85,7 +90,7 @@ export class GrantsApi extends runtime.BaseAPI {
 
     /**
      * Get the grant associated with the provided id.
-     * Get grant
+     * Get Grant
      */
     async getGrantRaw(requestParameters: GetGrantRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Grant>> {
         const requestOptions = await this.getGrantRequestOpts(requestParameters);
@@ -96,7 +101,7 @@ export class GrantsApi extends runtime.BaseAPI {
 
     /**
      * Get the grant associated with the provided id.
-     * Get grant
+     * Get Grant
      */
     async getGrant(id: string, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Grant> {
         const response = await this.getGrantRaw({ id: id }, initOverrides);
@@ -195,20 +200,20 @@ export class GrantsApi extends runtime.BaseAPI {
 
     /**
      * Revoke the grant associated with the provided id.
-     * Revoke grant
+     * Revoke Grant
      */
-    async revokeGrantRaw(requestParameters: RevokeGrantRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Grant>> {
+    async revokeGrantRaw(requestParameters: RevokeGrantRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GrantRevokeResponse>> {
         const requestOptions = await this.revokeGrantRequestOpts(requestParameters);
         const response = await this.request(requestOptions, initOverrides);
 
-        return new runtime.JSONApiResponse(response, (jsonValue) => GrantFromJSON(jsonValue));
+        return new runtime.JSONApiResponse(response, (jsonValue) => GrantRevokeResponseFromJSON(jsonValue));
     }
 
     /**
      * Revoke the grant associated with the provided id.
-     * Revoke grant
+     * Revoke Grant
      */
-    async revokeGrant(id: string, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Grant> {
+    async revokeGrant(id: string, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GrantRevokeResponse> {
         const response = await this.revokeGrantRaw({ id: id }, initOverrides);
         return await response.value();
     }
