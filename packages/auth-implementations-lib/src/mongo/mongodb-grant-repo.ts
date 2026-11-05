@@ -1,14 +1,16 @@
-import { Collection, CollectionInfo, Db, MongoClient, WithId } from 'mongodb';
+import { Collection, CollectionInfo, Db, MongoClient } from 'mongodb';
 import {
   IAccessToken,
   IGrant,
+  IGrantPageOpts,
   IGrantRepository,
   IRevokedGrantUpdate,
   IRotatedGrantUpdate,
   IContinuedGrantUpdate,
   IFinishedInteractiveGrantUpdate
 } from 'auth-domain-lib';
-import { ILogger } from 'common-types-lib';
+import { ILogger, InvalidArgument, IPage } from 'common-types-lib';
+import { fetchPageDocs } from 'implementations-lib';
 
 const DB_NAME = 'auth';
 const GRANTS_COLLECTION_NAME = 'grants';
@@ -71,6 +73,14 @@ export class MongoDbGrantRepo implements IGrantRepository {
           GRANTS_COLLECTION_NAME
         );
         await this._grantCollection.createIndex({ id: 1 }, { unique: true });
+        // Supports the filtered keyset query in fetchGrantsPage. Multikey,
+        // since accesses is an array field on the grant document.
+        await this._grantCollection.createIndex({
+          state: 1,
+          'accesses.identifier': 1,
+          createdAt: 1,
+          id: 1
+        });
       }
 
       if (collectionNames.has(ACCESS_TOKENS_COLLECTION_NAME)) {
@@ -107,10 +117,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
     await this._client.close();
   }
 
-  private _docToGrant(
-    doc: WithId<GrantDoc>,
-    tokenDocs: AccessTokenDoc[]
-  ): IGrant {
+  private _docToGrant(doc: GrantDoc, tokenDocs: AccessTokenDoc[]): IGrant {
     return {
       id: doc.id,
       createdAt: doc.createdAt,
@@ -381,6 +388,54 @@ export class MongoDbGrantRepo implements IGrantRepository {
       this._logger.error(err);
       throw new Error(
         `Unable to fetch grant ${id} - error: ${(err as Error).message}`
+      );
+    }
+  }
+
+  async fetchGrantsPage(opts: IGrantPageOpts): Promise<IPage<IGrant>> {
+    this._checkInitialisedOrThrow();
+
+    try {
+      const filter: Record<string, unknown> = {};
+      if (opts.state != null) {
+        filter['state'] = opts.state;
+      }
+      if (opts.identifier != null) {
+        filter['accesses.identifier'] = opts.identifier;
+      }
+
+      const page = await fetchPageDocs(this._grantCollection, filter, opts);
+
+      // One batched token fetch for the whole page rather than one per grant.
+      const ids = page.items.map((doc) => doc.id);
+      const tokenDocs =
+        ids.length === 0
+          ? []
+          : await this._accessTokenCollection
+              .find({ grantId: { $in: ids } })
+              .toArray();
+
+      const tokensByGrantId = new Map<string, AccessTokenDoc[]>();
+      for (const tokenDoc of tokenDocs) {
+        const existing = tokensByGrantId.get(tokenDoc.grantId);
+        if (existing) {
+          existing.push(tokenDoc);
+        } else {
+          tokensByGrantId.set(tokenDoc.grantId, [tokenDoc]);
+        }
+      }
+
+      return {
+        ...page,
+        items: page.items.map((doc) =>
+          this._docToGrant(doc, tokensByGrantId.get(doc.id) ?? [])
+        )
+      };
+    } catch (err) {
+      if (err instanceof InvalidArgument) throw err;
+      this._logger.error(err);
+      throw new Error(
+        `Unable to fetch grants page - error: ${(err as Error).message}`
       );
     }
   }

@@ -15,7 +15,7 @@ import {
   httpStatusFromGrpcError,
   toClientApiErrorResponse
 } from 'payments-client-lib';
-import { parsePageQuery } from '../pagination.js';
+import { parsePaymentIntentPageQuery } from '../pagination.js';
 
 interface PaymentIntentRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
@@ -136,7 +136,7 @@ export async function paymentIntentRoutes(
     async (request, reply) => {
       try {
         const page = await paymentsClient.getPaymentIntentsPage(
-          parsePageQuery(request.query)
+          parsePaymentIntentPageQuery(request.query)
         );
 
         return reply.status(200).send({
