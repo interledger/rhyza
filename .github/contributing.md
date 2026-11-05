@@ -23,6 +23,7 @@ Thank you for contributing to Rhyza! Your contributions are essential to making 
     - [CI](#ci)
   - [Reporting Issues](#reporting-issues)
   - [Submitting Pull Requests](#submitting-pull-requests)
+    - [Linear issue references](#linear-issue-references)
   - [Review Process](#review-process)
 
 ## Types of contributions
@@ -156,7 +157,17 @@ If you encounter any issues or have a feature request, please [create a new issu
 4. Create a pull request (PR) to `main`.
 5. Ensure your PR includes a clear title and description following the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/).
 6. If your PR addresses an issue, reference the issue in the description using `Closes #123`.
-7. Be patient and be prepared to address feedback and make changes if needed.
+7. If your PR addresses a Linear issue, add its ID to the end of the PR title in square brackets, for example `fix: decode the GNAP access token [RHY-123]`. See [Linear issue references](#linear-issue-references).
+8. Be patient and be prepared to address feedback and make changes if needed.
+
+### Linear issue references
+
+PRs are squash-merged, so the PR title becomes the commit subject on `main`. Each release scans those subjects for `RHY-<number>` and links the matching Linear issues to the Linear release for that version.
+
+- Put the ID in the PR title, not only in the branch name or description. Squash merges drop the branch, so the title is the only reference the release sync reliably sees.
+- Use one ID per PR. If a PR covers several Linear issues, use the main one.
+- Leave the ID out when there is no Linear issue, for example for dependency updates or outside contributions.
+- If you forget, edit the PR title before merging. After merging, the commit subject can't be changed and the issue won't be linked to a release.
 
 ## Review Process
 

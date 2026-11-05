@@ -252,6 +252,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
+        with:
+          # Linear release sync scans commits since the previous Linear release.
+          fetch-depth: 0
       - name: Create Release
         uses: ncipollo/release-action@v1.16.0
         with:
@@ -264,3 +267,12 @@ jobs:
           name: ${{ needs.version-generator.outputs.version }}
           tag: ${{ needs.version-generator.outputs.version }}
           token: ${{ github.token }}
+      # The Rhyza pipeline is continuous, so sync creates the release already completed.
+      - name: Sync Linear release
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: sync
+          name: ${{ needs.version-generator.outputs.version }}
+          version: ${{ needs.version-generator.outputs.version }}
+          issue_pattern: '\b(RHY-[0-9]+)\b'

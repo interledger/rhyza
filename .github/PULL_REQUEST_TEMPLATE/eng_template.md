@@ -1,4 +1,5 @@
 <!--- Pull request titles should follow conventional commit format. -->
+<!--- If this PR addresses a Linear issue, end the title with its ID, e.g. `fix: decode the GNAP access token [RHY-123]`. -->
 
 <!--
 Thanks for opening a PR! Your contribution is much appreciated.

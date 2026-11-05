@@ -1,0 +1,42 @@
+# Temporary: dry-runs the Linear release sync from the Release workflow.
+# Nothing is tagged, built or released, and Linear is not modified. Remove once verified.
+name: Linear release dry run
+
+on:
+  push:
+    branches:
+      - raul/rhy-182-link-linear-realese
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version to preview (e.g. v2.4.1)
+        required: true
+        type: string
+      base_ref:
+        description: Optional ref to start the commit scan from (exclusive)
+        required: false
+        type: string
+
+permissions: {}
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Sync Linear release (dry run)
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: sync
+          name: ${{ inputs.version || 'v0.0.0-dry-run' }}
+          version: ${{ inputs.version || 'v0.0.0-dry-run' }}
+          issue_pattern: '\b(RHY-[0-9]+)\b'
+          base_ref: ${{ inputs.base_ref }}
+          dry_run: true
+          log_level: verbose
