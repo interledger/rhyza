@@ -468,11 +468,11 @@ services:
       - rhyza
 
   redis:
-    image: redis:latest
+    image: valkey/valkey:9.0
     ports:
       - '6379:6379'
     healthcheck:
-      test: redis-cli ping | grep -q PONG || exit 1
+      test: valkey-cli ping | grep -q PONG || exit 1
       start_period: 10s
       interval: 10s
       timeout: 10s
