@@ -104,11 +104,3 @@ services:
     image: rhyza-auth-command-handler-service
     build: !reset null
     pull_policy: never
-
-# The base file pins 10.5.1.0/24. A second project on that subnet is rejected
-# while the dev stack is up. !override replaces the pool instead of appending it.
-networks:
-  rhyza:
-    ipam:
-      config: !override
-        - subnet: 10.5.2.0/24
