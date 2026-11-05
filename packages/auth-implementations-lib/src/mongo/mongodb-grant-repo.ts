@@ -7,7 +7,9 @@ import {
   IRevokedGrantUpdate,
   IRotatedGrantUpdate,
   IContinuedGrantUpdate,
-  IFinishedInteractiveGrantUpdate
+  IFinishedInteractiveGrantUpdate,
+  IUpdatedSpentAmountGrant,
+  ISpentAmounts
 } from 'auth-domain-lib';
 import { ILogger, InvalidArgument, IPage } from 'common-types-lib';
 import { fetchPageDocs } from 'implementations-lib';
@@ -117,6 +119,27 @@ export class MongoDbGrantRepo implements IGrantRepository {
     await this._client.close();
   }
 
+  private _spentAmountsDocToGrantSpentAmounts(
+    docSpentAmount: GrantDoc['spentAmounts']
+  ): ISpentAmounts | undefined {
+    if (!docSpentAmount) return undefined;
+    return {
+      total: {
+        debit: BigInt(docSpentAmount.total.debit),
+        receive: BigInt(docSpentAmount?.total.receive)
+      },
+      interval: docSpentAmount.interval
+        ? {
+            ...docSpentAmount.interval,
+            total: {
+              debit: BigInt(docSpentAmount.interval.total.debit),
+              receive: BigInt(docSpentAmount.interval.total.receive)
+            }
+          }
+        : undefined
+    };
+  }
+
   private _docToGrant(doc: GrantDoc, tokenDocs: AccessTokenDoc[]): IGrant {
     return {
       id: doc.id,
@@ -136,6 +159,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
       finishUri: doc.finishUri,
       interactionNonce: doc.interactionNonce,
       interaction: doc.interaction,
+      spentAmounts: this._spentAmountsDocToGrantSpentAmounts(doc.spentAmounts),
       accessTokens: tokenDocs.map((token) => ({
         ...token,
         expiresInMs: token.expiresInMs,
@@ -168,7 +192,8 @@ export class MongoDbGrantRepo implements IGrantRepository {
           finishMethod: grant.finishMethod,
           finishUri: grant.finishUri,
           interactionNonce: grant.interactionNonce,
-          interaction: grant.interaction
+          interaction: grant.interaction,
+          spentAmounts: grant.spentAmounts
         }))
       );
 
@@ -345,6 +370,35 @@ export class MongoDbGrantRepo implements IGrantRepository {
     }
   }
 
+  async storeUpdatedSpentAmountGrants(
+    grants: IUpdatedSpentAmountGrant[]
+  ): Promise<void> {
+    this._checkInitialisedOrThrow();
+
+    if (grants.length === 0) return;
+
+    try {
+      await this._grantCollection.bulkWrite(
+        grants.map((grant) => ({
+          updateOne: {
+            filter: { id: grant.id },
+            update: {
+              $set: {
+                spentAmounts: grant.spentAmounts
+              }
+            }
+          }
+        })),
+        { ordered: false }
+      );
+    } catch (err) {
+      this._logger.error(err);
+      throw new Error(
+        `Unable to store updated spent amount grants - error: ${(err as Error).message}`
+      );
+    }
+  }
+
   async storeRevokedTokens(tokens: IAccessToken[]): Promise<void> {
     this._checkInitialisedOrThrow();
 
@@ -376,7 +430,10 @@ export class MongoDbGrantRepo implements IGrantRepository {
     this._checkInitialisedOrThrow();
 
     try {
-      const doc = await this._grantCollection.findOne({ id });
+      const doc = await this._grantCollection.findOne(
+        { id },
+        { useBigInt64: true }
+      );
       if (!doc) return undefined;
 
       const tokenDocs = await this._accessTokenCollection
@@ -447,7 +504,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
 
     try {
       const docs = await this._grantCollection
-        .find({ id: { $in: ids } })
+        .find({ id: { $in: ids } }, { useBigInt64: true })
         .toArray();
 
       const tokenDocs = await this._accessTokenCollection

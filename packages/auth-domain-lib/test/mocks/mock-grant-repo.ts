@@ -6,7 +6,8 @@ import {
   IGrantPageOpts,
   IGrantRepository,
   IRevokedGrantUpdate,
-  IRotatedGrantUpdate
+  IRotatedGrantUpdate,
+  IUpdatedSpentAmountGrant
 } from '../../src/grant/interfaces';
 import {
   DEFAULT_SORT_ORDER,
@@ -89,6 +90,20 @@ export class MockGrantRepo implements IGrantRepository {
   async storeInteractions(grants: IGrant[]): Promise<void> {
     for (const grant of grants) {
       this._store.set(grant.id, grant);
+    }
+  }
+
+  async storeUpdatedSpentAmountGrants(
+    grants: IUpdatedSpentAmountGrant[]
+  ): Promise<void> {
+    for (const update of grants) {
+      const existing = this._store.get(update.id);
+      if (!existing) continue;
+
+      this._store.set(update.id, {
+        ...existing,
+        spentAmounts: update.spentAmounts
+      });
     }
   }
 
