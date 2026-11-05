@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 import { Db, MongoClient } from 'mongodb';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { ConsoleLogger } from 'common-types-lib';
-import { IPaymentIntent, ISentPayment } from 'payments-domain-lib';
+import { IPaymentIntent, IQuote, ISentPayment } from 'payments-domain-lib';
 import { MongoDbPaymentIntentRepo } from '../../src';
 
 const MONGO_IMAGE = 'mongo:8';
@@ -492,6 +492,71 @@ describe('MongoDbPaymentIntentRepo keyset pagination', () => {
       await assert.rejects(
         () => repo.fetchByIdsWithPayments([intent.id]),
         /has no receiveAmount/
+      );
+    });
+  });
+
+  describe('storeQuotes', () => {
+    // Two handler instances can quote one remote intent at the same time.
+    // Each request is Kafka-keyed by a fresh id, so the commands land on
+    // different partitions. Both read the stored intent, append their own
+    // quote, and flush. Each write must keep the other quote.
+    function makeRemoteIntent(): IPaymentIntent {
+      return {
+        id: randomUUID(),
+        receiverWalletAddress: 'remote.example.com/alice',
+        state: 'CREATED',
+        destination: 'REMOTE',
+        assetCode: 'USD',
+        assetScale: 2,
+        createdAt: new Date(T0),
+        expiresAt: new Date(T0 + 60_000),
+        incomingAmount: null,
+        receivedAmount: 0n,
+        quotes: [],
+        sentPayments: [],
+        inboundPayments: [],
+        destinationIlpAddress: 'g.peer.123',
+        remoteUrl: `https://remote.example.com/incoming-payments/${randomUUID()}`
+      };
+    }
+
+    function makePendingQuote(): IQuote {
+      return {
+        id: randomUUID(),
+        state: 'PENDING',
+        senderWalletAddress: 'local.example.com/bob',
+        senderWalletAddressId: randomUUID(),
+        createdAt: new Date(T0),
+        route: {
+          peerId: 'peer-1',
+          peerAssetCode: 'USD',
+          peerAssetScale: 2,
+          sourceAmount: 100n,
+          senderAssetCode: 'USD'
+        }
+      };
+    }
+
+    test('two writers adding a quote to one intent each keep their quote', async () => {
+      const intent = makeRemoteIntent();
+      await repo.storeMany([intent]);
+
+      const [readA] = await repo.fetchByIdsWithPayments([intent.id]);
+      const [readB] = await repo.fetchByIdsWithPayments([intent.id]);
+
+      const quoteA = makePendingQuote();
+      const quoteB = makePendingQuote();
+      readA.quotes.push(quoteA);
+      readB.quotes.push(quoteB);
+
+      await repo.storeQuotes([readA]);
+      await repo.storeQuotes([readB]);
+
+      const [stored] = await repo.fetchByIdsWithPayments([intent.id]);
+      assert.deepEqual(
+        stored.quotes.map((q) => q.id).sort(),
+        [quoteA.id, quoteB.id].sort()
       );
     });
   });

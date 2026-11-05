@@ -10,6 +10,7 @@ import { interactionRoutes } from './routes/interaction';
 
 import authServerOpenApiJsonSchema from '../../../open-payments-specifications/json/auth-server.json';
 import { errorHandler } from './errors';
+import { allowEmptyJsonBody } from './utils';
 
 import { FastifyOpenApiValidator } from './validator';
 import crypto from 'crypto';
@@ -25,6 +26,8 @@ const HOST = process.env['HOST'] || '0.0.0.0';
 const AUTH_GRPC_URL = process.env['AUTH_GRPC_URL'] || 'localhost:50054';
 const OPEN_PAYMENTS_AUTH_SERVER_URL =
   process.env['OPEN_PAYMENTS_AUTH_SERVER_URL'] || 'http://localhost:3003';
+// TODO: validate that this is set on startup
+const IDP_URL = process.env['IDP_URL'] as string;
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -76,6 +79,8 @@ export class OpenPaymentsAuthServer {
 
     this.server.setErrorHandler(errorHandler);
 
+    allowEmptyJsonBody(this.server);
+
     this.server.register(fastifyCookie);
     this.server.register(fastifySession, {
       cookieName: 'interactionSessionId',
@@ -93,7 +98,8 @@ export class OpenPaymentsAuthServer {
     });
     this.server.register(interactionRoutes, {
       authClient: this.authClient,
-      openPaymentsAuthServerUrl: OPEN_PAYMENTS_AUTH_SERVER_URL
+      openPaymentsAuthServerUrl: OPEN_PAYMENTS_AUTH_SERVER_URL,
+      idpUrl: IDP_URL
     });
 
     await this.server.listen({ port: PORT, host: HOST });
