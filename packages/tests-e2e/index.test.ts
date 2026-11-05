@@ -30,10 +30,12 @@ describe('E2E tests', () => {
     let environmentBuilder = new DockerComposeEnvironment(
       composeDir,
       composeFiles
-    ).withEnvironment({
-      WEBHOOK_URL: 'http://ase-mock-service:3000/webhooks',
-      ...(process.env.VERSION ? { VERSION: process.env.VERSION } : {})
-    });
+    )
+      .withAutoCleanup(false)
+      .withEnvironment({
+        WEBHOOK_URL: 'http://ase-mock-service:3000/webhooks',
+        ...(process.env.VERSION ? { VERSION: process.env.VERSION } : {})
+      });
 
     if (composeProject) {
       environmentBuilder = environmentBuilder.withProjectName(composeProject);

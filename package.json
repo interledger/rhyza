@@ -7,6 +7,7 @@
     "check:lint": "eslint .",
     "check:format": "prettier --check .",
     "docker": "docker compose --profile with-observability -f ./docker/docker-compose.yaml",
+    "docker:build": "docker compose --profile with-observability -f ./docker/docker-compose.yaml build",
     "docker:up": "docker compose --profile with-observability -f ./docker/docker-compose.yaml down --volumes && docker compose --profile with-observability -f ./docker/docker-compose.yaml up --build -d",
     "docker:up:debug": "docker compose --profile with-observability -f ./docker/docker-compose.yaml -f ./docker/docker-compose.debug.yaml down --volumes && docker compose --profile with-observability -f ./docker/docker-compose.yaml -f ./docker/docker-compose.debug.yaml up --build -d",
     "docker:stop": "docker compose --profile with-observability -f ./docker/docker-compose.yaml down",
@@ -19,6 +20,7 @@
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
     "e2e": "pnpm --filter tests-e2e test",
+    "e2e:local": "E2E_COMPOSE_OVERRIDE=docker-compose.e2e.yaml E2E_COMPOSE_PROJECT=rhyza pnpm --filter tests-e2e test",
     "generate": "pnpm --filter admin-client-lib generate",
     "generate-admin-changelog": "./docs/openapi/admin/generate-changelog.sh"
   },

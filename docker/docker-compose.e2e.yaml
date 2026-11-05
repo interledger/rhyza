@@ -1,0 +1,114 @@
+# Local e2e override. Run the images produced by `pnpm docker:build`
+# (rhyza-<service>). Compose does not build or pull. A missing image fails the run.
+#
+# Usage:
+#   docker compose -f docker-compose.yaml -f docker-compose.e2e.yaml up
+
+services:
+  admin-api-service:
+    image: rhyza-admin-api-service
+    build: !reset null
+    pull_policy: never
+
+  open-payments-resource-service:
+    image: rhyza-open-payments-resource-service
+    build: !reset null
+    pull_policy: never
+
+  open-payments-auth-service:
+    image: rhyza-open-payments-auth-service
+    build: !reset null
+    pull_policy: never
+
+  # Not part of the local e2e run.
+  http-signature-service:
+    profiles: [not-in-release-e2e]
+    build: !reset null
+
+  pal-api-service:
+    image: rhyza-pal-api-service
+    build: !reset null
+    pull_policy: never
+
+  pal-ledger-command-handler-service:
+    image: rhyza-pal-ledger-command-handler-service
+    build: !reset null
+    pull_policy: never
+
+  pal-event-handler-service:
+    image: rhyza-pal-event-handler-service
+    build: !reset null
+    pull_policy: never
+
+  payments-api-service:
+    image: rhyza-payments-api-service
+    build: !reset null
+    pull_policy: never
+
+  payments-command-handler-service:
+    image: rhyza-payments-command-handler-service
+    build: !reset null
+    pull_policy: never
+
+  payments-event-handler-service:
+    image: rhyza-payments-event-handler-service
+    build: !reset null
+    pull_policy: never
+
+  notifications-command-handler-service:
+    image: rhyza-notifications-command-handler-service
+    build: !reset null
+    pull_policy: never
+
+  notifications-event-handler-service:
+    image: rhyza-notifications-event-handler-service
+    build: !reset null
+    pull_policy: never
+
+  ilp-connector-service:
+    image: rhyza-ilp-connector-service
+    build: !reset null
+    pull_policy: never
+
+  ase-mock-service:
+    image: rhyza-ase-mock-service
+    build: !reset null
+    pull_policy: never
+
+  ilp-command-handler-service:
+    image: rhyza-ilp-command-handler-service
+    build: !reset null
+    pull_policy: never
+
+  ilp-api-service:
+    image: rhyza-ilp-api-service
+    build: !reset null
+    pull_policy: never
+
+  ilp-event-handler-service:
+    image: rhyza-ilp-event-handler-service
+    build: !reset null
+    pull_policy: never
+
+  auth-api-service:
+    image: rhyza-auth-api-service
+    build: !reset null
+    pull_policy: never
+
+  idp-interaction-service:
+    image: rhyza-idp-interaction-service
+    build: !reset null
+    pull_policy: never
+
+  auth-command-handler-service:
+    image: rhyza-auth-command-handler-service
+    build: !reset null
+    pull_policy: never
+
+# The base file pins 10.5.1.0/24. A second project on that subnet is rejected
+# while the dev stack is up. !override replaces the pool instead of appending it.
+networks:
+  rhyza:
+    ipam:
+      config: !override
+        - subnet: 10.5.2.0/24
