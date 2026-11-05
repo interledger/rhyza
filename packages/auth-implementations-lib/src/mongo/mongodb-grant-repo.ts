@@ -140,10 +140,7 @@ export class MongoDbGrantRepo implements IGrantRepository {
     };
   }
 
-  private _docToGrant(
-    doc: WithId<GrantDoc>,
-    tokenDocs: AccessTokenDoc[]
-  ): IGrant {
+  private _docToGrant(doc: GrantDoc, tokenDocs: AccessTokenDoc[]): IGrant {
     return {
       id: doc.id,
       createdAt: doc.createdAt,
