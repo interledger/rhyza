@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.19
+  version: 0.0.20
   license:
     name: ISC
     identifier: ISC
@@ -1102,6 +1102,16 @@ components:
         isActive:
           type: boolean
           description: Whether the ILP connector config for this peer is active. Active by default.
+        maxPacketAmount:
+          type: string
+          pattern: '^[0-9]+$'
+          description: >-
+            Maximum ILP prepare amount accepted from this peer, in the peer's
+            asset base units as a non-negative integer string. When set,
+            oversized inbound prepares are rejected with F08 (amount too large)
+            including the received amount and this limit in the reject data so
+            senders can resize. When omitted, no per-packet amount limit is
+            enforced.
     PeerCreateResponse:
       type: object
       description: Response schema after creating a peer.

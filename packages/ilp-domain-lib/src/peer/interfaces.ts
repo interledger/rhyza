@@ -23,6 +23,12 @@ export interface PeerHttpConfig {
 export interface IPeer {
   peerId: string;
   http: PeerHttpConfig;
+  /**
+   * Optional per-peer ceiling on inbound prepare amounts (base units as a
+   * decimal integer string). When set, prepares above this limit are rejected
+   * with F08 and the usual amount+limit reject data.
+   */
+  maxPacketAmount?: string;
   isActive?: boolean;
   packetCorrelations?: IPacketCorrelation[];
 }

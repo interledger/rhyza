@@ -200,6 +200,7 @@ export class MongoDbPeerRepository implements IPeerStore {
       peerId: doc.peerId,
       http: doc.http,
       isActive: doc.isActive,
+      maxPacketAmount: doc.maxPacketAmount,
       packetCorrelations: doc.packetCorrelations
     };
   }

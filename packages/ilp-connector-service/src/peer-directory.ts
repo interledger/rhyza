@@ -27,7 +27,8 @@ export class PeerDirectory {
     this._peers.set(payload.peerId, {
       peerId: payload.peerId,
       http: payload.http,
-      isActive: payload.isActive
+      isActive: payload.isActive,
+      maxPacketAmount: payload.maxPacketAmount
     });
   }
 

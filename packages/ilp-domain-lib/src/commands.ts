@@ -12,6 +12,7 @@ export interface CreatePeerCmdPayload {
   peerId: string;
   http: PeerHttpConfig;
   isActive?: boolean;
+  maxPacketAmount?: string;
 }
 
 export class CreatePeerCmd extends CommandMsg {
@@ -33,6 +34,7 @@ export interface UpdatePeerCmdPayload {
   peerId: string;
   http: PeerHttpConfig;
   isActive?: boolean;
+  maxPacketAmount?: string;
 }
 
 export class UpdatePeerCmd extends CommandMsg {
