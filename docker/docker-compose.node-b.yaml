@@ -175,8 +175,6 @@ services:
       KAFKA_URL: kafka-b:19092
       MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017/
       WEBHOOK_URL: http://ase-mock-service-b:3000/webhooks
-    ports:
-      - '5110:5100'
     depends_on:
       init-kafka-b:
         condition: service_completed_successfully
@@ -196,8 +194,6 @@ services:
       NOTIFICATION_BATCH_SIZE: 10
       RETRY_INTERVAL_MS: 20000
       MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
-    ports:
-      - '5111:5101'
     depends_on:
       mongodb-b:
         condition: service_healthy
@@ -307,7 +303,7 @@ services:
     ports:
       - '40054:50054'
     depends_on:
-      init-kafka:
+      init-kafka-b:
         condition: service_completed_successfully
     networks:
       - rhyza
@@ -347,6 +343,12 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_MESSAGE_MAX_BYTES: 41943040
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 41943040
+      KAFKA_GROUP_CONSUMER_MAX_SESSION_TIMEOUT_MS: 15000
+      KAFKA_GROUP_CONSUMER_SESSION_TIMEOUT_MS: 10000
+      KAFKA_GROUP_CONSUMER_MIN_SESSION_TIMEOUT_MS: 10000
+      KAFKA_GROUP_CONSUMER_MAX_HEARTBEAT_INTERVAL_MS: 5000
     healthcheck:
       test: nc -z localhost 19092 || exit -1
       start_period: 30s
@@ -362,7 +364,7 @@ services:
     image: apache/kafka:4.0.0
     depends_on:
       kafka-b:
-        condition: service_started
+        condition: service_healthy
     entrypoint: ['/bin/sh', '-c']
     working_dir: /opt/kafka/bin/
     command: |
@@ -373,23 +375,23 @@ services:
       echo -e '\nCreating kafka topics:'
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --topic audits
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --topic logs
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic payment-commands
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic payment-domain-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic asset-domain-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic peer-domain-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ledger-commands
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ledger-domain-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ledger-snapshot-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ledger-state-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ledger-timer-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic wallet-address-domain-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic fxrate-domain-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ilp-domain-events
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ilp-commands
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic ilp-connector-commands
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic notification-commands
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic auth-commands
-      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 24 --topic auth-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic payment-commands
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic payment-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic asset-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic peer-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic ledger-commands
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic ledger-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic ledger-snapshot-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic ledger-state-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic ledger-timer-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic wallet-address-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic fxrate-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic ilp-domain-events
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic ilp-commands
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic ilp-connector-commands
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic notification-commands
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic auth-commands
+      ./kafka-topics.sh --bootstrap-server kafka-b:19092 --create --if-not-exists --partitions 3 --topic auth-domain-events
       echo -e '\nSuccessfully created the following topics:'
       ./kafka-topics.sh --bootstrap-server kafka-b:19092 --list
       "

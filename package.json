@@ -20,7 +20,7 @@
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
     "e2e": "pnpm --filter tests-e2e test",
-    "e2e:local": "E2E_COMPOSE_OVERRIDE=docker-compose.e2e.yaml E2E_COMPOSE_PROJECT=rhyza pnpm --filter tests-e2e test",
+    "e2e:local": "E2E_COMPOSE_PROJECT=rhyza pnpm --filter tests-e2e test",
     "generate": "pnpm --filter admin-client-lib generate",
     "generate-admin-changelog": "./docs/openapi/admin/generate-changelog.sh"
   },
