@@ -12,10 +12,12 @@
   "dependencies": {
     "@interledger/http-signature-utils": "^2.0.3",
     "common-types-lib": "workspace:*",
+    "luxon": "^3.7.2",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.3",
-    "implementations-lib": "workspace:*"
+    "@types/luxon": "^3.7.6",
+    "implementations-lib": "workspace:*",
+    "tsx": "^4.19.3"
   }
 }

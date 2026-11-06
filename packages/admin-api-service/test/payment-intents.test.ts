@@ -10,9 +10,18 @@ test('POST /payment-intents resolves a full walletAddressUrl by pathName only', 
   const app = Fastify();
   await app.register(paymentIntentRoutes, {
     palClient: {
-      resolveWalletAddressAlias: async (domain, pathName) => {
+      resolveWalletAddressByAlias: async (
+        domain: string | null,
+        pathName: string
+      ) => {
         resolved = { domain, pathName };
-        return { domain: null, pathName, walletAddressId: 'wa-1' };
+        return {
+          id: 'wa-1',
+          publicName: 'Alice',
+          assetCode: 'USD',
+          assetScale: 2,
+          isActive: true
+        };
       }
     } as unknown as PalClient,
     paymentsClient: {

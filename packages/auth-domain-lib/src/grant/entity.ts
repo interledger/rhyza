@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'util';
 import { v4 as uuid } from 'uuid';
 import {
   InvalidGrantError,
+  InsufficientGrantError,
   InvalidGrantInputError,
   InvalidInteractionError,
   NonInteractiveGrantError,
@@ -24,8 +25,13 @@ import {
   IJsonWebKey,
   AccessAction,
   ISubjectId,
-  isJWK
+  isJWK,
+  AccessType,
+  OutgoingPaymentAccessItem,
+  ISpentAmounts
 } from './interfaces';
+import { DateTime, Interval } from 'luxon';
+import { getInterval } from './utils';
 
 export const GRANT_POLL_MS = 5_000; // 5 seconds
 const INTERACTION_EXPIRY_MS = 600_000; // 10 minutes
@@ -53,6 +59,8 @@ export type CreateGrantInput = Omit<
   IGrantInput,
   'continueToken' | 'continueId' | 'state'
 >;
+
+type SpentAmountType = 'debit' | 'receive';
 
 function generateContinueToken(): string {
   return crypto.randomBytes(16).toString('hex').toUpperCase();
@@ -118,6 +126,8 @@ export class GrantEntity implements IGrant {
     string,
     IAccessToken
   >();
+  // Spent amounts tracker for grants with outgoing payment accesses.
+  private _spentAmounts?: ISpentAmounts;
 
   private constructor(input: Omit<IGrant, 'state'> & { state?: GrantState }) {
     this._id = input.id;
@@ -136,6 +146,7 @@ export class GrantEntity implements IGrant {
     this._interactionNonce = input.interactionNonce;
     this._interaction = input.interaction;
     this._createdAt = input.createdAt;
+    this._spentAmounts = input.spentAmounts;
 
     if (input.accessTokens) {
       for (const accessToken of input.accessTokens) {
@@ -146,6 +157,10 @@ export class GrantEntity implements IGrant {
 
   static fromObject(obj: IGrant): GrantEntity {
     return new GrantEntity(obj);
+  }
+
+  private isGrantWithSpentAmountsInterval(): boolean {
+    return !!this._spentAmounts?.interval;
   }
 
   // Computes the state of the grant as well as any continuation information
@@ -166,9 +181,12 @@ export class GrantEntity implements IGrant {
   } {
     const createdAt = new Date();
 
-    const isInteractiveGrant = input.accesses?.some((access) =>
-      InteractiveAccessType.includes(access.type)
-    );
+    let hasOutgoingPaymentAccess = false;
+    const isInteractiveGrant = input.accesses?.some((access) => {
+      if (access.type === AccessType.OUTGOING_PAYMENT)
+        hasOutgoingPaymentAccess = true;
+      return InteractiveAccessType.includes(access.type);
+    });
 
     if (
       isInteractiveGrant &&
@@ -182,7 +200,15 @@ export class GrantEntity implements IGrant {
         ...input,
         createdAt,
         interactionNonce: generateNonce(),
-        accessTokens: []
+        accessTokens: [],
+        spentAmounts: hasOutgoingPaymentAccess
+          ? {
+              total: {
+                debit: 0n,
+                receive: 0n
+              }
+            }
+          : undefined
       });
       entity.stateTransition(GrantState.PENDING);
       return {
@@ -219,7 +245,8 @@ export class GrantEntity implements IGrant {
       finishNonce: this._finishNonce,
       finishMethod: this._finishMethod,
       finishUri: this._finishUri,
-      accessTokens: Array.from(this._accessTokens.values())
+      accessTokens: Array.from(this._accessTokens.values()),
+      spentAmounts: this._spentAmounts
     };
   }
 
@@ -539,6 +566,202 @@ export class GrantEntity implements IGrant {
     return this.createAccessToken();
   }
 
+  private getOutgoingPaymentAccess(): OutgoingPaymentAccessItem | undefined {
+    const outgoingPaymentAccess = this.accesses?.find(
+      (access) => access.type === AccessType.OUTGOING_PAYMENT
+    );
+    return outgoingPaymentAccess as OutgoingPaymentAccessItem;
+  }
+
+  private getGrantIntervalString(): string | undefined {
+    const outgoingPaymentAccess = this.getOutgoingPaymentAccess();
+    if (!outgoingPaymentAccess) return;
+    return outgoingPaymentAccess.limits?.interval;
+  }
+
+  private getSpentAmountInterval(): Interval | null {
+    if (!this.isGrantWithSpentAmountsInterval()) return null;
+    return Interval.fromDateTimes(
+      new Date(this._spentAmounts!.interval!.start),
+      new Date(this._spentAmounts!.interval!.end)
+    );
+  }
+
+  // Ensures _spentAmounts.interval reflects the repetition that contains
+  // createdAt. Leaves it alone if it already does; otherwise rolls it over
+  // to the repetition of the grant's configured interval that contains
+  // createdAt, if any does.
+  getOrUpdateCurrentInterval(createdAt: Date): void {
+    if (!this._spentAmounts) return;
+
+    const createdAtDateTime = DateTime.fromJSDate(createdAt);
+
+    if (
+      this._spentAmounts.interval &&
+      this.getSpentAmountInterval()?.contains(createdAtDateTime)
+    ) {
+      return;
+    }
+
+    const outgoingPaymentAccessItem = this.getOutgoingPaymentAccess();
+    const intervalString = outgoingPaymentAccessItem?.limits?.interval;
+    if (!intervalString) return;
+
+    const interval = getInterval(intervalString, createdAt);
+    if (!interval || !interval.contains(createdAtDateTime))
+      throw new InvalidGrantError();
+
+    this._spentAmounts.interval = {
+      start: (interval.start as DateTime).toMillis(),
+      end: (interval.end as DateTime).toMillis(),
+      total: { debit: 0n, receive: 0n }
+    };
+  }
+
+  private validateAmountValue(value: string): void {
+    let parsed: bigint;
+    try {
+      parsed = BigInt(value);
+    } catch {
+      throw new InvalidGrantInputError();
+    }
+    if (parsed <= 0n) throw new InvalidGrantInputError();
+  }
+
+  private validateSpentAmount(
+    amountType: SpentAmountType,
+    value: string,
+    createdAt: Date,
+    amountLimit?: bigint
+  ): boolean {
+    if (!this._spentAmounts) throw new InvalidGrantError();
+    if (amountLimit === undefined) return true; // Avoid falsy 0n case
+
+    this.getOrUpdateCurrentInterval(createdAt);
+
+    if (
+      !this.getGrantIntervalString() &&
+      this._spentAmounts.total[amountType] + BigInt(value) > amountLimit
+    ) {
+      // Throw if the amount will exceed the grant spend limit and there is no interval.
+      throw new InsufficientGrantError();
+    }
+
+    if (
+      this.exceedsCurrentIntervalLimit(
+        amountType,
+        value,
+        amountLimit,
+        createdAt
+      )
+    ) {
+      // Throw if the amount will exceed the grant spend limit within the interval.
+      throw new InsufficientGrantError();
+    }
+
+    return true;
+  }
+
+  // Determines if an outgoing payment was created in the current interval, if the grant has one,
+  // and if its desired spend amount will exceed the spend limit in that interval.
+  private exceedsCurrentIntervalLimit(
+    amountType: SpentAmountType,
+    value: string,
+    amountLimit: bigint,
+    createdAt: Date
+  ): boolean {
+    return !!(
+      this._spentAmounts?.interval &&
+      this.getSpentAmountInterval()?.contains(DateTime.fromJSDate(createdAt)) &&
+      this._spentAmounts.interval.total[amountType] + BigInt(value) >
+        amountLimit
+    );
+  }
+
+  private updateSpentAmount(
+    amountType: 'debit' | 'receive',
+    value: string,
+    createdAt: string
+  ): void {
+    if (!this._spentAmounts) {
+      throw new InvalidGrantError();
+    }
+    this._spentAmounts.total[amountType] += BigInt(value);
+
+    const interval = this.getSpentAmountInterval();
+    if (interval?.contains(DateTime.fromJSDate(new Date(createdAt)))) {
+      // We expect that either the interval has been initialized by this.getOrUpdateCurrentInterval()
+      // in this method's caller before this.
+      this._spentAmounts.interval!.total[amountType] += BigInt(value);
+    } else if (this.getGrantIntervalString()) {
+      const interval = getInterval(
+        this.getGrantIntervalString() as string,
+        new Date(createdAt)
+      );
+      const total =
+        amountType === 'debit'
+          ? { debit: BigInt(value), receive: 0n }
+          : { receive: BigInt(value), debit: 0n };
+      this._spentAmounts.interval = {
+        total,
+        start: ((interval as Interval).start as DateTime).toMillis() as number,
+        end: ((interval as Interval).end as DateTime).toMillis() as number
+      };
+    }
+  }
+
+  validateAndUpdateSpentAmounts(input: {
+    receiveAmountValue?: string;
+    debitAmountValue?: string;
+    createdAt: string;
+  }): ISpentAmounts {
+    const outgoingPaymentAccessItem = this.getOutgoingPaymentAccess();
+    if (
+      !outgoingPaymentAccessItem ||
+      !this._spentAmounts ||
+      this._state !== GrantState.ISSUED
+    )
+      throw new InvalidGrantError();
+
+    const { receiveAmountValue, debitAmountValue, createdAt } = input;
+
+    if (debitAmountValue) this.validateAmountValue(debitAmountValue);
+    if (receiveAmountValue) this.validateAmountValue(receiveAmountValue);
+
+    const { limits } = outgoingPaymentAccessItem;
+
+    if (debitAmountValue && limits) {
+      this.validateSpentAmount(
+        'debit',
+        debitAmountValue,
+        new Date(createdAt),
+        limits.debitAmount
+      );
+    }
+
+    if (receiveAmountValue && limits) {
+      this.validateSpentAmount(
+        'receive',
+        receiveAmountValue,
+        new Date(createdAt),
+        limits.receiveAmount
+      );
+    }
+
+    if (debitAmountValue) {
+      if (!limits) this._spentAmounts.total.debit += BigInt(debitAmountValue);
+      else this.updateSpentAmount('debit', debitAmountValue, createdAt);
+    }
+
+    if (receiveAmountValue) {
+      if (!limits)
+        this._spentAmounts.total.receive += BigInt(receiveAmountValue);
+      else this.updateSpentAmount('receive', receiveAmountValue, createdAt);
+    }
+
+    return this._spentAmounts;
+  }
+
   get id(): string {
     return this._id;
   }
@@ -605,5 +828,9 @@ export class GrantEntity implements IGrant {
 
   get accessTokens(): IAccessToken[] {
     return Array.from(this._accessTokens.values());
+  }
+
+  get spentAmounts(): ISpentAmounts | undefined {
+    return this._spentAmounts;
   }
 }

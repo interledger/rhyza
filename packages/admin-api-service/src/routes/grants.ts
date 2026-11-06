@@ -9,9 +9,11 @@ import {
 } from 'auth-client-lib';
 import {
   GetGrantRequest,
+  GrantsListGrantsRequest,
   JsonWebKey,
   instanceOfJsonWebKey
 } from 'admin-client-lib';
+import { parseGrantPageQuery } from '../pagination.js';
 
 interface GrantRouteOptions extends FastifyPluginOptions {
   authClient: AuthClient;
@@ -19,9 +21,9 @@ interface GrantRouteOptions extends FastifyPluginOptions {
 
 interface AdminApiGrant {
   id: string;
+  createdAt: string;
   state: GetGrantResult['state'];
   client: string | JsonWebKey;
-  interactionNonce?: string;
   subjectIds?: GetGrantResult['subjectIds'];
   accesses?: GetGrantResult['accesses'];
   interaction?: GetGrantResult['interaction'];
@@ -37,9 +39,9 @@ function toAdminApiGrant(authClientGrant: GetGrantResult): AdminApiGrant {
   }
   return {
     id: authClientGrant.id,
+    createdAt: authClientGrant.createdAt,
     state: authClientGrant.state,
     client,
-    interactionNonce: authClientGrant.interactionNonce,
     subjectIds: authClientGrant.subjectIds,
     accesses: authClientGrant.accesses,
     interaction: authClientGrant.interaction
@@ -51,6 +53,30 @@ export async function grantRoutes(
   opts: GrantRouteOptions
 ): Promise<void> {
   const { authClient } = opts;
+
+  server.get<{ Querystring: GrantsListGrantsRequest }>(
+    '/grants',
+    async (request, reply) => {
+      try {
+        const page = await authClient.getGrantsPage(
+          parseGrantPageQuery(request.query)
+        );
+
+        return reply.status(200).send({
+          result: page.items.map((grant) => toAdminApiGrant(grant)),
+          pagination: page.pagination
+        });
+      } catch (error) {
+        server.log.error(error);
+        const httpStatus = httpStatusFromClientError(error);
+        return reply
+          .status(httpStatus)
+          .send(
+            isAuthClientError(error) ? { error: error.message } : { error }
+          );
+      }
+    }
+  );
 
   server.get<{
     Params: GetGrantRequest;
