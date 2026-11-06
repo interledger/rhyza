@@ -23,6 +23,7 @@ Thank you for contributing to Rhyza! Your contributions are essential to making 
     - [CI](#ci)
   - [Reporting Issues](#reporting-issues)
   - [Submitting Pull Requests](#submitting-pull-requests)
+    - [Linear issue references](#linear-issue-references)
   - [Review Process](#review-process)
 
 ## Types of contributions
@@ -156,7 +157,16 @@ If you encounter any issues or have a feature request, please [create a new issu
 4. Create a pull request (PR) to `main`.
 5. Ensure your PR includes a clear title and description following the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/).
 6. If your PR addresses an issue, reference the issue in the description using `Closes #123`.
-7. Be patient and be prepared to address feedback and make changes if needed.
+7. If your PR addresses a Linear issue, include its ID in the branch name, for example `raul/rhy-123-decode-gnap-token`. See [Linear issue references](#linear-issue-references).
+8. Be patient and be prepared to address feedback and make changes if needed.
+
+### Linear issue references
+
+Each release links the Linear issues it ships to a Linear release for that version. It finds them through the PRs referenced as `(#123)` in squash-merge commit subjects, so a PR's issue is linked only if the PR is linked to it in Linear.
+
+- Include the issue ID in the branch name. Linear's GitHub integration then links the PR to the issue automatically. Linear's **Copy git branch name** action on an issue gives you a suitable name.
+- Leave the ID out when there is no Linear issue, for example for dependency updates or outside contributions.
+- If the branch name has no ID, link the PR to the issue from the issue in Linear before the release.
 
 ## Review Process
 
