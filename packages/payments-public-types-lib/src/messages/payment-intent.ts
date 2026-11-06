@@ -321,6 +321,9 @@ export class PaymentCreatedEvent extends PaymentIntentDomainEvent {
 export type PaymentCreateFailedPayload = {
   paymentIntentId: string;
   grantId?: string;
+  debitAmountValue?: number;
+  receiveAmountValue?: number;
+  createdAt: string;
 } & FailedMessagePayload;
 
 export class PaymentCreateFailedEvent extends PaymentIntentDomainEvent {
@@ -367,6 +370,9 @@ export type PaymentCompleteFailedAdditionalData = {
   sentAmount?: string;
   assetCode?: string;
   assetScale?: number;
+  debitAmount?: string;
+  receiveAmount?: string;
+  createdAt?: string;
 };
 
 export type PaymentCompleteFailedPayload = {
@@ -390,6 +396,9 @@ export class PaymentCompleteFailedEvent extends PaymentIntentDomainEvent {
 export type PaymentCancelledPayload = {
   id: string;
   grantId?: string;
+  debitAmountValue: string;
+  receiveAmountValue?: string;
+  createdAt: string;
 };
 
 export class PaymentCancelledEvent extends PaymentIntentDomainEvent {
