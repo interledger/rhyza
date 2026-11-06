@@ -3,6 +3,7 @@
 import Fastify, { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifySession from '@fastify/session';
+import { Redis } from 'ioredis';
 import { AuthClient } from 'auth-client-lib';
 import { grantRoutes } from './routes/grant';
 import { tokenRoutes } from './routes/token';
@@ -14,8 +15,9 @@ import { allowEmptyJsonBody } from './utils';
 
 import { FastifyOpenApiValidator } from './validator';
 import crypto from 'crypto';
-import { ILogger } from '../../common-types-lib/dist/logger';
-import { PinoLogger } from 'implementations-lib';
+import { ILogger } from 'common-types-lib';
+import { PinoLogger, RedisCache } from 'implementations-lib';
+import { CacheSessionStore } from './session-store';
 
 const BC_NAME = 'OPEN_PAYMENTS';
 const APP_NAME = `${BC_NAME}_AUTH_SVC`;
@@ -28,6 +30,10 @@ const OPEN_PAYMENTS_AUTH_SERVER_URL =
   process.env['OPEN_PAYMENTS_AUTH_SERVER_URL'] || 'http://localhost:3003';
 // TODO: validate that this is set on startup
 const IDP_URL = process.env['IDP_URL'] as string;
+const REDIS_URL = process.env['REDIS_URL'];
+const SESSION_SECRET = process.env['SESSION_SECRET'];
+// Matches the grant's interaction expiry, so a session never outlives it
+const SESSION_TTL_MS = parseInt(process.env['SESSION_TTL_MS'] || '600000', 10);
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -42,6 +48,7 @@ export class OpenPaymentsAuthServer {
   private static logger: ILogger;
   private static server: FastifyInstance;
   private static authClient: AuthClient;
+  private static redis?: Redis;
 
   static async start(): Promise<void> {
     this.logger = new PinoLogger({
@@ -49,6 +56,23 @@ export class OpenPaymentsAuthServer {
       appName: APP_NAME,
       instanceId: INSTANCE_ID
     });
+
+    if (!REDIS_URL) {
+      const message =
+        'REDIS_URL is not set; refusing to start without a shared session store';
+      this.logger.error(message);
+      throw new Error(message);
+    }
+    if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
+      const message =
+        'SESSION_SECRET must be set to at least 32 characters; refusing to start';
+      this.logger.error(message);
+      throw new Error(message);
+    }
+
+    this.redis = new Redis(REDIS_URL, { lazyConnect: true });
+    await this.redis.connect();
+    console.log(`Connected to Redis at ${REDIS_URL}`);
 
     this.authClient = new AuthClient(AUTH_GRPC_URL);
     await this.authClient.init();
@@ -84,8 +108,14 @@ export class OpenPaymentsAuthServer {
     this.server.register(fastifyCookie);
     this.server.register(fastifySession, {
       cookieName: 'interactionSessionId',
-      secret: 'test-secret-replace-me-i-need-to-be-32-characters-long'
-      // TODO: { cookie: { maxAge: MAX_SESSION_LENGTH }}
+      secret: SESSION_SECRET,
+      store: new CacheSessionStore(
+        new RedisCache(this.redis, this.logger.child('session-store')),
+        SESSION_TTL_MS
+      ),
+      // only the interaction start route writes to the session
+      saveUninitialized: false,
+      cookie: { maxAge: SESSION_TTL_MS }
     });
 
     this.server.register(grantRoutes, {
@@ -109,5 +139,6 @@ export class OpenPaymentsAuthServer {
   static async stop(): Promise<void> {
     await this.server?.close();
     await this.authClient?.disconnect();
+    await this.redis?.quit();
   }
 }
