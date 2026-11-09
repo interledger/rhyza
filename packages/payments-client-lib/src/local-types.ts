@@ -33,7 +33,7 @@ export interface IPageInfo {
   hasPreviousPage: boolean;
 }
 
-export interface IPage<T> {
+export interface IPageResult<T> {
   /**
    * In the requested (createdAt, id) sortOrder, regardless of whether the
    * page was reached by paginating forward or backward.

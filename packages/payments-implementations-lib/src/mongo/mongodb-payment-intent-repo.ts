@@ -1,10 +1,6 @@
-import { Collection, CollectionInfo, Db, Filter, MongoClient } from 'mongodb';
+import { Collection, CollectionInfo, Db, MongoClient } from 'mongodb';
 import {
-  DEFAULT_SORT_ORDER,
-  FinalizedRemoteQuoteUpdate,
-  InvalidCursorError,
-  IPage,
-  IPageOpts,
+  IPaymentPageOpts,
   IStoredSentPayment,
   ISentPayment,
   isRemoteSentPayment,
@@ -14,10 +10,10 @@ import {
   IInboundPayment,
   PaymentIntentState,
   SentPaymentState,
-  SortOrder,
   InboundPaymentState
 } from 'payments-domain-lib';
-import { ILogger, InvalidArgument } from 'common-types-lib';
+import { ILogger, InvalidArgument, IPage } from 'common-types-lib';
+import { fetchPageDocs } from 'implementations-lib';
 
 const DB_NAME = 'payments';
 const PAYMENT_INTENTS_COLLECTION_NAME = 'paymentIntents';
@@ -383,7 +379,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchPaymentIntentsPage(
-    opts: IPageOpts
+    opts: IPaymentPageOpts
   ): Promise<IPage<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>>> {
     this._checkInitialisedOrThrow();
 
@@ -393,7 +389,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         filter['receiverWalletAddressId'] = opts.walletAddressId;
       }
 
-      const page = await this._fetchPageDocs(
+      const page = await fetchPageDocs(
         this._paymentIntentCollection,
         filter,
         opts
@@ -429,7 +425,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchSentPaymentsPage(
-    opts: IPageOpts & { paymentIntentId?: string }
+    opts: IPaymentPageOpts & { paymentIntentId?: string }
   ): Promise<IPage<IStoredSentPayment>> {
     this._checkInitialisedOrThrow();
 
@@ -442,7 +438,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         filter['paymentIntentId'] = opts.paymentIntentId;
       }
 
-      const page = await this._fetchPageDocs(
+      const page = await fetchPageDocs(
         this._sentPaymentCollection,
         filter,
         opts
@@ -481,92 +477,35 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
-  // Keyset pagination over (createdAt, id). The cursor is the last document's id.
-  // Given the cursor, figure out where that document sits in the (createdAt, id)
-  // ordering, then use that position as the starting point for the next page.
-  private async _fetchPageDocs<T extends { id: string; createdAt: Date }>(
-    collection: Collection<T>,
-    filter: Record<string, unknown>,
-    opts: {
-      cursor?: string;
-      limit: number;
-      backwards: boolean;
-      sortOrder?: SortOrder;
-    }
-  ): Promise<IPage<T>> {
-    const { cursor, limit, backwards } = opts;
-    if (!Number.isInteger(limit) || limit < 1) {
-      throw new InvalidArgument(
-        `limit must be a positive integer, got ${limit}`
-      );
-    }
-    const descending = (opts.sortOrder ?? DEFAULT_SORT_ORDER) === 'desc';
-
-    let boundary: { id: string; createdAt: Date } | null = null;
-    if (cursor != null) {
-      boundary = (await collection.findOne({ id: cursor } as Filter<T>, {
-        projection: { _id: 0, id: 1, createdAt: 1 }
-      })) as { id: string; createdAt: Date } | null;
-      if (!boundary) {
-        throw new InvalidCursorError(`Unknown cursor: ${cursor}`);
-      }
-    }
-
-    // Which way we walk the (createdAt, id) index from the cursor. Paging
-    // forward through a descending list moves towards *older*
-    const scanAscending = backwards === descending;
-
-    const cmp = scanAscending ? '$gt' : '$lt';
-    const range = boundary
-      ? {
-          $or: [
-            { createdAt: { [cmp]: boundary.createdAt } },
-            { createdAt: boundary.createdAt, id: { [cmp]: boundary.id } }
-          ]
-        }
-      : {};
-
-    const docs = (await collection
-      .find({ ...filter, ...range } as Filter<T>)
-      .sort(scanAscending ? { createdAt: 1, id: 1 } : { createdAt: -1, id: -1 })
-      .limit(limit + 1)
-      .toArray()) as unknown as T[];
-
-    const hasMore = docs.length > limit;
-    const items = docs.slice(0, limit);
-    if (backwards) items.reverse();
-
-    return {
-      items,
-      hasNextPage: backwards ? cursor != null : hasMore,
-      hasPreviousPage: backwards ? hasMore : cursor != null
-    };
-  }
-
-  async storeQuotes(
-    quoteUpdates: { quoteIds: string[]; paymentIntent: IPaymentIntent }[]
-  ): Promise<void> {
+  async storeQuotes(paymentIntents: IPaymentIntent[]): Promise<void> {
     this._checkInitialisedOrThrow();
 
-    if (quoteUpdates.length === 0) return;
+    if (paymentIntents.length === 0) return;
+
+    const ops = paymentIntents.flatMap((paymentIntent) =>
+      paymentIntent.quotes.flatMap((quote) => [
+        // Insert the quote if it doesn't exist.
+        {
+          updateOne: {
+            filter: { id: paymentIntent.id, 'quotes.id': { $ne: quote.id } },
+            update: { $push: { quotes: quote } }
+          }
+        },
+        // Update the quote if it already exists.
+        {
+          updateOne: {
+            filter: { id: paymentIntent.id },
+            update: { $set: { 'quotes.$[q]': quote } },
+            arrayFilters: [{ 'q.id': quote.id }]
+          }
+        }
+      ])
+    );
+
+    if (ops.length === 0) return;
 
     try {
-      await this._paymentIntentCollection.bulkWrite(
-        quoteUpdates.map((update) => ({
-          updateOne: {
-            filter: { id: update.paymentIntent.id },
-            update: {
-              $push: {
-                quotes: {
-                  $each: update.paymentIntent.quotes.filter((q) =>
-                    update.quoteIds.includes(q.id)
-                  )
-                }
-              }
-            }
-          }
-        }))
-      );
+      await this._paymentIntentCollection.bulkWrite(ops);
     } catch (e) {
       this._logger.error(e);
       throw new Error(
@@ -817,46 +756,6 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
       this._logger.error(e);
       throw new Error(
         `Unable to store finalized inbound payments - error: ${(e as Error).message}`
-      );
-    }
-  }
-
-  async storeFinalizedRemoteQuotes(
-    updates: FinalizedRemoteQuoteUpdate[]
-  ): Promise<void> {
-    this._checkInitialisedOrThrow();
-
-    if (updates.length === 0) return;
-
-    try {
-      await this._paymentIntentCollection.bulkWrite(
-        updates.map((u) => ({
-          updateOne: {
-            filter: { id: u.paymentIntentId },
-            update: {
-              $set:
-                u.state === 'COMPLETED'
-                  ? {
-                      'quotes.$[q].state': 'COMPLETED',
-                      'quotes.$[q].debitAmount': u.debitAmount,
-                      'quotes.$[q].receiveAmount': u.receiveAmount,
-                      'quotes.$[q].exchangeRate': u.exchangeRate,
-                      'quotes.$[q].expiresAt': u.expiresAt
-                    }
-                  : {
-                      'quotes.$[q].state': 'FAILED',
-                      'quotes.$[q].errorName': u.errorName,
-                      'quotes.$[q].message': u.message
-                    }
-            },
-            arrayFilters: [{ 'q.id': u.quoteId }]
-          }
-        }))
-      );
-    } catch (e) {
-      this._logger.error(e);
-      throw new Error(
-        `Unable to finalize remote quotes - error: ${(e as Error).message}`
       );
     }
   }

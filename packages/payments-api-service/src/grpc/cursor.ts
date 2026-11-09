@@ -1,4 +1,4 @@
-import { InvalidCursorError, SortOrder } from 'payments-domain-lib';
+import { SortOrder } from 'common-types-lib';
 
 /**
  * The query a cursor was issued for. Each field changes which position a
@@ -8,51 +8,4 @@ export interface CursorContext {
   sortOrder: SortOrder;
   walletAddressId?: string;
   paymentIntentId?: string;
-}
-
-const CONTEXT_KEYS = [
-  'sortOrder',
-  'walletAddressId',
-  'paymentIntentId'
-] as const;
-
-/**
- * Cursors are opaque so a caller cannot reuse one against a different sortOrder
- * or filter and silently get a page anchored to an unrelated position.
- */
-export function encodeCursor(id: string, ctx: CursorContext): string {
-  return Buffer.from(JSON.stringify({ id, ctx })).toString('base64url');
-}
-
-/** Boundary id, or throws if the cursor was issued for a different query. */
-export function decodeCursor(cursor: string, ctx: CursorContext): string {
-  let decoded: { id?: unknown; ctx?: Record<string, unknown> };
-  try {
-    decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-  } catch {
-    throw new InvalidCursorError(`Malformed cursor: ${cursor}`);
-  }
-
-  if (
-    typeof decoded?.id !== 'string' ||
-    typeof decoded.ctx !== 'object' ||
-    decoded.ctx === null ||
-    Array.isArray(decoded.ctx)
-  ) {
-    throw new InvalidCursorError(`Malformed cursor: ${cursor}`);
-  }
-
-  // compared field by field, order doesnt matter
-  const issued = decoded.ctx;
-  const matches = CONTEXT_KEYS.every(
-    (key) => (issued[key] ?? null) === (ctx[key] ?? null)
-  );
-
-  if (!matches) {
-    throw new InvalidCursorError(
-      'Cursor was issued for a different query; sortOrder and filters must stay the same while paginating'
-    );
-  }
-
-  return decoded.id;
 }

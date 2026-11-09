@@ -6,7 +6,8 @@ import { randomBytes } from 'node:crypto';
 import {
   createResolveStreamCredentials,
   createStreamServer,
-  parseStreamServerSecret
+  parseStreamServerSecret,
+  requireStreamServerSecret
 } from '../src/resolve-stream-credentials.js';
 
 describe('createResolveStreamCredentials', () => {
@@ -58,5 +59,14 @@ describe('createResolveStreamCredentials', () => {
       () => parseStreamServerSecret(Buffer.from('short').toString('base64url')),
       /32 bytes/
     );
+  });
+
+  test('requireStreamServerSecret refuses to start when unset', () => {
+    assert.throws(() => requireStreamServerSecret(undefined), /not set/);
+  });
+
+  test('requireStreamServerSecret parses a valid secret', () => {
+    const raw = randomBytes(32).toString('base64url');
+    assert.equal(requireStreamServerSecret(raw).byteLength, 32);
   });
 });

@@ -1,3 +1,4 @@
+import { FastifyInstance } from 'fastify';
 import * as crypto from 'crypto';
 import { AccessItem } from 'auth-client-lib';
 import { OpenPaymentsAuthServerRouteError } from './errors';
@@ -35,6 +36,29 @@ export function decodeCompoundId(value: string): {
     );
   }
   return { grantId, otherId };
+}
+
+/**
+ * Access token values are handed out as a compound of the grant id and the raw
+ * token (see createAccessTokenResponse). Returns the raw token, as long as the
+ * value decodes and was issued for the given grant.
+ */
+export function decodeAccessTokenValue(value: string, grantId: string): string {
+  let decoded: { grantId: string; otherId: string } | undefined;
+  try {
+    decoded = decodeCompoundId(value);
+  } catch {
+    decoded = undefined;
+  }
+
+  if (!decoded || decoded.grantId !== grantId) {
+    throw new OpenPaymentsAuthServerRouteError(
+      401,
+      'Invalid access token',
+      'invalid_client'
+    );
+  }
+  return decoded.otherId;
 }
 
 interface CreateAccessTokenResponseArgs {
@@ -83,7 +107,24 @@ export function createInteractResponse(
   openPaymentsAuthServerUrl: string
 ): components['schemas']['interact-response'] {
   return {
-    redirect: `${openPaymentsAuthServerUrl}/interact/${grantId}`,
+    redirect: `${openPaymentsAuthServerUrl}/interaction/${grantId}/start`,
     finish: interactionNonce
   };
+}
+
+export function allowEmptyJsonBody(server: FastifyInstance): void {
+  const defaultJsonParser = server.getDefaultJsonParser('error', 'error');
+
+  server.removeContentTypeParser('application/json');
+  server.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (request, body: string, done) => {
+      if (body === '') {
+        done(null, undefined);
+        return;
+      }
+      defaultJsonParser(request, body, done);
+    }
+  );
 }

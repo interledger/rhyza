@@ -43,13 +43,12 @@ import {
   GetQuoteResponse,
   SortOrder as PbSortOrder
 } from 'payments-public-types-lib';
-import { CursorContext, decodeCursor, encodeCursor } from './cursor.js';
+import { decodeCursor, encodeCursor } from 'implementations-lib';
+import { CursorContext } from './cursor.js';
 import {
-  DEFAULT_SORT_ORDER,
   IPaymentIntent,
   IPaymentIntentRepository,
-  IStoredSentPayment,
-  SortOrder
+  IStoredSentPayment
 } from 'payments-domain-lib';
 import {
   AppErrorType,
@@ -57,7 +56,9 @@ import {
   IMessage,
   InvalidArgument,
   IMessageConsumer,
-  IMessageProducer
+  IMessageProducer,
+  DEFAULT_SORT_ORDER,
+  SortOrder
 } from 'common-types-lib';
 import {
   CreatePaymentIntentCmd,
@@ -312,7 +313,8 @@ export class PaymentsServiceServer {
           remotePaymentIntentUrl:
             call.request.getRemotePaymentIntentUrl() || undefined,
           createdAt: call.request.getCreatedAt() || undefined,
-          grantId: call.request.getGrantId() || undefined
+          grantId: call.request.getGrantId() || undefined,
+          metadata: call.request.getMetadata() || undefined
         },
         commandId
       );

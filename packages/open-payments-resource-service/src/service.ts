@@ -3,13 +3,14 @@
 import Fastify, { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { PalClient } from 'pal-client-lib';
 import { PaymentsClient } from 'payments-client-lib';
-import { createStreamServer, parseStreamServerSecret } from 'ilp-client-lib';
+import { createStreamServer, requireStreamServerSecret } from 'ilp-client-lib';
 import { walletAddressRoutes } from './routes/wallet-addresses.js';
 import { incomingPaymentRoutes } from './routes/incoming-payments.js';
 import { outgoingPaymentRoutes } from './routes/outgoing-payments.js';
 
 import resourceServerOpenApiJsonSchema from '../../../open-payments-specifications/json/resource-server.json';
 import { errorHandler } from './errors.js';
+import { allowEmptyJsonBody } from './utils.js';
 import { quoteRoutes } from './routes/quotes.js';
 
 import { FastifyOpenApiValidator } from './validator.js';
@@ -30,9 +31,6 @@ const OPEN_PAYMENTS_RESOURCE_SERVICE_URL =
 const OPEN_PAYMENTS_AUTH_SERVICE_URL =
   process.env['OPEN_PAYMENTS_AUTH_SERVICE_URL'] || 'localhost:3002';
 
-const STREAM_SERVER_SECRET_RAW =
-  process.env['STREAM_SERVER_SECRET'] ||
-  Buffer.from('rhyza-dev-stream-secret-0001').toString('base64url');
 const ILP_ADDRESS = process.env['ILP_ADDRESS'] || 'private.rhyza';
 
 declare module 'fastify' {
@@ -53,6 +51,14 @@ export class OpenPaymentsResourceServer {
       appName: APP_NAME,
       instanceId: INSTANCE_ID
     });
+
+    let serverSecret: Buffer;
+    try {
+      serverSecret = requireStreamServerSecret();
+    } catch (err) {
+      this.logger.error((err as Error).message);
+      throw err;
+    }
 
     this.palClient = new PalClient(PAL_GRPC_URL);
     await this.palClient.init();
@@ -92,13 +98,15 @@ export class OpenPaymentsResourceServer {
 
     this.server.setErrorHandler(errorHandler);
 
+    allowEmptyJsonBody(this.server);
+
     this.server.register(incomingPaymentRoutes, {
       palClient: this.palClient,
       paymentsClient: this.paymentsClient,
       openPaymentsUrl: OPEN_PAYMENTS_RESOURCE_SERVICE_URL,
       openPaymentsAuthServiceUrl: OPEN_PAYMENTS_AUTH_SERVICE_URL,
       streamServer: createStreamServer({
-        serverSecret: parseStreamServerSecret(STREAM_SERVER_SECRET_RAW),
+        serverSecret,
         serverAddress: ILP_ADDRESS
       })
     });
