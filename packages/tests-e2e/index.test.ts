@@ -36,7 +36,10 @@ describe('E2E tests', () => {
       .withAutoCleanup(false)
       .withEnvironment({
         WEBHOOK_URL: 'http://ase-mock-service:3000/webhooks',
-        ...(process.env.VERSION ? { VERSION: process.env.VERSION } : {})
+        ...(process.env.VERSION ? { VERSION: process.env.VERSION } : {}),
+        ...(process.env.TARGET_ARCH
+          ? { TARGET_ARCH: process.env.TARGET_ARCH }
+          : {})
       });
 
     if (composeProject) {
@@ -56,7 +59,7 @@ describe('E2E tests', () => {
       Wait.forHttp('/healthz', ASE_MOCK_PORT)
     );
 
-    // Release override sets pull_policy: never and clears build, so a missing
+    // The e2e compose file sets pull_policy: never and clears build, so a missing
     // local image fails instead of building from source or pulling from a registry.
     try {
       environment = await environmentBuilder.up();

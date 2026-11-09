@@ -170,7 +170,7 @@ jobs:
       - name: Run E2E tests against release images
         env:
           VERSION: ${{ needs.version-generator.outputs.version }}
-          E2E_COMPOSE_OVERRIDE: docker-compose.release.yaml
+          TARGET_ARCH: amd64
           E2E_COMPOSE_PROJECT: rhyza-e2e-release
           E2E_COMPOSE_LOGS_PATH: ${{ runner.temp }}/e2e-compose-logs.txt
         run: pnpm e2e

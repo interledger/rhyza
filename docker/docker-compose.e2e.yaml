@@ -1,8 +1,12 @@
-# Local e2e stack. Run the images produced by `pnpm docker:build`
-# (rhyza-<service>). Compose does not build or pull. A missing image fails the run.
+# E2e stack. Compose does not build or pull. A missing image fails the run.
 #
-# Usage: https://github.com/docker/compose/issues/13212
+# Images are rhyza-<service>, plus an optional architecture suffix and version tag:
+#   (no env)                         rhyza-admin-api-service
+#   TARGET_ARCH=amd64 VERSION=v1.2.3 rhyza-admin-api-service-amd64:v1.2.3
+#
+# Usage:
 #   docker compose -f docker-compose.e2e.yaml up
+#   TARGET_ARCH=amd64 VERSION=v1.2.3 docker compose -f docker-compose.e2e.yaml up
 
 name: rhyza
 
@@ -12,17 +16,17 @@ include:
 
 services:
   admin-api-service:
-    image: rhyza-admin-api-service
+    image: rhyza-admin-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   open-payments-resource-service:
-    image: rhyza-open-payments-resource-service
+    image: rhyza-open-payments-resource-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   open-payments-auth-service:
-    image: rhyza-open-payments-auth-service
+    image: rhyza-open-payments-auth-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
@@ -32,162 +36,162 @@ services:
     build: !reset null
 
   pal-api-service:
-    image: rhyza-pal-api-service
+    image: rhyza-pal-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   pal-ledger-command-handler-service:
-    image: rhyza-pal-ledger-command-handler-service
+    image: rhyza-pal-ledger-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   pal-event-handler-service:
-    image: rhyza-pal-event-handler-service
+    image: rhyza-pal-event-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   payments-api-service:
-    image: rhyza-payments-api-service
+    image: rhyza-payments-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   payments-command-handler-service:
-    image: rhyza-payments-command-handler-service
+    image: rhyza-payments-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   payments-event-handler-service:
-    image: rhyza-payments-event-handler-service
+    image: rhyza-payments-event-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   notifications-command-handler-service:
-    image: rhyza-notifications-command-handler-service
+    image: rhyza-notifications-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   notifications-event-handler-service:
-    image: rhyza-notifications-event-handler-service
+    image: rhyza-notifications-event-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ilp-connector-service:
-    image: rhyza-ilp-connector-service
+    image: rhyza-ilp-connector-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ase-mock-service:
-    image: rhyza-ase-mock-service
+    image: rhyza-ase-mock-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ilp-command-handler-service:
-    image: rhyza-ilp-command-handler-service
+    image: rhyza-ilp-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ilp-api-service:
-    image: rhyza-ilp-api-service
+    image: rhyza-ilp-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ilp-event-handler-service:
-    image: rhyza-ilp-event-handler-service
+    image: rhyza-ilp-event-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   auth-api-service:
-    image: rhyza-auth-api-service
+    image: rhyza-auth-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   idp-interaction-service:
-    image: rhyza-idp-interaction-service
+    image: rhyza-idp-interaction-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   auth-command-handler-service:
-    image: rhyza-auth-command-handler-service
+    image: rhyza-auth-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   # Node B runs the same images as node A. Ports stay as set in docker-compose.node-b.yaml.
   admin-api-service-b:
-    image: rhyza-admin-api-service
+    image: rhyza-admin-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   open-payments-resource-service-b:
-    image: rhyza-open-payments-resource-service
+    image: rhyza-open-payments-resource-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   pal-api-service-b:
-    image: rhyza-pal-api-service
+    image: rhyza-pal-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   pal-ledger-command-handler-service-b:
-    image: rhyza-pal-ledger-command-handler-service
+    image: rhyza-pal-ledger-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   pal-event-handler-service-b:
-    image: rhyza-pal-event-handler-service
+    image: rhyza-pal-event-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   payments-api-service-b:
-    image: rhyza-payments-api-service
+    image: rhyza-payments-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   payments-command-handler-service-b:
-    image: rhyza-payments-command-handler-service
+    image: rhyza-payments-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   payments-event-handler-service-b:
-    image: rhyza-payments-event-handler-service
+    image: rhyza-payments-event-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   notifications-command-handler-service-b:
-    image: rhyza-notifications-command-handler-service
+    image: rhyza-notifications-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   notifications-event-handler-service-b:
-    image: rhyza-notifications-event-handler-service
+    image: rhyza-notifications-event-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ilp-connector-service-b:
-    image: rhyza-ilp-connector-service
+    image: rhyza-ilp-connector-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ase-mock-service-b:
-    image: rhyza-ase-mock-service
+    image: rhyza-ase-mock-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ilp-command-handler-service-b:
-    image: rhyza-ilp-command-handler-service
+    image: rhyza-ilp-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ilp-api-service-b:
-    image: rhyza-ilp-api-service
+    image: rhyza-ilp-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   ilp-event-handler-service-b:
-    image: rhyza-ilp-event-handler-service
+    image: rhyza-ilp-event-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
 
   auth-api-service-b:
-    image: rhyza-auth-api-service
+    image: rhyza-auth-api-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
     build: !reset null
     pull_policy: never
