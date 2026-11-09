@@ -2,8 +2,32 @@
 
 import {
   IRemotePaymentIntentService,
-  IRemotePaymentIntentDetails
+  PaymentIntentDestination,
+  PaymentIntentState
 } from 'payments-domain-lib';
+
+import type { IRemotePaymentIntentDetails } from 'payments-domain-lib';
+
+type IncomingPaymentAmount = {
+  value: string;
+  assetCode: string;
+  assetScale: number;
+};
+
+type IncomingPaymentWithoutAccessToken = {
+  id: string;
+  completed: boolean;
+  createdAt: string;
+  receivedAmount: IncomingPaymentAmount;
+  incomingAmount?: IncomingPaymentAmount;
+  expiresAt?: string;
+  authServer: string;
+  methods: {
+    type: 'ilp';
+    ilpAddress: string;
+    sharedSecret: string;
+  }[];
+};
 
 // TODO: Consider replacing fetch with the open-payments-node client.
 // That would require either: (a) key pair initialization for authenticated
@@ -22,17 +46,7 @@ export class RemotePaymentIntentAdapter implements IRemotePaymentIntentService {
       );
     }
 
-    const data = (await response.json()) as {
-      walletAddress: string;
-      incomingAmount?: { value: string; assetCode: string; assetScale: number };
-      receivedAmount: { value: string; assetCode: string; assetScale: number };
-      expiresAt?: string;
-      methods?: {
-        type: string;
-        ilpAddress?: string;
-        sharedSecret?: string;
-      }[];
-    };
+    const data = (await response.json()) as IncomingPaymentWithoutAccessToken;
 
     const ilpMethod = data.methods?.find((method) => method.type === 'ilp');
     if (!ilpMethod?.sharedSecret) {
@@ -48,14 +62,23 @@ export class RemotePaymentIntentAdapter implements IRemotePaymentIntentService {
     }
 
     return {
-      walletAddress: data.walletAddress,
+      id: data.id,
+      destination: PaymentIntentDestination.REMOTE,
+      remoteUrl: url,
+      state: data.completed
+        ? PaymentIntentState.COMPLETED
+        : PaymentIntentState.CREATED,
       assetCode: data.receivedAmount.assetCode,
       assetScale: data.receivedAmount.assetScale,
+      createdAt: new Date(data.createdAt),
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
       incomingAmount: data.incomingAmount
         ? BigInt(data.incomingAmount.value)
-        : undefined,
+        : null,
       receivedAmount: BigInt(data.receivedAmount.value),
-      expiresAt: data.expiresAt,
+      quotes: [],
+      sentPayments: [],
+      inboundPayments: [],
       destinationIlpAddress: ilpMethod.ilpAddress,
       sharedSecret: ilpMethod.sharedSecret
     };

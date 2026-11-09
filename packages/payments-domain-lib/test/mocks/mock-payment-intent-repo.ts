@@ -4,6 +4,7 @@ import {
   IPaymentIntentRepository,
   ISentPayment,
   isRemoteSentPayment,
+  PaymentIntentDestination,
   PaymentIntentState,
   SentPaymentState,
   InboundPaymentState
@@ -38,11 +39,12 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchByIds(
-    ids: string[]
+    ids: string[],
+    destination?: PaymentIntentDestination
   ): Promise<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>[]> {
     return ids.flatMap((id) => {
       const p = this._store.get(id);
-      if (!p) return [];
+      if (!p || !this._matchesDestination(p, destination)) return [];
       const { sentPayments, inboundPayments, ...rest } = p;
       void sentPayments;
       void inboundPayments;
@@ -50,11 +52,14 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
     });
   }
 
-  async fetchByIdsWithPayments(ids: string[]): Promise<IPaymentIntent[]> {
+  async fetchByIdsWithPayments(
+    ids: string[],
+    destination?: PaymentIntentDestination
+  ): Promise<IPaymentIntent[]> {
     const results: IPaymentIntent[] = [];
     for (const id of ids) {
       const p = this._store.get(id);
-      if (!p) continue;
+      if (!p || !this._matchesDestination(p, destination)) continue;
       results.push({
         ...p,
         quotes: p.quotes.map((quote) => ({ ...quote })),
@@ -92,13 +97,16 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchPaymentIntentsPage(
-    opts: IPaymentPageOpts
+    opts: IPaymentPageOpts,
+    destination?: PaymentIntentDestination
   ): Promise<IPage<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>>> {
     const all = this.getAll();
-    const filtered =
-      opts.walletAddressId == null
-        ? all
-        : all.filter((p) => p.receiverWalletAddressId === opts.walletAddressId);
+    const filtered = all.filter(
+      (p) =>
+        (opts.walletAddressId == null ||
+          p.receiverWalletAddressId === opts.walletAddressId) &&
+        this._matchesDestination(p, destination)
+    );
     const page = this._page(all, filtered, opts);
     return {
       ...page,
@@ -522,5 +530,12 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
 
   getAll(): IPaymentIntent[] {
     return [...this._store.values()];
+  }
+
+  private _matchesDestination(
+    paymentIntent: IPaymentIntent,
+    destination?: PaymentIntentDestination
+  ): boolean {
+    return destination == null || paymentIntent.destination === destination;
   }
 }

@@ -33,6 +33,12 @@ const OPEN_PAYMENTS_AUTH_SERVICE_URL =
 
 const ILP_ADDRESS = process.env['ILP_ADDRESS'] || 'private.rhyza';
 
+declare module 'fastify' {
+  interface FastifyRequest {
+    gnapToken: string | null;
+  }
+}
+
 export class OpenPaymentsResourceServer {
   private static logger: ILogger;
   private static server: FastifyInstance;
@@ -98,6 +104,7 @@ export class OpenPaymentsResourceServer {
       palClient: this.palClient,
       paymentsClient: this.paymentsClient,
       openPaymentsUrl: OPEN_PAYMENTS_RESOURCE_SERVICE_URL,
+      openPaymentsAuthServiceUrl: OPEN_PAYMENTS_AUTH_SERVICE_URL,
       streamServer: createStreamServer({
         serverSecret,
         serverAddress: ILP_ADDRESS

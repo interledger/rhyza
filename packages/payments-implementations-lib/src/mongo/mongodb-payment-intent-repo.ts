@@ -253,7 +253,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchByIds(
-    ids: string[]
+    ids: string[],
+    destination?: PaymentIntentDestination
   ): Promise<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>[]> {
     this._checkInitialisedOrThrow();
 
@@ -261,7 +262,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
 
     try {
       const docs = await this._paymentIntentCollection
-        .find({ id: { $in: ids } })
+        .find({ id: { $in: ids }, destination: destination })
         .toArray();
 
       return docs.map((doc) => ({
@@ -289,7 +290,10 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
-  async fetchByIdsWithPayments(ids: string[]): Promise<IPaymentIntent[]> {
+  async fetchByIdsWithPayments(
+    ids: string[],
+    destination?: PaymentIntentDestination
+  ): Promise<IPaymentIntent[]> {
     this._checkInitialisedOrThrow();
 
     if (ids.length === 0) return [];
@@ -297,7 +301,9 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     try {
       const [paymentIntentDocs, paymentDocs, inboundPaymentDocs] =
         await Promise.all([
-          this._paymentIntentCollection.find({ id: { $in: ids } }).toArray(),
+          this._paymentIntentCollection
+            .find({ id: { $in: ids }, destination: destination })
+            .toArray(),
           this._sentPaymentCollection
             .find({ paymentIntentId: { $in: ids } }, { projection: { _id: 0 } })
             .toArray(),
@@ -379,7 +385,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchPaymentIntentsPage(
-    opts: IPaymentPageOpts
+    opts: IPaymentPageOpts,
+    destination?: PaymentIntentDestination
   ): Promise<IPage<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>>> {
     this._checkInitialisedOrThrow();
 
@@ -387,6 +394,10 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
       const filter: Record<string, unknown> = {};
       if (opts.walletAddressId != null) {
         filter['receiverWalletAddressId'] = opts.walletAddressId;
+      }
+
+      if (destination != null) {
+        filter['destination'] = destination;
       }
 
       const page = await fetchPageDocs(
