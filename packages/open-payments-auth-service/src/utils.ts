@@ -70,6 +70,49 @@ interface CreateAccessTokenResponseArgs {
   openPaymentsAuthServerUrl: string;
 }
 
+type AccessIncoming = components['schemas']['access-incoming'];
+type AccessOutgoing = components['schemas']['access-outgoing'];
+type AccessQuote = components['schemas']['access-quote'];
+
+function toActionsResponse(actions: string[]): string[] {
+  return actions.map((action) => action.toLowerCase().replaceAll('_', '-'));
+}
+
+// Maps each stored access type explicitly, so the type checker enforces the
+// fields the spec requires per type (e.g. `identifier` on outgoing-payment).
+function toAccessItemResponse(
+  item: AccessItem
+): components['schemas']['access-item'] {
+  switch (item.type) {
+    case 'INCOMING_PAYMENT':
+      return {
+        type: 'incoming-payment',
+        actions: toActionsResponse(item.actions) as AccessIncoming['actions'],
+        ...(item.identifier !== undefined && { identifier: item.identifier })
+      };
+    case 'OUTGOING_PAYMENT':
+      // The grant request schema requires an identifier for outgoing-payment.
+      if (item.identifier === undefined) {
+        throw new Error(
+          'Stored outgoing-payment access item has no identifier'
+        );
+      }
+      return {
+        type: 'outgoing-payment',
+        actions: toActionsResponse(item.actions) as AccessOutgoing['actions'],
+        identifier: item.identifier,
+        ...(item.limits !== undefined && { limits: item.limits })
+      };
+    case 'QUOTE':
+      return {
+        type: 'quote',
+        actions: toActionsResponse(item.actions) as AccessQuote['actions']
+      };
+    default:
+      throw new Error(`Unknown access type: ${item.type}`);
+  }
+}
+
 export function createAccessTokenResponse(
   args: CreateAccessTokenResponseArgs
 ): components['schemas']['access_token'] {
@@ -77,12 +120,7 @@ export function createAccessTokenResponse(
     value: encodeCompoundId(args.grantId, args.accessTokenValue),
     manage: `${args.openPaymentsAuthServerUrl}/token/${encodeCompoundId(args.grantId, args.accessTokenManagementId)}`,
     expires_in: args.accessTokenExpiresIn,
-    access: args.access.map((a) => ({
-      actions: a.actions.map((action) =>
-        action.toLowerCase().replace('_', '-')
-      ),
-      type: a.type.toLowerCase().replace('_', '-')
-    })) as components['schemas']['access']
+    access: args.access.map(toAccessItemResponse)
   };
 }
 
