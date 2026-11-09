@@ -37,7 +37,7 @@ jobs:
           REGISTRY: ghcr.io/${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          VERSION="$(gh release view --json tagName --jq .tagName)"
+          VERSION="$(gh api repos/interledger/rhyza/releases --jq '.[0].tag_name')"
           if [[ -z "$VERSION" ]]; then
             echo "No GitHub release found" >&2
             exit 1
