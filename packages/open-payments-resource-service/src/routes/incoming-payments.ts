@@ -31,13 +31,12 @@ function toIncomingPaymentDetails(
   openPaymentsUrl: string,
   metadata?: Record<string, unknown>
 ): components['schemas']['incoming-payment-base-with-details'] {
-  const receiverWalletAddress = paymentIntent.receiverWalletAddress;
-  const pathName = receiverWalletAddress
-    ? pathNameFromWalletAddress(receiverWalletAddress)
-    : '';
+  const pathName = pathNameFromWalletAddress(
+    paymentIntent.receiverWalletAddress
+  );
   const details: components['schemas']['incoming-payment-base-with-details'] = {
     ...toIncomingPaymentBase(paymentIntent, openPaymentsUrl),
-    walletAddress: receiverWalletAddress ? `${openPaymentsUrl}/${pathName}` : ''
+    walletAddress: `${openPaymentsUrl}/${pathName}`
   };
 
   if (metadata) {

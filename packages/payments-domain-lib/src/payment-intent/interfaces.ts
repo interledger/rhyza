@@ -236,15 +236,20 @@ export interface IPaymentIntentRepository {
     paymentIntents: { id: string; state: PaymentIntentState }[]
   ): Promise<void>;
   fetchByIds(
-    ids: string[]
+    ids: string[],
+    destination?: PaymentIntentDestination
   ): Promise<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>[]>;
-  fetchByIdsWithPayments(ids: string[]): Promise<IPaymentIntent[]>;
+  fetchByIdsWithPayments(
+    ids: string[],
+    destination?: PaymentIntentDestination
+  ): Promise<IPaymentIntent[]>;
   fetchIdsByRemoteUrls(
     urls: string[]
   ): Promise<Array<{ id: string; remoteUrl: string }>>;
   /** Keyset-paginated payment intents, filterable by receiverWalletAddressId. */
   fetchPaymentIntentsPage(
-    opts: IPaymentPageOpts
+    opts: IPaymentPageOpts,
+    destination?: PaymentIntentDestination
   ): Promise<IPage<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>>>;
   /**
    * Keyset-paginated sent payments, filterable by senderWalletAddressId and/or

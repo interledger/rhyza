@@ -2216,6 +2216,58 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         assert.equal(stored?.sentPayments[0]?.grantId, 'grant-1');
       });
 
+      it('returns the local payment', async () => {
+        const paymentIntent: IPaymentIntent = {
+          id: crypto.randomUUID(),
+          receivedAmount: 0n,
+          receiverWalletAddress: 'receiver',
+          receiverWalletAddressId: crypto.randomUUID(),
+          assetCode: 'USD',
+          assetScale: 2,
+          state: 'CREATED',
+          destination: 'LOCAL',
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 1000),
+          incomingAmount: null,
+          quotes: [],
+          sentPayments: [],
+          inboundPayments: []
+        };
+        const remoteIntent: IPaymentIntent = {
+          ...paymentIntent,
+          id: crypto.randomUUID(),
+          destination: 'REMOTE',
+          receiverWalletAddressId: undefined,
+          remoteUrl: 'https://remote.example/incoming-payments/1',
+          destinationIlpAddress: 'g.peer.123'
+        };
+        await repo.storeMany([paymentIntent, remoteIntent]);
+
+        const cmd = makeCreatePaymentCmd({
+          paymentIntentId: paymentIntent.id
+        });
+        const { events } = await aggregate.handleBatch([cmd]);
+        await aggregate.flush();
+
+        assert.equal(events[0].msgName, PaymentCreatedEvent.name);
+
+        const [local] = await repo.fetchByIdsWithPayments(
+          [paymentIntent.id, remoteIntent.id],
+          'LOCAL'
+        );
+        assert.equal(local.id, paymentIntent.id);
+        assert.equal(local.destination, 'LOCAL');
+        assert.equal(local.sentPayments.length, 1);
+        assert.equal(local.sentPayments[0].id, cmd.payload.id);
+        assert.equal(local.sentPayments[0].destination, 'LOCAL');
+
+        const remote = await repo.fetchByIdsWithPayments(
+          [paymentIntent.id],
+          'REMOTE'
+        );
+        assert.equal(remote.length, 0);
+      });
+
       it('creates remote payment from a completed quote', async () => {
         const paymentIntentId = crypto.randomUUID();
         const quoteId = crypto.randomUUID();

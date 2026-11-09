@@ -46,9 +46,10 @@ import {
 import { decodeCursor, encodeCursor } from 'implementations-lib';
 import { CursorContext } from './cursor.js';
 import {
-  IPaymentIntent,
+  ILocalPaymentIntent,
   IPaymentIntentRepository,
-  IStoredSentPayment
+  IStoredSentPayment,
+  PaymentIntentDestination
 } from 'payments-domain-lib';
 import {
   AppErrorType,
@@ -354,7 +355,10 @@ export class PaymentsServiceServer {
   ): Promise<void> {
     const id = call.request.getId();
     try {
-      const [paymentIntent] = await this._repo.fetchByIds([id]);
+      const [paymentIntent] = await this._repo.fetchByIds(
+        [id],
+        PaymentIntentDestination.LOCAL
+      );
       if (!paymentIntent) {
         callback({
           code: grpc.status.NOT_FOUND,
@@ -364,7 +368,9 @@ export class PaymentsServiceServer {
       }
 
       const response = new GetPaymentIntentResponse();
-      response.setPaymentIntent(this._toPbPaymentIntent(paymentIntent));
+      response.setPaymentIntent(
+        this._toPbPaymentIntent(paymentIntent as ILocalPaymentIntent)
+      );
 
       callback(null, response);
     } catch (err) {
@@ -486,17 +492,22 @@ export class PaymentsServiceServer {
       };
       const cursor = request.getCursor() || undefined;
 
-      const page = await this._repo.fetchPaymentIntentsPage({
-        walletAddressId: cursorContext.walletAddressId,
-        cursor: cursor && decodeCursor(cursor, cursorContext),
-        limit: this._clampPageLimit(request.getLimit()),
-        backwards: request.getBackwards(),
-        sortOrder: cursorContext.sortOrder
-      });
+      const page = await this._repo.fetchPaymentIntentsPage(
+        {
+          walletAddressId: cursorContext.walletAddressId,
+          cursor: cursor && decodeCursor(cursor, cursorContext),
+          limit: this._clampPageLimit(request.getLimit()),
+          backwards: request.getBackwards(),
+          sortOrder: cursorContext.sortOrder
+        },
+        PaymentIntentDestination.LOCAL
+      );
 
       const response = new GetPaymentIntentsPageResponse();
       response.setPaymentIntentsList(
-        page.items.map((intent) => this._toPbPaymentIntent(intent))
+        page.items.map((intent) =>
+          this._toPbPaymentIntent(intent as ILocalPaymentIntent)
+        )
       );
       response.setHasNextPage(page.hasNextPage);
       response.setHasPreviousPage(page.hasPreviousPage);
@@ -599,10 +610,13 @@ export class PaymentsServiceServer {
   }
 
   private _toPbPaymentIntent(
-    paymentIntent: Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>
+    paymentIntent: Omit<ILocalPaymentIntent, 'sentPayments' | 'inboundPayments'>
   ): PaymentIntent {
     const pbPaymentIntent = new PaymentIntent();
     pbPaymentIntent.setId(paymentIntent.id);
+    pbPaymentIntent.setReceiverWalletAddress(
+      paymentIntent.receiverWalletAddress
+    );
     pbPaymentIntent.setState(paymentIntent.state);
     pbPaymentIntent.setDestination(paymentIntent.destination);
     pbPaymentIntent.setReceivedAmount(Number(paymentIntent.receivedAmount));
@@ -611,11 +625,7 @@ export class PaymentsServiceServer {
     pbPaymentIntent.setCreatedAt(
       new Date(paymentIntent.createdAt).toISOString()
     );
-    if (paymentIntent.receiverWalletAddress) {
-      pbPaymentIntent.setReceiverWalletAddress(
-        paymentIntent.receiverWalletAddress
-      );
-    }
+
     if (paymentIntent.incomingAmount != null) {
       pbPaymentIntent.setIncomingAmount(Number(paymentIntent.incomingAmount));
     }
