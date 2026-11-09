@@ -248,9 +248,9 @@ function resolveClientIdentifier(client: ClientSchema): string {
 
 function toAccessItem(item: components['schemas']['access-item']): AccessItem {
   return {
-    type: item.type.toUpperCase().replace('-', '_'), // domain expects UPPER_SNAKE_CASE
+    type: item.type.toUpperCase().replaceAll('-', '_'), // domain expects UPPER_SNAKE_CASE
     actions: item.actions.map(
-      (action) => action.toUpperCase().replace('-', '_') // domain expects UPPER_SNAKE_CASE
+      (action) => action.toUpperCase().replaceAll('-', '_') // domain expects UPPER_SNAKE_CASE
     ),
     identifier: 'identifier' in item ? item.identifier : undefined,
     limits: 'limits' in item ? item.limits : undefined
