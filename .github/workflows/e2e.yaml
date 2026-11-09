@@ -3,10 +3,17 @@ name: E2E tests
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   e2e:
+    name: E2E
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+      actions: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -17,14 +24,66 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
-      - name: Install dependencies
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest release images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY: ghcr.io/${{ github.repository_owner }}
         run: |
-          pnpm install --frozen-lockfile
+          set -euo pipefail
+          VERSION="$(gh release view --json tagName --jq .tagName)"
+          if [[ -z "$VERSION" ]]; then
+            echo "No GitHub release found" >&2
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "Using release ${VERSION}"
+
+          mapfile -t packages < <(jq -r '.[]' .github/release-packages.json)
+          packages+=(ase-mock-service)
+          for package in "${packages[@]}"; do
+            remote="${REGISTRY}/rhyza-${package}-amd64:${VERSION}"
+            local_image="rhyza-${package}-amd64:${VERSION}"
+            echo "Pulling ${remote}"
+            docker pull "$remote"
+            docker tag "$remote" "$local_image"
+          done
+
+          mapfile -t loaded < <(docker images --format '{{.Repository}}:{{.Tag}}' | grep "^rhyza-.*-amd64:${VERSION}$" || true)
+          expected=$(( $(jq 'length' .github/release-packages.json) + 1 ))
+          if [[ ${#loaded[@]} -ne "$expected" ]]; then
+            echo "Expected ${expected} rhyza-*-amd64:${VERSION} images, found ${#loaded[@]}" >&2
+            printf '%s\n' "${loaded[@]}"
+            docker images
+            exit 1
+          fi
+          printf 'Pulled %s release images\n' "${#loaded[@]}"
+          printf '%s\n' "${loaded[@]}"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build admin-client-lib
-        run: |
-          pnpm --filter admin-client-lib build
+        run: pnpm --filter admin-client-lib build
 
       - name: Run E2E tests
-        run: |
-          pnpm e2e
+        env:
+          TARGET_ARCH: amd64
+          E2E_COMPOSE_PROJECT: rhyza-e2e
+          E2E_COMPOSE_LOGS_PATH: ${{ runner.temp }}/e2e-compose-logs.txt
+        run: pnpm e2e
+
+      - name: Upload compose logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-compose-logs
+          path: ${{ runner.temp }}/e2e-compose-logs.txt
+          if-no-files-found: warn
+          retention-days: 7
