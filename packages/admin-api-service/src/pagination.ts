@@ -6,6 +6,12 @@ import {
 import { IPageQuery as IGrantPageQuery } from 'auth-client-lib';
 import { IPageQuery as IPaymentPageQuery } from 'payments-client-lib';
 
+export const MAX_GRANT_WALLET_ADDRESSES = 50;
+
+export type GrantPageQuery = Omit<GrantsListGrantsRequest, 'walletAddress'> & {
+  walletAddress?: string | string[];
+};
+
 /**
  * Shared pagination fields, extended per endpoint with their own filters.
  */
@@ -49,11 +55,19 @@ export function parsePaymentPageQuery(
 }
 
 export function parseGrantPageQuery(
-  query: GrantsListGrantsRequest
-): IGrantPageQuery {
+  query: GrantPageQuery
+): IGrantPageQuery & { identifiers: string[] } {
+  const walletAddress = query.walletAddress;
+  const identifiers =
+    walletAddress == null
+      ? []
+      : Array.isArray(walletAddress)
+        ? walletAddress
+        : [walletAddress];
+
   return {
     ...parsePageParams(query),
-    identifier: query.walletAddress,
+    identifiers: identifiers.filter((address) => address !== ''),
     state: query.state
   };
 }

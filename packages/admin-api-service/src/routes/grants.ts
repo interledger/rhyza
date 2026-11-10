@@ -9,11 +9,14 @@ import {
 } from 'auth-client-lib';
 import {
   GetGrantRequest,
-  GrantsListGrantsRequest,
   JsonWebKey,
   instanceOfJsonWebKey
 } from 'admin-client-lib';
-import { parseGrantPageQuery } from '../pagination.js';
+import {
+  GrantPageQuery,
+  MAX_GRANT_WALLET_ADDRESSES,
+  parseGrantPageQuery
+} from '../pagination.js';
 
 interface GrantRouteOptions extends FastifyPluginOptions {
   authClient: AuthClient;
@@ -54,13 +57,19 @@ export async function grantRoutes(
 ): Promise<void> {
   const { authClient } = opts;
 
-  server.get<{ Querystring: GrantsListGrantsRequest }>(
+  server.get<{ Querystring: GrantPageQuery }>(
     '/grants',
     async (request, reply) => {
+      const query = parseGrantPageQuery(request.query);
+
+      if (query.identifiers.length > MAX_GRANT_WALLET_ADDRESSES) {
+        return reply.status(400).send({
+          error: `Too many walletAddress filters: ${query.identifiers.length}, maximum is ${MAX_GRANT_WALLET_ADDRESSES}`
+        });
+      }
+
       try {
-        const page = await authClient.getGrantsPage(
-          parseGrantPageQuery(request.query)
-        );
+        const page = await authClient.getGrantsPage(query);
 
         return reply.status(200).send({
           result: page.items.map((grant) => toAdminApiGrant(grant)),

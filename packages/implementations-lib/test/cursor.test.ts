@@ -6,11 +6,12 @@ import { randomUUID } from 'crypto';
 import { InvalidCursorError } from 'common-types-lib';
 import { decodeCursor, encodeCursor } from '../src/pagination/cursor';
 
-interface TestContext {
+type TestContext = {
   sortOrder: 'asc' | 'desc';
   filterA?: string;
   filterB?: string;
-}
+  filterList?: readonly string[];
+};
 
 const id = randomUUID();
 const ctx: TestContext = {
@@ -101,6 +102,44 @@ describe('cursor', () => {
     rejectsAsMalformed(rawToken({ id, ctx: 'x' }));
     rejectsAsMalformed(rawToken({ id, ctx: 5 }));
     rejectsAsMalformed(rawToken({ id, ctx: [] }));
+  });
+
+  test('a list filter matches regardless of order or duplicates', () => {
+    const listCtx: TestContext = { ...ctx, filterList: ['b', 'a'] };
+    const cursor = encodeCursor(id, listCtx);
+
+    assert.equal(decodeCursor(cursor, { ...ctx, filterList: ['a', 'b'] }), id);
+    assert.equal(
+      decodeCursor(cursor, { ...ctx, filterList: ['b', 'a', 'b'] }),
+      id
+    );
+  });
+
+  test('rejects a cursor when a list filter selects a different set', () => {
+    const cursor = encodeCursor(id, { ...ctx, filterList: ['a', 'b'] });
+
+    rejectsAsDifferentQuery(cursor, { ...ctx, filterList: ['a'] });
+    rejectsAsDifferentQuery(cursor, { ...ctx, filterList: ['a', 'b', 'c'] });
+    rejectsAsDifferentQuery(cursor, { ...ctx, filterList: [] });
+    rejectsAsDifferentQuery(cursor, ctx);
+  });
+
+  test('treats an empty list filter as no filter at all', () => {
+    const cursor = encodeCursor(id, { ...ctx, filterList: [] });
+
+    assert.equal(decodeCursor(cursor, ctx), id);
+    assert.equal(decodeCursor(cursor, { ...ctx, filterList: undefined }), id);
+  });
+
+  test('a single-item list filter is not the same query as a scalar one', () => {
+    const cursor = encodeCursor(id, {
+      sortOrder: ctx.sortOrder,
+      filterList: ['a-1']
+    });
+    rejectsAsDifferentQuery(cursor, {
+      sortOrder: ctx.sortOrder,
+      filterA: 'a-1'
+    });
   });
 
   test('a bare id (the pre-encoding format) is rejected, not silently accepted', () => {

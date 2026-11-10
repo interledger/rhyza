@@ -233,7 +233,8 @@ export interface IUpdatedSpentAmountGrant {
 }
 
 export interface IGrantPageOpts extends IPageOpts {
-  identifier?: string;
+  /** Grants for these identifiers, empty treated as no filter. */
+  identifiers?: string[];
   state?: GrantState;
 }
 
