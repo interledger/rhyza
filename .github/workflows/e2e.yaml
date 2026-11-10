@@ -46,7 +46,6 @@ jobs:
           echo "Using release ${VERSION}"
 
           mapfile -t packages < <(jq -r '.[]' .github/release-packages.json)
-          packages+=(ase-mock-service)
           for package in "${packages[@]}"; do
             remote="${REGISTRY}/rhyza-${package}-amd64:${VERSION}"
             local_image="rhyza-${package}-amd64:${VERSION}"
@@ -56,7 +55,7 @@ jobs:
           done
 
           mapfile -t loaded < <(docker images --format '{{.Repository}}:{{.Tag}}' | grep "^rhyza-.*-amd64:${VERSION}$" || true)
-          expected=$(( $(jq 'length' .github/release-packages.json) + 1 ))
+          expected=$(jq 'length' .github/release-packages.json)
           if [[ ${#loaded[@]} -ne "$expected" ]]; then
             echo "Expected ${expected} rhyza-*-amd64:${VERSION} images, found ${#loaded[@]}" >&2
             printf '%s\n' "${loaded[@]}"
