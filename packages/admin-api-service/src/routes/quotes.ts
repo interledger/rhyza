@@ -1,13 +1,5 @@
 'use strict';
 
-import {
-  ErrorResponse,
-  GetQuoteRequest,
-  CompletedQuote,
-  PendingQuote,
-  FailedQuote,
-  CreateQuoteRequest
-} from 'admin-client-lib';
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
@@ -18,6 +10,10 @@ import {
   httpStatusFromGrpcError,
   toClientApiErrorResponse
 } from 'payments-client-lib';
+import type {
+  components,
+  operations
+} from '../types/generated/admin-api-types.js';
 
 interface QuoteRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
@@ -26,24 +22,27 @@ interface QuoteRouteOptions extends FastifyPluginOptions {
 
 function toQuoteBody(
   result: GetQuoteResult | CreateQuoteResult
-): CompletedQuote | PendingQuote | FailedQuote {
+):
+  | components['schemas']['CompletedQuote']
+  | components['schemas']['PendingQuote']
+  | components['schemas']['FailedQuote'] {
   const base = {
     id: result.id,
     paymentIntentId: result.paymentIntentId,
     senderWalletAddress: result.senderWalletAddress,
     senderWalletAddressId: result.senderWalletAddressId,
-    createdAt: new Date(result.createdAt),
+    createdAt: new Date(result.createdAt).toISOString(),
     state: 'state' in result ? result.state : 'COMPLETED'
   };
 
   switch (base.state) {
     case 'COMPLETED': {
-      const completed: CompletedQuote = {
+      const completed: components['schemas']['CompletedQuote'] = {
         ...base,
         state: 'COMPLETED'
       };
       if (result.expiresAt !== undefined) {
-        completed.expiresAt = new Date(result.expiresAt);
+        completed.expiresAt = new Date(result.expiresAt).toISOString();
       }
       if (result.debitAmount !== undefined) {
         completed.debitAmount = String(result.debitAmount);
@@ -58,7 +57,7 @@ function toQuoteBody(
     }
     case 'PENDING': {
       result = result as GetQuoteResult;
-      const pending: PendingQuote = {
+      const pending: components['schemas']['PendingQuote'] = {
         ...base,
         state: 'PENDING'
       };
@@ -78,7 +77,7 @@ function toQuoteBody(
     }
     case 'FAILED': {
       result = result as GetQuoteResult;
-      const failed: FailedQuote = {
+      const failed: components['schemas']['FailedQuote'] = {
         ...base,
         state: 'FAILED'
       };
@@ -102,8 +101,10 @@ export async function quoteRoutes(
   const { palClient, paymentsClient } = opts;
 
   server.post<{
-    Body: CreateQuoteRequest;
-    Reply: CompletedQuote | ErrorResponse;
+    Body: operations['createQuote']['requestBody']['content']['application/json'];
+    Reply:
+      | components['schemas']['CompletedQuote']
+      | components['schemas']['ErrorResponse'];
   }>('/quotes', async (request, reply) => {
     const { walletAddress, debitAmount, receiveAmount } = request.body;
     const paymentIntent =
@@ -131,7 +132,9 @@ export async function quoteRoutes(
         debitAmount ? Number(debitAmount) : undefined,
         receiveAmount ? Number(receiveAmount) : undefined
       );
-      return reply.status(201).send(toQuoteBody(result) as CompletedQuote);
+      return reply
+        .status(201)
+        .send(toQuoteBody(result) as components['schemas']['CompletedQuote']);
     } catch (err) {
       server.log.error(err);
       const httpStatus = httpStatusFromGrpcError(err);
@@ -141,8 +144,12 @@ export async function quoteRoutes(
   });
 
   server.get<{
-    Params: GetQuoteRequest;
-    Reply: CompletedQuote | PendingQuote | FailedQuote | ErrorResponse;
+    Params: operations['getQuote']['parameters']['path'];
+    Reply:
+      | components['schemas']['CompletedQuote']
+      | components['schemas']['PendingQuote']
+      | components['schemas']['FailedQuote']
+      | components['schemas']['ErrorResponse'];
   }>('/payment-intents/:intentId/quotes/:id', async (request, reply) => {
     const { intentId, id } = request.params;
 
