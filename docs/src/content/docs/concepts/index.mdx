@@ -1,0 +1,41 @@
+---
+title: Concepts
+description: DEMO CONTENT for the starlight-group-pages spike, not final copy.
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+:::note
+DEMO CONTENT. This page exists to show Melissa the range of formatting a
+group landing page could use — headings, lists, asides, steps. None of
+the wording below is intended to ship.
+:::
+
+Rhyza's core concepts explain how money and messages move through a Rhyza
+instance, and how Rhyza's own terms relate to the wider Interledger and Open
+Payments ecosystem it implements.
+
+## What you'll find in this section
+
+- **Protocols** - Interledger and Open Payments, the two standards Rhyza implements
+- **Roles** - who runs a Rhyza instance and what they're responsible for
+- **Money movement** - how Rhyza tracks obligations between peers without actually moving funds itself
+- **Terminology** - how Rhyza's own vocabulary (payment intents, payments) maps to the Open Payments standard's vocabulary (incoming payments, outgoing payments)
+
+## Reading order
+
+If you're new to Rhyza, we suggest working through these concepts in order:
+
+<Steps>
+
+1. Start with [Interledger](/concepts/interledger) and [Open Payments](/concepts/open-payments) to understand the two protocols Rhyza implements.
+2. Read [Financial service provider](/concepts/financial-service-provider) to understand who runs a Rhyza instance and what they're accountable for.
+3. Move on to [Accounts and liquidity](/concepts/accounting) and [Clearing and settlement](/concepts/clearing-settlement) to see how Rhyza tracks money between peers.
+4. Finish with [Wallet addresses](/concepts/wallet-addresses) and [Payment intents and payments](/concepts/payment-intents-and-payments) for the terms used throughout the rest of the docs.
+
+</Steps>
+
+### A note on terminology
+
+Rhyza's Admin API and the Open Payments standard describe the same resources with different names. For example, what the Admin API calls a payment intent, the Open Payments standard calls an incoming payment. This isn't a mistake or inconsistency between the two - they're two vocabularies for the same underlying system, used in different contexts.
+

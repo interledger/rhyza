@@ -8,13 +8,13 @@ A payment intent is a resource the receiver's financial service provider (FSP) c
 
 ## Payment intents
 
-Payment intents are created via the Admin API's <LinkOut href="/apis/#tag/payment-intents/POST/payment-intents">Create Payment Intent</LinkOut> endpoint. The response includes an `openPaymentsUrl` - the same resource's address on the public Open Payments API, which a third-party client uses to interact with the payment intent directly, as an incoming payment.
+Payment intents are created via the Admin API's <LinkOut href="/apis/reference/#tag/payment-intents/POST/payment-intents">Create Payment Intent</LinkOut> endpoint. The response includes an `openPaymentsUrl` - the same resource's address on the public Open Payments API, which a third-party client uses to interact with the payment intent directly, as an incoming payment.
 
 ## Payments
 
 Before creating a payment, the sender's FSP must first create a [quote](/resources/glossary#quote), which commits to delivering the requested amount to the receiver.
 
-Payments are created via the Admin API's <LinkOut href="/apis/#tag/payments/POST/payments">Create Payment</LinkOut> endpoint, referencing both the quote and the payment intent they fulfill.
+Payments are created via the Admin API's <LinkOut href="/apis/reference/#tag/payments/POST/payments">Create Payment</LinkOut> endpoint, referencing both the quote and the payment intent they fulfill.
 
 ## Relationship to Open Payments
 
