@@ -41,6 +41,13 @@ export class InvalidGrantError extends FailedPrecondition {
   }
 }
 
+export class InsufficientGrantError extends FailedPrecondition {
+  constructor(message?: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
 export class InvalidGrantInputError extends InvalidArgument {
   constructor(message?: string) {
     super(message);

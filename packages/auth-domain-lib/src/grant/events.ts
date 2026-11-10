@@ -400,3 +400,53 @@ export class GrantInteractionChoiceFailedEvent extends AuthDomainEvent {
     this.payload = payload;
   }
 }
+
+export interface OutgoingPaymentGrantLimitValidatedPayload {
+  id: string;
+  spentAmounts: {
+    total: {
+      debit: string;
+      receive: string;
+    };
+    interval?: {
+      start: number;
+      end: number;
+      total: {
+        debit: string;
+        receive: string;
+      };
+    };
+  };
+}
+
+export class OutgoingPaymentGrantLimitValidatedEvent extends AuthDomainEvent {
+  payload: OutgoingPaymentGrantLimitValidatedPayload;
+
+  constructor(
+    payload: OutgoingPaymentGrantLimitValidatedPayload,
+    requestId?: string
+  ) {
+    super(payload.id, requestId);
+    this.isErrorEvent = false;
+    this.payload = payload;
+  }
+}
+
+export interface OutgoingPaymentGrantLimitValidationFailedPayload {
+  grantId: string;
+  errorName: string;
+  message: string;
+}
+
+export class OutgoingPaymentGrantLimitValidationFailedEvent extends AuthDomainEvent {
+  payload: OutgoingPaymentGrantLimitValidationFailedPayload;
+
+  constructor(
+    payload: OutgoingPaymentGrantLimitValidationFailedPayload,
+    requestId?: string
+  ) {
+    super(payload.grantId, requestId);
+    this.isErrorEvent = true;
+    this.payload = payload;
+  }
+}

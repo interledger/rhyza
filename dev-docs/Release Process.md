@@ -11,3 +11,13 @@ Images are named `ghcr.io/interledger/rhyza-<package>-<arch>:<version>`. A versi
 `workflow_dispatch` on a non-`main` ref builds and pushes images tagged with a sanitized form of the ref name (`/` becomes `_`), with no git tag, GitHub Release, or parent aliases. A push to `main` runs the workflow without publishing. Other branches do not trigger it.
 
 Changelog categories come from PR labels via `.github/release.yml`: `breaking` (Breaking Changes), `dependencies` (Dependency Updates), and every remaining PR (General Changes). Create the `breaking` and `dependencies` labels in the GitHub repo before using them on PRs. Versions ending in `-alpha` are marked prerelease. GitHub picks the highest published semver as the repo's Latest release, so a patch on an older major (for example `v1.0.1` after `v2.0.0`) does not take over Latest. GitHub generates the release notes, including on the first tag when no previous release exists.
+
+## Linear releases
+
+After the GitHub Release is created, the `generate-release` job runs [`linear/linear-release-action`](https://github.com/linear/linear-release-action) `sync` against the Rhyza release pipeline in Linear. The Linear release's name and version are the computed version (for example `v2.4.1`). Every GitHub Release gets a matching Linear release, including prereleases such as `-alpha` and `-beta`. `workflow_dispatch` builds and pushes to `main` don't create a GitHub Release, so they don't create a Linear release either. The pipeline is continuous, so `sync` creates the release already completed. There is no separate `complete` or `update` step.
+
+`sync` scans the commits between the previous Linear release's commit and the release commit. The first sync, when the pipeline has no releases yet, inspects only the release commit itself. It links the Linear issues that Linear's built-in detection finds: issue IDs in commit messages and branch names, and issues linked to the PRs referenced as `(#123)` in squash-merge subjects. In practice issues come through the PR link: Linear's GitHub integration links a PR to the issue whose ID is in its branch name. See [Linear issue references](../.github/contributing.md#linear-issue-references). If no commit in the range references an issue, `sync` creates no Linear release for that version.
+
+To preview a sync without changing Linear, run the Linear Release CLI with `--dry-run` (or set `dry_run: true` on the action). It logs the commits it inspected and the issues it would link.
+
+The action authenticates with a Linear pipeline access key stored in the `LINEAR_ACCESS_KEY` repository secret. To rotate the key, generate a new one in the Rhyza pipeline's settings in Linear and replace the secret.

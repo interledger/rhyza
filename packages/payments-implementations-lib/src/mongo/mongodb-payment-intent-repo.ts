@@ -1,9 +1,6 @@
-import { Collection, CollectionInfo, Db, Filter, MongoClient } from 'mongodb';
+import { Collection, CollectionInfo, Db, MongoClient } from 'mongodb';
 import {
-  DEFAULT_SORT_ORDER,
-  InvalidCursorError,
-  IPage,
-  IPageOpts,
+  IPaymentPageOpts,
   IStoredSentPayment,
   ISentPayment,
   isRemoteSentPayment,
@@ -13,10 +10,10 @@ import {
   IInboundPayment,
   PaymentIntentState,
   SentPaymentState,
-  SortOrder,
   InboundPaymentState
 } from 'payments-domain-lib';
-import { ILogger, InvalidArgument } from 'common-types-lib';
+import { ILogger, InvalidArgument, IPage } from 'common-types-lib';
+import { fetchPageDocs } from 'implementations-lib';
 
 const DB_NAME = 'payments';
 const PAYMENT_INTENTS_COLLECTION_NAME = 'paymentIntents';
@@ -256,7 +253,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchByIds(
-    ids: string[]
+    ids: string[],
+    destination?: PaymentIntentDestination
   ): Promise<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>[]> {
     this._checkInitialisedOrThrow();
 
@@ -264,7 +262,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
 
     try {
       const docs = await this._paymentIntentCollection
-        .find({ id: { $in: ids } })
+        .find({ id: { $in: ids }, destination: destination })
         .toArray();
 
       return docs.map((doc) => ({
@@ -292,7 +290,10 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
-  async fetchByIdsWithPayments(ids: string[]): Promise<IPaymentIntent[]> {
+  async fetchByIdsWithPayments(
+    ids: string[],
+    destination?: PaymentIntentDestination
+  ): Promise<IPaymentIntent[]> {
     this._checkInitialisedOrThrow();
 
     if (ids.length === 0) return [];
@@ -300,7 +301,9 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     try {
       const [paymentIntentDocs, paymentDocs, inboundPaymentDocs] =
         await Promise.all([
-          this._paymentIntentCollection.find({ id: { $in: ids } }).toArray(),
+          this._paymentIntentCollection
+            .find({ id: { $in: ids }, destination: destination })
+            .toArray(),
           this._sentPaymentCollection
             .find({ paymentIntentId: { $in: ids } }, { projection: { _id: 0 } })
             .toArray(),
@@ -382,7 +385,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchPaymentIntentsPage(
-    opts: IPageOpts
+    opts: IPaymentPageOpts,
+    destination?: PaymentIntentDestination
   ): Promise<IPage<Omit<IPaymentIntent, 'sentPayments' | 'inboundPayments'>>> {
     this._checkInitialisedOrThrow();
 
@@ -392,7 +396,11 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         filter['receiverWalletAddressId'] = opts.walletAddressId;
       }
 
-      const page = await this._fetchPageDocs(
+      if (destination != null) {
+        filter['destination'] = destination;
+      }
+
+      const page = await fetchPageDocs(
         this._paymentIntentCollection,
         filter,
         opts
@@ -428,7 +436,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
   }
 
   async fetchSentPaymentsPage(
-    opts: IPageOpts & { paymentIntentId?: string }
+    opts: IPaymentPageOpts & { paymentIntentId?: string }
   ): Promise<IPage<IStoredSentPayment>> {
     this._checkInitialisedOrThrow();
 
@@ -441,7 +449,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         filter['paymentIntentId'] = opts.paymentIntentId;
       }
 
-      const page = await this._fetchPageDocs(
+      const page = await fetchPageDocs(
         this._sentPaymentCollection,
         filter,
         opts
@@ -478,68 +486,6 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         `Unable to fetch sent payments page - error: ${(err as Error).message}`
       );
     }
-  }
-
-  // Keyset pagination over (createdAt, id). The cursor is the last document's id.
-  // Given the cursor, figure out where that document sits in the (createdAt, id)
-  // ordering, then use that position as the starting point for the next page.
-  private async _fetchPageDocs<T extends { id: string; createdAt: Date }>(
-    collection: Collection<T>,
-    filter: Record<string, unknown>,
-    opts: {
-      cursor?: string;
-      limit: number;
-      backwards: boolean;
-      sortOrder?: SortOrder;
-    }
-  ): Promise<IPage<T>> {
-    const { cursor, limit, backwards } = opts;
-    if (!Number.isInteger(limit) || limit < 1) {
-      throw new InvalidArgument(
-        `limit must be a positive integer, got ${limit}`
-      );
-    }
-    const descending = (opts.sortOrder ?? DEFAULT_SORT_ORDER) === 'desc';
-
-    let boundary: { id: string; createdAt: Date } | null = null;
-    if (cursor != null) {
-      boundary = (await collection.findOne({ id: cursor } as Filter<T>, {
-        projection: { _id: 0, id: 1, createdAt: 1 }
-      })) as { id: string; createdAt: Date } | null;
-      if (!boundary) {
-        throw new InvalidCursorError(`Unknown cursor: ${cursor}`);
-      }
-    }
-
-    // Which way we walk the (createdAt, id) index from the cursor. Paging
-    // forward through a descending list moves towards *older*
-    const scanAscending = backwards === descending;
-
-    const cmp = scanAscending ? '$gt' : '$lt';
-    const range = boundary
-      ? {
-          $or: [
-            { createdAt: { [cmp]: boundary.createdAt } },
-            { createdAt: boundary.createdAt, id: { [cmp]: boundary.id } }
-          ]
-        }
-      : {};
-
-    const docs = (await collection
-      .find({ ...filter, ...range } as Filter<T>)
-      .sort(scanAscending ? { createdAt: 1, id: 1 } : { createdAt: -1, id: -1 })
-      .limit(limit + 1)
-      .toArray()) as unknown as T[];
-
-    const hasMore = docs.length > limit;
-    const items = docs.slice(0, limit);
-    if (backwards) items.reverse();
-
-    return {
-      items,
-      hasNextPage: backwards ? cursor != null : hasMore,
-      hasPreviousPage: backwards ? hasMore : cursor != null
-    };
   }
 
   async storeQuotes(paymentIntents: IPaymentIntent[]): Promise<void> {

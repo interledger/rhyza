@@ -115,3 +115,15 @@ export function getErrorDetails(err: unknown): {
     message: String(err)
   };
 }
+
+/**
+ * A pagination cursor that is malformed, unknown, or was issued for a
+ * different query. An InvalidArgument so each transport maps it the same way
+ * as any other bad input.
+ */
+export class InvalidCursorError extends InvalidArgument {
+  constructor(message?: string) {
+    super(message);
+    this.name = 'InvalidCursorError';
+  }
+}
