@@ -90,6 +90,16 @@ export async function paymentIntentRoutes(
   }>('/payment-intents', async (request, reply) => {
     const { walletAddress, incomingAmount, expiresAt, metadata } = request.body;
 
+    let expiresAtIso: string | undefined;
+    if (expiresAt != null) {
+      const parsed =
+        typeof expiresAt === 'string' ? new Date(expiresAt) : undefined;
+      if (!parsed || Number.isNaN(parsed.getTime())) {
+        return reply.status(400).send({ error: 'Invalid expiresAt' });
+      }
+      expiresAtIso = parsed.toISOString();
+    }
+
     const id = request.body.id ?? randomUUID();
 
     const pathName = pathNameFromWalletAddress(walletAddress);
@@ -108,7 +118,7 @@ export async function paymentIntentRoutes(
         wallet.id,
         walletAddress,
         incomingAmount ? Number(incomingAmount) : undefined,
-        expiresAt?.toISOString(),
+        expiresAtIso,
         metadata
       );
 
