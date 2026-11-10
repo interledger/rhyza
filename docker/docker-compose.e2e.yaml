@@ -30,7 +30,7 @@ services:
     build: !reset null
     pull_policy: never
 
-  # Not part of the local e2e run.
+  # Not part of the e2e run.
   http-signature-service:
     profiles: [not-in-release-e2e]
     build: !reset null
@@ -80,10 +80,10 @@ services:
     build: !reset null
     pull_policy: never
 
+  # Not part of the e2e run.
   ase-mock-service:
-    image: rhyza-ase-mock-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
+    profiles: [not-in-release-e2e]
     build: !reset null
-    pull_policy: never
 
   ilp-command-handler-service:
     image: rhyza-ilp-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
@@ -171,10 +171,10 @@ services:
     build: !reset null
     pull_policy: never
 
+  # Not part of the e2e run.
   ase-mock-service-b:
-    image: rhyza-ase-mock-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
+    profiles: [not-in-release-e2e]
     build: !reset null
-    pull_policy: never
 
   ilp-command-handler-service-b:
     image: rhyza-ilp-command-handler-service${TARGET_ARCH:+-$TARGET_ARCH}${VERSION:+:$VERSION}
