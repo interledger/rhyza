@@ -261,9 +261,12 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     if (ids.length === 0) return [];
 
     try {
-      const docs = await this._paymentIntentCollection
-        .find({ id: { $in: ids }, destination: destination })
-        .toArray();
+      const filter: Record<string, unknown> = { id: { $in: ids } };
+      if (destination != null) {
+        filter['destination'] = destination;
+      }
+
+      const docs = await this._paymentIntentCollection.find(filter).toArray();
 
       return docs.map((doc) => ({
         id: doc.id,
@@ -299,11 +302,14 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     if (ids.length === 0) return [];
 
     try {
+      const filter: Record<string, unknown> = { id: { $in: ids } };
+      if (destination != null) {
+        filter['destination'] = destination;
+      }
+
       const [paymentIntentDocs, paymentDocs, inboundPaymentDocs] =
         await Promise.all([
-          this._paymentIntentCollection
-            .find({ id: { $in: ids }, destination: destination })
-            .toArray(),
+          this._paymentIntentCollection.find(filter).toArray(),
           this._sentPaymentCollection
             .find({ paymentIntentId: { $in: ids } }, { projection: { _id: 0 } })
             .toArray(),
