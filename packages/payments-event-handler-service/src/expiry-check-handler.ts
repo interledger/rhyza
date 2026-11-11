@@ -7,7 +7,7 @@ import {
   TimerEventTopics
 } from 'common-types-lib';
 import {
-  ExpirePaymentCmd,
+  ExpireRemotePaymentCmd,
   ExpirePaymentIntentCmd,
   IPaymentIntentRepository,
   PaymentExpiryCheckTimerEvent
@@ -24,7 +24,7 @@ export type ExpiryCheckConfig = {
 
 type ExpiryRepo = Pick<
   IPaymentIntentRepository,
-  'fetchExpiredPaymentIntentIds' | 'fetchExpiredRemotePayments'
+  'fetchExpiredPaymentIntentIds' | 'fetchExpiredSentPaymentIds'
 >;
 
 // One query and the expire command it produces. Receiving-side expiry is
@@ -36,13 +36,10 @@ type ExpiryCheck = (
 ) => Promise<IMessage[]>;
 
 /**
- * Finds what is past its expiry and sends the commands that expire it.
+ * Periodically finds expired payment intents and payments and sends the commands that expire them.
  *
- * Every instance publishes a tick on an interval. The ticks share one key,
- * so they land on one partition and only the instance that consumes it runs
- * the check, at most once per `minCheckIntervalMs`. The aggregate decides
- * whether each command actually expires anything, so a command sent twice
- * (the next check runs before the first is handled) is harmless.
+ * Every instance publishes ticks under one key, so only the consumer of that partition runs the check.
+ * The aggregates make expiry idempotent, so duplicate commands are harmless.
  */
 export class ExpiryCheckHandler {
   private _timer: NodeJS.Timeout | null = null;
@@ -63,8 +60,8 @@ export class ExpiryCheckHandler {
             new ExpirePaymentIntentCmd({ paymentIntentId }, requestId)
         ),
       async (now, limit, requestId) =>
-        (await this._repo.fetchExpiredRemotePayments(now, limit)).map(
-          (payment) => new ExpirePaymentCmd(payment, requestId)
+        (await this._repo.fetchExpiredSentPaymentIds(now, limit)).map(
+          (payment) => new ExpireRemotePaymentCmd(payment, requestId)
         )
     ];
   }

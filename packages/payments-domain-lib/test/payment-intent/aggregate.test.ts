@@ -32,7 +32,7 @@ import {
   FailInboundPaymentCmd,
   MarkInboundPaymentFulfillableCmd,
   FinalizeInboundPaymentCmd,
-  ExpirePaymentCmd,
+  ExpireRemotePaymentCmd,
   ExpirePaymentIntentCmd
 } from '../../src/commands';
 import {
@@ -3497,7 +3497,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
       }
 
       function expirePayment(paymentIntentId: string, paymentId: string) {
-        return new ExpirePaymentCmd(
+        return new ExpireRemotePaymentCmd(
           { paymentIntentId, paymentId },
           crypto.randomUUID()
         );
@@ -3541,30 +3541,11 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           debitAmount: '500',
           assetCode: 'USD',
           assetScale: 2,
-          expiresAt,
-          reason: PAYMENT_EXPIRED_REASON
+          expiresAt
         });
         const stored = storedPayment(paymentIntentId, paymentId);
         assert.equal(stored.state, 'EXPIRED');
         assert.equal(stored.failReason, PAYMENT_EXPIRED_REASON);
-      });
-
-      it('does nothing for a SENDING payment that is not yet due', async () => {
-        const { paymentIntentId, paymentId } = await storeRemotePayment(
-          'SENDING',
-          FUTURE()
-        );
-
-        const { events } = await aggregate.handleBatch([
-          expirePayment(paymentIntentId, paymentId)
-        ]);
-        await aggregate.flush();
-
-        assert.equal(events.length, 0);
-        assert.equal(
-          storedPayment(paymentIntentId, paymentId).state,
-          'SENDING'
-        );
       });
 
       for (const state of [
@@ -3765,19 +3746,6 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           assert.equal(
             repo.getAll().find((i) => i.id === id)?.state,
             'EXPIRED'
-          );
-        });
-
-        it('does nothing for an intent that is not yet due', async () => {
-          const id = await storeLocalIntent('CREATED', FUTURE());
-
-          const { events } = await aggregate.handleBatch([expireIntent(id)]);
-          await aggregate.flush();
-
-          assert.equal(events.length, 0);
-          assert.equal(
-            repo.getAll().find((i) => i.id === id)?.state,
-            'CREATED'
           );
         });
 

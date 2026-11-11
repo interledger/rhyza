@@ -9,7 +9,7 @@ import {
   TimerEventTopics
 } from 'common-types-lib';
 import {
-  ExpirePaymentCmd,
+  ExpireRemotePaymentCmd,
   ExpirePaymentIntentCmd,
   PAYMENT_EXPIRY_CHECK_KEY,
   PaymentExpiryCheckTimerEvent
@@ -63,7 +63,7 @@ class FakeRepo {
     return this.expiredIntentIds;
   }
 
-  async fetchExpiredRemotePayments(
+  async fetchExpiredSentPaymentIds(
     now: Date,
     limit: number
   ): Promise<{ paymentIntentId: string; paymentId: string }[]> {
@@ -128,8 +128,11 @@ describe('ExpiryCheckHandler', () => {
       paymentIntentId: intentId
     });
     assert.equal(expireIntent.msgKey, intentId);
-    assert.equal(expirePayment.msgName, ExpirePaymentCmd.name);
-    assert.deepEqual((expirePayment as ExpirePaymentCmd).payload, payment);
+    assert.equal(expirePayment.msgName, ExpireRemotePaymentCmd.name);
+    assert.deepEqual(
+      (expirePayment as ExpireRemotePaymentCmd).payload,
+      payment
+    );
     assert.equal(expirePayment.msgKey, payment.paymentIntentId);
     assert.equal(expireIntent.requestId, expirePayment.requestId);
   });
@@ -186,7 +189,7 @@ describe('ExpiryCheckHandler', () => {
 
     assert.deepEqual(
       producer.sent.map((m) => m.msgName),
-      [ExpirePaymentCmd.name]
+      [ExpireRemotePaymentCmd.name]
     );
   });
 });

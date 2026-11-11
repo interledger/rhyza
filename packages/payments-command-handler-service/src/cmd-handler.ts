@@ -27,7 +27,7 @@ import {
   FailInboundPaymentCmd,
   FinalizeInboundPaymentCmd,
   ExpirePaymentIntentCmd,
-  ExpirePaymentCmd
+  ExpireRemotePaymentCmd
 } from 'payments-domain-lib';
 
 export class PaymentsCommandHandler {
@@ -126,7 +126,7 @@ export class PaymentsCommandHandler {
         case ExpirePaymentIntentCmd.name:
           commandMessages.push(msg);
           break;
-        case ExpirePaymentCmd.name:
+        case ExpireRemotePaymentCmd.name:
           commandMessages.push(msg);
           break;
         default:

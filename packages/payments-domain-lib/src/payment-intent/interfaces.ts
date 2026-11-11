@@ -98,10 +98,7 @@ export interface IRemoteSentPayment extends IBaseSentPayment {
   receiveAmount: bigint | null;
   /** Set when the payment is prepared. */
   ledgerTransferId?: string;
-  /**
-   * Set when the payment is prepared: its packet's deadline plus a grace
-   * period. Past it, a SENDING payment is expired.
-   */
+  /** Set when the payment is prepared. */
   expiresAt?: Date;
   /** Set when the payment is rejected, expires or fails. */
   failReason?: string;
@@ -244,8 +241,7 @@ export interface IPaymentIntentRepository {
   /**
    * Keyset-paginated sent payments, filterable by senderWalletAddressId and/or
    * paymentIntentId. Returns stored rows rather than domain objects: this read
-   * does not join the parent intents, and nothing downstream of it invokes
-   * payment behaviour.
+   * does not join the parent intents.
    */
   fetchSentPaymentsPage(
     opts: IPaymentPageOpts & { paymentIntentId?: string }
@@ -369,8 +365,8 @@ export interface IPaymentIntentRepository {
   ): Promise<void>;
   /** Ids of CREATED intents whose expiresAt is at or before `now`, oldest first. */
   fetchExpiredPaymentIntentIds(now: Date, limit: number): Promise<string[]>;
-  /** SENDING remote payments whose expiresAt is at or before `now`, oldest first. */
-  fetchExpiredRemotePayments(
+  /** Ids of SENDING remote payments whose expiresAt is at or before `now`, with their intent ids, oldest first. */
+  fetchExpiredSentPaymentIds(
     now: Date,
     limit: number
   ): Promise<{ paymentIntentId: string; paymentId: string }[]>;

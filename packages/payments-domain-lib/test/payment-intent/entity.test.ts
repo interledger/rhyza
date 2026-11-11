@@ -2229,43 +2229,17 @@ describe('PaymentIntent Entity', () => {
       };
     }
 
-    it('transitions a SENDING payment past its expiry to EXPIRED with a fail reason', () => {
+    it('transitions a SENDING payment to EXPIRED with a fail reason', () => {
       const { paymentIntent, paymentId } =
         makeRemoteIntentWithPaymentInState('SENDING');
 
       const { expired, payment } = paymentIntent.expireRemotePayment({
-        id: paymentId,
-        now: new Date(paymentExpiresAt.getTime() + 1)
+        id: paymentId
       });
 
       assert.equal(expired, true);
       assert.equal(payment.state, 'EXPIRED');
       assert.equal(payment.failReason, PAYMENT_EXPIRED_REASON);
-    });
-
-    it('expires a SENDING payment exactly at its expiry', () => {
-      const { paymentIntent, paymentId } =
-        makeRemoteIntentWithPaymentInState('SENDING');
-
-      const { expired } = paymentIntent.expireRemotePayment({
-        id: paymentId,
-        now: paymentExpiresAt
-      });
-
-      assert.equal(expired, true);
-    });
-
-    it('leaves a SENDING payment that is not yet due', () => {
-      const { paymentIntent, paymentId } =
-        makeRemoteIntentWithPaymentInState('SENDING');
-
-      const { expired, payment } = paymentIntent.expireRemotePayment({
-        id: paymentId,
-        now: new Date(paymentExpiresAt.getTime() - 1)
-      });
-
-      assert.equal(expired, false);
-      assert.equal(payment.state, 'SENDING');
     });
 
     for (const state of [
@@ -2280,8 +2254,7 @@ describe('PaymentIntent Entity', () => {
           makeRemoteIntentWithPaymentInState(state);
 
         const { expired, payment } = paymentIntent.expireRemotePayment({
-          id: paymentId,
-          now: new Date(paymentExpiresAt.getTime() + 1)
+          id: paymentId
         });
 
         assert.equal(expired, false);
@@ -2295,8 +2268,7 @@ describe('PaymentIntent Entity', () => {
       assert.throws(
         () =>
           paymentIntent.expireRemotePayment({
-            id: crypto.randomUUID(),
-            now: new Date()
+            id: crypto.randomUUID()
           }),
         PaymentNotFoundError
       );
@@ -2306,8 +2278,7 @@ describe('PaymentIntent Entity', () => {
       const { paymentIntent, paymentId } =
         makeRemoteIntentWithPaymentInState('SENDING');
       paymentIntent.expireRemotePayment({
-        id: paymentId,
-        now: new Date(paymentExpiresAt.getTime() + 1)
+        id: paymentId
       });
 
       const payment = paymentIntent.failRemotePayment({ id: paymentId });
@@ -2337,35 +2308,20 @@ describe('PaymentIntent Entity', () => {
       });
     }
 
-    it('transitions a CREATED intent past its expiry to EXPIRED', () => {
+    it('transitions a CREATED intent to EXPIRED', () => {
       const paymentIntent = makeIntent('CREATED');
 
-      const expired = paymentIntent.expire(
-        new Date(paymentIntent.expiresAt.getTime() + 1)
-      );
+      const expired = paymentIntent.expire();
 
       assert.equal(expired, true);
       assert.equal(paymentIntent.state, 'EXPIRED');
-    });
-
-    it('leaves a CREATED intent that is not yet due', () => {
-      const paymentIntent = makeIntent('CREATED');
-
-      const expired = paymentIntent.expire(
-        new Date(paymentIntent.expiresAt.getTime() - 1)
-      );
-
-      assert.equal(expired, false);
-      assert.equal(paymentIntent.state, 'CREATED');
     });
 
     for (const state of ['COMPLETED', 'EXPIRED'] as const) {
       it(`leaves a ${state} intent alone`, () => {
         const paymentIntent = makeIntent(state);
 
-        const expired = paymentIntent.expire(
-          new Date(paymentIntent.expiresAt.getTime() + 1)
-        );
+        const expired = paymentIntent.expire();
 
         assert.equal(expired, false);
         assert.equal(paymentIntent.state, state);
@@ -2374,7 +2330,7 @@ describe('PaymentIntent Entity', () => {
 
     it('refuses new inbound payments once expired', () => {
       const paymentIntent = makeIntent('CREATED');
-      paymentIntent.expire(new Date(paymentIntent.expiresAt.getTime() + 1));
+      paymentIntent.expire();
 
       assert.throws(
         () =>

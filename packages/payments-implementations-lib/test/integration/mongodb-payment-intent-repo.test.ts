@@ -674,7 +674,7 @@ describe('MongoDbPaymentIntentRepo keyset pagination', () => {
       ]);
     });
 
-    test('fetchExpiredRemotePayments returns due SENDING payments, oldest first', async () => {
+    test('fetchExpiredSentPaymentIds returns due SENDING payments, oldest first', async () => {
       const due2 = await storeRemotePayment({
         state: 'SENDING',
         expiresAt: new Date(NOW.getTime() - 1)
@@ -694,12 +694,12 @@ describe('MongoDbPaymentIntentRepo keyset pagination', () => {
       // Not prepared yet, so no expiresAt.
       await storeRemotePayment({ state: 'PROCESSING' });
 
-      const result = await repo.fetchExpiredRemotePayments(NOW, 10);
+      const result = await repo.fetchExpiredSentPaymentIds(NOW, 10);
 
       assert.deepEqual(result, [due1, due2]);
     });
 
-    test('fetchExpiredRemotePayments respects the limit', async () => {
+    test('fetchExpiredSentPaymentIds respects the limit', async () => {
       const first = await storeRemotePayment({
         state: 'SENDING',
         expiresAt: new Date(T0)
@@ -709,7 +709,7 @@ describe('MongoDbPaymentIntentRepo keyset pagination', () => {
         expiresAt: new Date(T0 + 1)
       });
 
-      assert.deepEqual(await repo.fetchExpiredRemotePayments(NOW, 1), [first]);
+      assert.deepEqual(await repo.fetchExpiredSentPaymentIds(NOW, 1), [first]);
     });
 
     test('storeExpiredPaymentIntents and storeExpiredRemotePayments update state', async () => {
@@ -741,7 +741,7 @@ describe('MongoDbPaymentIntentRepo keyset pagination', () => {
       assert.equal(payment.state, 'EXPIRED');
       assert.equal(payment.failReason, 'expired');
       assert.deepEqual(await repo.fetchExpiredPaymentIntentIds(NOW, 10), []);
-      assert.deepEqual(await repo.fetchExpiredRemotePayments(NOW, 10), []);
+      assert.deepEqual(await repo.fetchExpiredSentPaymentIds(NOW, 10), []);
     });
 
     test('init adds the expiry indexes to collections that already exist', async () => {

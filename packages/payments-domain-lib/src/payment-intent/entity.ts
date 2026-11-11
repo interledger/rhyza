@@ -643,16 +643,12 @@ class RemoteSentPayment extends BaseSentPayment {
   }
 
   /**
-   * SENDING → EXPIRED once `expiresAt` has passed. Any other state, or a
-   * payment not yet due, is left alone: the expiry check races ILP's answer,
-   * so finding the payment already settled is expected. Returns whether the
-   * payment expired.
+   * SENDING → EXPIRED. Any other state is left alone: the expiry check races
+   * ILP's answer, so finding the payment already settled is expected. Returns
+   * whether the payment expired.
    */
-  expire(now: Date): boolean {
+  expire(): boolean {
     if (this._state !== 'SENDING') {
-      return false;
-    }
-    if (!this._expiresAt || this._expiresAt.getTime() > now.getTime()) {
       return false;
     }
     this._state = 'EXPIRED';
@@ -1602,9 +1598,8 @@ export class PaymentIntent implements IPaymentIntent {
   }
 
   /**
-   * PROCESSING → SENDING. Also fixes the payment's deadlines from one value:
-   * the packet must be fulfilled by `packetExpiresAt` (capped at the intent's
-   * expiry), and the payment itself expires a grace period later.
+   * PROCESSING → SENDING and set expiry
+   @returns The prepared remote payment and its packet expiration timestamp.
    */
   prepareRemotePayment(args: {
     id: string;
@@ -1626,30 +1621,26 @@ export class PaymentIntent implements IPaymentIntent {
   }
 
   /**
-   * CREATED → EXPIRED once `expiresAt` has passed. A completed or already
-   * expired intent, or one not yet due, is left alone. Returns whether the
-   * intent expired.
+   * CREATED → EXPIRED. A completed or already expired intent is left alone.
+   * @returns `true` if the intent was successfully expired; otherwise, `false`.
    */
-  expire(now: Date): boolean {
+  expire(): boolean {
     if (this._state !== 'CREATED') {
-      return false;
-    }
-    if (this._expiresAt.getTime() > now.getTime()) {
       return false;
     }
     this._state = 'EXPIRED';
     return true;
   }
 
-  expireRemotePayment(args: { id: string; now: Date }): {
+  expireRemotePayment(args: { id: string }): {
     expired: boolean;
     payment: IRemoteSentPayment;
   } {
-    const { id, now } = args;
+    const { id } = args;
 
     const payment = this._findRemotePayment(id);
 
-    const expired = payment.expire(now);
+    const expired = payment.expire();
     return { expired, payment: payment.toObject() };
   }
 

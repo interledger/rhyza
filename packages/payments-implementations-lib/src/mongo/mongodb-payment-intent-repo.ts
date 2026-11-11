@@ -176,9 +176,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         });
       }
 
-      // Created on every start, not only with a new collection, so existing
-      // databases get them too. createIndex is a no-op when one exists.
-      // Supports the expiry check's queries.
+      // Safe to create on every start because create index is idempotetant
+      // but should ideally be in a migration
       await this._paymentIntentCollection.createIndex({
         state: 1,
         expiresAt: 1
@@ -1200,14 +1199,13 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
-  async fetchExpiredRemotePayments(
+  async fetchExpiredSentPaymentIds(
     now: Date,
     limit: number
   ): Promise<{ paymentIntentId: string; paymentId: string }[]> {
     this._checkInitialisedOrThrow();
 
     try {
-      // Only remote payments are ever SENDING or have an expiresAt.
       const docs = await this._sentPaymentCollection
         .find(
           { state: 'SENDING', expiresAt: { $lte: now } },
@@ -1224,7 +1222,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     } catch (e) {
       this._logger.error(e);
       throw new Error(
-        `Unable to fetch expired remote payments - error: ${(e as Error).message}`
+        `Unable to fetch expired sent payments - error: ${(e as Error).message}`
       );
     }
   }

@@ -16,7 +16,7 @@ import {
   InboundPaymentState,
   IWalletAddress
 } from './interfaces';
-import { PaymentIntent, PAYMENT_EXPIRED_REASON } from './entity';
+import { PaymentIntent } from './entity';
 import {
   CreatePaymentIntentCmd,
   CompletePaymentIntentCmd,
@@ -38,7 +38,7 @@ import {
   MarkInboundPaymentFulfillableCmd,
   FinalizeInboundPaymentCmd,
   ExpirePaymentIntentCmd,
-  ExpirePaymentCmd
+  ExpireRemotePaymentCmd
 } from '../commands';
 import {
   CannotCreateDuplicatePaymentIntentError,
@@ -150,84 +150,22 @@ export class PaymentIntentAggregate {
       if (cmd.msgName === CreatePaymentIntentCmd.name) {
         const payload = (cmd as CreatePaymentIntentCmd).payload;
         walletAddressIdSet.add(payload.receiverWalletAddressId);
-        paymentIntentIdsSet.add(payload.id);
-      } else if (cmd.msgName === CompletePaymentIntentCmd.name) {
-        const payload = (cmd as CompletePaymentIntentCmd).payload;
-        paymentIntentIdsSet.add(payload.id);
-      } else if (cmd.msgName === CreateQuoteCmd.name) {
-        const payload = (cmd as CreateQuoteCmd).payload;
+      } else if (
+        cmd.msgName === CreateQuoteCmd.name ||
+        cmd.msgName === CreatePaymentCmd.name
+      ) {
+        const payload = (cmd as CreateQuoteCmd | CreatePaymentCmd).payload;
         walletAddressIdSet.add(payload.senderWalletAddressId);
         if (payload.remotePaymentIntentUrl) {
+          // imported from the remote below, not fetched locally
           remoteUrlByProposedId.set(
             payload.paymentIntentId,
             payload.remotePaymentIntentUrl
           );
-        } else {
-          paymentIntentIdsSet.add(payload.paymentIntentId);
+          continue;
         }
-      } else if (cmd.msgName === CreatePaymentCmd.name) {
-        const payload = (cmd as CreatePaymentCmd).payload;
-        walletAddressIdSet.add(payload.senderWalletAddressId);
-        if (payload.remotePaymentIntentUrl) {
-          remoteUrlByProposedId.set(
-            payload.paymentIntentId,
-            payload.remotePaymentIntentUrl
-          );
-        } else {
-          paymentIntentIdsSet.add(payload.paymentIntentId);
-        }
-      } else if (cmd.msgName === ApprovePaymentCmd.name) {
-        const payload = (cmd as ApprovePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === CancelPaymentCmd.name) {
-        const payload = (cmd as CancelPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === CompleteRemoteQuoteCmd.name) {
-        const payload = (cmd as CompleteRemoteQuoteCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === FailRemoteQuoteCmd.name) {
-        const payload = (cmd as FailRemoteQuoteCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === CalculateRemoteQuoteCmd.name) {
-        const payload = (cmd as CalculateRemoteQuoteCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === PrepareRemotePaymentCmd.name) {
-        const payload = (cmd as PrepareRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === FailRemotePaymentCmd.name) {
-        const payload = (cmd as FailRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === ConfirmRemotePaymentCmd.name) {
-        const payload = (cmd as ConfirmRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === RejectRemotePaymentCmd.name) {
-        const payload = (cmd as RejectRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === CompleteRemotePaymentCmd.name) {
-        const payload = (cmd as CompleteRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === ValidateInboundPaymentCmd.name) {
-        const payload = (cmd as ValidateInboundPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === AcceptInboundPaymentCmd.name) {
-        const payload = (cmd as AcceptInboundPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === FailInboundPaymentCmd.name) {
-        const payload = (cmd as FailInboundPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === MarkInboundPaymentFulfillableCmd.name) {
-        const payload = (cmd as MarkInboundPaymentFulfillableCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === FinalizeInboundPaymentCmd.name) {
-        const payload = (cmd as FinalizeInboundPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === ExpirePaymentIntentCmd.name) {
-        const payload = (cmd as ExpirePaymentIntentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === ExpirePaymentCmd.name) {
-        const payload = (cmd as ExpirePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
       }
+      if (cmd.msgKey) paymentIntentIdsSet.add(cmd.msgKey);
     }
 
     const uniqueRemoteUrls = [...new Set(remoteUrlByProposedId.values())];
@@ -263,6 +201,7 @@ export class PaymentIntentAggregate {
         peerIdsToFetch.add((cmd as ValidateInboundPaymentCmd).payload.peerId);
       }
     }
+    // TODO: batch fetch from PAL (eg getPeers)?)
     await Promise.all(
       Array.from(peerIdsToFetch, async (peerId) => {
         try {
@@ -417,8 +356,10 @@ export class PaymentIntentAggregate {
         event = this.handleExpirePaymentIntentCommand(
           cmd as ExpirePaymentIntentCmd
         );
-      } else if (cmd.msgName === ExpirePaymentCmd.name) {
-        event = this.handleExpirePaymentCommand(cmd as ExpirePaymentCmd);
+      } else if (cmd.msgName === ExpireRemotePaymentCmd.name) {
+        event = this.handleExpireRemotePaymentCommand(
+          cmd as ExpireRemotePaymentCmd
+        );
       } else {
         throw new Error('Unexpected command');
       }
@@ -442,8 +383,8 @@ export class PaymentIntentAggregate {
       if (cmd.msgName === ExpirePaymentIntentCmd.name) {
         const { paymentIntentId } = (cmd as ExpirePaymentIntentCmd).payload;
         expiries.set(`intent:${paymentIntentId}`, cmd);
-      } else if (cmd.msgName === ExpirePaymentCmd.name) {
-        const { paymentIntentId, paymentId } = (cmd as ExpirePaymentCmd)
+      } else if (cmd.msgName === ExpireRemotePaymentCmd.name) {
+        const { paymentIntentId, paymentId } = (cmd as ExpireRemotePaymentCmd)
           .payload;
         expiries.set(`payment:${paymentIntentId}:${paymentId}`, cmd);
       } else {
@@ -1415,8 +1356,6 @@ export class PaymentIntentAggregate {
           assetScale: payment.assetScale,
           receiveAssetCode: paymentIntent.assetCode,
           receiveAssetScale: paymentIntent.assetScale,
-          // PAL's release reply carries no reason; keep the one recorded
-          // when the payment was rejected or expired.
           reason: reason ?? payment.failReason,
           grantId: payment.grantId
         },
@@ -1464,9 +1403,17 @@ export class PaymentIntentAggregate {
         );
       }
       if (existingPayment.state === 'EXPIRED') {
+        // TODO: Needs reconciliaiton or redesign that avoids this case.
+        //
         // The fulfill reached Payments after the expiry check. The payment's
         // reservation may already be released, so the sender was not debited
         // for money the peer delivered. Nothing reconciles this yet.
+        //
+        // Potential redesign: Let ILP decide
+        // - Payments sees payment should be exired, leaves as SENDIGN, fires event to ILp
+        // - ILP: if packet pending, emite failure and tell payments to expire.
+        //        if fulfulled (the gap case we are redesigning for), tell payments to complete.
+        //        if packet not found, tell payments to expire.
         this._logger.error(
           {
             paymentIntentId,
@@ -2090,8 +2037,7 @@ export class PaymentIntentAggregate {
     }
   }
 
-  // Expire commands come from the expiry check, not a caller, so nobody waits
-  // on a failure event: failures are logged, and a no-op returns no event.
+  // Idempotent: no-op unless the intent is CREATED.
   private handleExpirePaymentIntentCommand(
     cmd: ExpirePaymentIntentCmd
   ): IMessage[] {
@@ -2109,9 +2055,9 @@ export class PaymentIntentAggregate {
     }
 
     const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
-    if (!paymentIntent.expire(new Date())) {
+    if (!paymentIntent.expire()) {
       this._logger.debug(
-        `Payment intent ${paymentIntentId} not expired: state ${paymentIntent.state}, expiresAt ${paymentIntent.expiresAt.toISOString()}`
+        `Payment intent ${paymentIntentId} not expired: state ${paymentIntent.state}`
       );
       return [];
     }
@@ -2130,10 +2076,13 @@ export class PaymentIntentAggregate {
     ];
   }
 
-  private handleExpirePaymentCommand(cmd: ExpirePaymentCmd): IMessage[] {
+  // Idempotent: no-op unless the payment is SENDING.
+  private handleExpireRemotePaymentCommand(
+    cmd: ExpireRemotePaymentCmd
+  ): IMessage[] {
     const { paymentIntentId, paymentId } = cmd.payload;
     this._logger.debug(
-      `handleExpirePaymentCommand — paymentId: ${paymentId} paymentIntentId: ${paymentIntentId}`
+      `handleExpireRemotePaymentCommand — paymentId: ${paymentId} paymentIntentId: ${paymentIntentId}`
     );
 
     try {
@@ -2146,16 +2095,15 @@ export class PaymentIntentAggregate {
 
       const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
       const { expired, payment } = paymentIntent.expireRemotePayment({
-        id: paymentId,
-        now: new Date()
+        id: paymentId
       });
       if (!expired) {
         this._logger.debug(
-          `Payment ${paymentId} not expired: state ${payment.state}, expiresAt ${payment.expiresAt?.toISOString()}`
+          `Payment ${paymentId} not expired: state ${payment.state}`
         );
         return [];
       }
-      // Only a SENDING payment expires, and prepare set both of these.
+      // Only a SENDING remote payment expires, and prepare set both of these.
       if (!payment.ledgerTransferId || !payment.expiresAt) {
         throw new Error(
           `Payment ${paymentId} is missing ledgerTransferId or expiresAt at expiry`
@@ -2179,8 +2127,7 @@ export class PaymentIntentAggregate {
             debitAmount: String(payment.debitAmount),
             assetCode: payment.assetCode,
             assetScale: payment.assetScale,
-            expiresAt: payment.expiresAt,
-            reason: payment.failReason ?? PAYMENT_EXPIRED_REASON
+            expiresAt: payment.expiresAt
           },
           cmd.requestId
         )
@@ -2896,7 +2843,9 @@ export class PaymentIntentAggregate {
               id: p.id,
               state: p.state,
               ledgerTransferId: p.ledgerTransferId ?? '',
-              expiresAt: p.expiresAt ?? new Date()
+              // prepare() always sets it; no fallback, since a made-up expiry
+              // would expire the payment early
+              expiresAt: p.expiresAt!
             })
           )
         });

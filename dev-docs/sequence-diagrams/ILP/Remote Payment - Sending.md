@@ -46,9 +46,9 @@ sequenceDiagram
     PBC -->> PBC: Publish payment completed/failed event
 ```
 
-# Expiry
+## Expiry
 
-When the payment is prepared, Payments sets the packet deadline to `min(now + 30s, intent expiry)` and sends it on the payment prepared event. The payment itself expires a grace period (5s) after the packet deadline, so a fulfill that reaches the connector in time also reaches Payments before the payment expires.
+A remote payment gets an `expiresAt` when it is prepared: the packet deadline (`min(now + 30s, intent expiry)`) plus a 5s grace period. The packet deadline goes to ILP on the payment prepared event. The check below expires payments still `SENDING` after their `expiresAt`.
 
 ```mermaid
 sequenceDiagram
@@ -62,10 +62,10 @@ sequenceDiagram
     loop Every second, on one instance
     PEH ->> PEH: Tick (fixed key, so one instance consumes it)
     PEH ->> PEH: Find SENDING payments past expiresAt
-    PEH ->> PBC: ExpirePaymentCmd (keyed by payment intent)
+    PEH ->> PBC: ExpireRemotePaymentCmd (keyed by payment intent)
     end
 
-    PBC ->> PBC: Mark payment as expired (SENDING only, otherwise no-op)
+    PBC ->> PBC: Handle ExpireRemotePaymentCmd<br>Mark remote sent payment as expired (if still SENDING)
     PBC ->> PBC: Publish PaymentExpiredEvent
     PAL -->> PBC: Read PaymentExpiredEvent
     PAL ->> PAL: Reject (void) liquidity transfer
@@ -77,10 +77,10 @@ sequenceDiagram
 ```
 
 - `EXPIRED` waits for PAL the way `REJECTED` does, then becomes `FAILED`.
+- The grace period gives a fulfill that reached the connector before the packet deadline time to reach Payments before the check expires the payment.
 - A late ILP failure for an expired payment is ignored.
 - A late fulfill for an expired payment is logged as an error that needs reconciliation. The grace period makes this rare but cannot rule it out, and nothing reconciles it automatically yet.
 - PAL releasing the reservation (#365) and ILP expiring the packet (#366) are separate changes.
-- The same check expires `CREATED` payment intents past their `expiresAt`.
 
 # Notes
 

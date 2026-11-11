@@ -14,8 +14,6 @@ export const SentPaymentState = {
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED',
   FAILED: 'FAILED',
-  // Expired before ILP settled it. Like REJECTED, it moves to FAILED once
-  // PAL releases the reservation.
   EXPIRED: 'EXPIRED'
 } as const;
 export type SentPaymentState = keyof typeof SentPaymentState;

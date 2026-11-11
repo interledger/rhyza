@@ -468,7 +468,7 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
       .map((p) => p.id);
   }
 
-  async fetchExpiredRemotePayments(
+  async fetchExpiredSentPaymentIds(
     now: Date,
     limit: number
   ): Promise<{ paymentIntentId: string; paymentId: string }[]> {

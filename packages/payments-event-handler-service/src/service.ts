@@ -21,7 +21,6 @@ const PAYMENT_EXPIRY_TICK_INTERVAL_MS =
   (process.env['PAYMENT_EXPIRY_TICK_INTERVAL_MS'] &&
     parseInt(process.env['PAYMENT_EXPIRY_TICK_INTERVAL_MS'])) ||
   1000;
-// #236: query Mongo for expired payments at most once a second.
 const PAYMENT_EXPIRY_MIN_CHECK_INTERVAL_MS = 1000;
 const PAYMENT_EXPIRY_CHECK_LIMIT = 500;
 

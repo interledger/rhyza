@@ -581,11 +581,6 @@ export class PaymentFailedEvent extends PaymentIntentDomainEvent {
   }
 }
 
-/**
- * A remote payment passed its expiry while still SENDING. It carries what PAL
- * needs to release the reservation (as for RemotePaymentSendRejectedEvent) and
- * what ILP needs to expire the payment's packet.
- */
 export type PaymentExpiredPayload = {
   paymentIntentId: string;
   paymentId: string;
@@ -596,7 +591,6 @@ export type PaymentExpiredPayload = {
   assetCode: string;
   assetScale: number;
   expiresAt: Date;
-  reason: string;
 };
 
 export class PaymentExpiredEvent extends PaymentIntentDomainEvent {

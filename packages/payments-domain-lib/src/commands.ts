@@ -426,8 +426,6 @@ export class FinalizeInboundPaymentCmd extends PaymentIntentCommand {
   }
 }
 
-// Sent by the expiry check. Keyed by intent like every other command here,
-// so it is ordered with the intent's other commands.
 export type ExpirePaymentIntentCmdPayload = {
   paymentIntentId: string;
 };
@@ -442,15 +440,15 @@ export class ExpirePaymentIntentCmd extends PaymentIntentCommand {
   }
 }
 
-export type ExpirePaymentCmdPayload = {
+export type ExpireRemotePaymentCmdPayload = {
   paymentIntentId: string;
   paymentId: string;
 };
 
-export class ExpirePaymentCmd extends PaymentIntentCommand {
-  payload: ExpirePaymentCmdPayload;
+export class ExpireRemotePaymentCmd extends PaymentIntentCommand {
+  payload: ExpireRemotePaymentCmdPayload;
 
-  constructor(payload: ExpirePaymentCmdPayload, requestId: string) {
+  constructor(payload: ExpireRemotePaymentCmdPayload, requestId: string) {
     super(payload.paymentIntentId);
     this.requestId = requestId;
     this.payload = payload;
