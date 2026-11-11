@@ -598,15 +598,16 @@ export class AuthServiceServer {
   ): Promise<void> {
     try {
       const request = call.request;
+      const identifiers = request.getIdentifiersList();
       const cursorContext: CursorContext = {
         sortOrder: this._pageSortOrder(request.getSortOrder()),
-        identifier: request.getIdentifier() || undefined,
+        identifiers: identifiers.length ? identifiers : undefined,
         state: (request.getState() || undefined) as GrantState | undefined
       };
       const cursor = request.getCursor() || undefined;
 
       const page = await this._repo.fetchGrantsPage({
-        identifier: cursorContext.identifier,
+        identifiers,
         state: cursorContext.state,
         cursor: cursor && decodeCursor(cursor, cursorContext),
         limit: this._clampPageLimit(request.getLimit()),

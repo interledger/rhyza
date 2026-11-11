@@ -2,6 +2,19 @@ import { IPageQuery as IGrantPageQuery } from 'auth-client-lib';
 import { IPageQuery as IPaymentPageQuery } from 'payments-client-lib';
 import type { operations } from './types/generated/admin-api-types.js';
 
+export const MAX_GRANT_WALLET_ADDRESSES = 50;
+
+/**
+ * The spec types `walletAddress` as an array, but a single occurrence of the
+ * query parameter arrives as a bare string, so both are accepted here.
+ */
+export type GrantPageQuery = Omit<
+  NonNullable<operations['Grants_listGrants']['parameters']['query']>,
+  'walletAddress'
+> & {
+  walletAddress?: string | string[];
+};
+
 /**
  * Shared pagination fields, extended per endpoint with their own filters.
  */
@@ -47,11 +60,19 @@ export function parsePaymentPageQuery(
 }
 
 export function parseGrantPageQuery(
-  query: NonNullable<operations['Grants_listGrants']['parameters']['query']>
-): IGrantPageQuery {
+  query: GrantPageQuery
+): IGrantPageQuery & { identifiers: string[] } {
+  const walletAddress = query.walletAddress;
+  const identifiers =
+    walletAddress == null
+      ? []
+      : Array.isArray(walletAddress)
+        ? walletAddress
+        : [walletAddress];
+
   return {
     ...parsePageParams(query),
-    identifier: query.walletAddress,
+    identifiers: identifiers.filter((address) => address !== ''),
     state: query.state
   };
 }

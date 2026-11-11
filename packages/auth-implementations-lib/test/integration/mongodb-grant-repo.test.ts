@@ -16,6 +16,7 @@ const MONGO_PORT = 27017;
 const T0 = Date.parse('2026-01-01T00:00:00.000Z');
 const ALICE = 'https://test.com/alice';
 const BOB = 'https://test.com/bob';
+const CAROL = 'https://test.com/carol';
 
 describe('MongoDbGrantRepo grant page filters', () => {
   let container: StartedTestContainer;
@@ -111,7 +112,7 @@ describe('MongoDbGrantRepo grant page filters', () => {
     const page = await repo.fetchGrantsPage({
       limit: 10,
       backwards: false,
-      identifier: BOB
+      identifiers: [BOB]
     });
     assert.deepEqual(pageIds(page), [ids[4]]);
   });
@@ -121,8 +122,75 @@ describe('MongoDbGrantRepo grant page filters', () => {
       limit: 10,
       backwards: false,
       state: 'PENDING',
-      identifier: ALICE
+      identifiers: [ALICE]
     });
     assert.deepEqual(pageIds(page), [...ids.slice(1, 4)].reverse());
+  });
+
+  test('filters by several identifiers as one stream', async () => {
+    const page = await repo.fetchGrantsPage({
+      limit: 10,
+      backwards: false,
+      identifiers: [ALICE, BOB]
+    });
+    assert.deepEqual(pageIds(page), [...ids].reverse());
+  });
+
+  test('an identifier nobody was granted access for matches nothing', async () => {
+    const page = await repo.fetchGrantsPage({
+      limit: 10,
+      backwards: false,
+      identifiers: [CAROL]
+    });
+    assert.deepEqual(pageIds(page), []);
+  });
+
+  test('an empty identifier list filters nothing', async () => {
+    const page = await repo.fetchGrantsPage({
+      limit: 10,
+      backwards: false,
+      identifiers: []
+    });
+    assert.deepEqual(pageIds(page), [...ids].reverse());
+  });
+
+  test('a grant matching more than one identifier is returned once', async () => {
+    const id = randomUUID();
+    await repo.storeMany([
+      {
+        ...makeGrant({ id, createdAt: new Date(T0 + 5 * 60_000) }),
+        accesses: [
+          { type: 'OUTGOING_PAYMENT', actions: ['CREATE'], identifier: BOB },
+          { type: 'INCOMING_PAYMENT', actions: ['CREATE'], identifier: CAROL }
+        ]
+      }
+    ]);
+
+    const page = await repo.fetchGrantsPage({
+      limit: 10,
+      backwards: false,
+      identifiers: [BOB, CAROL]
+    });
+
+    assert.deepEqual(pageIds(page), [id, ids[4]]);
+  });
+
+  test('a cursor walk with several identifiers holds its position', async () => {
+    const first = await repo.fetchGrantsPage({
+      limit: 2,
+      backwards: false,
+      identifiers: [ALICE, BOB]
+    });
+    const second = await repo.fetchGrantsPage({
+      limit: 2,
+      backwards: false,
+      identifiers: [ALICE, BOB],
+      cursor: first.items[first.items.length - 1].id
+    });
+
+    const descending = [...ids].reverse();
+    assert.deepEqual(pageIds(first), descending.slice(0, 2));
+    assert.deepEqual(pageIds(second), descending.slice(2, 4));
+    assert.equal(first.hasNextPage, true);
   });
 });

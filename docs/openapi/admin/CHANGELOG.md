@@ -1,3 +1,18 @@
+# API Changelog 0.0.20 vs. 0.0.21
+
+
+## API Changes
+
+### GET /grants
+- :warning: for the `query` request parameter `walletAddress`, the maxItems was set to `50`
+-  for the `query` request parameter `walletAddress`, the `type` was widened from `string` to `array<string>`
+
+
+
+
+## Info
+-  a breaking change was detected but the major version did not increase, from `0.0.20` to `0.0.21`
+
 # API Changelog 0.0.19 vs. 0.0.20
 
 

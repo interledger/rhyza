@@ -11,7 +11,7 @@ describe('grant page cursor', () => {
   it('rejects a cursor when identifier differs, is added, or is removed', () => {
     const withId: CursorContext = {
       sortOrder: 'desc',
-      identifier: 'https://test.com/alice'
+      identifiers: ['https://test.com/alice']
     };
     assert.throws(() => decodeCursor(encodeCursor(id, withId), base), {
       name: 'InvalidCursorError'
@@ -23,10 +23,42 @@ describe('grant page cursor', () => {
       () =>
         decodeCursor(encodeCursor(id, withId), {
           sortOrder: 'desc',
-          identifier: 'https://test.com/bob'
+          identifiers: ['https://test.com/bob']
         }),
       { name: 'InvalidCursorError' }
     );
+    // narrowing a multi-address filter
+    assert.throws(
+      () =>
+        decodeCursor(
+          encodeCursor(id, {
+            sortOrder: 'desc',
+            identifiers: ['https://test.com/alice', 'https://test.com/bob']
+          }),
+          withId
+        ),
+      { name: 'InvalidCursorError' }
+    );
+  });
+
+  it('keeps paginating when the same wallet addresses arrive in another order', () => {
+    const cursor = encodeCursor(id, {
+      sortOrder: 'desc',
+      identifiers: ['https://test.com/bob', 'https://test.com/alice']
+    });
+
+    assert.equal(
+      decodeCursor(cursor, {
+        sortOrder: 'desc',
+        identifiers: ['https://test.com/alice', 'https://test.com/bob']
+      }),
+      id
+    );
+  });
+
+  it('treats no identifiers as no filter', () => {
+    const cursor = encodeCursor(id, { sortOrder: 'desc', identifiers: [] });
+    assert.equal(decodeCursor(cursor, base), id);
   });
 
   it('rejects a cursor when state differs, is added, or is removed', () => {

@@ -457,8 +457,8 @@ export class MongoDbGrantRepo implements IGrantRepository {
       if (opts.state != null) {
         filter['state'] = opts.state;
       }
-      if (opts.identifier != null) {
-        filter['accesses.identifier'] = opts.identifier;
+      if (opts.identifiers?.length) {
+        filter['accesses.identifier'] = { $in: opts.identifiers };
       }
 
       const page = await fetchPageDocs(this._grantCollection, filter, opts);
