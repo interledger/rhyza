@@ -34,6 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t packages < <(jq -r '.[]' .github/release-packages.json)
+          packages+=(ase-mock-service)
           for package in "${packages[@]}"; do
             echo "Building rhyza-${package}"
             docker buildx build \
@@ -45,7 +46,7 @@ jobs:
           done
 
           mapfile -t loaded < <(docker images --format '{{.Repository}}:{{.Tag}}' | grep '^rhyza-.*:latest$' || true)
-          expected=$(jq 'length' .github/release-packages.json)
+          expected=$(( $(jq 'length' .github/release-packages.json) + 1 ))
           if [[ ${#loaded[@]} -ne "$expected" ]]; then
             echo "Expected ${expected} rhyza-* images, found ${#loaded[@]}" >&2
             printf '%s\n' "${loaded[@]}"
