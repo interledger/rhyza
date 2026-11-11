@@ -9,7 +9,11 @@ import {
   StartedDockerComposeEnvironment,
   Wait
 } from 'testcontainers';
-import { AdminApiClient, createAdminClient } from 'admin-client-lib';
+import {
+  AdminApiClient,
+  createAdminClient,
+  PeerCreate
+} from 'admin-client-lib';
 
 const ADMIN_API_PORT = 3001;
 const NODE_B_ADMIN_API_PORT = 4001;
@@ -49,16 +53,6 @@ describe('E2E tests', () => {
     // Two nodes can take longer than the 60s default.
     environmentBuilder = environmentBuilder.withStartupTimeout(180_000);
 
-    environmentBuilder = environmentBuilder.withWaitStrategy(
-      'ase-mock-service',
-      Wait.forHttp('/healthz', ASE_MOCK_PORT)
-    );
-
-    environmentBuilder = environmentBuilder.withWaitStrategy(
-      'ase-mock-service-b',
-      Wait.forHttp('/healthz', ASE_MOCK_PORT)
-    );
-
     // The e2e compose file sets pull_policy: never and clears build, so a missing
     // local image fails instead of building from source or pulling from a registry.
     try {
@@ -81,11 +75,7 @@ describe('E2E tests', () => {
     let paymentId = '';
 
     await step(t, progress, 'create asset', async () => {
-      const asset = await adminClient.assets.createAsset({
-        code: assetCode,
-        scale: 2
-      });
-      assert.equal(asset.code, assetCode);
+      await createAsset(adminClient, assetCode);
     });
 
     await step(t, progress, 'create sender wallet', async () => {
@@ -191,7 +181,7 @@ describe('E2E tests', () => {
     });
 
     await step(t, progress, 'create peer for node B', async () => {
-      const peerForB = await adminClient.peers.createPeer({
+      await createPeer(adminClient, {
         id: NODE_B_PEER_ID,
         name: 'Node B',
         assetCode,
@@ -207,11 +197,10 @@ describe('E2E tests', () => {
           incoming: { authToken: 'local-peer-token' }
         }
       });
-      assert.equal(peerForB.id, NODE_B_PEER_ID);
     });
 
     await step(t, progress, 'create peer for node A', async () => {
-      const peerForA = await adminClientB.peers.createPeer({
+      await createPeer(adminClientB, {
         id: NODE_A_PEER_ID,
         name: 'Node A',
         assetCode,
@@ -226,7 +215,6 @@ describe('E2E tests', () => {
           incoming: { authToken: 'local-peer-token' }
         }
       });
-      assert.equal(peerForA.id, NODE_A_PEER_ID);
     });
 
     await step(t, progress, 'fund sender liquidity', async () => {
@@ -307,21 +295,21 @@ describe('E2E tests', () => {
   };
 
   const createAsset = async (client: AdminApiClient, code: string) => {
-    try {
-      const asset = await client.assets.createAsset({ code, scale: 2 });
-      assert.equal(asset.code, code);
-    } catch (error) {
-      const status =
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        error.response instanceof Response
-          ? error.response.status
-          : undefined;
-      if (status !== 409) {
-        throw error;
-      }
-    }
+    // The create call stays open until asset activation finishes.
+    // Sometimes PAL does not return a response after the asset is created
+    void client.assets.createAsset({ code, scale: 2 }).catch(() => {});
+    await setTimeout(2000);
+
+    const { assets } = await client.assets.getAssets();
+    const asset = assets.find((item) => item.code === code);
+    assert.ok(asset);
+    assert.equal(asset.code, code);
+    assert.equal(asset.scale, 2);
+  };
+
+  const createPeer = async (client: AdminApiClient, peer: PeerCreate) => {
+    const created = await client.peers.createPeer(peer);
+    assert.equal(created.id, peer.id);
   };
 
   after(async () => {

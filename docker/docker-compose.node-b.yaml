@@ -34,6 +34,8 @@ services:
         condition: service_started
       ilp-api-service-b:
         condition: service_started
+      auth-api-service-b:
+        condition: service_started
     networks:
       - rhyza
 
