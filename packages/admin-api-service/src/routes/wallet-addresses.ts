@@ -12,7 +12,7 @@ import {
   PalClientWalletAddressNotFoundError,
   assertValidWalletAddressPathName
 } from 'pal-client-lib';
-import { JsonWebKey, WalletAddressCreate } from 'admin-client-lib';
+import type { components } from '../types/generated/admin-api-types.js';
 
 interface WalletAddressRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
@@ -26,7 +26,7 @@ export async function walletAddressRoutes(
   const { palClient, openPaymentsUrl } = opts;
 
   server.post<{
-    Body: WalletAddressCreate;
+    Body: components['schemas']['WalletAddressCreate'];
   }>('/wallet-addresses', async (request, reply) => {
     const { pathName, publicName, assetCode, isActive } = request.body;
 
@@ -105,7 +105,7 @@ export async function walletAddressRoutes(
 
   server.post<{
     Params: { id: string };
-    Body: JsonWebKey;
+    Body: components['schemas']['JsonWebKey'];
   }>('/wallet-addresses/:id/keys', async (request, reply) => {
     try {
       const id = await palClient.addWalletAddressKey(
