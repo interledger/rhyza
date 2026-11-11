@@ -3,7 +3,7 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient } from 'pal-client-lib';
 import crypto from 'crypto';
-import { LiquidityDepositRequest } from 'admin-client-lib';
+import type { operations } from '../types/generated/admin-api-types.js';
 
 interface LiquidityRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
@@ -16,7 +16,7 @@ export async function liquidityRoutes(
   const { palClient } = opts;
 
   server.post<{
-    Body: LiquidityDepositRequest;
+    Body: operations['Liquidity_deposit']['requestBody']['content']['application/json'];
   }>('/liquidity/deposit', async (request, reply) => {
     const { assetCode, peerId, amount, amountScale } = request.body;
 

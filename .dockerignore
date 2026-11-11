@@ -24,5 +24,7 @@ benchmark.js
 bruno
 docker
 docs
+# admin-api-service generates its types from this spec at build time
+!docs/openapi/admin/admin-api.yaml
 dev-docs
 *.md

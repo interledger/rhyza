@@ -9,13 +9,14 @@
     "dev": "node --import tsx src/index.ts",
     "build": "tsc --build",
     "test": "node --import tsx --test test/*.test.ts",
-    "lint:openapi": "redocly lint ../../docs/openapi/admin/admin-api.yaml --lint-config error --format=stylish"
+    "lint:openapi": "redocly lint ../../docs/openapi/admin/admin-api.yaml --lint-config error --format=stylish",
+    "generate:types": "openapi-typescript ../../docs/openapi/admin/admin-api.yaml --output src/types/generated/admin-api-types.ts",
+    "prebuild": "pnpm generate:types"
   },
   "keywords": [],
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "admin-client-lib": "workspace:*",
     "auth-client-lib": "workspace:*",
     "common-types-lib": "workspace:*",
     "fastify": "~5.3.3",

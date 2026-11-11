@@ -1,11 +1,5 @@
 'use strict';
 
-import {
-  GetPaymentIntentRequest,
-  PaymentIntentCreate,
-  PaymentIntentsListPaymentIntentsRequest,
-  CompletePaymentIntentRequest
-} from 'admin-client-lib';
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
@@ -16,6 +10,10 @@ import {
   toClientApiErrorResponse
 } from 'payments-client-lib';
 import { parsePaymentIntentPageQuery } from '../pagination.js';
+import type {
+  components,
+  operations
+} from '../types/generated/admin-api-types.js';
 
 interface PaymentIntentRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
@@ -88,9 +86,19 @@ export async function paymentIntentRoutes(
   const { palClient, paymentsClient, openPaymentsUrl } = opts;
 
   server.post<{
-    Body: PaymentIntentCreate;
+    Body: components['schemas']['PaymentIntentCreate'];
   }>('/payment-intents', async (request, reply) => {
     const { walletAddress, incomingAmount, expiresAt, metadata } = request.body;
+
+    let expiresAtIso: string | undefined;
+    if (expiresAt != null) {
+      const parsed =
+        typeof expiresAt === 'string' ? new Date(expiresAt) : undefined;
+      if (!parsed || Number.isNaN(parsed.getTime())) {
+        return reply.status(400).send({ error: 'Invalid expiresAt' });
+      }
+      expiresAtIso = parsed.toISOString();
+    }
 
     const id = request.body.id ?? randomUUID();
 
@@ -110,7 +118,7 @@ export async function paymentIntentRoutes(
         wallet.id,
         walletAddress,
         incomingAmount ? Number(incomingAmount) : undefined,
-        expiresAt?.toISOString(),
+        expiresAtIso,
         metadata
       );
 
@@ -131,29 +139,30 @@ export async function paymentIntentRoutes(
     }
   });
 
-  server.get<{ Querystring: PaymentIntentsListPaymentIntentsRequest }>(
-    '/payment-intents',
-    async (request, reply) => {
-      try {
-        const page = await paymentsClient.getPaymentIntentsPage(
-          parsePaymentIntentPageQuery(request.query)
-        );
+  server.get<{
+    Querystring: NonNullable<
+      operations['PaymentIntents_listPaymentIntents']['parameters']['query']
+    >;
+  }>('/payment-intents', async (request, reply) => {
+    try {
+      const page = await paymentsClient.getPaymentIntentsPage(
+        parsePaymentIntentPageQuery(request.query)
+      );
 
-        return reply.status(200).send({
-          result: page.items.map(toPaymentIntentBody),
-          pagination: page.pagination
-        });
-      } catch (err) {
-        server.log.error(err);
-        const httpStatus = httpStatusFromGrpcError(err);
-        const { error } = toClientApiErrorResponse(err);
-        return reply.status(httpStatus).send({ error: error.description });
-      }
+      return reply.status(200).send({
+        result: page.items.map(toPaymentIntentBody),
+        pagination: page.pagination
+      });
+    } catch (err) {
+      server.log.error(err);
+      const httpStatus = httpStatusFromGrpcError(err);
+      const { error } = toClientApiErrorResponse(err);
+      return reply.status(httpStatus).send({ error: error.description });
     }
-  );
+  });
 
   server.get<{
-    Params: GetPaymentIntentRequest;
+    Params: operations['getPaymentIntent']['parameters']['path'];
   }>('/payment-intents/:id', async (request, reply) => {
     const { id } = request.params;
 
@@ -171,7 +180,7 @@ export async function paymentIntentRoutes(
   });
 
   server.post<{
-    Params: CompletePaymentIntentRequest;
+    Params: operations['completePaymentIntent']['parameters']['path'];
     Body: { reason?: string };
   }>('/payment-intents/:id/complete', async (request, reply) => {
     const { id } = request.params;
