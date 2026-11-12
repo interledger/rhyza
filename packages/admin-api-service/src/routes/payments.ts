@@ -3,14 +3,10 @@
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
-import {
-  ApprovePaymentRequest,
-  CancelPaymentRequest,
-  GetPaymentRequest,
-  PaymentCancel,
-  CreatePaymentRequest,
-  PaymentsListPaymentsRequest
-} from 'admin-client-lib';
+import type {
+  components,
+  operations
+} from '../types/generated/admin-api-types.js';
 import {
   IAmount,
   PaymentsClient,
@@ -91,7 +87,7 @@ export async function paymentRoutes(
   const { palClient, paymentsClient } = opts;
 
   server.post<{
-    Body: CreatePaymentRequest;
+    Body: operations['createPayment']['requestBody']['content']['application/json'];
   }>('/payments', async (request, reply) => {
     const { walletAddress, quoteId, debitAmount, metadata } = request.body;
     const paymentIntent =
@@ -134,28 +130,29 @@ export async function paymentRoutes(
     }
   });
 
-  server.get<{ Querystring: PaymentsListPaymentsRequest }>(
-    '/payments',
-    async (request, reply) => {
-      try {
-        const page = await paymentsClient.getPaymentsPage(
-          parsePaymentPageQuery(request.query)
-        );
+  server.get<{
+    Querystring: NonNullable<
+      operations['Payments_listPayments']['parameters']['query']
+    >;
+  }>('/payments', async (request, reply) => {
+    try {
+      const page = await paymentsClient.getPaymentsPage(
+        parsePaymentPageQuery(request.query)
+      );
 
-        return reply.status(200).send({
-          result: page.items.map(toPaymentBody),
-          pagination: page.pagination
-        });
-      } catch (err) {
-        server.log.error(err);
-        const httpStatus = httpStatusFromGrpcError(err);
-        const { error } = toClientApiErrorResponse(err);
-        return reply.status(httpStatus).send({ error: error.description });
-      }
+      return reply.status(200).send({
+        result: page.items.map(toPaymentBody),
+        pagination: page.pagination
+      });
+    } catch (err) {
+      server.log.error(err);
+      const httpStatus = httpStatusFromGrpcError(err);
+      const { error } = toClientApiErrorResponse(err);
+      return reply.status(httpStatus).send({ error: error.description });
     }
-  );
+  });
 
-  server.get<{ Params: GetPaymentRequest }>(
+  server.get<{ Params: operations['getPayment']['parameters']['path'] }>(
     '/payment-intents/:intentId/payments/:id',
     async (request, reply) => {
       const { intentId, id } = request.params;
@@ -175,7 +172,7 @@ export async function paymentRoutes(
   );
 
   server.post<{
-    Params: ApprovePaymentRequest;
+    Params: operations['approvePayment']['parameters']['path'];
   }>(
     '/payment-intents/:intentId/payments/:id/approve',
     async (request, reply) => {
@@ -194,8 +191,8 @@ export async function paymentRoutes(
   );
 
   server.post<{
-    Params: CancelPaymentRequest;
-    Body: PaymentCancel;
+    Params: operations['cancelPayment']['parameters']['path'];
+    Body: components['schemas']['PaymentCancel'];
   }>(
     '/payment-intents/:intentId/payments/:id/cancel',
     async (request, reply) => {

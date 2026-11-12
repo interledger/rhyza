@@ -66,7 +66,8 @@ export interface InteractionResult {
 export type PageSortOrder = 'asc' | 'desc';
 
 export interface IPageQuery {
-  identifier?: string;
+  /** Grants for these identifiers, empty treated as no filter. */
+  identifiers?: string[];
   state?: string;
   /** Opaque cursor from a previous page's startCursor/endCursor. */
   cursor?: string;

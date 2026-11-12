@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { ErrorResponse, FxRateSet } from 'admin-client-lib';
+import type { components } from '../types/generated/admin-api-types.js';
+
 import { PalClient } from 'pal-client-lib';
 
 interface RateRouteOptions extends FastifyPluginOptions {
@@ -12,8 +13,8 @@ export async function ratesRoutes(
 ): Promise<void> {
   const { palClient } = opts;
   server.post<{
-    Body: FxRateSet;
-    Reply: ErrorResponse | undefined;
+    Body: components['schemas']['FxRateSet'];
+    Reply: components['schemas']['ErrorResponse'] | undefined;
   }>('/rates', async (request, reply) => {
     const {
       sourceAssetCode,

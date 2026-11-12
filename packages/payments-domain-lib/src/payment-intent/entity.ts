@@ -850,7 +850,7 @@ class InboundPayment {
 export class PaymentIntent implements IPaymentIntent {
   private _id: string;
   private _receiverWalletAddressId: string | undefined;
-  private _receiverWalletAddress: string;
+  private _receiverWalletAddress: string | undefined;
   private _state: PaymentIntentState;
   private _destination: PaymentIntentDestination;
   private _assetCode: string;
@@ -869,7 +869,7 @@ export class PaymentIntent implements IPaymentIntent {
   private constructor(
     id: string,
     receiverWalletAddressId: string | undefined,
-    receiverWalletAddress: string,
+    receiverWalletAddress: string | undefined,
     destination: PaymentIntentDestination,
     assetCode: string,
     assetScale: number,
@@ -909,7 +909,7 @@ export class PaymentIntent implements IPaymentIntent {
   static create(
     id: string,
     receiverWalletAddressId: string | undefined,
-    receiverWalletAddress: string,
+    receiverWalletAddress: string | undefined,
     destination: PaymentIntentDestination,
     assetCode: string,
     assetScale: number,
@@ -918,11 +918,18 @@ export class PaymentIntent implements IPaymentIntent {
     receivedAmount: bigint = 0n,
     destinationIlpAddress?: string,
     remoteUrl?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    state: PaymentIntentState = PaymentIntentState.CREATED
   ): PaymentIntent {
     if (destination === 'LOCAL' && !receiverWalletAddressId) {
       throw new InvalidPaymentIntentError(
         'receiverWalletAddressId is required for LOCAL payment intents'
+      );
+    }
+
+    if (destination === 'LOCAL' && !receiverWalletAddress) {
+      throw new InvalidPaymentIntentError(
+        'receiverWalletAddress is required for LOCAL payment intents'
       );
     }
 
@@ -957,7 +964,7 @@ export class PaymentIntent implements IPaymentIntent {
       resolvedExpiresAt,
       incomingAmount,
       receivedAmount,
-      undefined,
+      state,
       undefined,
       undefined,
       undefined,
@@ -1886,7 +1893,7 @@ export class PaymentIntent implements IPaymentIntent {
     return this._receiverWalletAddressId;
   }
 
-  get receiverWalletAddress(): string {
+  get receiverWalletAddress(): string | undefined {
     return this._receiverWalletAddress;
   }
 
