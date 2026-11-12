@@ -1,0 +1,45 @@
+meta {
+  name: Grant Request Incoming Payment
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{receiverAuthServer}}/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "access_token": {
+      "access": [
+        {
+          "type": "incoming-payment",
+          "actions": ["create", "read"]
+        }
+      ]
+    },
+    "client": { "jwk": {{clientPublicJwk}} }
+  }
+}
+
+script:pre-request {
+  const scripts = require('./scripts');
+
+  await scripts.addSignatureHeaders();
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.access_token?.value) {
+    bru.setVar("incomingPaymentAccessToken", body.access_token.value);
+  }
+}
+
+tests {
+  test("issued without interaction", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().access_token.value).to.be.a("string");
+  });
+}

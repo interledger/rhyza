@@ -1,0 +1,38 @@
+meta {
+  name: Get Incoming Payment
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://{{openPaymentsResourceServerUrl}}/incoming-payments/{{incomingPaymentId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: GNAP {{incomingPaymentAccessToken}}
+}
+
+script:pre-request {
+  const scripts = require('./scripts');
+
+  await scripts.addSignatureHeaders();
+}
+
+tests {
+  test("completed for the full amount", function () {
+    const body = res.getBody();
+    expect(res.getStatus()).to.equal(200);
+    expect(body.completed).to.equal(true);
+    expect(body.receivedAmount).to.deep.equal(body.incomingAmount);
+  });
+}
+
+docs {
+  Read with the incoming payment grant's token (it has `read`). Expect
+  `completed: true` and `receivedAmount` equal to `incomingAmount`.
+
+  The payment settles asynchronously, so straight after Create Outgoing
+  Payment it may not be complete yet. Send this again until it is.
+}
