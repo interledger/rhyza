@@ -1,0 +1,36 @@
+meta {
+  name: Create Receiver Wallet Address
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://{{adminApiUrl}}/wallet-addresses
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "pathName": "{{receiverPathName}}",
+    "assetCode": "USD",
+    "publicName": "Receiver (OP local)"
+  }
+}
+
+script:pre-request {
+  bru.setVar("receiverPathName", `op-receiver-${Date.now().toString(36)}`);
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.id) {
+    bru.setVar("receiverWalletAddressId", body.id);
+  }
+}
+
+tests {
+  test("created", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}

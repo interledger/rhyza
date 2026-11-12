@@ -1,0 +1,82 @@
+meta {
+  name: Grant Request Outgoing Payment
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{senderAuthServer}}/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "access_token": {
+      "access": [
+        {
+          "type": "outgoing-payment",
+          "actions": ["create", "read"],
+          "identifier": "{{senderWalletAddressUrl}}",
+          "limits": {
+            "debitAmount": {{quoteDebitAmount}}
+          }
+        }
+      ]
+    },
+    "client": "{{senderWalletAddressUrl}}",
+    "interact": {
+      "start": ["redirect"],
+      "finish": {
+        "method": "redirect",
+        "uri": "http://localhost:3344/finish",
+        "nonce": "{{clientFinishNonce}}"
+      }
+    }
+  }
+}
+
+script:pre-request {
+  const { randomUUID } = require('crypto');
+  const scripts = require('./scripts');
+
+  bru.setVar("clientFinishNonce", randomUUID());
+
+  await scripts.addSignatureHeaders();
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.interact?.redirect) {
+    bru.setVar("interactRedirect", body.interact.redirect);
+    bru.setVar("interactFinishNonce", body.interact.finish);
+    // .../interaction/:grantId/start
+    bru.setVar("grantId", body.interact.redirect.split("/").slice(-2)[0]);
+  }
+  if (body?.continue) {
+    bru.setVar("grantRequestedAt", Date.now());
+    bru.setVar("grantContinueUri", body.continue.uri);
+    bru.setVar("grantContinueToken", body.continue.access_token.value);
+  }
+}
+
+tests {
+  test("pending interaction", function () {
+    const body = res.getBody();
+    expect(res.getStatus()).to.equal(200);
+    expect(body.interact.redirect).to.be.a("string");
+    expect(body.access_token).to.equal(undefined);
+  });
+}
+
+docs {
+  Outgoing payment access needs the user's consent, so the grant comes back
+  pending with an `interact.redirect` instead of an access token.
+
+  `client` is the sender wallet address, not `client.jwk`: directed identity
+  is only allowed for non-interactive grants.
+
+  `interact.finish.uri` is where the auth server would send the user back to
+  the client. Nothing listens there; Bruno reads the redirect off the
+  `/finish` response instead.
+}

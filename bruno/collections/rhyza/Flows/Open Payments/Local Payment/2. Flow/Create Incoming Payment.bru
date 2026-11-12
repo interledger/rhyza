@@ -1,0 +1,46 @@
+meta {
+  name: Create Incoming Payment
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://{{openPaymentsResourceServerUrl}}/incoming-payments
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: GNAP {{incomingPaymentAccessToken}}
+}
+
+body:json {
+  {
+    "walletAddress": "{{receiverWalletAddressUrl}}",
+    "incomingAmount": {
+      "assetCode": "USD",
+      "assetScale": 2,
+      "value": "1000"
+    }
+  }
+}
+
+script:pre-request {
+  const scripts = require('./scripts');
+
+  await scripts.addSignatureHeaders();
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.id) {
+    bru.setVar("incomingPaymentUrl", body.id);
+    bru.setVar("incomingPaymentId", body.id.split("/").pop());
+  }
+}
+
+tests {
+  test("created", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}

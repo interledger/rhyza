@@ -1,0 +1,35 @@
+meta {
+  name: Local Payment
+  seq: 1
+}
+
+auth {
+  mode: inherit
+}
+
+docs {
+  A local payment (sender and receiver on the same node) driven end to end
+  the way an Open Payments client drives it: every request is signed, and
+  every resource request carries a GNAP access token.
+
+  Setup (Admin) → discover wallet addresses → incoming payment grant +
+  incoming payment → quote grant + quote → interactive outgoing payment
+  grant → start / accept / finish interaction → continue grant → outgoing
+  payment → Verify.
+
+  Run the whole folder against the `Rhyza` environment (`pnpm docker:up`).
+
+  Client identity:
+  - The incoming payment and quote grants use directed identity
+    (`client.jwk`), signing with the key from `scripts.generateClientKeys()`.
+  - The outgoing payment grant needs interaction, and the spec (and auth
+    domain) reject `client.jwk` for interactive grants. So it identifies the
+    client by the sender wallet address instead, and Setup registers the same
+    public key on that wallet address so the auth server finds it in
+    `/jwks.json`.
+
+  Interaction: there is no IDP UI locally, so Bruno plays the user agent. It
+  stops at each redirect, carries the `interactionSessionId` session cookie
+  from `/start` to `/finish` itself, and accepts the grant by calling
+  `idp-interaction-service` directly with `x-idp-secret`.
+}

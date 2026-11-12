@@ -1,0 +1,34 @@
+meta {
+  name: Get Receiver Wallet Address
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://{{openPaymentsResourceServerUrl}}/{{receiverPathName}}
+  body: none
+  auth: none
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.id) {
+    bru.setVar("receiverWalletAddressUrl", body.id);
+    bru.setVar("receiverAuthServer", body.authServer);
+  }
+}
+
+tests {
+  test("has an auth server", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().authServer).to.be.a("string");
+  });
+}
+
+docs {
+  Discovers where to ask for the incoming payment grant (`authServer`).
+
+  `id` is the wallet address URL, used as-is in request bodies. It carries the
+  resource server's Docker name, so Bruno's own requests keep going to
+  `openPaymentsResourceServerUrl` instead of `resourceServer`.
+}
