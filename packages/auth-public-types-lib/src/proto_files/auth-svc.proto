@@ -204,6 +204,7 @@ message IntrospectTokenRequest {
 	string id = 1; // grant id
 	string token_value = 2;
 	repeated AccessItem access = 3;
+	SignatureData signature_data = 4;
 }
 
 message RotateTokenRequest {
