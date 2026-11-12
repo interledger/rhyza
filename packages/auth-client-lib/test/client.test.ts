@@ -13,7 +13,8 @@ import {
   AccessItem,
   GrantFinish,
   SubjectId,
-  AccessLimits
+  AccessLimits,
+  AuthClientPermissionDeniedError
 } from '../src/';
 
 describe('Auth Client', () => {
@@ -469,6 +470,7 @@ describe('Auth Client', () => {
 
       const before = await authClient.introspectToken(
         grantId,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         tokenValue,
         access
       );
@@ -491,6 +493,7 @@ describe('Auth Client', () => {
 
       const after = await authClient.introspectToken(
         grantId,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         tokenValue,
         access
       );
@@ -506,6 +509,7 @@ describe('Auth Client', () => {
 
       const before = await authClient.introspectToken(
         grantId,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         tokenValue,
         access
       );
@@ -528,6 +532,7 @@ describe('Auth Client', () => {
 
       const after = await authClient.introspectToken(
         grantId,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         tokenValue,
         access
       );
@@ -934,9 +939,11 @@ describe('Auth Client', () => {
   });
 
   describe('introspectToken', () => {
-    async function createIssuedGrant(
-      access: AccessItem[]
-    ): Promise<{ id: string; tokenValue: string }> {
+    async function createIssuedGrant(access: AccessItem[]): Promise<{
+      id: string;
+      tokenValue: string;
+      keys: ReturnType<typeof generateTestKeys>;
+    }> {
       const keys = generateTestKeys();
       const signatureData = await signedSignatureData(
         keys.privateKey,
@@ -950,31 +957,58 @@ describe('Auth Client', () => {
 
       return {
         id: createResult.id,
-        tokenValue: createResult.accessTokenValue as string
+        tokenValue: createResult.accessTokenValue as string,
+        keys
       };
     }
+
+    const sign = (keys: ReturnType<typeof generateTestKeys>) =>
+      signedSignatureData(keys.privateKey, keys.publicKey.kid);
 
     test('returns active: true for a valid access token', async () => {
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
-      const { id, tokenValue } = await createIssuedGrant(access);
+      const { id, tokenValue, keys } = await createIssuedGrant(access);
 
-      const result = await authClient.introspectToken(id, tokenValue, access);
+      const result = await authClient.introspectToken(
+        id,
+        await sign(keys),
+        tokenValue,
+        access
+      );
 
       assert.equal(result.active, true);
       assert.equal(result.grantId, id);
       assert.deepStrictEqual(result.access, access);
     });
 
+    test('rejects with AuthClientPermissionDeniedError when signed by a different key', async () => {
+      const access = [
+        makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
+      ];
+      const { id, tokenValue } = await createIssuedGrant(access);
+
+      await assert.rejects(
+        authClient.introspectToken(
+          id,
+          await sign(generateTestKeys()),
+          tokenValue,
+          access
+        ),
+        AuthClientPermissionDeniedError
+      );
+    });
+
     test('returns active: false for a token value that does not match', async () => {
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
-      const { id } = await createIssuedGrant(access);
+      const { id, keys } = await createIssuedGrant(access);
 
       const result = await authClient.introspectToken(
         id,
+        await sign(keys),
         'unknown-token-value',
         []
       );
@@ -988,33 +1022,40 @@ describe('Auth Client', () => {
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] }),
         makeAccessItem({ type: 'QUOTE', actions: ['CREATE'] })
       ];
-      const { id, tokenValue } = await createIssuedGrant(access);
+      const { id, tokenValue, keys } = await createIssuedGrant(access);
 
-      const result = await authClient.introspectToken(id, tokenValue, [
-        access[0]
-      ]);
+      const result = await authClient.introspectToken(
+        id,
+        await sign(keys),
+        tokenValue,
+        [access[0]]
+      );
 
       assert.equal(result.active, true);
       assert.deepStrictEqual(result.access, [access[0]]);
     });
 
-    test('returns active: false when the requested access items are not fully covered by the grant', async () => {
+    test('returns only the covered access items when the grant does not cover every requested item', async () => {
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
-      const { id, tokenValue } = await createIssuedGrant(access);
+      const { id, tokenValue, keys } = await createIssuedGrant(access);
 
-      const result = await authClient.introspectToken(id, tokenValue, [
-        ...access,
-        makeAccessItem({ type: 'QUOTE', actions: ['CREATE'] })
-      ]);
+      const result = await authClient.introspectToken(
+        id,
+        await sign(keys),
+        tokenValue,
+        [...access, makeAccessItem({ type: 'QUOTE', actions: ['CREATE'] })]
+      );
 
-      assert.equal(result.active, false);
+      assert.equal(result.active, true);
+      assert.deepStrictEqual(result.access, access);
     });
 
     test('returns active: false when the grant does not exist', async () => {
       const result = await authClient.introspectToken(
         randomUUID(),
+        await sign(generateTestKeys()),
         'some-token-value',
         []
       );
