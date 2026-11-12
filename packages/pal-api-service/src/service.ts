@@ -30,7 +30,8 @@ import {
   MongoDbFxRepo,
   MongoDbLedgerReadSideRepo,
   MongoDbPeerRepo,
-  MongoDbWalletRepo
+  MongoDbWalletRepo,
+  RedisCachedWalletAddressRepo
 } from 'pal-implementations-lib';
 import {
   CommandTopics,
@@ -95,6 +96,12 @@ const kafkaConsumerCommonOptions: KafkaConsumerOptions = {
 
 const MONGO_URL = process.env['MONGO_URL'] || 'mongodb://localhost:27017/';
 
+// Optional: without it, wallet addresses are read from Mongo on every lookup
+const REDIS_URL = process.env['REDIS_URL'];
+const WALLET_ADDRESS_CACHE_TTL_MS = process.env['WALLET_ADDRESS_CACHE_TTL_MS']
+  ? parseInt(process.env['WALLET_ADDRESS_CACHE_TTL_MS'])
+  : 5 * 60 * 1000;
+
 const EXCHANGE_RATES_URL =
   process.env['SVCEXCHANGE_RATES_URL_PORT'] || 'http://localhost:7000/rates';
 // Original param in milliseconds is called EXCHANGE_RATES_LIFETIME
@@ -129,6 +136,7 @@ export class PalApiService {
   private static _kafkaBuilder: IKafkaBuilder;
   private static _assetRepo: IPalAssetRepository;
   private static _walletRepo: IPalWalletAddressRepository;
+  private static _cachedWalletRepo?: RedisCachedWalletAddressRepo;
   private static _peerRepo: IPalPeerRepository;
   private static _fxRepo: IPalFxRepository;
   private static _aseFxService: IPalAseFxService;
@@ -224,8 +232,26 @@ export class PalApiService {
     this._assetRepo = assetRepo;
 
     if (!walletRepo) {
-      walletRepo = new MongoDbWalletRepo(MONGO_URL, logger);
-      await (walletRepo as MongoDbWalletRepo).init();
+      const mongoWalletRepo = new MongoDbWalletRepo(MONGO_URL, logger);
+      await mongoWalletRepo.init();
+      walletRepo = mongoWalletRepo;
+
+      if (REDIS_URL) {
+        this._cachedWalletRepo = await RedisCachedWalletAddressRepo.connect(
+          mongoWalletRepo,
+          REDIS_URL,
+          WALLET_ADDRESS_CACHE_TTL_MS,
+          logger
+        );
+        walletRepo = this._cachedWalletRepo;
+        this._logger.info(
+          `Caching wallet addresses in Redis with a TTL of ${WALLET_ADDRESS_CACHE_TTL_MS}ms`
+        );
+      } else {
+        this._logger.info(
+          'REDIS_URL not set - wallet addresses are read from Mongo only'
+        );
+      }
     }
     this._walletRepo = walletRepo;
 
@@ -314,6 +340,10 @@ export class PalApiService {
 
     if (this._fxCacheExpiryService) {
       this._fxCacheExpiryService.destroy();
+    }
+
+    if (this._cachedWalletRepo) {
+      await this._cachedWalletRepo.disconnect();
     }
   }
 }

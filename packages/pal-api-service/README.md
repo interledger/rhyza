@@ -21,6 +21,8 @@ pnpm build
 MONGO_URL=mongodb://root:myPass@localhost:27017/ pnpm start
 ```
 
+Set `REDIS_URL` (e.g. `redis://localhost:6379`) to cache wallet address lookups in Redis. Entries expire after `WALLET_ADDRESS_CACHE_TTL_MS` (default 5 minutes) as a safety net, since writes already evict what they change. Without `REDIS_URL`, every lookup reads Mongo.
+
 ### Testing
 
 ```bash
