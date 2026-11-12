@@ -1,12 +1,258 @@
-import { FastifyRequest } from 'fastify';
+import { FastifyReply, FastifyRequest } from 'fastify';
+import {
+  AccessItem,
+  AuthClient,
+  AuthClientPermissionDeniedError,
+  IntrospectTokenResult,
+  SignatureRequestData
+} from 'auth-client-lib';
+import { pathNameFromWalletAddress } from 'pal-client-lib';
+import { OpenPaymentsResourceServerRouteError } from './errors.js';
 
-export function getGnapToken(request: FastifyRequest): void {
-  const header = request.headers['authorization'];
-  if (!header) {
-    request.gnapToken = null;
-    return;
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** Access item matched by token introspection; null when unauthenticated. */
+    grantAccess: AccessItem | null;
+  }
+}
+
+// Matches the UPPER_SNAKE_CASE access types and actions the Auth BC stores.
+export const AccessType = {
+  IncomingPayment: 'INCOMING_PAYMENT',
+  OutgoingPayment: 'OUTGOING_PAYMENT',
+  Quote: 'QUOTE'
+} as const;
+export type AccessType = (typeof AccessType)[keyof typeof AccessType];
+
+export const RequestAction = {
+  Create: 'CREATE',
+  Read: 'READ',
+  Complete: 'COMPLETE',
+  List: 'LIST'
+} as const;
+export type RequestAction = (typeof RequestAction)[keyof typeof RequestAction];
+
+const DELIMITER = '_';
+
+/**
+ * Access token values are handed out by the Open Payments Auth Server as
+ * base64url(`<grantId>_<rawToken>`). Duplicated from open-payments-auth-service.
+ */
+export function decodeAccessTokenValue(
+  value: string
+): { grantId: string; tokenValue: string } | undefined {
+  const [grantId, tokenValue] = Buffer.from(value, 'base64url')
+    .toString('utf-8')
+    .split(DELIMITER);
+
+  if (!grantId || !tokenValue) return undefined;
+  return { grantId, tokenValue };
+}
+
+function extractKeyId(signatureInput: string): string | undefined {
+  const KEY_ID_PREFIX = 'keyid="';
+
+  const keyIdParam = signatureInput
+    .split(';')
+    .find((param) => param.startsWith(KEY_ID_PREFIX));
+  return keyIdParam?.slice(KEY_ID_PREFIX.length, -1);
+}
+
+function cleanHeaders(
+  headers: FastifyRequest['headers']
+): Record<string, string> {
+  const cleaned: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === undefined) continue;
+    cleaned[key] = Array.isArray(value) ? value.join(', ') : value;
   }
 
-  const gnapToken = header.replace('GNAP ', '').trim();
-  request.gnapToken = gnapToken || null;
+  return cleaned;
+}
+
+export function requireSignatureHeaders(request: FastifyRequest): void {
+  if (!request.headers['signature']) {
+    throw new OpenPaymentsResourceServerRouteError(
+      401,
+      'Missing signature header',
+      'unauthorized'
+    );
+  }
+
+  if (!request.headers['signature-input']) {
+    throw new OpenPaymentsResourceServerRouteError(
+      401,
+      'Missing signature-input header',
+      'unauthorized'
+    );
+  }
+}
+
+export function extractSignatureData(
+  request: FastifyRequest
+): SignatureRequestData {
+  const headers = cleanHeaders(request.headers);
+
+  const keyId = headers['signature-input']
+    ? extractKeyId(headers['signature-input'])
+    : undefined;
+  if (!keyId) {
+    throw new OpenPaymentsResourceServerRouteError(
+      401,
+      'Missing key-id in signature input',
+      'unauthorized'
+    );
+  }
+
+  return {
+    url: `${request.protocol}://${request.headers.host}${request.url}`,
+    method: request.method,
+    body: request.body === undefined ? undefined : JSON.stringify(request.body),
+    headers,
+    kid: keyId
+  };
+}
+
+function extractGnapToken(request: FastifyRequest): string {
+  const parts = request.headers['authorization']?.split(' ');
+  if (parts?.length !== 2 || parts[0] !== 'GNAP' || !parts[1]) {
+    throw new OpenPaymentsResourceServerRouteError(
+      401,
+      'Missing or invalid authorization header value',
+      'unauthorized'
+    );
+  }
+  return parts[1];
+}
+
+export interface TokenIntrospectionOptions {
+  authClient: AuthClient;
+  /** Grant request endpoint, advertised in `WWW-Authenticate` on 401/403. */
+  authServerUrl: string;
+  type: AccessType;
+  action: RequestAction;
+  /**
+   * Wallet address the request targets, when known before the resource is
+   * fetched (create and list). Passed to introspection so the Auth BC only
+   * matches access items scoped to it.
+   */
+  identifier?: string;
+}
+
+/**
+ * Verifies the request's GNAP access token and HTTP message signature through
+ * Auth BC introspection. On success, the matched access item is set on
+ * `request.grantAccess`.
+ *
+ * Must run after the body is parsed (`preHandler`) so the signature covers it.
+ */
+export async function introspectToken(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  opts: TokenIntrospectionOptions
+): Promise<void> {
+  const { authClient, authServerUrl, type, action } = opts;
+
+  request.grantAccess = null;
+
+  try {
+    const token = extractGnapToken(request);
+    requireSignatureHeaders(request);
+    const signatureData = extractSignatureData(request);
+
+    const decoded = decodeAccessTokenValue(token);
+    if (!decoded) {
+      throw new OpenPaymentsResourceServerRouteError(
+        401,
+        'Invalid Token',
+        'unauthorized'
+      );
+    }
+
+    const requestedAccess: AccessItem = { type, actions: [action] };
+
+    if (opts.identifier) {
+      requestedAccess.identifier = opts.identifier;
+    }
+
+    let tokenInfo: IntrospectTokenResult;
+    try {
+      tokenInfo = await authClient.introspectToken(
+        decoded.grantId,
+        signatureData,
+        decoded.tokenValue,
+        [requestedAccess]
+      );
+    } catch (err) {
+      if (err instanceof AuthClientPermissionDeniedError) {
+        throw new OpenPaymentsResourceServerRouteError(
+          401,
+          'Invalid signature',
+          'unauthorized'
+        );
+      }
+      throw err;
+    }
+
+    if (!tokenInfo.active) {
+      throw new OpenPaymentsResourceServerRouteError(
+        403,
+        'Inactive Token',
+        'forbidden'
+      );
+    }
+
+    if (tokenInfo.access.length === 0) {
+      throw new OpenPaymentsResourceServerRouteError(
+        403,
+        'Insufficient Grant',
+        'forbidden'
+      );
+    }
+
+    request.grantAccess = tokenInfo.access[0]!;
+  } catch (err) {
+    if (
+      err instanceof OpenPaymentsResourceServerRouteError &&
+      (err.status === 401 || err.status === 403)
+    ) {
+      // GNAP (RFC 9635, Section 12.1) lets a resource server that rejects a
+      // request tell the client where to get a suitable grant: a 401/403 may
+      // carry `WWW-Authenticate: GNAP as_uri=<AS grant endpoint>`, pointing the
+      // client at the AS it should start a new grant request with.
+      reply.header('WWW-Authenticate', `GNAP as_uri=${authServerUrl}`);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Throws 403 when the introspected grant access is scoped to a different
+ * wallet address than the one owning the fetched resource. No-op for
+ * unauthenticated requests or grants without an identifier.
+ */
+export function assertGrantIdentifierMatches(
+  request: FastifyRequest,
+  resourceWalletAddress: string
+): void {
+  const identifier = request.grantAccess?.identifier;
+  if (!identifier) return;
+
+  const error = new OpenPaymentsResourceServerRouteError(
+    403,
+    'Insufficient Grant',
+    'forbidden'
+  );
+
+  try {
+    if (
+      pathNameFromWalletAddress(identifier) !==
+      pathNameFromWalletAddress(resourceWalletAddress)
+    ) {
+      throw error;
+    }
+  } catch {
+    throw error;
+  }
 }

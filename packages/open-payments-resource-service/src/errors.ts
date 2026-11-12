@@ -3,7 +3,9 @@ import { components } from './types/generated/resource-server-types.js';
 
 const ResourceServerErrorCode = {
   invalid_request: 'invalid_request',
-  not_found: 'not_found'
+  not_found: 'not_found',
+  unauthorized: 'unauthorized',
+  forbidden: 'forbidden'
 } as const;
 type ResourceServerErrorCode = keyof typeof ResourceServerErrorCode;
 
