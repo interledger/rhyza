@@ -3,6 +3,7 @@
 import Fastify, { FastifyBaseLogger, FastifyInstance } from 'fastify';
 import { PalClient } from 'pal-client-lib';
 import { PaymentsClient } from 'payments-client-lib';
+import { AuthClient } from 'auth-client-lib';
 import { createStreamServer, requireStreamServerSecret } from 'ilp-client-lib';
 import { walletAddressRoutes } from './routes/wallet-addresses.js';
 import { incomingPaymentRoutes } from './routes/incoming-payments.js';
@@ -26,6 +27,7 @@ const PORT = parseInt(process.env['PORT'] || '3002', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
 const PAL_GRPC_URL = process.env['PAL_GRPC_URL'] || 'localhost:50051';
 const PAYMENTS_GRPC_URL = process.env['PAYMENTS_GRPC_URL'] || 'localhost:50052';
+const AUTH_GRPC_URL = process.env['AUTH_GRPC_URL'] || 'localhost:50054';
 const OPEN_PAYMENTS_RESOURCE_SERVICE_URL =
   process.env['OPEN_PAYMENTS_RESOURCE_SERVICE_URL'] || 'localhost:3002';
 const OPEN_PAYMENTS_AUTH_SERVICE_URL =
@@ -33,17 +35,12 @@ const OPEN_PAYMENTS_AUTH_SERVICE_URL =
 
 const ILP_ADDRESS = process.env['ILP_ADDRESS'] || 'private.rhyza';
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    gnapToken: string | null;
-  }
-}
-
 export class OpenPaymentsResourceServer {
   private static logger: ILogger;
   private static server: FastifyInstance;
   private static palClient: PalClient;
   private static paymentsClient: PaymentsClient;
+  private static authClient: AuthClient;
 
   static async start(): Promise<void> {
     this.logger = new PinoLogger({
@@ -72,6 +69,10 @@ export class OpenPaymentsResourceServer {
     await this.paymentsClient.init();
     console.log(`Connected to Payments service at ${PAYMENTS_GRPC_URL}`);
 
+    this.authClient = new AuthClient(AUTH_GRPC_URL);
+    await this.authClient.init();
+    console.log(`Connected to Auth service at ${AUTH_GRPC_URL}`);
+
     this.server = Fastify({
       // If logger is not a PinoLogger, enable Fastify's default logging
       logger: PinoLogger.isPinoLogger(this.logger) ? undefined : true,
@@ -97,12 +98,14 @@ export class OpenPaymentsResourceServer {
     this.server.setValidatorCompiler(({ schema }) => validator.compile(schema));
 
     this.server.setErrorHandler(errorHandler);
+    this.server.decorateRequest('grantAccess', null);
 
     allowEmptyJsonBody(this.server);
 
     this.server.register(incomingPaymentRoutes, {
       palClient: this.palClient,
       paymentsClient: this.paymentsClient,
+      authClient: this.authClient,
       openPaymentsUrl: OPEN_PAYMENTS_RESOURCE_SERVICE_URL,
       openPaymentsAuthServiceUrl: OPEN_PAYMENTS_AUTH_SERVICE_URL,
       streamServer: createStreamServer({
@@ -139,5 +142,6 @@ export class OpenPaymentsResourceServer {
     await this.server?.close();
     await this.palClient?.disconnect();
     await this.paymentsClient?.disconnect();
+    await this.authClient?.disconnect();
   }
 }

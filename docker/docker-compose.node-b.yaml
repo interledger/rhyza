@@ -47,6 +47,7 @@ services:
     environment:
       PAL_GRPC_URL: pal-api-service-b:50051
       PAYMENTS_GRPC_URL: payments-api-service-b:50052
+      AUTH_GRPC_URL: auth-api-service-b:50054
       OPEN_PAYMENTS_RESOURCE_SERVICE_URL: http://open-payments-resource-service-b:3002
       STREAM_SERVER_SECRET: cmFmaWtpLXYyLWRldi1zdHJlYW0tc2VjcmV0LTAwMDE
       ILP_ADDRESS: private.rhyza.b
@@ -56,6 +57,8 @@ services:
       pal-api-service-b:
         condition: service_started
       payments-api-service-b:
+        condition: service_started
+      auth-api-service-b:
         condition: service_started
     networks:
       # Reached across nodes by its Docker service name (open-payments-resource-service-b);
