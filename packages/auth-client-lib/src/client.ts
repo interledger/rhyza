@@ -267,6 +267,7 @@ export class AuthClient {
 
   introspectToken(
     id: string,
+    signatureData: SignatureRequestData,
     tokenValue: string,
     access: AccessItem[]
   ): Promise<IntrospectTokenResult> {
@@ -274,6 +275,7 @@ export class AuthClient {
     request.setId(id);
     request.setTokenValue(tokenValue);
     request.setAccessList(access.map(toPbAccessItem));
+    request.setSignatureData(this.toSignatureData(signatureData));
 
     return new Promise((resolve, reject) => {
       this._grpcClient.introspectToken(
