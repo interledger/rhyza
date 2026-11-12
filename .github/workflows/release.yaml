@@ -66,49 +66,14 @@ jobs:
           git push -f origin "$NEW_VERSION"
 
   docker-build:
-    runs-on: ${{ matrix.platform.name == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-latest' }}
     needs: [config, version-generator]
-    timeout-minutes: 20
     permissions:
       contents: read
       actions: write
-    strategy:
-      matrix:
-        platform: ${{ fromJSON(needs.config.outputs.platforms) }}
-        package: ${{ fromJSON(needs.config.outputs.packages) }}
-        include:
-          # Test-only image for e2e; amd64 only; push skips it (not in release-packages.json).
-          - platform:
-              arch: linux/amd64
-              name: amd64
-            package: ase-mock-service
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          platforms: ${{ matrix.platform.arch }}
-      - name: Build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          platforms: ${{ matrix.platform.arch }}
-          file: packages/${{ matrix.package }}/Dockerfile
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/rhyza-${{ matrix.package }}-${{ matrix.platform.name }}:${{ needs.version-generator.outputs.version }}
-            rhyza-${{ matrix.package }}-${{ matrix.platform.name }}:${{ needs.version-generator.outputs.version }}
-          outputs: type=docker,dest=/tmp/${{ github.sha }}-${{ matrix.package }}-${{ matrix.platform.name }}-${{ needs.version-generator.outputs.version }}.tar
-      - name: Upload docker image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image-${{ matrix.package }}-${{ matrix.platform.name }}
-          path: /tmp/${{ github.sha }}-${{ matrix.package }}-${{ matrix.platform.name }}-${{ needs.version-generator.outputs.version }}.tar
-          retention-days: 1
-          if-no-files-found: error
+    uses: ./.github/workflows/docker-build.yaml
+    with:
+      version: ${{ needs.version-generator.outputs.version }}
+      platforms: ${{ needs.config.outputs.platforms }}
 
   e2e:
     name: E2E (release images)
