@@ -94,7 +94,14 @@ function compareAccessItems(
       return false;
   }
 
-  if (inputAccessItem.identifier !== grantAccessItem.identifier) return false;
+  // Identifier is only enforced when both the request and the grant set one:
+  // an omitted identifier on either side means no constraint.
+  if (
+    inputAccessItem.identifier &&
+    grantAccessItem.identifier &&
+    inputAccessItem.identifier !== grantAccessItem.identifier
+  )
+    return false;
 
   if (
     inputAccessItem.limits &&
@@ -491,8 +498,9 @@ export class GrantEntity implements IGrant {
   }
 
   // Introspect an access token.
-  // Returns an active boolean, and if true,
-  // then the union between the requested accesses and the grant's accesses.
+  // Returns an active boolean, and if true, the grant's access items that
+  // match the requested ones (possibly empty when nothing matches).
+  // Without requested accesses, all of the grant's access items are returned.
   introspectAccessToken(
     value: string,
     requestedAccesses?: IAccessItem[]
@@ -521,8 +529,6 @@ export class GrantEntity implements IGrant {
         }
       }
 
-      if (allowedAccessItems.length !== requestedAccesses.length)
-        return { active: false };
       return { active: true, access: allowedAccessItems };
     } else {
       return { active: true, access: this._accesses };

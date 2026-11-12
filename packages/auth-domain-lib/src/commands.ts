@@ -127,7 +127,8 @@ export class ContinueGrantCmd extends AuthCmd {
   }
 }
 
-export interface IntrospectTokenCmdPayload {
+export interface IntrospectTokenCmdPayload
+  extends Omit<SignedCommandPayload, 'client'> {
   id: string;
   tokenValue: string;
   access?: IAccessItem[];
