@@ -273,7 +273,7 @@ export class AuthServiceServer {
       const accessList = call.request.getAccessList().map((item: any) => ({
         type: item.getType().toString(),
         actions: item.getActionsList().map((a: any) => a.toString()),
-        identifier: item.getIdentifier(),
+        identifier: item.getIdentifier() || undefined,
         limits: item.getLimits()
           ? {
               receiver: item.getLimits().getReceiver(),
@@ -448,6 +448,21 @@ export class AuthServiceServer {
       );
       await this._msgProducer.send(cmd);
     } else if (call.request instanceof IntrospectTokenRequest) {
+      const signatureDataMsg = call.request.getSignatureData();
+      if (!signatureDataMsg) {
+        callback(new Error('Missing signature data'));
+        return;
+      }
+      const signatureData = {
+        url: signatureDataMsg.getUrl(),
+        method: signatureDataMsg.getMethod(),
+        body: signatureDataMsg.hasBody()
+          ? signatureDataMsg.getBody()
+          : undefined,
+        headers: JSON.parse(signatureDataMsg.getHeaders()),
+        kid: signatureDataMsg.getKid()
+      };
+
       const commandId = crypto.randomUUID();
       this._storePendingResponse(commandId, call, callback);
 
@@ -455,10 +470,11 @@ export class AuthServiceServer {
         {
           id: call.request.getId(),
           tokenValue: call.request.getTokenValue(),
+          signatureData,
           access: call.request.getAccessList().map((item: any) => ({
             type: item.getType().toString(),
             actions: item.getActionsList().map((a: any) => a.toString()),
-            identifier: item.getIdentifier(),
+            identifier: item.getIdentifier() || undefined,
             limits: item.getLimits()
               ? {
                   receiver: item.getLimits().getReceiver(),
