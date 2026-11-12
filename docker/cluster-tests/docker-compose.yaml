@@ -2,7 +2,7 @@
 
 services:
   redis:
-    image: redis:latest
+    image: valkey/valkey:9.0
     container_name: redis
     restart: unless-stopped
     ports:
