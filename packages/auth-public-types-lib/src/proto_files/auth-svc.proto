@@ -120,8 +120,10 @@ enum SortOrder {
 }
 
 message GetGrantsPageRequest {
-	// Filters by the end user whose access was granted (accesses[].identifier)
-	optional string identifier = 1;
+	// Filters by the end users whose access was granted (accesses[].identifier).
+	// A grant matches when any of its accesses names any of these. Empty treated
+	// as no filter.
+	repeated string identifiers = 1;
 	// Filters by grant state; omit to list across all.
 	optional string state = 2;
 	// Opaque cursor from a previous page's start_cursor/end_cursor.

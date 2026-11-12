@@ -7,7 +7,11 @@ import {
   httpStatusFromClientError,
   isAuthClientError
 } from 'auth-client-lib';
-import { parseGrantPageQuery } from '../pagination.js';
+import {
+  GrantPageQuery,
+  MAX_GRANT_WALLET_ADDRESSES,
+  parseGrantPageQuery
+} from '../pagination.js';
 import type {
   components,
   operations
@@ -67,28 +71,35 @@ export async function grantRoutes(
 ): Promise<void> {
   const { authClient } = opts;
 
-  server.get<{
-    Querystring: NonNullable<
-      operations['Grants_listGrants']['parameters']['query']
-    >;
-  }>('/grants', async (request, reply) => {
-    try {
-      const page = await authClient.getGrantsPage(
-        parseGrantPageQuery(request.query)
-      );
+  server.get<{ Querystring: GrantPageQuery }>(
+    '/grants',
+    async (request, reply) => {
+      const query = parseGrantPageQuery(request.query);
 
-      return reply.status(200).send({
-        result: page.items.map((grant) => toAdminApiGrant(grant)),
-        pagination: page.pagination
-      });
-    } catch (error) {
-      server.log.error(error);
-      const httpStatus = httpStatusFromClientError(error);
-      return reply
-        .status(httpStatus)
-        .send(isAuthClientError(error) ? { error: error.message } : { error });
+      if (query.identifiers.length > MAX_GRANT_WALLET_ADDRESSES) {
+        return reply.status(400).send({
+          error: `Too many walletAddress filters: ${query.identifiers.length}, maximum is ${MAX_GRANT_WALLET_ADDRESSES}`
+        });
+      }
+
+      try {
+        const page = await authClient.getGrantsPage(query);
+
+        return reply.status(200).send({
+          result: page.items.map((grant) => toAdminApiGrant(grant)),
+          pagination: page.pagination
+        });
+      } catch (error) {
+        server.log.error(error);
+        const httpStatus = httpStatusFromClientError(error);
+        return reply
+          .status(httpStatus)
+          .send(
+            isAuthClientError(error) ? { error: error.message } : { error }
+          );
+      }
     }
-  });
+  );
 
   server.get<{
     Params: operations['getGrant']['parameters']['path'];

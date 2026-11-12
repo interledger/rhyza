@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.20
+  version: 0.0.21
   license:
     name: ISC
     identifier: ISC
@@ -363,7 +363,7 @@ paths:
       summary: List Grants
       description: >-
         List grants with cursor pagination, ordered by creation time.
-        Optionally filter by state and by the wallet address the granted
+        Optionally filter by state and by the wallet addresses the granted
         access applies to.
       tags:
         - grants
@@ -372,10 +372,22 @@ paths:
         - name: walletAddress
           in: query
           description: >-
-            Filter by the wallet address the granted access applies to.
+            Filter by the wallet addresses the granted access applies to.
+            Repeat the parameter to filter by more than one
+            (`?walletAddress=a&walletAddress=b`), up to 50; a grant is returned
+            when any of its granted accesses applies to any of them. Results
+            remain a single paginated stream across all of them.
           required: false
+          style: form
+          explode: true
           schema:
-            type: string
+            type: array
+            maxItems: 50
+            items:
+              type: string
+          example:
+            - https://wallet.example.com/alice
+            - https://wallet.example.com/bob
         - name: state
           in: query
           description: Filter by grant state
@@ -394,7 +406,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/GrantsPage'
         '400':
-          description: Invalid pagination parameters, or a cursor that was not issued for this query.
+          description: >-
+            Invalid pagination parameters, more wallet addresses than the
+            filter allows, or a cursor that was not issued for this query.
           content:
             application/json:
               schema:

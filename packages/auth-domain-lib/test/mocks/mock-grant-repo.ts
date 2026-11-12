@@ -136,12 +136,15 @@ export class MockGrantRepo implements IGrantRepository {
 
   async fetchGrantsPage(opts: IGrantPageOpts): Promise<IPage<IGrant>> {
     const all = this.getAll();
+    const identifiers = opts.identifiers ?? [];
     const filtered = all
       .filter((g) => opts.state == null || g.state === opts.state)
       .filter(
         (g) =>
-          opts.identifier == null ||
-          (g.accesses ?? []).some((a) => a.identifier === opts.identifier)
+          identifiers.length === 0 ||
+          (g.accesses ?? []).some(
+            (a) => a.identifier != null && identifiers.includes(a.identifier)
+          )
       );
     return this._page(all, filtered, opts);
   }
