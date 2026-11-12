@@ -95,7 +95,9 @@ function compareAccessItems(
   }
 
   // Identifier is only enforced when both the request and the grant set one:
-  // an omitted identifier on either side means no constraint.
+  // an omitted identifier on either side means no constraint. The resource
+  // server cannot always know the identifier up front (e.g. reading a
+  // resource by id).
   if (
     inputAccessItem.identifier &&
     grantAccessItem.identifier &&

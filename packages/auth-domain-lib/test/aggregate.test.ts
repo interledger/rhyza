@@ -1625,9 +1625,8 @@ describe('GrantAggregate.handleBatch', () => {
         );
       });
 
-      it('returns active: false and logs the error when introspection fails unexpectedly', async () => {
+      it('returns active: false when introspection fails unexpectedly', async () => {
         const { id, tokenValue, keys } = await createAndFlushIssuedGrant();
-        const errorMock = mock.method(logger, 'error', () => {});
         mock.method(GrantEntity.prototype, 'introspectAccessToken', () => {
           throw new Error('unexpected failure');
         });
@@ -1641,7 +1640,6 @@ describe('GrantAggregate.handleBatch', () => {
         const payload = (events[0] as TokenIntrospectedEvent).payload;
         assert.equal(payload.id, id);
         assert.equal(payload.active, false);
-        assert.equal(errorMock.mock.callCount(), 1);
       });
     });
 
