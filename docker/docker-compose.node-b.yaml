@@ -325,6 +325,8 @@ services:
       # because host needs to reach the continue and interaction
       # URLs this builds. a Docker name only resolves in-network.
       OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:4003
+      # See docker-compose.yaml: no consent UI locally.
+      IDP_URL: http://localhost:4030/consent
     ports:
       - '4003:3003'
     depends_on:

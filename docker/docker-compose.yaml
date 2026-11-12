@@ -65,6 +65,10 @@ services:
     environment:
       AUTH_GRPC_URL: auth-api-service:50054
       OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:3003
+      # Where /interaction/:id/start redirects the user. There is no consent UI
+      # in local docker; clients (e.g. Bruno) stop at this redirect and accept
+      # the interaction through idp-interaction-service instead.
+      IDP_URL: http://localhost:3030/consent
     ports:
       - '3003:3003'
     depends_on:
