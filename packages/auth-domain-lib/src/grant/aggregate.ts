@@ -999,10 +999,11 @@ export class GrantAggregate {
           id: grant.id,
           state: grant.state
         });
-        promises.push(
-          this._repo.storeFinishedInteractiveGrants(finishedEntities)
-        );
       }
+
+      promises.push(
+        this._repo.storeFinishedInteractiveGrants(finishedEntities)
+      );
     }
 
     if (this.revokedGrantIds.size > 0) {
@@ -1035,7 +1036,7 @@ export class GrantAggregate {
           );
           continue;
         }
-        updates.push(grant);
+        updates.push(grant.toObject());
       }
 
       promises.push(this._repo.storeInteractions(updates));
@@ -1051,7 +1052,7 @@ export class GrantAggregate {
           );
           continue;
         }
-        updates.push(grant);
+        updates.push(grant.toObject());
       }
 
       promises.push(this._repo.storeInteractions(updates));
