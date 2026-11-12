@@ -211,6 +211,7 @@ export class GrantEntity implements IGrant {
           : undefined
       });
       entity.stateTransition(GrantState.PENDING);
+      entity.issueContinueCredentials();
       return {
         entity
       };
@@ -221,6 +222,7 @@ export class GrantEntity implements IGrant {
         accessTokens: []
       });
       entity.stateTransition(GrantState.ISSUED);
+      entity.issueContinueCredentials();
 
       const accessToken = entity.createAccessToken();
       return { entity, accessToken };
@@ -326,14 +328,13 @@ export class GrantEntity implements IGrant {
       GrantState.REVOKED
     ],
     [GrantState.PENDING]: [
-      GrantState.PENDING,
       GrantState.APPROVED,
       GrantState.ISSUED,
       GrantState.REJECTED,
       GrantState.REVOKED
     ],
     [GrantState.APPROVED]: [GrantState.ISSUED, GrantState.REVOKED],
-    [GrantState.ISSUED]: [GrantState.ISSUED, GrantState.REVOKED],
+    [GrantState.ISSUED]: [GrantState.REVOKED],
     [GrantState.REJECTED]: [],
     [GrantState.REVOKED]: []
   };
@@ -351,11 +352,13 @@ export class GrantEntity implements IGrant {
     if (newState in FinalizedGrantState) {
       this._continueToken = undefined;
       this._continueId = undefined;
-    } else {
-      this._continueToken = generateContinueToken();
-      this._continueId = uuid();
-      this._lastContinuedAt = new Date();
     }
+  }
+
+  private issueContinueCredentials(): void {
+    this._continueToken = generateContinueToken();
+    this._continueId = uuid();
+    this._lastContinuedAt = new Date();
   }
 
   private assertContinueCredentials(
@@ -402,12 +405,13 @@ export class GrantEntity implements IGrant {
         this._state === GrantState.PENDING ||
         this._state === GrantState.ISSUED
       ) {
-        this.stateTransition(this._state);
+        this.issueContinueCredentials();
         return;
       }
 
       if (this._state === GrantState.APPROVED) {
         this.stateTransition(GrantState.ISSUED);
+        this.issueContinueCredentials();
         return this.createAccessToken();
       }
 
@@ -423,20 +427,15 @@ export class GrantEntity implements IGrant {
         throw new InvalidInteractionError();
       }
 
-      if (this._state !== GrantState.PENDING) {
+      if (this._state !== GrantState.APPROVED) {
         throw new InvalidGrantError(
-          'Cannot continue grant that is not in processing or pending state'
+          'Grant is not in a state that can be continued'
         );
       }
 
-      if (this._interaction.state === InteractionState.APPROVED) {
-        this.stateTransition(GrantState.ISSUED);
-        return this.createAccessToken();
-      }
-
-      if (this._interaction.state === InteractionState.REJECTED) {
-        this.stateTransition(GrantState.REJECTED);
-      }
+      this.stateTransition(GrantState.ISSUED);
+      this.issueContinueCredentials();
+      return this.createAccessToken();
     }
   }
 

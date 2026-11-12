@@ -500,6 +500,7 @@ describe('GrantEntity', () => {
       const entity = makeContinuableGrant();
       const interaction = entity.startInteraction();
       entity.handleInteraction(InteractionState.APPROVED);
+      entity.finishInteraction(entity.interactionNonce!);
       const prevToken = entity.continueToken!;
       const prevId = entity.continueId!;
 
@@ -524,21 +525,28 @@ describe('GrantEntity', () => {
       );
     });
 
-    it('finalizes the grant as rejected when continued with a rejected interact ref', () => {
+    it('rejects continuation when a grant interaction was rejected', () => {
       const entity = makeContinuableGrant();
       const interaction = entity.startInteraction();
       entity.handleInteraction(InteractionState.REJECTED);
+      entity.finishInteraction(entity.interactionNonce!);
 
-      const accessToken = entity.continue(
-        entity.continueToken!,
-        entity.continueId!,
-        interaction.interactRef
+      assert.equal(entity.state, GrantState.REJECTED);
+
+      assert.throws(
+        () =>
+          entity.continue(
+            entity.continueToken!,
+            entity.continueId!,
+            interaction.interactRef
+          ),
+        (err: Error) =>
+          err instanceof InvalidGrantError &&
+          err.message ===
+            'Current state REJECTED is a finalized state and cannot be changed'
       );
 
-      assert.equal(accessToken, undefined);
       assert.equal(entity.state, GrantState.REJECTED);
-      assert.equal(entity.continueToken, undefined);
-      assert.equal(entity.continueId, undefined);
       assert.equal(entity.accessTokens.length, 0);
     });
 
@@ -981,6 +989,51 @@ describe('GrantEntity', () => {
         assert.equal(entity.state, GrantState.APPROVED);
         assert.equal(result.id, entity.id);
         assert.equal(result.state, GrantState.APPROVED);
+      });
+
+      it('preserves the continue credentials when the interaction was approved', () => {
+        const { entity: created } = GrantEntity.create(
+          makeInteractiveCreateInput()
+        );
+        const entity = GrantEntity.fromObject({
+          ...created.toObject(),
+          lastContinuedAt: new Date(0)
+        });
+        const continueToken = entity.continueToken!;
+        const continueId = entity.continueId!;
+        const lastContinuedAt = entity.lastContinuedAt;
+
+        entity.startInteraction();
+        entity.handleInteraction(InteractionState.APPROVED);
+        const result = entity.finishInteraction(entity.interactionNonce!);
+
+        assert.equal(entity.state, GrantState.APPROVED);
+        assert.equal(entity.continueToken, continueToken);
+        assert.equal(entity.continueId, continueId);
+        assert.equal(entity.lastContinuedAt, lastContinuedAt);
+        assert.equal(result.continueToken, continueToken);
+        assert.equal(result.continueId, continueId);
+
+        const accessToken = entity.continue(continueToken, continueId);
+
+        assert.ok(accessToken);
+        assert.equal(entity.state, GrantState.ISSUED);
+        assert.ok(entity.continueToken);
+        assert.notEqual(entity.continueToken, continueToken);
+        assert.notEqual(entity.continueId, continueId);
+      });
+
+      it('clears the continue credentials when the interaction was rejected', () => {
+        const { entity } = GrantEntity.create(makeInteractiveCreateInput());
+        assert.ok(entity.continueToken);
+
+        entity.startInteraction();
+        entity.handleInteraction(InteractionState.REJECTED);
+        entity.finishInteraction(entity.interactionNonce!);
+
+        assert.equal(entity.state, GrantState.REJECTED);
+        assert.equal(entity.continueToken, undefined);
+        assert.equal(entity.continueId, undefined);
       });
 
       it('finalizes the grant as REJECTED when the interaction was rejected', () => {
