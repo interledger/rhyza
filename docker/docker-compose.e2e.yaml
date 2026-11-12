@@ -1,12 +1,12 @@
 # E2e stack. Compose does not build or pull. A missing image fails the run.
 #
 # Images are rhyza-<service>, plus an optional architecture suffix and version tag:
-#   (no env)                         rhyza-admin-api-service
+#   (no env)                          rhyza-admin-api-service
 #   TARGET_ARCH=amd64 VERSION=v1.2.3 rhyza-admin-api-service-amd64:v1.2.3
 #
-# Usage:
-#   docker compose -f docker-compose.e2e.yaml up
-#   TARGET_ARCH=amd64 VERSION=v1.2.3 docker compose -f docker-compose.e2e.yaml up
+# Local images, built as rhyza-<service>:
+#   pnpm docker:build
+#   pnpm e2e
 
 name: rhyza
 
