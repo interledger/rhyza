@@ -6,8 +6,7 @@ import { setTimeout } from 'node:timers/promises';
 import path from 'path';
 import {
   DockerComposeEnvironment,
-  StartedDockerComposeEnvironment,
-  Wait
+  StartedDockerComposeEnvironment
 } from 'testcontainers';
 import {
   AdminApiClient,
@@ -17,7 +16,6 @@ import {
 
 const ADMIN_API_PORT = 3001;
 const NODE_B_ADMIN_API_PORT = 4001;
-const ASE_MOCK_PORT = 3000;
 const ADMIN_API_URL = 'http://localhost:' + ADMIN_API_PORT;
 const NODE_B_ADMIN_API_URL = 'http://localhost:' + NODE_B_ADMIN_API_PORT;
 const NODE_A_PEER_ID = '9f3c1e2a-4b5d-4c6e-8a7f-1b2c3d4e5f60';
@@ -53,8 +51,6 @@ describe('E2E tests', () => {
     // Two nodes can take longer than the 60s default.
     environmentBuilder = environmentBuilder.withStartupTimeout(180_000);
 
-    // The e2e compose file sets pull_policy: never and clears build, so a missing
-    // local image fails instead of building from source or pulling from a registry.
     try {
       environment = await environmentBuilder.up();
     } catch (error) {
