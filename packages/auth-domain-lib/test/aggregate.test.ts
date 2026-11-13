@@ -519,8 +519,18 @@ describe('GrantAggregate.handleBatch', () => {
         ]);
         await aggregate.flush();
 
-        const stored = await repo.fetchById(grantId);
-        return stored!.interaction!.interactRef;
+        const approved = await repo.fetchById(grantId);
+        const interactRef = approved!.interaction!.interactRef;
+
+        await aggregate.handleBatch([
+          new FinishInteractionCmd(
+            { id: grantId, nonce: approved!.interactionNonce as string },
+            randomUUID()
+          )
+        ]);
+        await aggregate.flush();
+
+        return interactRef;
       }
 
       it('issues an access token when continued with an approved interact ref', async (context) => {
