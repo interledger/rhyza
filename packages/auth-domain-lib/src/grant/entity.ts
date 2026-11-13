@@ -2,10 +2,13 @@ import * as crypto from 'crypto';
 import { isDeepStrictEqual } from 'util';
 import { v4 as uuid } from 'uuid';
 import {
+  ContinuationTooFastError,
+  InvalidContinuationError,
   InvalidGrantError,
   InsufficientGrantError,
   InvalidGrantInputError,
   InvalidInteractionError,
+  InvalidTokenRotationError as InvalidTokenRotationError,
   NonInteractiveGrantError,
   UnknownAccessTokenError,
   UnknownInteractionError
@@ -366,7 +369,7 @@ export class GrantEntity implements IGrant {
     continueId: string
   ): void {
     if (!this._continueToken || !this._continueId) {
-      throw new InvalidGrantError(
+      throw new InvalidContinuationError(
         `Current state ${this._state} is a finalized state and cannot be changed`
       );
     }
@@ -375,7 +378,9 @@ export class GrantEntity implements IGrant {
       continueToken !== this._continueToken ||
       continueId !== this._continueId
     ) {
-      throw new InvalidGrantError('Invalid continue token or continue id');
+      throw new InvalidContinuationError(
+        'Invalid continue token or continue id'
+      );
     }
   }
 
@@ -391,7 +396,7 @@ export class GrantEntity implements IGrant {
       this._lastContinuedAt &&
       Date.now() < this._lastContinuedAt.getTime() + GRANT_POLL_MS
     ) {
-      throw new InvalidGrantError('Cannot continue grant too soon');
+      throw new ContinuationTooFastError('Cannot continue grant too soon');
     }
 
     if (!interactRef) {
@@ -549,16 +554,16 @@ export class GrantEntity implements IGrant {
 
   rotateAccessToken(value: string, managementId: string): IAccessToken {
     const accessToken = this._accessTokens.get(value);
-    if (
-      !accessToken ||
-      accessToken.revokedAt ||
-      accessToken.expiresAt.getTime() < Date.now()
-    ) {
+    if (!accessToken || accessToken.managementId !== managementId) {
       throw new UnknownAccessTokenError();
     }
 
-    if (accessToken.managementId !== managementId) {
-      throw new UnknownAccessTokenError();
+    if (accessToken.revokedAt) {
+      throw new InvalidTokenRotationError('Access token has been revoked');
+    }
+
+    if (accessToken.expiresAt.getTime() < Date.now()) {
+      throw new InvalidTokenRotationError('Access token has expired');
     }
 
     this.revokeAccessToken(value, managementId);

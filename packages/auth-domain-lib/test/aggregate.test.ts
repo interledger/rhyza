@@ -663,7 +663,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(payload.grantId, grantId);
       });
 
-      it('fails with InvalidGrantError for an invalid continue token', async (context) => {
+      it('fails with InvalidContinuationError for an invalid continue token', async (context) => {
         context.mock.timers.enable({ apis: ['Date'], now: Date.now() });
 
         const { keys, grantId, continueId } =
@@ -689,12 +689,12 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(events.length, 1);
         assert.equal(events[0].msgName, GrantContinueFailedEvent.name);
         const payload = (events[0] as GrantContinueFailedEvent).payload;
-        assert.equal(payload.errorName, 'InvalidGrantError');
+        assert.equal(payload.errorName, 'InvalidContinuationError');
         assert.equal(payload.message, 'Invalid continue token or continue id');
         assert.equal(payload.grantId, grantId);
       });
 
-      it('fails with InvalidGrantError when continued too soon after the last continuation', async () => {
+      it('fails with ContinuationTooFastError when continued too soon after the last continuation', async () => {
         const { keys, grantId, continueToken, continueId } =
           await createContinuableInteractiveGrant();
 
@@ -716,7 +716,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(events.length, 1);
         assert.equal(events[0].msgName, GrantContinueFailedEvent.name);
         const payload = (events[0] as GrantContinueFailedEvent).payload;
-        assert.equal(payload.errorName, 'InvalidGrantError');
+        assert.equal(payload.errorName, 'ContinuationTooFastError');
         assert.equal(payload.message, 'Cannot continue grant too soon');
         assert.equal(payload.grantId, grantId);
       });
@@ -890,7 +890,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(payload.errorName, 'UnauthorizedRequestError');
       });
 
-      it('fails with UnknownAccessTokenError when rotating an already-revoked token', async () => {
+      it('fails with InvalidTokenRotationError when rotating an already-revoked token', async () => {
         const { keys, grantId, tokenValue, managementId } =
           await createIssuedGrant();
 
@@ -928,7 +928,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(events[0].msgName, TokenRotatedEvent.name);
         assert.equal(events[1].msgName, TokenRotationFailedEvent.name);
         const failPayload = (events[1] as TokenRotationFailedEvent).payload;
-        assert.equal(failPayload.errorName, 'UnknownAccessTokenError');
+        assert.equal(failPayload.errorName, 'InvalidTokenRotationError');
         assert.equal(failPayload.grantId, grantId);
       });
     });
@@ -1209,7 +1209,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(stored.continueId, undefined);
       });
 
-      it('fails with InvalidGrantError for an invalid continue token', async () => {
+      it('fails with InvalidContinuationError for an invalid continue token', async () => {
         const { keys, grantId, continueId } = await createRevocableGrant();
 
         const { events } = await aggregate.handleBatch([
@@ -1230,7 +1230,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(events.length, 1);
         assert.equal(events[0].msgName, GrantRevokeFailedEvent.name);
         const payload = (events[0] as GrantRevokeFailedEvent).payload;
-        assert.equal(payload.errorName, 'InvalidGrantError');
+        assert.equal(payload.errorName, 'InvalidContinuationError');
         assert.equal(payload.message, 'Invalid continue token or continue id');
         assert.equal(payload.grantId, grantId);
       });
@@ -1262,7 +1262,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(payload.grantId, grantId);
       });
 
-      it('fails with InvalidGrantError when the grant has already been revoked', async () => {
+      it('fails with InvalidContinuationError when the grant has already been revoked', async () => {
         const { keys, grantId, continueToken, continueId } =
           await createRevocableGrant();
 
@@ -1300,7 +1300,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(events.length, 1);
         assert.equal(events[0].msgName, GrantRevokeFailedEvent.name);
         const payload = (events[0] as GrantRevokeFailedEvent).payload;
-        assert.equal(payload.errorName, 'InvalidGrantError');
+        assert.equal(payload.errorName, 'InvalidContinuationError');
         assert.equal(
           payload.message,
           `Current state ${GrantState.REVOKED} is a finalized state and cannot be changed`

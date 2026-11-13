@@ -75,3 +75,24 @@ export class UnauthorizedRequestError extends PermissionDenied {
     this.name = this.constructor.name;
   }
 }
+
+export class ContinuationTooFastError extends FailedPrecondition {
+  constructor(message?: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+export class InvalidContinuationError extends FailedPrecondition {
+  constructor(message?: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+export class InvalidTokenRotationError extends FailedPrecondition {
+  constructor(message?: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}

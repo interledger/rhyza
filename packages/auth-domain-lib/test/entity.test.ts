@@ -4,7 +4,10 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import { GrantEntity } from '../src/grant/entity';
 import {
+  ContinuationTooFastError,
+  InvalidContinuationError,
   InvalidGrantError,
+  InvalidTokenRotationError,
   InsufficientGrantError,
   InvalidGrantInputError,
   InvalidInteractionError,
@@ -368,7 +371,7 @@ describe('GrantEntity', () => {
       );
     });
 
-    it('throws UnknownAccessTokenError when the token is already revoked', () => {
+    it('throws InvalidTokenRotationError when the token is already revoked', () => {
       const { entity, accessToken } = makeIssuedGrant();
 
       entity.revokeAccessToken(accessToken.value, accessToken.managementId);
@@ -376,7 +379,34 @@ describe('GrantEntity', () => {
       assert.throws(
         () =>
           entity.rotateAccessToken(accessToken.value, accessToken.managementId),
+        InvalidTokenRotationError
+      );
+    });
+
+    it('throws UnknownAccessTokenError for a revoked token with a mismatched managementId', () => {
+      const { entity, accessToken } = makeIssuedGrant();
+
+      entity.revokeAccessToken(accessToken.value, accessToken.managementId);
+
+      assert.throws(
+        () =>
+          entity.rotateAccessToken(accessToken.value, 'wrong-management-id'),
         UnknownAccessTokenError
+      );
+    });
+
+    it('throws InvalidTokenRotationError when the token has expired', (context) => {
+      const { entity, accessToken } = makeIssuedGrant();
+
+      context.mock.timers.enable({
+        apis: ['Date'],
+        now: accessToken.expiresAt.getTime() + 1
+      });
+
+      assert.throws(
+        () =>
+          entity.rotateAccessToken(accessToken.value, accessToken.managementId),
+        InvalidTokenRotationError
       );
     });
   });
@@ -387,11 +417,11 @@ describe('GrantEntity', () => {
 
       assert.throws(
         () => entity.continue('wrong-token', entity.continueId!),
-        InvalidGrantError
+        InvalidContinuationError
       );
       assert.throws(
         () => entity.continue(entity.continueToken!, 'wrong-id'),
-        InvalidGrantError
+        InvalidContinuationError
       );
     });
 
@@ -401,7 +431,7 @@ describe('GrantEntity', () => {
       assert.throws(
         () => entity.continue(entity.continueToken!, entity.continueId!),
         (err: Error) =>
-          err instanceof InvalidGrantError &&
+          err instanceof ContinuationTooFastError &&
           err.message === 'Cannot continue grant too soon'
       );
     });
@@ -541,7 +571,7 @@ describe('GrantEntity', () => {
             interaction.interactRef
           ),
         (err: Error) =>
-          err instanceof InvalidGrantError &&
+          err instanceof InvalidContinuationError &&
           err.message ===
             'Current state REJECTED is a finalized state and cannot be changed'
       );
@@ -633,13 +663,13 @@ describe('GrantEntity', () => {
       assert.throws(
         () => entity.revoke('wrong-token', entity.continueId!),
         (err: Error) =>
-          err instanceof InvalidGrantError &&
+          err instanceof InvalidContinuationError &&
           err.message === 'Invalid continue token or continue id'
       );
       assert.throws(
         () => entity.revoke(entity.continueToken!, 'wrong-id'),
         (err: Error) =>
-          err instanceof InvalidGrantError &&
+          err instanceof InvalidContinuationError &&
           err.message === 'Invalid continue token or continue id'
       );
     });
@@ -651,7 +681,7 @@ describe('GrantEntity', () => {
       assert.throws(
         () => entity.revoke('token', 'id'),
         (err: Error) =>
-          err instanceof InvalidGrantError &&
+          err instanceof InvalidContinuationError &&
           err.message ===
             `Current state ${GrantState.REVOKED} is a finalized state and cannot be changed`
       );
