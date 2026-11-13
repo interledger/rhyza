@@ -123,9 +123,6 @@ importers:
 
   packages/admin-api-service:
     dependencies:
-      admin-client-lib:
-        specifier: workspace:*
-        version: link:../admin-client-lib
       auth-client-lib:
         specifier: workspace:*
         version: link:../auth-client-lib
@@ -783,12 +780,18 @@ importers:
       auth-client-lib:
         specifier: workspace:*
         version: link:../auth-client-lib
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
       fastify:
         specifier: ~5.3.3
         version: 5.3.3
       implementations-lib:
         specifier: workspace:*
         version: link:../implementations-lib
+      ioredis:
+        specifier: ~5.10.1
+        version: 5.10.1
     devDependencies:
       openapi-typescript:
         specifier: ^7.6.1

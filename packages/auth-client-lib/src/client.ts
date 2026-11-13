@@ -118,7 +118,8 @@ export class AuthClient {
     const { cursor, limit, backwards, sortOrder } = pageArgs(query);
 
     const request = new PbGetGrantsPageRequest();
-    if (query.identifier) request.setIdentifier(query.identifier);
+    if (query.identifiers?.length)
+      request.setIdentifiersList(query.identifiers);
     if (query.state) request.setState(query.state);
     if (cursor) request.setCursor(cursor);
     request.setLimit(limit);

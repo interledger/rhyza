@@ -35,6 +35,10 @@ export async function interactionRoutes(
   }>('/interaction/:grantId/finish', async (request, reply) => {
     const { authClient } = opts;
     const { grantId } = request.params;
+    // no stored session (never started, or expired from the store)
+    if (!request.session.interactionSessionId) {
+      return reply.status(401).send();
+    }
     const grant = await authClient.getGrant(grantId);
     if (!grant) return reply.status(404).send();
     if (request.session.interactionSessionId !== grant.interactionNonce) {

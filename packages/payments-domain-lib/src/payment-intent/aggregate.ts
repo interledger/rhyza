@@ -15,7 +15,8 @@ import {
   SentPaymentState,
   InboundPaymentState,
   IWalletAddress,
-  QuoteState
+  QuoteState,
+  ILocalPaymentIntent
 } from './interfaces';
 import { PaymentIntent } from './entity';
 import {
@@ -49,6 +50,7 @@ import {
   MissingDestinationIlpAddressError,
   PeerNotFoundError,
   InvalidPaymentAmountError,
+  InvalidPaymentIntentError,
   InvalidQuoteStateError,
   InvalidQuoteIdError,
   DuplicatePaymentIdError
@@ -467,7 +469,8 @@ export class PaymentIntentAggregate {
         metadata ? JSON.parse(metadata) : undefined
       );
 
-      this.paymentIntentMap.set(id, entity.toObject());
+      const paymentIntent = entity.toObject() as ILocalPaymentIntent;
+      this.paymentIntentMap.set(id, paymentIntent);
       this.newPaymentIntentIds.push(id);
 
       this._logger.debug(
@@ -475,21 +478,21 @@ export class PaymentIntentAggregate {
       );
       return new PaymentIntentCreatedEvent(
         {
-          id: entity.id,
-          createdAt: entity.createdAt,
-          expiresAt: entity.expiresAt,
+          id: paymentIntent.id,
+          createdAt: paymentIntent.createdAt,
+          expiresAt: paymentIntent.expiresAt,
           incomingAmount:
-            entity.incomingAmount != null
-              ? String(entity.incomingAmount)
+            paymentIntent.incomingAmount != null
+              ? String(paymentIntent.incomingAmount)
               : null,
-          receivedAmount: String(entity.receivedAmount),
-          state: entity.state,
-          receiverWalletAddress: entity.receiverWalletAddress,
-          receiverWalletAddressId: entity.receiverWalletAddressId,
-          destination: entity.destination,
-          assetCode: entity.assetCode,
-          assetScale: entity.assetScale,
-          metadata: entity.metadata
+          receivedAmount: String(paymentIntent.receivedAmount),
+          state: paymentIntent.state,
+          receiverWalletAddress: paymentIntent.receiverWalletAddress,
+          receiverWalletAddressId: paymentIntent.receiverWalletAddressId,
+          destination: paymentIntent.destination,
+          assetCode: paymentIntent.assetCode,
+          assetScale: paymentIntent.assetScale,
+          metadata: paymentIntent.metadata
         },
         cmd.requestId
       );
@@ -529,7 +532,7 @@ export class PaymentIntentAggregate {
       this.completedPaymentIntentIds.push(paymentIntent.id);
 
       return new PaymentIntentCompletedEvent(
-        this._toCompletedPayload(paymentIntent),
+        this._toCompletedPayload(paymentIntent.toObject()),
         cmd.requestId
       );
     } catch (err) {
@@ -697,9 +700,9 @@ export class PaymentIntentAggregate {
           quoteId,
           requestId: cmd.requestId,
           senderWalletAddress,
-          receiverWalletAddress: paymentIntent.receiverWalletAddress,
           senderAssetCode: walletAddress.assetCode,
           senderAssetScale: walletAddress.assetScale,
+          receiverWalletAddress: paymentIntent.receiverWalletAddress,
           receiverAssetCode: paymentIntent.assetCode,
           receiverAssetScale: paymentIntent.assetScale,
           peerId: peer.peerId,
@@ -1210,7 +1213,7 @@ export class PaymentIntentAggregate {
         if (paymentIntent.state === 'COMPLETED') {
           events.push(
             new PaymentIntentCompletedEvent(
-              this._toCompletedPayload(paymentIntent),
+              this._toCompletedPayload(paymentIntent.toObject()),
               cmd.requestId
             )
           );
@@ -1676,7 +1679,7 @@ export class PaymentIntentAggregate {
       if (paymentIntent.state === 'COMPLETED') {
         events.push(
           new PaymentIntentCompletedEvent(
-            this._toCompletedPayload(paymentIntent),
+            this._toCompletedPayload(paymentIntent.toObject()),
             cmd.requestId
           )
         );
@@ -2014,7 +2017,7 @@ export class PaymentIntentAggregate {
       if (paymentIntent.state === 'COMPLETED') {
         events.push(
           new PaymentIntentCompletedEvent(
-            this._toCompletedPayload(paymentIntent),
+            this._toCompletedPayload(paymentIntent.toObject()),
             cmd.requestId
           )
         );
@@ -2159,15 +2162,19 @@ export class PaymentIntentAggregate {
         const entity = PaymentIntent.create(
           canonicalId,
           undefined,
-          remotePaymentIntent.walletAddress,
+          remotePaymentIntent.receiverWalletAddress,
           PaymentIntentDestination.REMOTE,
           remotePaymentIntent.assetCode,
           remotePaymentIntent.assetScale,
-          remotePaymentIntent.expiresAt ?? null,
+          remotePaymentIntent.expiresAt
+            ? remotePaymentIntent.expiresAt.toISOString()
+            : null,
           remotePaymentIntent.incomingAmount ?? null,
           remotePaymentIntent.receivedAmount,
           remotePaymentIntent.destinationIlpAddress,
-          url
+          url,
+          undefined,
+          remotePaymentIntent.state
         );
         this.paymentIntentMap.set(canonicalId, entity.toObject());
         this.newPaymentIntentIds.push(canonicalId);
@@ -2200,25 +2207,31 @@ export class PaymentIntentAggregate {
   }
 
   private _toCompletedPayload(
-    paymentIntent: PaymentIntent
+    paymentIntent: IPaymentIntent
   ): PaymentIntentCompletedPayload {
+    if (paymentIntent.destination !== 'LOCAL') {
+      throw new InvalidPaymentIntentError(
+        `Payment intent ${paymentIntent.id} is not LOCAL`
+      );
+    }
+    const localPaymentIntent = paymentIntent as ILocalPaymentIntent;
     return {
-      id: paymentIntent.id,
-      createdAt: paymentIntent.createdAt,
-      expiresAt: paymentIntent.expiresAt,
-      receivedAmount: String(paymentIntent.receivedAmount),
+      id: localPaymentIntent.id,
+      createdAt: localPaymentIntent.createdAt,
+      expiresAt: localPaymentIntent.expiresAt,
+      receivedAmount: String(localPaymentIntent.receivedAmount),
       incomingAmount:
-        paymentIntent.incomingAmount != null
-          ? String(paymentIntent.incomingAmount)
+        localPaymentIntent.incomingAmount != null
+          ? String(localPaymentIntent.incomingAmount)
           : null,
-      state: paymentIntent.state,
-      receiverWalletAddress: paymentIntent.receiverWalletAddress,
-      receiverWalletAddressId: paymentIntent.receiverWalletAddressId,
-      destination: paymentIntent.destination,
-      destinationIlpAddress: paymentIntent.destinationIlpAddress,
-      assetCode: paymentIntent.assetCode,
-      assetScale: paymentIntent.assetScale,
-      metadata: paymentIntent.metadata
+      state: localPaymentIntent.state,
+      receiverWalletAddress: localPaymentIntent.receiverWalletAddress,
+      receiverWalletAddressId: localPaymentIntent.receiverWalletAddressId,
+      destination: localPaymentIntent.destination,
+      destinationIlpAddress: localPaymentIntent.destinationIlpAddress,
+      assetCode: localPaymentIntent.assetCode,
+      assetScale: localPaymentIntent.assetScale,
+      metadata: localPaymentIntent.metadata
     };
   }
 
