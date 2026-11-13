@@ -43,7 +43,8 @@ import {
   Grant,
   FinishInteractionRequest,
   FinishInteractionResponse,
-  HandleInteractionChoiceResponse
+  HandleInteractionChoiceResponse,
+  AUTH_ERROR_NAME_METADATA_KEY
 } from 'auth-public-types-lib';
 
 import {
@@ -932,12 +933,15 @@ export class AuthServiceServer {
     errorType: AppErrorType;
     message: string;
   }): grpc.ServiceError {
+    const errorName = payload.errorName || 'CommandError';
+    const metadata = new grpc.Metadata();
+    metadata.set(AUTH_ERROR_NAME_METADATA_KEY, errorName);
     return {
       code: this._toGrpcStatus(payload.errorType),
       message: payload.message || 'Command processing failed',
       details: payload.message,
-      name: payload.errorName || 'CommandError',
-      metadata: new grpc.Metadata()
+      name: errorName,
+      metadata
     };
   }
 
