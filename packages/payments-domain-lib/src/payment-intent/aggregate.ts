@@ -15,6 +15,7 @@ import {
   SentPaymentState,
   InboundPaymentState,
   IWalletAddress,
+  QuoteState,
   ILocalPaymentIntent
 } from './interfaces';
 import { PaymentIntent } from './entity';
@@ -51,7 +52,8 @@ import {
   InvalidPaymentAmountError,
   InvalidPaymentIntentError,
   InvalidQuoteStateError,
-  InvalidQuoteIdError
+  InvalidQuoteIdError,
+  DuplicatePaymentIdError
 } from './errors';
 import {
   QuoteCompletedEvent,
@@ -897,10 +899,48 @@ export class PaymentIntentAggregate {
       this._logger.debug(
         `handleCreatePaymentCommand — failed paymentIntentId: ${cmd.payload.paymentIntentId} error: ${(err as Error).message}`
       );
+
+      if (
+        err instanceof DuplicatePaymentIdError ||
+        err instanceof InvalidPaymentAmountError
+      ) {
+        return new PaymentCreateFailedEvent(
+          {
+            paymentIntentId: cmd.payload.paymentIntentId,
+            grantId: cmd.payload.grantId,
+            createdAt: cmd.payload.createdAt ?? new Date().toISOString(),
+            ...getErrorDetails(err)
+          },
+          cmd.requestId
+        );
+      }
+
+      let debitAmountValue: number | undefined;
+      let receiveAmountValue: number | undefined;
+      if (debitAmount) {
+        // Failed Payment without quote
+        debitAmountValue = debitAmount;
+      } else if (quoteId) {
+        // Failed Payment with quote
+        const paymentIntent = this.paymentIntentMap.get(
+          cmd.payload.paymentIntentId
+        );
+        const quote =
+          paymentIntent &&
+          paymentIntent.quotes.find((quote) => quote.id === quoteId);
+        if (quote?.state !== QuoteState.FAILED) {
+          debitAmountValue = Number(quote?.debitAmount);
+          receiveAmountValue = Number(quote?.receiveAmount);
+        }
+      }
+
       const event = new PaymentCreateFailedEvent(
         {
           paymentIntentId: cmd.payload.paymentIntentId,
           grantId: cmd.payload.grantId,
+          debitAmountValue,
+          receiveAmountValue,
+          createdAt: cmd.payload.createdAt ?? new Date().toISOString(), // todo: generate new date at aggregate level if createdAt not provided & pass it into the entity creation method
           ...getErrorDetails(err)
         },
         cmd.requestId
@@ -1131,9 +1171,12 @@ export class PaymentIntentAggregate {
         const payment = paymentIntent.completeLocalPayment({ id: paymentId });
         errorContext = {
           sentAmount: payment.sentAmount.toString(),
+          debitAmount: payment.debitAmount.toString(),
+          receiveAmount: payment.receiveAmount?.toString(),
           walletAddressId: payment.senderWalletAddressId,
           assetCode: payment.assetCode,
-          assetScale: payment.assetScale
+          assetScale: payment.assetScale,
+          createdAt: payment.createdAt.toISOString()
         };
         this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
         this._appendToMap(
@@ -1190,9 +1233,12 @@ export class PaymentIntentAggregate {
       });
       errorContext = {
         sentAmount: payment.sentAmount.toString(),
+        debitAmount: payment.debitAmount.toString(),
+        receiveAmount: payment.receiveAmount?.toString(),
         walletAddressId: payment.senderWalletAddressId,
         assetCode: payment.assetCode,
-        assetScale: payment.assetScale
+        assetScale: payment.assetScale,
+        createdAt: payment.createdAt.toISOString()
       };
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
@@ -1218,6 +1264,10 @@ export class PaymentIntentAggregate {
         cmd.requestId
       );
     } catch (err) {
+      const storedPayment = this.paymentIntentMap
+        .get(cmd.payload.paymentIntentId)
+        ?.sentPayments.find((p) => p.id === cmd.payload.id);
+
       return new PaymentCompleteFailedEvent(
         {
           id: cmd.payload.id,
@@ -1226,6 +1276,14 @@ export class PaymentIntentAggregate {
             cmd.payload.paymentIntentId,
             cmd.payload.id
           ),
+          ...(storedPayment && {
+            debitAmount: String(storedPayment.debitAmount),
+            receiveAmount:
+              storedPayment.receiveAmount != null
+                ? String(storedPayment.receiveAmount)
+                : undefined,
+            createdAt: storedPayment.createdAt.toISOString()
+          }),
           ...errorContext,
           ...getErrorDetails(err)
         },
@@ -1369,7 +1427,7 @@ export class PaymentIntentAggregate {
               : String(payment.receiveAmount),
           sentAmount: String(payment.sentAmount),
           state: payment.state,
-          createdAt: payment.createdAt,
+          createdAt: payment.createdAt.toISOString(),
           assetCode: payment.assetCode,
           assetScale: payment.assetScale,
           receiveAssetCode: paymentIntent.assetCode,
@@ -1995,15 +2053,18 @@ export class PaymentIntentAggregate {
       }
 
       const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
-      paymentIntent.cancelPayment({ id: paymentId, reason });
-      const payment = paymentIntent.sentPayments.find(
-        (p) => p.id === paymentId
-      );
+      const payment = paymentIntent.cancelPayment({ id: paymentId, reason });
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(this.cancelledPayments, paymentIntent.id, paymentId);
 
       return new PaymentCancelledEvent(
-        { id: paymentId, grantId: payment?.grantId },
+        {
+          id: paymentId,
+          grantId: payment.grantId,
+          debitAmountValue: String(payment.debitAmount),
+          receiveAmountValue: String(payment.receiveAmount),
+          createdAt: payment.createdAt.toISOString()
+        },
         cmd.requestId
       );
     } catch (err) {

@@ -762,6 +762,59 @@ export class GrantEntity implements IGrant {
     return this._spentAmounts;
   }
 
+  revertSpentAmounts(input: {
+    receiveAmountValue?: string;
+    debitAmountValue?: string;
+    createdAt: string;
+  }): ISpentAmounts | void {
+    if (!this._spentAmounts) return;
+
+    const subtractWithFloorZero = (current: bigint, value: string): bigint => {
+      const subtrahend = BigInt(value);
+      return current > subtrahend ? current - subtrahend : 0n;
+    };
+
+    if (input.receiveAmountValue) {
+      this._spentAmounts.total.receive = subtractWithFloorZero(
+        this._spentAmounts.total.receive,
+        input.receiveAmountValue
+      );
+
+      if (
+        this.isGrantWithSpentAmountsInterval() &&
+        this.getSpentAmountInterval()?.contains(
+          DateTime.fromJSDate(new Date(input.createdAt))
+        )
+      ) {
+        this._spentAmounts.interval!.total.receive = subtractWithFloorZero(
+          this._spentAmounts.interval!.total.receive,
+          input.receiveAmountValue
+        );
+      }
+    }
+
+    if (input.debitAmountValue) {
+      this._spentAmounts.total.debit = subtractWithFloorZero(
+        this._spentAmounts.total.debit,
+        input.debitAmountValue
+      );
+
+      if (
+        this.isGrantWithSpentAmountsInterval() &&
+        this.getSpentAmountInterval()?.contains(
+          DateTime.fromJSDate(new Date(input.createdAt))
+        )
+      ) {
+        this._spentAmounts.interval!.total.debit = subtractWithFloorZero(
+          this._spentAmounts.interval!.total.debit,
+          input.debitAmountValue
+        );
+      }
+    }
+
+    return this._spentAmounts;
+  }
+
   get id(): string {
     return this._id;
   }
