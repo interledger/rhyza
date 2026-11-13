@@ -928,13 +928,8 @@ describe('Auth Client', () => {
       assert.equal(result.accesses.length, 1);
     });
 
-    test('rejects with NOT_FOUND for an id that does not exist', async () => {
-      try {
-        await authClient.getGrant(randomUUID());
-        assert.fail('expected error for an unknown grant id');
-      } catch (e) {
-        assert.ok(e instanceof Error);
-      }
+    test('resolves null for an id that does not exist', async () => {
+      assert.equal(await authClient.getGrant(randomUUID()), null);
     });
   });
 
