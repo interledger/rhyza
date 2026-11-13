@@ -313,18 +313,8 @@ describe('E2E tests', () => {
   };
 
   const createPeer = async (client: AdminApiClient, peer: PeerCreate) => {
-    try {
-      const created = await client.peers.createPeer(peer);
-      assert.equal(created.id, peer.id);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.includes('Peer already exists')
-      ) {
-        return;
-      }
-      throw error;
-    }
+    const created = await client.peers.createPeer(peer);
+    assert.equal(created.id, peer.id);
   };
 
   after(async () => {

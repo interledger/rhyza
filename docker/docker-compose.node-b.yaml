@@ -79,6 +79,10 @@ services:
         condition: service_healthy
       redis-b:
         condition: service_healthy
+      pal-ledger-command-handler-service-b:
+        condition: service_started
+      pal-event-handler-service-b:
+        condition: service_started
     networks:
       - rhyza
   pal-ledger-command-handler-service-b:
@@ -132,6 +136,10 @@ services:
         condition: service_healthy
       init-kafka-b:
         condition: service_completed_successfully
+      payments-command-handler-service-b:
+        condition: service_started
+      payments-event-handler-service-b:
+        condition: service_started
     networks:
       - rhyza
 
@@ -277,6 +285,10 @@ services:
         condition: service_completed_successfully
       mongodb-b:
         condition: service_healthy
+      ilp-command-handler-service-b:
+        condition: service_started
+      ilp-event-handler-service-b:
+        condition: service_started
     networks:
       - rhyza
 
@@ -309,6 +321,8 @@ services:
         condition: service_healthy
       init-kafka-b:
         condition: service_completed_successfully
+      auth-command-handler-service-b:
+        condition: service_started
     networks:
       - rhyza
 
