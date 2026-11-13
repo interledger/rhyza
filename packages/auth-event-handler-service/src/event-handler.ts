@@ -108,7 +108,7 @@ export class AuthEventHandler {
             id: payload.grantId,
             debitAmountValue: payload.debitAmount ?? undefined,
             receiveAmountValue: payload.receiveAmount ?? undefined,
-            createdAt: payload.createdAt.toISOString()
+            createdAt: payload.createdAt
           },
           crypto.randomUUID()
         );

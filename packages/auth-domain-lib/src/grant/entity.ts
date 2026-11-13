@@ -769,13 +769,15 @@ export class GrantEntity implements IGrant {
   }): ISpentAmounts | void {
     if (!this._spentAmounts) return;
 
+    const subtract = (current: bigint, value: string): bigint => {
+      const subtrahend = BigInt(value);
+      return current > subtrahend ? current - subtrahend : 0n;
+    };
+
     if (input.receiveAmountValue) {
-      this._spentAmounts.total.receive = BigInt(
-        Math.max(
-          0,
-          Number(this._spentAmounts.total.receive) -
-            Number(input.receiveAmountValue)
-        )
+      this._spentAmounts.total.receive = subtract(
+        this._spentAmounts.total.receive,
+        input.receiveAmountValue
       );
 
       if (
@@ -784,23 +786,17 @@ export class GrantEntity implements IGrant {
           DateTime.fromJSDate(new Date(input.createdAt))
         )
       ) {
-        this._spentAmounts.interval!.total.receive = BigInt(
-          Math.max(
-            0,
-            Number(this._spentAmounts.interval!.total.receive) -
-              Number(input.receiveAmountValue)
-          )
+        this._spentAmounts.interval!.total.receive = subtract(
+          this._spentAmounts.interval!.total.receive,
+          input.receiveAmountValue
         );
       }
     }
 
     if (input.debitAmountValue) {
-      this._spentAmounts.total.debit = BigInt(
-        Math.max(
-          0,
-          Number(this._spentAmounts.total.debit) -
-            Number(input.debitAmountValue)
-        )
+      this._spentAmounts.total.debit = subtract(
+        this._spentAmounts.total.debit,
+        input.debitAmountValue
       );
 
       if (
@@ -809,12 +805,9 @@ export class GrantEntity implements IGrant {
           DateTime.fromJSDate(new Date(input.createdAt))
         )
       ) {
-        this._spentAmounts.interval!.total.debit = BigInt(
-          Math.max(
-            0,
-            Number(this._spentAmounts.interval!.total.debit) -
-              Number(input.debitAmountValue)
-          )
+        this._spentAmounts.interval!.total.debit = subtract(
+          this._spentAmounts.interval!.total.debit,
+          input.debitAmountValue
         );
       }
     }

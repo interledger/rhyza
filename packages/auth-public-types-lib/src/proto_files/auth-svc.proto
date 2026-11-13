@@ -9,7 +9,6 @@ service RhyzaAuth {
 	rpc ContinueGrant(ContinueGrantRequest) returns (ContinueGrantResponse) {}
 	rpc RevokeGrant(RevokeGrantRequest) returns (RevokeGrantResponse) {}
 	rpc ValidateOutgoingPaymentGrantLimit(ValidateOutgoingPaymentGrantLimitRequest) returns (GrantSpentAmountsResponse) {}
-	rpc RevertGrantSpentAmount(RevertGrantSpentAmountRequest) returns (GrantSpentAmountsResponse) {}
 	rpc AdminRevokeGrant(AdminRevokeGrantRequest) returns (RevokeGrantResponse) {}
 	// Access Token RPCs
 	rpc IntrospectToken(IntrospectTokenRequest) returns (IntrospectTokenResponse) {}

@@ -965,7 +965,7 @@ export class GrantAggregate {
       return new RevertedGrantSpentAmountEvent(
         {
           id,
-          spentAmounts: spentAmounts ?? undefined
+          spentAmounts
         },
         cmd.requestId
       );

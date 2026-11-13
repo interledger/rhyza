@@ -1427,7 +1427,7 @@ export class PaymentIntentAggregate {
               : String(payment.receiveAmount),
           sentAmount: String(payment.sentAmount),
           state: payment.state,
-          createdAt: payment.createdAt,
+          createdAt: payment.createdAt.toISOString(),
           assetCode: payment.assetCode,
           assetScale: payment.assetScale,
           receiveAssetCode: paymentIntent.assetCode,

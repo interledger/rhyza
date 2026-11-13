@@ -555,7 +555,7 @@ export type PaymentFailedPayload = {
   receiveAmount: string | null;
   sentAmount: string | null;
   state: SentPaymentState;
-  createdAt: Date;
+  createdAt: string;
   assetCode: string;
   assetScale: number;
   receiveAssetCode: string;
