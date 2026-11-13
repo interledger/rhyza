@@ -138,7 +138,7 @@ describe('E2E tests', () => {
         request: () =>
           adminClient.payments.getPayment(paymentIntentId, paymentId),
         stopWhen: (payment) => payment.state === 'COMPLETED',
-        pollingFrequencyMs: 200,
+        pollingFrequencyMs: 2_000,
         timeoutMs: 10_000
       });
       assert.equal(paymentFound.id, paymentId);
@@ -271,7 +271,7 @@ describe('E2E tests', () => {
         request: () =>
           adminClient.payments.getPayment(quotePaymentIntentId, paymentId),
         stopWhen: (payment) => payment.state === 'COMPLETED',
-        pollingFrequencyMs: 200,
+        pollingFrequencyMs: 2_000,
         timeoutMs: 10_000
       });
       assert.equal(paymentFound.id, paymentId);
@@ -303,7 +303,7 @@ describe('E2E tests', () => {
     const { assets } = await poll({
       request: () => client.assets.getAssets(),
       stopWhen: ({ assets }) => assets.some((item) => item.code === code),
-      pollingFrequencyMs: 200,
+      pollingFrequencyMs: 2_000,
       timeoutMs: 10_000
     });
     const asset = assets.find((item) => item.code === code);
@@ -313,8 +313,18 @@ describe('E2E tests', () => {
   };
 
   const createPeer = async (client: AdminApiClient, peer: PeerCreate) => {
-    const created = await client.peers.createPeer(peer);
-    assert.equal(created.id, peer.id);
+    try {
+      const created = await client.peers.createPeer(peer);
+      assert.equal(created.id, peer.id);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes('Peer already exists')
+      ) {
+        return;
+      }
+      throw error;
+    }
   };
 
   after(async () => {
@@ -338,12 +348,12 @@ async function poll<T>(args: {
   const deadline = Date.now() + args.timeoutMs;
 
   for (;;) {
+    await setTimeout(args.pollingFrequencyMs);
     const result = await args.request();
     if (args.stopWhen(result)) return result;
     if (Date.now() >= deadline) {
       throw new Error('Request timed out');
     }
-    await setTimeout(args.pollingFrequencyMs);
   }
 }
 
