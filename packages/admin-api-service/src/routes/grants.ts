@@ -1,12 +1,8 @@
 'use strict';
 
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import {
-  AuthClient,
-  GetGrantResult,
-  httpStatusFromClientError,
-  isAuthClientError
-} from 'auth-client-lib';
+import { AuthClient, GetGrantResult, isAuthClientError } from 'auth-client-lib';
+import { httpStatusFromAuthClientError } from '../errors.js';
 import {
   GrantPageQuery,
   MAX_GRANT_WALLET_ADDRESSES,
@@ -91,7 +87,7 @@ export async function grantRoutes(
         });
       } catch (error) {
         server.log.error(error);
-        const httpStatus = httpStatusFromClientError(error);
+        const httpStatus = httpStatusFromAuthClientError(error);
         return reply
           .status(httpStatus)
           .send(
@@ -114,7 +110,7 @@ export async function grantRoutes(
       return reply.status(200).send(toAdminApiGrant(grant));
     } catch (error) {
       server.log.error(error);
-      const httpStatus = httpStatusFromClientError(error);
+      const httpStatus = httpStatusFromAuthClientError(error);
       return reply
         .status(httpStatus)
         .send(isAuthClientError(error) ? { error: error.message } : { error });
@@ -134,7 +130,7 @@ export async function grantRoutes(
       return reply.status(200).send(result);
     } catch (error) {
       server.log.error(error);
-      const httpStatus = httpStatusFromClientError(error);
+      const httpStatus = httpStatusFromAuthClientError(error);
       return reply
         .status(httpStatus)
         .send(isAuthClientError(error) ? { error: error.message } : { error });
