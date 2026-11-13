@@ -13,7 +13,10 @@ import {
   AccessItem,
   GrantFinish,
   SubjectId,
-  AccessLimits
+  AccessLimits,
+  AuthClientInvalidContinuationError,
+  AuthClientInvalidRotationError,
+  AuthClientUnknownAccessTokenError
 } from '../src/';
 
 describe('Auth Client', () => {
@@ -394,7 +397,7 @@ describe('Auth Client', () => {
         );
         assert.fail('expected error for unknown token');
       } catch (e) {
-        assert.ok(e instanceof Error);
+        assert.ok(e instanceof AuthClientUnknownAccessTokenError);
       }
     });
 
@@ -427,7 +430,7 @@ describe('Auth Client', () => {
         );
         assert.fail('expected error replaying revoked token');
       } catch (e) {
-        assert.ok(e instanceof Error);
+        assert.ok(e instanceof AuthClientInvalidRotationError);
       }
     });
   });
@@ -571,7 +574,7 @@ describe('Auth Client', () => {
         );
         assert.fail('expected error for unknown token');
       } catch (e) {
-        assert.ok(e instanceof Error);
+        assert.ok(e instanceof AuthClientUnknownAccessTokenError);
       }
     });
 
@@ -648,7 +651,8 @@ describe('Auth Client', () => {
         );
         assert.fail('expected error for invalid continue token');
       } catch (e) {
-        assert.ok(e instanceof Error);
+        assert.ok(e instanceof AuthClientInvalidContinuationError);
+        assert.equal(e.message, 'Invalid continue token or continue id');
       }
     });
 
@@ -759,7 +763,8 @@ describe('Auth Client', () => {
         );
         assert.fail('expected error for invalid continue token');
       } catch (e) {
-        assert.ok(e instanceof Error);
+        assert.ok(e instanceof AuthClientInvalidContinuationError);
+        assert.equal(e.message, 'Invalid continue token or continue id');
       }
     });
 
