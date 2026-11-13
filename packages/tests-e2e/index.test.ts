@@ -134,13 +134,13 @@ describe('E2E tests', () => {
     });
 
     await step(t, progress, 'payment completes', async () => {
-      // Wait 2 seconds for ase-mock-service to receive the webhook and approve payment
-      await setTimeout(2000);
-
-      const paymentFound = await adminClient.payments.getPayment(
-        paymentIntentId,
-        paymentId
-      );
+      const paymentFound = await poll({
+        request: () =>
+          adminClient.payments.getPayment(paymentIntentId, paymentId),
+        stopWhen: (payment) => payment.state === 'COMPLETED',
+        pollingFrequencyMs: 200,
+        timeoutMs: 10_000
+      });
       assert.equal(paymentFound.id, paymentId);
       assert.equal(paymentFound.state, 'COMPLETED');
     });
@@ -267,18 +267,13 @@ describe('E2E tests', () => {
     });
 
     await step(t, progress, 'payment completes', async () => {
-      const deadline = Date.now() + 30000;
-      let paymentFound = await adminClient.payments.getPayment(
-        quotePaymentIntentId,
-        paymentId
-      );
-      while (paymentFound.state !== 'COMPLETED' && Date.now() < deadline) {
-        await setTimeout(500);
-        paymentFound = await adminClient.payments.getPayment(
-          quotePaymentIntentId,
-          paymentId
-        );
-      }
+      const paymentFound = await poll({
+        request: () =>
+          adminClient.payments.getPayment(quotePaymentIntentId, paymentId),
+        stopWhen: (payment) => payment.state === 'COMPLETED',
+        pollingFrequencyMs: 200,
+        timeoutMs: 10_000
+      });
       assert.equal(paymentFound.id, paymentId);
       assert.equal(paymentFound.state, 'COMPLETED');
     });
@@ -302,11 +297,15 @@ describe('E2E tests', () => {
 
   const createAsset = async (client: AdminApiClient, code: string) => {
     // The create call stays open until asset activation finishes.
-    // Sometimes PAL does not return a response after the asset is created
+    // Sometimes PAL does not return a response after the asset is created.
     void client.assets.createAsset({ code, scale: 2 }).catch(() => {});
-    await setTimeout(2000);
 
-    const { assets } = await client.assets.getAssets();
+    const { assets } = await poll({
+      request: () => client.assets.getAssets(),
+      stopWhen: ({ assets }) => assets.some((item) => item.code === code),
+      pollingFrequencyMs: 200,
+      timeoutMs: 10_000
+    });
     const asset = assets.find((item) => item.code === code);
     assert.ok(asset);
     assert.equal(asset.code, code);
@@ -329,6 +328,24 @@ describe('E2E tests', () => {
     await environment?.down();
   });
 });
+
+async function poll<T>(args: {
+  request: () => Promise<T>;
+  stopWhen: (result: T) => boolean;
+  pollingFrequencyMs: number;
+  timeoutMs: number;
+}): Promise<T> {
+  const deadline = Date.now() + args.timeoutMs;
+
+  for (;;) {
+    const result = await args.request();
+    if (args.stopWhen(result)) return result;
+    if (Date.now() >= deadline) {
+      throw new Error('Request timed out');
+    }
+    await setTimeout(args.pollingFrequencyMs);
+  }
+}
 
 async function step(
   t: TestContext,
