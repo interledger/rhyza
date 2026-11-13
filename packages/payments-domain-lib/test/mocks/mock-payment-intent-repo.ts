@@ -405,6 +405,7 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
         id: string;
         state: SentPaymentState;
         ledgerTransferId: string;
+        expiresAt: Date;
       }[];
     }[]
   ): Promise<void> {
@@ -419,9 +420,80 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
         foundPayment.state = payment.state;
         if (isRemoteSentPayment(foundPayment)) {
           foundPayment.ledgerTransferId = payment.ledgerTransferId;
+          foundPayment.expiresAt = payment.expiresAt;
         }
       }
     }
+  }
+
+  async storeExpiredPaymentIntents(
+    paymentIntents: { id: string; state: PaymentIntentState }[]
+  ): Promise<void> {
+    for (const update of paymentIntents) {
+      const paymentIntent = this._store.get(update.id);
+      if (!paymentIntent) {
+        throw new Error('Could not find paymentIntent in store');
+      }
+      paymentIntent.state = update.state;
+    }
+  }
+
+  async storeExpiredRemotePayments(
+    paymentUpdates: {
+      sentPayments: {
+        id: string;
+        state: SentPaymentState;
+        failReason?: string;
+      }[];
+    }[]
+  ): Promise<void> {
+    for (const update of paymentUpdates) {
+      for (const payment of update.sentPayments) {
+        const foundPayment = this.getAll()
+          .flatMap((intent) => intent.sentPayments)
+          .find((p) => p.id === payment.id);
+        if (!foundPayment) {
+          throw new Error('Could not find payment in store');
+        }
+        foundPayment.state = payment.state;
+        if (payment.failReason && isRemoteSentPayment(foundPayment)) {
+          foundPayment.failReason = payment.failReason;
+        }
+      }
+    }
+  }
+
+  async fetchExpiredPaymentIntentIds(
+    now: Date,
+    limit: number
+  ): Promise<string[]> {
+    return this.getAll()
+      .filter(
+        (p) => p.state === 'CREATED' && p.expiresAt.getTime() <= now.getTime()
+      )
+      .sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime())
+      .slice(0, limit)
+      .map((p) => p.id);
+  }
+
+  async fetchExpiredSentPaymentIds(
+    now: Date,
+    limit: number
+  ): Promise<{ paymentIntentId: string; paymentId: string }[]> {
+    return this.getAll()
+      .flatMap((intent) => intent.sentPayments)
+      .filter(isRemoteSentPayment)
+      .filter(
+        (p) =>
+          p.state === 'SENDING' &&
+          p.expiresAt !== undefined &&
+          p.expiresAt.getTime() <= now.getTime()
+      )
+      .sort(
+        (a, b) => (a.expiresAt?.getTime() ?? 0) - (b.expiresAt?.getTime() ?? 0)
+      )
+      .slice(0, limit)
+      .map((p) => ({ paymentIntentId: p.paymentIntentId, paymentId: p.id }));
   }
 
   async storeFailedRemotePayments(

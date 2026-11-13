@@ -425,3 +425,32 @@ export class FinalizeInboundPaymentCmd extends PaymentIntentCommand {
     this.payload = payload;
   }
 }
+
+export type ExpirePaymentIntentCmdPayload = {
+  paymentIntentId: string;
+};
+
+export class ExpirePaymentIntentCmd extends PaymentIntentCommand {
+  payload: ExpirePaymentIntentCmdPayload;
+
+  constructor(payload: ExpirePaymentIntentCmdPayload, requestId: string) {
+    super(payload.paymentIntentId);
+    this.requestId = requestId;
+    this.payload = payload;
+  }
+}
+
+export type ExpireRemotePaymentCmdPayload = {
+  paymentIntentId: string;
+  paymentId: string;
+};
+
+export class ExpireRemotePaymentCmd extends PaymentIntentCommand {
+  payload: ExpireRemotePaymentCmdPayload;
+
+  constructor(payload: ExpireRemotePaymentCmdPayload, requestId: string) {
+    super(payload.paymentIntentId);
+    this.requestId = requestId;
+    this.payload = payload;
+  }
+}

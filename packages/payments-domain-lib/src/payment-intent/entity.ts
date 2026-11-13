@@ -33,6 +33,13 @@ import {
 
 const MAX_PAYMENT_INTENT_EXPIRY_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const QUOTE_EXPIRY_MS = 1000 * 60 * 10;
+// Lifetime of the ILP packet that carries a remote payment.
+const ILP_PACKET_EXPIRY_MS = 30_000;
+// A remote payment expires this long after its packet's deadline. A fulfill
+// that reaches the connector just before the deadline still has to cross
+// Kafka to Payments, and should land before the expiry check does.
+export const PAYMENT_EXPIRY_GRACE_MS = 5_000;
+export const PAYMENT_EXPIRED_REASON = 'Payment expired before it was fulfilled';
 
 type QuoteRequest = {
   debitAmount?: bigint;
@@ -544,6 +551,7 @@ class RemoteSentPayment extends BaseSentPayment {
   private _peerId: string;
   private _receiveAmount: bigint | null;
   private _ledgerTransferId?: string;
+  private _expiresAt?: Date;
   private _failReason?: string;
 
   private constructor(
@@ -551,6 +559,7 @@ class RemoteSentPayment extends BaseSentPayment {
       peerId: string;
       receiveAmount: bigint | null;
       ledgerTransferId?: string;
+      expiresAt?: Date;
       failReason?: string;
     }
   ) {
@@ -558,6 +567,7 @@ class RemoteSentPayment extends BaseSentPayment {
     this._peerId = args.peerId;
     this._receiveAmount = args.receiveAmount;
     this._ledgerTransferId = args.ledgerTransferId;
+    this._expiresAt = args.expiresAt;
     this._failReason = args.failReason;
   }
 
@@ -608,6 +618,10 @@ class RemoteSentPayment extends BaseSentPayment {
     return this._failReason;
   }
 
+  get expiresAt(): Date | undefined {
+    return this._expiresAt;
+  }
+
   approveRemoteSend(): void {
     if (this._state !== 'CREATED') {
       throw new PaymentInvalidStateError(
@@ -617,7 +631,7 @@ class RemoteSentPayment extends BaseSentPayment {
     this._state = 'PROCESSING';
   }
 
-  prepare(ledgerTransferId: string): void {
+  prepare(ledgerTransferId: string, expiresAt: Date): void {
     if (this._state !== 'PROCESSING') {
       throw new PaymentInvalidStateError(
         `Payment ${this._id} cannot be prepared from state ${this._state}`
@@ -625,10 +639,29 @@ class RemoteSentPayment extends BaseSentPayment {
     }
     this._state = 'SENDING';
     this._ledgerTransferId = ledgerTransferId;
+    this._expiresAt = expiresAt;
+  }
+
+  /**
+   * SENDING → EXPIRED. Any other state is left alone: the expiry check races
+   * ILP's answer, so finding the payment already settled is expected. Returns
+   * whether the payment expired.
+   */
+  expire(): boolean {
+    if (this._state !== 'SENDING') {
+      return false;
+    }
+    this._state = 'EXPIRED';
+    this._failReason = PAYMENT_EXPIRED_REASON;
+    return true;
   }
 
   failRemote(reason?: string): void {
-    if (this._state !== 'PROCESSING' && this._state !== 'REJECTED') {
+    if (
+      this._state !== 'PROCESSING' &&
+      this._state !== 'REJECTED' &&
+      this._state !== 'EXPIRED'
+    ) {
       throw new PaymentInvalidStateError(
         `Payment ${this._id} cannot fail from state ${this._state}`
       );
@@ -681,6 +714,7 @@ class RemoteSentPayment extends BaseSentPayment {
       peerId: this._peerId,
       receiveAmount: this._receiveAmount,
       ledgerTransferId: this._ledgerTransferId,
+      expiresAt: this._expiresAt,
       failReason: this._failReason
     };
   }
@@ -1570,16 +1604,51 @@ export class PaymentIntent implements IPaymentIntent {
     return payment.toObject();
   }
 
+  /**
+   * PROCESSING → SENDING and set expiry
+   @returns The prepared remote payment and its packet expiration timestamp.
+   */
   prepareRemotePayment(args: {
     id: string;
     ledgerTransferId: string;
-  }): IRemoteSentPayment {
-    const { id, ledgerTransferId } = args;
+    now?: Date;
+  }): { payment: IRemoteSentPayment; packetExpiresAt: Date } {
+    const { id, ledgerTransferId, now = new Date() } = args;
 
     const payment = this._findRemotePayment(id);
 
-    payment.prepare(ledgerTransferId);
-    return payment.toObject();
+    const packetExpiresAt = new Date(
+      Math.min(now.getTime() + ILP_PACKET_EXPIRY_MS, this._expiresAt.getTime())
+    );
+    payment.prepare(
+      ledgerTransferId,
+      new Date(packetExpiresAt.getTime() + PAYMENT_EXPIRY_GRACE_MS)
+    );
+    return { payment: payment.toObject(), packetExpiresAt };
+  }
+
+  /**
+   * CREATED → EXPIRED. A completed or already expired intent is left alone.
+   * @returns `true` if the intent was successfully expired; otherwise, `false`.
+   */
+  expire(): boolean {
+    if (this._state !== 'CREATED') {
+      return false;
+    }
+    this._state = 'EXPIRED';
+    return true;
+  }
+
+  expireRemotePayment(args: { id: string }): {
+    expired: boolean;
+    payment: IRemoteSentPayment;
+  } {
+    const { id } = args;
+
+    const payment = this._findRemotePayment(id);
+
+    const expired = payment.expire();
+    return { expired, payment: payment.toObject() };
   }
 
   failRemotePayment(args: { id: string; reason?: string }): IRemoteSentPayment {
