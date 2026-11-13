@@ -6,7 +6,8 @@ import { setTimeout } from 'node:timers/promises';
 import path from 'path';
 import {
   DockerComposeEnvironment,
-  StartedDockerComposeEnvironment
+  StartedDockerComposeEnvironment,
+  Wait
 } from 'testcontainers';
 import {
   AdminApiClient,
@@ -35,7 +36,7 @@ describe('E2E tests', () => {
       composeDir,
       COMPOSE_FILE
     )
-      .withAutoCleanup(false)
+      .withAutoCleanup(!keepStack)
       .withEnvironment({
         WEBHOOK_URL: 'http://ase-mock-service:3000/webhooks',
         ...(process.env.VERSION ? { VERSION: process.env.VERSION } : {}),
@@ -52,7 +53,16 @@ describe('E2E tests', () => {
     environmentBuilder = environmentBuilder.withStartupTimeout(180_000);
 
     try {
-      environment = await environmentBuilder.up();
+      environment = await environmentBuilder
+        .withWaitStrategy(
+          'admin-api-service-1',
+          Wait.forLogMessage('AdminApiService start complete')
+        )
+        .withWaitStrategy(
+          'admin-api-service-b-1',
+          Wait.forLogMessage('AdminApiService start complete')
+        )
+        .up();
     } catch (error) {
       dumpComposeLogs();
       throw error;
