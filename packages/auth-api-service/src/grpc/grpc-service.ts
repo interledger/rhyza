@@ -581,6 +581,10 @@ export class AuthServiceServer {
 
     if (grant.finishMethod) response.setFinishMethod(grant.finishMethod);
 
+    if (grant.interactionNonce) {
+      response.setInteractionNonce(grant.interactionNonce);
+    }
+
     if (grant.interaction) {
       const interaction = new Interaction();
       interaction.setExpiresAt(grant.interaction.expiresAt.getTime());

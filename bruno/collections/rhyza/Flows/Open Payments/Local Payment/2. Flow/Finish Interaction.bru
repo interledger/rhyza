@@ -1,0 +1,66 @@
+meta {
+  name: Finish Interaction
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{senderAuthServer}}/interaction/{{grantId}}/finish
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  req.setMaxRedirects(0);
+  req.setHeader("Cookie", bru.getVar("interactionSessionCookie"));
+}
+
+script:post-response {
+  const { createHash } = require('crypto');
+
+  const location = res.getHeader("location");
+  if (location) {
+    const params = new URL(location).searchParams;
+    const interactRef = params.get("interact_ref");
+    bru.setVar("interactRef", interactRef);
+
+    // GNAP interaction hash: client nonce, AS finish nonce, interact_ref and
+    // the grant endpoint, newline-joined, sha-256, base64url.
+    bru.setVar("interactHash", params.get("hash"));
+    bru.setVar(
+      "expectedInteractHash",
+      createHash("sha256")
+        .update(
+          [
+            bru.getVar("clientFinishNonce"),
+            bru.getVar("interactFinishNonce"),
+            interactRef,
+            bru.getVar("senderAuthServer")
+          ].join("\n")
+        )
+        .digest("base64url")
+    );
+  }
+}
+
+tests {
+  test("redirects to the client's finish uri", function () {
+    expect(res.getStatus()).to.equal(302);
+    expect(res.getHeader("location")).to.include("http://localhost:3344/finish");
+  });
+
+  test("interact_ref and a valid hash", function () {
+    expect(bru.getVar("interactRef")).to.be.a("string");
+    expect(bru.getVar("interactHash")).to.equal(bru.getVar("expectedInteractHash"));
+  });
+}
+
+docs {
+  The IDP sends the user back here once they've decided. The auth server
+  checks the session cookie from Start Interaction (401 without it) and
+  redirects to the client's `interact.finish.uri` with `interact_ref` and
+  `hash`.
+
+  A real client verifies `hash` before using `interact_ref`; so does this
+  request's test.
+}
