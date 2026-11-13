@@ -54,7 +54,7 @@ import {
   IPageResult,
   IPageQuery
 } from './types';
-import { AuthClientUnknownError, clientErrorFromGrpcError } from './errors';
+import { clientErrorFromGrpcError } from './errors';
 
 export class AuthClient {
   private readonly _serverUrl: string;
@@ -103,9 +103,9 @@ export class AuthClient {
         (error: ServiceError | null, response: PbGrant) => {
           if (error) {
             if (error.code === grpc.status.NOT_FOUND) {
-              resolve(null);
+              return resolve(null);
             }
-            return reject(new AuthClientUnknownError(error.message));
+            return reject(clientErrorFromGrpcError(error));
           } else {
             resolve(fromPbGrant(response));
           }
@@ -129,7 +129,7 @@ export class AuthClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.getGrantsPage(request, (error, response) => {
         if (error) {
-          reject(error);
+          reject(clientErrorFromGrpcError(error));
           return;
         }
 
