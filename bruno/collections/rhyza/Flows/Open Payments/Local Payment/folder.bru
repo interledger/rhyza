@@ -28,8 +28,28 @@ docs {
     public key on that wallet address so the auth server finds it in
     `/jwks.json`.
 
+  Request signing: every grant and resource request (not the Admin API or the
+  IDP interaction calls) runs `scripts.addSignatureHeaders()` as its
+  pre-request script. That:
+  - generates an Ed25519 key pair on first use and keeps it in the runtime
+    vars `clientPrivateKey` / `clientPublicJwk` / `clientKeyId`
+    (`kid: bruno-client-key`), so one key covers the whole run;
+  - resolves `{{...}}` variables in the URL, headers and body *before*
+    signing and writes the resolved body back, so the signature covers the
+    bytes actually sent;
+  - POSTs the request to `httpSignatureServiceUrl`
+    (`http-signature-service`, port 3010), which signs it with
+    `@interledger/http-signature-utils` and returns `Signature`, `Signature-Input` and
+    `Content-Digest` (SHA-512);
+  - sets those headers on the outgoing request.
+
+  Bruno never does the crypto itself. Note that `keyid` in `Signature-Input`
+  is always `bruno-client-key`, so for the outgoing payment grant the key
+  Setup publishes at `<senderWalletAddress>/jwks.json` must carry that exact
+  `kid` or verification fails.
+
   Interaction: there is no IDP UI locally, so Bruno plays the user agent. It
   stops at each redirect, carries the `interactionSessionId` session cookie
   from `/start` to `/finish` itself, and accepts the grant by calling
-  `idp-interaction-service` directly with `x-idp-secret`.
+  `idp-interaction-service` directly.
 }

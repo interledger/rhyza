@@ -26,17 +26,20 @@ script:post-response {
 
     // GNAP interaction hash: client nonce, AS finish nonce, interact_ref and
     // the grant endpoint, newline-joined, sha-256, base64url.
-    const expectedHash = createHash("sha256")
-      .update(
-        [
-          bru.getVar("clientFinishNonce"),
-          bru.getVar("interactFinishNonce"),
-          interactRef,
-          bru.getVar("senderAuthServer")
-        ].join("\n")
-      )
-      .digest("base64url");
-    bru.setVar("interactHashValid", params.get("hash") === expectedHash);
+    bru.setVar("interactHash", params.get("hash"));
+    bru.setVar(
+      "expectedInteractHash",
+      createHash("sha256")
+        .update(
+          [
+            bru.getVar("clientFinishNonce"),
+            bru.getVar("interactFinishNonce"),
+            interactRef,
+            bru.getVar("senderAuthServer")
+          ].join("\n")
+        )
+        .digest("base64url")
+    );
   }
 }
 
@@ -48,7 +51,7 @@ tests {
 
   test("interact_ref and a valid hash", function () {
     expect(bru.getVar("interactRef")).to.be.a("string");
-    expect(bru.getVar("interactHashValid")).to.equal(true);
+    expect(bru.getVar("interactHash")).to.equal(bru.getVar("expectedInteractHash"));
   });
 }
 

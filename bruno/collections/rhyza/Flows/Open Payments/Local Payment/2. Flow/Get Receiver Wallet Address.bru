@@ -24,11 +24,3 @@ tests {
     expect(res.getBody().authServer).to.be.a("string");
   });
 }
-
-docs {
-  Discovers where to ask for the incoming payment grant (`authServer`).
-
-  `id` is the wallet address URL, used as-is in request bodies. It carries the
-  resource server's Docker name, so Bruno's own requests keep going to
-  `openPaymentsResourceServerUrl` instead of `resourceServer`.
-}

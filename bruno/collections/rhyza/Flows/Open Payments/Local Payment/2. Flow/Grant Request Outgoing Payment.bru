@@ -68,15 +68,3 @@ tests {
     expect(body.access_token).to.equal(undefined);
   });
 }
-
-docs {
-  Outgoing payment access needs the user's consent, so the grant comes back
-  pending with an `interact.redirect` instead of an access token.
-
-  `client` is the sender wallet address, not `client.jwk`: directed identity
-  is only allowed for non-interactive grants.
-
-  `interact.finish.uri` is where the auth server would send the user back to
-  the client. Nothing listens there; Bruno reads the redirect off the
-  `/finish` response instead.
-}
