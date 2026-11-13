@@ -14,6 +14,7 @@ import {
   GrantFinish,
   SubjectId,
   AccessLimits,
+  AuthClientPermissionDeniedError,
   AuthClientInvalidContinuationError,
   AuthClientInvalidRotationError,
   AuthClientUnknownAccessTokenError
