@@ -5,7 +5,9 @@ import * as assert from 'node:assert/strict';
 import { Metadata, ServiceError, status } from '@grpc/grpc-js';
 import { AUTH_ERROR_NAME_METADATA_KEY } from 'auth-public-types-lib';
 import {
+  AuthClientAlreadyExistsError,
   AuthClientContinuationTooFastError,
+  AuthClientDuplicateGrantError,
   AuthClientError,
   AuthClientGrantNotFoundError,
   AuthClientInsufficientGrantError,
@@ -96,6 +98,11 @@ describe('clientErrorFromGrpcError', () => {
       'InvalidGrantError',
       status.FAILED_PRECONDITION,
       AuthClientInvalidGrantError
+    ],
+    [
+      'DuplicateGrantError',
+      status.ALREADY_EXISTS,
+      AuthClientDuplicateGrantError
     ]
   ] as const;
 
@@ -126,6 +133,7 @@ describe('clientErrorFromGrpcError', () => {
     [status.PERMISSION_DENIED, AuthClientPermissionDeniedError],
     [status.INVALID_ARGUMENT, AuthClientInvalidInputError],
     [status.NOT_FOUND, AuthClientNotFoundError],
+    [status.ALREADY_EXISTS, AuthClientAlreadyExistsError],
     [status.FAILED_PRECONDITION, AuthClientInvalidGrantError],
     [status.INTERNAL, AuthClientUnknownError]
   ] as const;

@@ -29,6 +29,7 @@ export class AuthClientInvalidRotationError extends AuthClientError {}
 export class AuthClientInsufficientGrantError extends AuthClientError {}
 export class AuthClientInvalidInteractionError extends AuthClientError {}
 export class AuthClientNonInteractiveGrantError extends AuthClientError {}
+export class AuthClientDuplicateGrantError extends AuthClientError {}
 
 // Fallbacks, used when the auth BC did not send a domain error name (or sent
 // one this client does not know about). One per gRPC status code we map.
@@ -36,6 +37,7 @@ export class AuthClientUnknownError extends AuthClientError {}
 export class AuthClientPermissionDeniedError extends AuthClientError {}
 export class AuthClientInvalidInputError extends AuthClientError {}
 export class AuthClientNotFoundError extends AuthClientError {}
+export class AuthClientAlreadyExistsError extends AuthClientError {}
 
 type AuthClientErrorConstructor = new (message?: string) => AuthClientError;
 
@@ -51,7 +53,8 @@ const ERRORS_BY_DOMAIN_NAME: Record<string, AuthClientErrorConstructor> = {
   InsufficientGrantError: AuthClientInsufficientGrantError,
   InvalidInteractionError: AuthClientInvalidInteractionError,
   NonInteractiveGrantError: AuthClientNonInteractiveGrantError,
-  InvalidGrantError: AuthClientInvalidGrantError
+  InvalidGrantError: AuthClientInvalidGrantError,
+  DuplicateGrantError: AuthClientDuplicateGrantError
 };
 
 export function isAuthClientError(err: unknown): err is AuthClientError {
@@ -84,6 +87,8 @@ export function clientErrorFromGrpcError(err: unknown): AuthClientError {
       return new AuthClientInvalidInputError(message);
     case status.NOT_FOUND:
       return new AuthClientNotFoundError(message);
+    case status.ALREADY_EXISTS:
+      return new AuthClientAlreadyExistsError(message);
     case status.FAILED_PRECONDITION:
       return new AuthClientInvalidGrantError(message);
     default:
