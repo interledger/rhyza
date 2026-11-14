@@ -1,12 +1,34 @@
 name: E2E tests
 
+# Manual only. Release runs its own e2e against the release-tagged images;
+# this builds the current checkout and runs the same stack on demand.
 on:
   workflow_dispatch:
 
-jobs:
-  e2e:
-    runs-on: ubuntu-latest
+permissions: {}
 
+jobs:
+  # Same reusable build as the release pipeline, amd64 only and tagged e2e
+  # instead of a release version. No registry push, no git tag.
+  docker-build:
+    permissions:
+      contents: read
+      actions: write
+    uses: ./.github/workflows/docker-build.yaml
+    with:
+      version: e2e
+      platforms: '[{"arch":"linux/amd64","name":"amd64"}]'
+
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    env:
+      VERSION: e2e
     steps:
       - uses: actions/checkout@v6
         with:
@@ -17,14 +39,55 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
-      - name: Install dependencies
+      - name: Download amd64 image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: docker-image-*-amd64
+          path: /tmp/images
+          merge-multiple: true
+
+      - name: Load amd64 images
         run: |
-          pnpm install --frozen-lockfile
+          set -euo pipefail
+          shopt -s nullglob
+          tars=(/tmp/images/*.tar)
+          if [[ ${#tars[@]} -eq 0 ]]; then
+            echo "No amd64 image tars downloaded" >&2
+            exit 1
+          fi
+          for tar in "${tars[@]}"; do
+            echo "Loading $tar"
+            docker load --input "$tar"
+          done
+          mapfile -t loaded < <(docker images --format '{{.Repository}}:{{.Tag}}' | grep "^rhyza-.*-amd64:${VERSION}$" || true)
+          expected=$(( $(jq 'length' .github/release-packages.json) + 1 ))
+          if [[ ${#loaded[@]} -ne "$expected" ]]; then
+            echo "Expected ${expected} rhyza-*-amd64:${VERSION} images, found ${#loaded[@]}" >&2
+            printf '%s\n' "${loaded[@]}"
+            docker images
+            exit 1
+          fi
+          printf 'Loaded %s e2e images\n' "${#loaded[@]}"
+          printf '%s\n' "${loaded[@]}"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build admin-client-lib
-        run: |
-          pnpm --filter admin-client-lib build
+        run: pnpm --filter admin-client-lib build
 
       - name: Run E2E tests
-        run: |
-          pnpm e2e
+        env:
+          TARGET_ARCH: amd64
+          E2E_COMPOSE_PROJECT: rhyza-e2e
+          E2E_COMPOSE_LOGS_PATH: ${{ runner.temp }}/e2e-compose-logs.txt
+        run: pnpm e2e
+
+      - name: Upload compose logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-compose-logs
+          path: ${{ runner.temp }}/e2e-compose-logs.txt
+          if-no-files-found: warn
+          retention-days: 7

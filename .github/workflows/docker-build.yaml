@@ -1,0 +1,85 @@
+name: Docker build
+
+# Builds every release package (plus the e2e-only ase-mock-service) and uploads
+# each image as a docker-image-<package>-<arch> artifact. Callers load those
+# artifacts rather than rebuilding: release.yaml pushes them to GHCR, e2e.yaml
+# runs the e2e stack against them.
+#
+# workflow_call never fires on its own. Callers supply the version and the
+# platforms to build for.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Tag to build as, for example v1.2.3 or e2e.
+        required: true
+        type: string
+      platforms:
+        description: >
+          JSON array of platforms, matching .github/release-platforms.json, for
+          example [{"arch":"linux/amd64","name":"amd64"}].
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      packages: ${{ steps.matrix.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: matrix
+        run: echo "packages=$(jq -c . .github/release-packages.json)" >> "$GITHUB_OUTPUT"
+
+  build:
+    runs-on: ${{ matrix.platform.name == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-latest' }}
+    needs: [config]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write
+    strategy:
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
+        package: ${{ fromJSON(needs.config.outputs.packages) }}
+        include:
+          # Test-only image for e2e; amd64 only regardless of the platforms
+          # input, and the release push skips it (not in release-packages.json).
+          - platform:
+              arch: linux/amd64
+              name: amd64
+            package: ase-mock-service
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ matrix.platform.arch }}
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          platforms: ${{ matrix.platform.arch }}
+          file: packages/${{ matrix.package }}/Dockerfile
+          cache-from: type=gha,scope=rhyza-${{ matrix.package }}-${{ matrix.platform.name }}
+          cache-to: type=gha,mode=max,scope=rhyza-${{ matrix.package }}-${{ matrix.platform.name }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/rhyza-${{ matrix.package }}-${{ matrix.platform.name }}:${{ inputs.version }}
+            rhyza-${{ matrix.package }}-${{ matrix.platform.name }}:${{ inputs.version }}
+          outputs: type=docker,dest=/tmp/${{ github.sha }}-${{ matrix.package }}-${{ matrix.platform.name }}-${{ inputs.version }}.tar
+      - name: Upload docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ matrix.package }}-${{ matrix.platform.name }}
+          path: /tmp/${{ github.sha }}-${{ matrix.package }}-${{ matrix.platform.name }}-${{ inputs.version }}.tar
+          retention-days: 1
+          if-no-files-found: error
