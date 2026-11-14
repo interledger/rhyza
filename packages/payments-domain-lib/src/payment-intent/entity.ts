@@ -1,6 +1,6 @@
 import {
+  DuplicatePaymentIdError,
   InvalidPaymentAmountError,
-  InvalidPaymentIdError,
   InvalidPaymentIntentError,
   InvalidPaymentIntentExpiryError,
   InvalidQuoteAmountError,
@@ -1260,7 +1260,7 @@ export class PaymentIntent implements IPaymentIntent {
     }
 
     if (this._sentPayments.find((payment) => payment.id === id)) {
-      throw new InvalidPaymentIdError(
+      throw new DuplicatePaymentIdError(
         `Duplicate payment id ${id} exists for ${this.id} payment intent`
       );
     }
@@ -1368,7 +1368,7 @@ export class PaymentIntent implements IPaymentIntent {
     }
 
     if (this._sentPayments.find((payment) => payment.id === paymentId)) {
-      throw new InvalidPaymentIdError(
+      throw new DuplicatePaymentIdError(
         `Duplicate payment id ${paymentId} exists for ${this.id} payment intent`
       );
     }
@@ -1709,7 +1709,7 @@ export class PaymentIntent implements IPaymentIntent {
     }
 
     if (this._inboundPayments.find((rp) => rp.id === id)) {
-      throw new InvalidPaymentIdError(
+      throw new DuplicatePaymentIdError(
         `Duplicate inbound payment id ${id} exists for ${this.id} payment intent`
       );
     }
@@ -1807,13 +1807,15 @@ export class PaymentIntent implements IPaymentIntent {
     return inboundPayment.toObject();
   }
 
-  cancelPayment(args: { id: string; reason?: string }): void {
+  cancelPayment(args: { id: string; reason?: string }): SentPayment {
     const { id, reason } = args;
 
     // cancel() is on the base: cancellable whatever it routes over
     const payment = this._findPayment(id);
 
     payment.cancel(reason);
+
+    return payment;
   }
 
   get id(): string {

@@ -65,11 +65,15 @@ services:
     environment:
       AUTH_GRPC_URL: auth-api-service:50054
       OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:3003
+      REDIS_URL: redis:6379
+      SESSION_SECRET: local-dev-session-secret-not-for-production
     ports:
       - '3003:3003'
     depends_on:
       auth-api-service:
         condition: service_started
+      redis:
+        condition: service_healthy
     networks:
       - rhyza
 
@@ -380,6 +384,19 @@ services:
     networks:
       - rhyza
 
+  auth-event-handler-service:
+    build:
+      context: ../
+      dockerfile: ./packages/auth-event-handler-service/Dockerfile
+    restart: always
+    environment:
+      KAFKA_URL: kafka:19092
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+    networks:
+      - rhyza
+
   mongodb:
     image: mongo:7
     restart: unless-stopped
@@ -484,11 +501,11 @@ services:
       - rhyza
 
   redis:
-    image: redis:latest
+    image: valkey/valkey:9.0
     ports:
       - '6379:6379'
     healthcheck:
-      test: redis-cli ping | grep -q PONG || exit 1
+      test: valkey-cli ping | grep -q PONG || exit 1
       start_period: 10s
       interval: 10s
       timeout: 10s

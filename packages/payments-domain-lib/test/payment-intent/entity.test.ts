@@ -15,7 +15,7 @@ import {
   QuoteExpiredError,
   PaymentNotFoundError,
   PaymentInvalidStateError,
-  InvalidPaymentIdError
+  DuplicatePaymentIdError
 } from '../../src/payment-intent/errors';
 import {
   IPaymentIntent,
@@ -919,7 +919,7 @@ describe('PaymentIntent Entity', () => {
       assert.equal(payment.receiveAmount, 100n);
     });
 
-    it('throws InvalidQuoteIdError on duplicate payment id', () => {
+    it('throws DuplicatePaymentIdError on duplicate payment id', () => {
       const paymentIntent = PaymentIntent.create(
         crypto.randomUUID(),
         crypto.randomUUID(),
@@ -949,7 +949,7 @@ describe('PaymentIntent Entity', () => {
           paymentIntent.addLocalPayment(paymentArgs);
         },
         (err: Error) => {
-          assert(err instanceof InvalidPaymentIdError);
+          assert(err instanceof DuplicatePaymentIdError);
           assert.match(err.message, /Duplicate payment id/);
           return true;
         }
@@ -1648,7 +1648,7 @@ describe('PaymentIntent Entity', () => {
         );
       });
 
-      it('throws InvalidPaymentIdError on duplicate payment id', () => {
+      it('throws DuplicatePaymentIdError on duplicate payment id', () => {
         const { paymentIntent, quoteId, senderWalletAddressId } =
           makeRemoteIntentWithCompletedQuote();
         const paymentId = crypto.randomUUID();
@@ -1668,7 +1668,7 @@ describe('PaymentIntent Entity', () => {
         assert.throws(
           () => paymentIntent.addRemotePaymentFromQuote(args),
           (err: Error) => {
-            assert(err instanceof InvalidPaymentIdError);
+            assert(err instanceof DuplicatePaymentIdError);
             assert.match(err.message, /Duplicate payment id/);
             return true;
           }
