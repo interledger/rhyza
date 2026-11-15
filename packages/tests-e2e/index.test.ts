@@ -337,7 +337,7 @@ async function poll<T>(args: {
 }): Promise<T> {
   const deadline = Date.now() + args.timeoutMs;
 
-  while (true) {
+  for (;;) {
     await setTimeout(args.pollingFrequencyMs);
     const result = await args.request();
     if (args.stopWhen(result)) return result;
