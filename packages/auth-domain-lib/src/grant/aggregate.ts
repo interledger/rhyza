@@ -954,8 +954,7 @@ export class GrantAggregate {
       return new OutgoingPaymentGrantLimitValidationFailedEvent(
         {
           grantId: id,
-          errorName: (err as Error).constructor.name,
-          message: (err as Error).message
+          ...getErrorDetails(err)
         },
         cmd.requestId
       );
