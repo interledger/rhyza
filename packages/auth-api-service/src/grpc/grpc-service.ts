@@ -280,8 +280,9 @@ export class AuthServiceServer {
               receiver: item.getLimits().getReceiver(),
               assetCode: item.getLimits().getAssetCode(),
               assetScale: item.getLimits().getAssetScale(),
-              debitAmount: item.getLimits().getDebitAmountValue(),
-              receiveAmount: item.getLimits().getReceiveAmountValue(),
+              debitAmount: item.getLimits().getDebitAmountValue() || undefined,
+              receiveAmount:
+                item.getLimits().getReceiveAmountValue() || undefined,
               interval: item.getLimits().getInterval()
             }
           : undefined
@@ -481,8 +482,10 @@ export class AuthServiceServer {
                   receiver: item.getLimits().getReceiver(),
                   assetCode: item.getLimits().getAssetCode(),
                   assetScale: item.getLimits().getAssetScale(),
-                  debitAmount: item.getLimits().getDebitAmountValue(),
-                  receiveAmount: item.getLimits().getReceiveAmountValue(),
+                  debitAmount:
+                    item.getLimits().getDebitAmountValue() || undefined,
+                  receiveAmount:
+                    item.getLimits().getReceiveAmountValue() || undefined,
                   interval: item.getLimits().getInterval()
                 }
               : undefined
