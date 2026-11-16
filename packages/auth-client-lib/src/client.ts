@@ -31,7 +31,9 @@ import {
   RotateTokenRequest as PbRotateTokenRequest,
   RevokeTokenRequest as PbRevokeTokenRequest,
   AccessItem as PbAccessItem,
-  SubjectId as PbSubjectId
+  SubjectId as PbSubjectId,
+  ValidateOutgoingPaymentGrantLimitRequest as PbValidateOutgoingPaymentGrantLimitRequest,
+  GrantSpentAmountsResponse as PbGrantSpentAmountsResponse
 } from 'auth-public-types-lib';
 import {
   AccessItem,
@@ -42,6 +44,7 @@ import {
   FinishInteractionResult,
   GetGrantResult,
   GrantFinish,
+  GrantSpentAmountsResult,
   HandleInteractionChoiceResult,
   InteractionResult,
   IntrospectTokenResult,
@@ -285,6 +288,32 @@ export class AuthClient {
             reject(clientErrorFromGrpcError(error));
           } else {
             resolve(fromPbIntrospectTokenResponse(response));
+          }
+        }
+      );
+    });
+  }
+
+  validateOutgoingPaymentGrantLimit(
+    id: string,
+    debitAmount: bigint,
+    receiveAmount: bigint,
+    createdAt: string
+  ): Promise<GrantSpentAmountsResult> {
+    const request = new PbValidateOutgoingPaymentGrantLimitRequest();
+    request.setId(id);
+    request.setDebitAmountValue(String(debitAmount));
+    request.setReceiveAmountValue(String(receiveAmount));
+    request.setCreatedAt(createdAt);
+
+    return new Promise((resolve, reject) => {
+      this._grpcClient.validateOutgoingPaymentGrantLimit(
+        request,
+        (error: ServiceError | null, response: PbGrantSpentAmountsResponse) => {
+          if (error) {
+            reject(clientErrorFromGrpcError(error));
+          } else {
+            resolve(fromPbGrantSpentAmountsResponse(response));
           }
         }
       );
@@ -659,6 +688,23 @@ function fromPbIntrospectTokenResponse(
     active: response.getActive(),
     grantId: response.getGrantId(),
     access: response.getAccessList().map(fromPbAccessItem)
+  };
+}
+
+function fromPbGrantSpentAmountsResponse(
+  response: PbGrantSpentAmountsResponse
+): GrantSpentAmountsResult {
+  const intervalDebit = response.getIntervalSpentDebitAmount();
+  const intervalReceive = response.getIntervalSpentReceiveAmount();
+
+  return {
+    grantId: response.getId(),
+    totalSpentDebitAmount: BigInt(response.getTotalSpentDebitAmount()),
+    totalSpentReceiveAmount: BigInt(response.getTotalSpentReceiveAmount()),
+    intervalSpentDebitAmount: intervalDebit ? BigInt(intervalDebit) : undefined,
+    intervalSpentReceiveAmount: intervalReceive
+      ? BigInt(intervalReceive)
+      : undefined
   };
 }
 
