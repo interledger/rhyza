@@ -80,7 +80,7 @@ sequenceDiagram
 - The grace period gives a fulfill that reached the connector before the packet deadline time to reach Payments before the check expires the payment.
 - A late ILP failure for an expired payment is ignored.
 - A late fulfill for an expired payment is logged as an error that needs reconciliation. The grace period makes this rare but cannot rule it out, and nothing reconciles it automatically yet.
-- PAL releasing the reservation (#365) and ILP expiring the packet (#366) are separate changes.
+- ILP expiring the packet (#366) is a separate change.
 
 # Notes
 
