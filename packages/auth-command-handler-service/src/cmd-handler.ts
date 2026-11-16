@@ -17,7 +17,9 @@ import {
   RejectInteractionCmd,
   GrantAggregate,
   StartInteractionCmd,
-  FinishInteractionCmd
+  FinishInteractionCmd,
+  ValidateOutgoingPaymentGrantLimitCmd,
+  RevertGrantSpentAmountCmd
 } from 'auth-domain-lib';
 
 export class AuthCommandHandler {
@@ -67,6 +69,8 @@ export class AuthCommandHandler {
         case AcceptInteractionCmd.name:
         case RejectInteractionCmd.name:
         case FinishInteractionCmd.name:
+        case ValidateOutgoingPaymentGrantLimitCmd.name:
+        case RevertGrantSpentAmountCmd.name:
           commandMessages.push(msg);
           break;
         default:

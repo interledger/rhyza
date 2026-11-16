@@ -1,0 +1,21 @@
+{
+  "name": "auth-event-handler-service",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "build": "tsc --build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "common-types-lib": "workspace:*",
+    "implementations-lib": "workspace:*",
+    "auth-domain-lib": "workspace:*",
+    "payments-public-types-lib": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}

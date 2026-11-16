@@ -97,10 +97,10 @@ export class QuoteExpiredError extends FailedPrecondition {
   }
 }
 
-export class InvalidPaymentIdError extends InvalidArgument {
+export class DuplicatePaymentIdError extends AlreadyExists {
   constructor(message?: string) {
     super(message);
-    this.name = 'InvalidPaymentIdError';
+    this.name = 'DuplicatePaymentIdError';
   }
 }
 
