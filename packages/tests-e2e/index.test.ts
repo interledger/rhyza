@@ -16,6 +16,7 @@ import {
 } from 'admin-client-lib';
 
 const ADMIN_API_PORT = 3001;
+const ASE_MOCK_PORT = 3000;
 const NODE_B_ADMIN_API_PORT = 4001;
 const ADMIN_API_URL = 'http://localhost:' + ADMIN_API_PORT;
 const NODE_B_ADMIN_API_URL = 'http://localhost:' + NODE_B_ADMIN_API_PORT;
@@ -55,12 +56,12 @@ describe('E2E tests', () => {
     try {
       environment = await environmentBuilder
         .withWaitStrategy(
-          'admin-api-service-1',
-          Wait.forLogMessage('AdminApiService start complete')
+          'ase-mock-service-1',
+          Wait.forHttp('/healthz', ASE_MOCK_PORT)
         )
         .withWaitStrategy(
-          'admin-api-service-b-1',
-          Wait.forLogMessage('AdminApiService start complete')
+          'ase-mock-service-b-1',
+          Wait.forHttp('/healthz', ASE_MOCK_PORT)
         )
         .up();
     } catch (error) {
