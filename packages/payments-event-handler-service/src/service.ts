@@ -54,7 +54,8 @@ export class PaymentsEventHandlerService {
 
     this.eventHandler = new PaymentsEventHandler(
       this.msgConsumer,
-      this.msgProducer
+      this.msgProducer,
+      logger.child('payments-event-handler')
     );
 
     await this.eventHandler.start();
