@@ -702,6 +702,7 @@ describe('Auth Client', () => {
       assert.equal(result.id, created.id);
 
       const grant = await authClient.getGrant(created.id);
+      assert.ok(grant);
       assert.equal(grant.state, 'REVOKED');
       assert.ok(!grant.continueToken);
       assert.ok(!grant.continueId);
@@ -741,6 +742,7 @@ describe('Auth Client', () => {
       assert.equal(result.id, created.id);
 
       const grant = await authClient.getGrant(created.id);
+      assert.ok(grant);
       assert.equal(grant.state, 'REVOKED');
       assert.ok(!grant.continueToken);
       assert.ok(!grant.continueId);
@@ -844,6 +846,7 @@ describe('Auth Client', () => {
       assert.equal(result.id, created.id);
 
       const grant = await authClient.getGrant(created.id);
+      assert.ok(grant);
       assert.equal(grant.state, 'REVOKED');
     });
 
@@ -859,6 +862,7 @@ describe('Auth Client', () => {
       assert.equal(result.id, created.id);
 
       const grant = await authClient.getGrant(created.id);
+      assert.ok(grant);
       assert.equal(grant.state, 'REVOKED');
     });
 
@@ -1186,6 +1190,7 @@ describe('Auth Client', () => {
       assert.ok(result.interactRef);
 
       const grant = await authClient.getGrant(id);
+      assert.ok(grant);
       assert.equal(grant.state, 'APPROVED');
     });
 
@@ -1199,6 +1204,7 @@ describe('Auth Client', () => {
       assert.equal(result.id, id);
 
       const grant = await authClient.getGrant(id);
+      assert.ok(grant);
       assert.equal(grant.state, 'REJECTED');
     });
 
