@@ -64,6 +64,7 @@ describe('E2E tests', () => {
         )
         .up();
     } catch (error) {
+      logRestartingContainers(error);
       dumpComposeLogs();
       throw error;
     }
@@ -363,9 +364,49 @@ async function step(
       await fn();
     } catch (error) {
       progress.failed = true;
+      logRestartingContainers(error);
       throw error;
     }
   });
+}
+
+function logRestartingContainers(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const id = message.match(/Container ([0-9a-f]{12,64}) is restarting/i)?.[1];
+
+  try {
+    if (id) {
+      const inspected = execFileSync(
+        'docker',
+        [
+          'inspect',
+          '--format',
+          '{{.Name}} status={{.State.Status}} error={{.State.Error}}',
+          id
+        ],
+        { encoding: 'utf8' }
+      );
+      console.error(`Restarting container ${id}: ${inspected.trim()}`);
+    }
+
+    const restarting = execFileSync(
+      'docker',
+      [
+        'ps',
+        '-a',
+        '--filter',
+        'status=restarting',
+        '--format',
+        '{{.ID}} {{.Names}} {{.Status}}'
+      ],
+      { encoding: 'utf8' }
+    );
+    console.error(`Restarting containers:\n${restarting || '(none)\n'}`);
+  } catch (inspectError) {
+    const inspectMessage =
+      inspectError instanceof Error ? inspectError.message : String(inspectError);
+    console.error(`Failed to resolve restarting container name: ${inspectMessage}`);
+  }
 }
 
 function dumpComposeLogs(): void {
