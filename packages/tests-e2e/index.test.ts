@@ -16,7 +16,6 @@ import {
 } from 'admin-client-lib';
 
 const ADMIN_API_PORT = 3001;
-const ASE_MOCK_PORT = 3000;
 const NODE_B_ADMIN_API_PORT = 4001;
 const ADMIN_API_URL = 'http://localhost:' + ADMIN_API_PORT;
 const NODE_B_ADMIN_API_URL = 'http://localhost:' + NODE_B_ADMIN_API_PORT;
@@ -70,7 +69,6 @@ describe('E2E tests', () => {
       console.error(
         `[tests setup] Containers that died or restarted before removal:\n${recorded || '(none)'}`
       );
-      logRestartingContainers(error, 'tests setup');
       dumpComposeLogs();
       throw error;
     } finally {
@@ -372,12 +370,12 @@ async function step(
       await fn();
     } catch (error) {
       progress.failed = true;
-      logRestartingContainers(error, name);
       throw error;
     }
   });
 }
 
+// Watch for container events and record them.
 function startContainerEventWatch(): {
   recorded: () => string;
   stop: () => void;
@@ -397,10 +395,7 @@ function startContainerEventWatch(): {
     '{{.Actor.Attributes.name}} {{.Action}} id={{.Actor.ID}} exit={{.Actor.Attributes.exitCode}}'
   ];
   if (composeProject) {
-    args.push(
-      '--filter',
-      `label=com.docker.compose.project=${composeProject}`
-    );
+    args.push('--filter', `label=com.docker.compose.project=${composeProject}`);
   }
 
   const child = spawn('docker', args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -418,53 +413,6 @@ function startContainerEventWatch(): {
       }
     }
   };
-}
-
-function logRestartingContainers(error: unknown, testName: string): void {
-  const message = error instanceof Error ? error.message : String(error);
-  const id = message.match(/Container ([0-9a-f]{12,64}) is restarting/i)?.[1];
-
-  try {
-    if (id) {
-      const inspected = execFileSync(
-        'docker',
-        [
-          'inspect',
-          '--format',
-          '{{.Name}} status={{.State.Status}} error={{.State.Error}}',
-          id
-        ],
-        { encoding: 'utf8' }
-      );
-      console.error(
-        `[${testName}] Restarting container ${id}: ${inspected.trim()}`
-      );
-    }
-
-    const restarting = execFileSync(
-      'docker',
-      [
-        'ps',
-        '-a',
-        '--filter',
-        'status=restarting',
-        '--format',
-        '{{.ID}} {{.Names}} {{.Status}}'
-      ],
-      { encoding: 'utf8' }
-    );
-    console.error(
-      `[${testName}] Restarting containers:\n${restarting || '(none)\n'}`
-    );
-  } catch (inspectError) {
-    const inspectMessage =
-      inspectError instanceof Error
-        ? inspectError.message
-        : String(inspectError);
-    console.error(
-      `[${testName}] Failed to resolve restarting container name: ${inspectMessage}`
-    );
-  }
 }
 
 function dumpComposeLogs(): void {
