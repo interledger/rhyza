@@ -117,9 +117,7 @@ export async function incomingPaymentRoutes(
         await introspectToken(request, reply, {
           ...introspectionOpts,
           action: RequestAction.Create,
-          identifier: (
-            request.body as components['schemas']['create-incoming-payment-request']
-          ).walletAddress
+          identifier: request.body.walletAddress
         })
     },
     async (request, reply) => {
@@ -208,7 +206,6 @@ export async function incomingPaymentRoutes(
       preHandler: async (request, reply) => {
         // Without a token, we return a "public" incoming payment
         if (!request.headers['authorization']) {
-          request.grantAccess = null;
           return;
         }
 
@@ -290,9 +287,7 @@ export async function incomingPaymentRoutes(
         await introspectToken(request, reply, {
           ...introspectionOpts,
           action: RequestAction.List,
-          identifier: (request.query as { 'wallet-address'?: string })[
-            'wallet-address'
-          ]
+          identifier: request.query['wallet-address']
         })
     },
     async (request, reply) => {

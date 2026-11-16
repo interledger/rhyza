@@ -11,12 +11,10 @@ import { OpenPaymentsResourceServerRouteError } from './errors.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Access item matched by token introspection; null when unauthenticated. */
     grantAccess: AccessItem | null;
   }
 }
 
-// Matches the UPPER_SNAKE_CASE access types and actions the Auth BC stores.
 export const AccessType = {
   IncomingPayment: 'INCOMING_PAYMENT',
   OutgoingPayment: 'OUTGOING_PAYMENT',
@@ -34,10 +32,6 @@ export type RequestAction = (typeof RequestAction)[keyof typeof RequestAction];
 
 const DELIMITER = '_';
 
-/**
- * Access token values are handed out by the Open Payments Auth Server as
- * base64url(`<grantId>_<rawToken>`). Duplicated from open-payments-auth-service.
- */
 export function decodeAccessTokenValue(
   value: string
 ): { grantId: string; tokenValue: string } | undefined {
@@ -140,13 +134,6 @@ export interface TokenIntrospectionOptions {
   identifier?: string;
 }
 
-/**
- * Verifies the request's GNAP access token and HTTP message signature through
- * Auth BC introspection. On success, the matched access item is set on
- * `request.grantAccess`.
- *
- * Must run after the body is parsed (`preHandler`) so the signature covers it.
- */
 export async function introspectToken(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -227,11 +214,6 @@ export async function introspectToken(
   }
 }
 
-/**
- * Throws 403 when the introspected grant access is scoped to a different
- * wallet address than the one owning the fetched resource. No-op for
- * unauthenticated requests or grants without an identifier.
- */
 export function assertGrantIdentifierMatches(
   request: FastifyRequest,
   resourceWalletAddress: string

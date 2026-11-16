@@ -49,8 +49,7 @@ async function createTestApp(
           action: RequestAction.Create,
           ...(identifierFromBody
             ? {
-                identifier: (request.body as { walletAddress?: string })
-                  .walletAddress
+                identifier: request.body.walletAddress
               }
             : {}),
           ...introspectOpts
@@ -180,7 +179,7 @@ describe('introspectToken', () => {
 
   test('500 when introspection fails unexpectedly', async () => {
     const app = await createTestApp(
-      stubAuthClient(new AuthClientUnknownError('boom'))
+      stubAuthClient(new AuthClientUnknownError('unexpected'))
     );
 
     const response = await app.inject({
