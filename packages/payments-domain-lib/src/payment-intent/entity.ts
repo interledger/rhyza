@@ -1,5 +1,6 @@
 import {
   DuplicatePaymentIdError,
+  InboundPaymentExpiredError,
   InvalidPaymentAmountError,
   InvalidPaymentIntentError,
   InvalidPaymentIntentExpiryError,
@@ -40,6 +41,11 @@ const ILP_PACKET_EXPIRY_MS = 30_000;
 // Kafka to Payments, and should land before the expiry check does.
 export const PAYMENT_EXPIRY_GRACE_MS = 5_000;
 export const PAYMENT_EXPIRED_REASON = 'Payment expired before it was fulfilled';
+// An inbound payment needs at least this long before its packet expires to be
+// validated or accepted, so the fulfill can still reach the sender in time.
+export const INBOUND_FULFILL_MARGIN_MS = 1_000;
+export const INBOUND_PAYMENT_EXPIRED_REASON =
+  'Inbound payment expired before it was accepted';
 
 type QuoteRequest = {
   debitAmount?: bigint;
@@ -734,7 +740,7 @@ class InboundPayment {
   private _receiveAmount: bigint;
   private _createdAt: Date;
   private _expiresAt?: Date;
-  private _ledgerTransferId?: string;
+  private _ledgerTransferId: string;
   private _failReason?: string;
 
   private constructor(args: IInboundPayment) {
@@ -763,6 +769,7 @@ class InboundPayment {
     sourceAmount: bigint;
     receiveAmount: bigint;
     expiresAt?: Date;
+    ledgerTransferId: string;
   }): InboundPayment {
     return new InboundPayment({
       ...args,
@@ -775,31 +782,43 @@ class InboundPayment {
     return new InboundPayment(obj);
   }
 
-  accept(ledgerTransferId: string): void {
+  /** Whether less than the fulfill margin is left before the packet expires. */
+  isTooLateToFulfill(now: Date): boolean {
+    return (
+      this._expiresAt !== undefined &&
+      this._expiresAt.getTime() - now.getTime() < INBOUND_FULFILL_MARGIN_MS
+    );
+  }
+
+  /** VALIDATED → ACCEPTED. Any other state is left alone. Returns whether it changed. */
+  accept(): boolean {
     if (this._state !== 'VALIDATED') {
-      throw new PaymentInvalidStateError(
-        `Inbound payment ${this._id} cannot be accepted from state ${this._state}`
-      );
+      return false;
     }
     this._state = 'ACCEPTED';
-    this._ledgerTransferId = ledgerTransferId;
+    return true;
   }
 
-  markFulfillable(): void {
+  /** ACCEPTED → FULFILLED. Already FULFILLED or FINALIZED is left alone. Returns whether it changed. */
+  markFulfilled(): boolean {
+    if (this._state === 'FULFILLED' || this._state === 'FINALIZED') {
+      return false;
+    }
     if (this._state !== 'ACCEPTED') {
       throw new PaymentInvalidStateError(
-        `Inbound payment ${this._id} cannot be marked fulfillable from state ${this._state}`
+        `Inbound payment ${this._id} cannot be marked fulfilled from state ${this._state}`
       );
     }
-    this._state = 'FULFILLABLE';
+    this._state = 'FULFILLED';
+    return true;
   }
 
-  fail(reason?: string): void {
-    if (
-      this._state !== 'VALIDATED' &&
-      this._state !== 'ACCEPTED' &&
-      this._state !== 'FULFILLABLE'
-    ) {
+  /** VALIDATED or ACCEPTED → FAILED. Already FAILED is left alone. Returns whether it changed. */
+  fail(reason?: string): boolean {
+    if (this._state === 'FAILED') {
+      return false;
+    }
+    if (this._state !== 'VALIDATED' && this._state !== 'ACCEPTED') {
       throw new PaymentInvalidStateError(
         `Inbound payment ${this._id} cannot fail from state ${this._state}`
       );
@@ -808,16 +827,35 @@ class InboundPayment {
     if (reason) {
       this._failReason = reason;
     }
+    return true;
   }
 
-  finalize(): { receiveAmount: bigint } {
-    if (this._state !== 'FULFILLABLE') {
+  /** VALIDATED → FAILED. Any other state is left alone. Returns whether it changed. */
+  expire(): boolean {
+    if (this._state !== 'VALIDATED') {
+      return false;
+    }
+    this._state = 'FAILED';
+    this._failReason = INBOUND_PAYMENT_EXPIRED_REASON;
+    return true;
+  }
+
+  /** FULFILLED → FINALIZED. Already FINALIZED is left alone. Returns whether it changed. */
+  finalize(): boolean {
+    if (this._state === 'FINALIZED') {
+      return false;
+    }
+    if (this._state !== 'FULFILLED') {
       throw new PaymentInvalidStateError(
         `Inbound payment ${this._id} cannot be finalized from state ${this._state}`
       );
     }
     this._state = 'FINALIZED';
-    return { receiveAmount: this._receiveAmount };
+    return true;
+  }
+
+  get receiveAmount(): bigint {
+    return this._receiveAmount;
   }
 
   toObject(): IInboundPayment {
@@ -1755,9 +1793,19 @@ export class PaymentIntent implements IPaymentIntent {
     sourceAmount: bigint;
     fxRate?: number;
     expiresAt?: Date;
+    ledgerTransferId: string;
+    now?: Date;
   }): IInboundPayment {
-    const { id, packetId, peerId, peerAssetCode, peerAssetScale, fxRate } =
-      args;
+    const {
+      id,
+      packetId,
+      peerId,
+      peerAssetCode,
+      peerAssetScale,
+      fxRate,
+      ledgerTransferId,
+      now = new Date()
+    } = args;
 
     if (this._destination !== 'LOCAL') {
       throw new PaymentIntentInvalidState(
@@ -1805,75 +1853,108 @@ export class PaymentIntent implements IPaymentIntent {
       peerAssetScale,
       sourceAmount: args.sourceAmount,
       receiveAmount,
-      expiresAt: args.expiresAt
+      expiresAt: args.expiresAt,
+      ledgerTransferId
     });
+
+    if (inboundPayment.isTooLateToFulfill(now)) {
+      throw new InboundPaymentExpiredError(
+        `Inbound payment ${id} expires too soon to fulfill: ${args.expiresAt?.toISOString()}`
+      );
+    }
 
     this._inboundPayments.push(inboundPayment);
     return inboundPayment.toObject();
   }
 
-  acceptInboundPayment(args: {
-    id: string;
-    ledgerTransferId: string;
-  }): IInboundPayment {
-    const { id, ledgerTransferId } = args;
+  /**
+   * VALIDATED → ACCEPTED, or → FAILED when the intent can no longer receive or
+   * the packet expires too soon to fulfill. Any other state is left alone.
+   */
+  acceptInboundPayment(args: { id: string; now?: Date }): {
+    outcome: 'ACCEPTED' | 'FAILED' | 'UNCHANGED';
+    inboundPayment: IInboundPayment;
+  } {
+    const { id, now = new Date() } = args;
 
-    const inboundPayment = this._inboundPayments.find((rp) => rp.id === id);
-    if (!inboundPayment) {
-      throw new PaymentNotFoundError(
-        `Inbound payment ${id} not found for ${this.id} payment intent`
-      );
+    const inboundPayment = this._findInboundPayment(id);
+    if (inboundPayment.state !== 'VALIDATED') {
+      return {
+        outcome: 'UNCHANGED',
+        inboundPayment: inboundPayment.toObject()
+      };
     }
 
-    inboundPayment.accept(ledgerTransferId);
-    return inboundPayment.toObject();
+    let refusal: string | undefined;
+    if (this._state !== 'CREATED') {
+      refusal = `Payment intent ${this.id} is ${this._state}`;
+    } else if (inboundPayment.isTooLateToFulfill(now)) {
+      refusal = `Inbound payment ${id} expires too soon to fulfill`;
+    }
+
+    if (refusal) {
+      inboundPayment.fail(refusal);
+      return { outcome: 'FAILED', inboundPayment: inboundPayment.toObject() };
+    }
+
+    inboundPayment.accept();
+    return { outcome: 'ACCEPTED', inboundPayment: inboundPayment.toObject() };
   }
 
-  failInboundPayment(args: { id: string; reason?: string }): IInboundPayment {
-    const { id, reason } = args;
-
-    const inboundPayment = this._inboundPayments.find((rp) => rp.id === id);
-    if (!inboundPayment) {
-      throw new PaymentNotFoundError(
-        `Inbound payment ${id} not found for ${this.id} payment intent`
-      );
-    }
-
-    inboundPayment.fail(reason);
-    return inboundPayment.toObject();
+  failInboundPayment(args: { id: string; reason?: string }): {
+    failed: boolean;
+    inboundPayment: IInboundPayment;
+  } {
+    const inboundPayment = this._findInboundPayment(args.id);
+    const failed = inboundPayment.fail(args.reason);
+    return { failed, inboundPayment: inboundPayment.toObject() };
   }
 
-  markInboundPaymentFulfillable(args: { id: string }): IInboundPayment {
-    const { id } = args;
-
-    const inboundPayment = this._inboundPayments.find((rp) => rp.id === id);
-    if (!inboundPayment) {
-      throw new PaymentNotFoundError(
-        `Inbound payment ${id} not found for ${this.id} payment intent`
-      );
-    }
-
-    inboundPayment.markFulfillable();
-    return inboundPayment.toObject();
+  expireInboundPayment(args: { id: string }): {
+    expired: boolean;
+    inboundPayment: IInboundPayment;
+  } {
+    const inboundPayment = this._findInboundPayment(args.id);
+    const expired = inboundPayment.expire();
+    return { expired, inboundPayment: inboundPayment.toObject() };
   }
 
-  finalizeInboundPayment(args: { id: string }): IInboundPayment {
-    const { id } = args;
+  markInboundPaymentFulfilled(args: { id: string }): {
+    fulfilled: boolean;
+    inboundPayment: IInboundPayment;
+  } {
+    const inboundPayment = this._findInboundPayment(args.id);
+    const fulfilled = inboundPayment.markFulfilled();
+    return { fulfilled, inboundPayment: inboundPayment.toObject() };
+  }
 
+  /**
+   * FULFILLED → FINALIZED, and credits the intent. Credits an EXPIRED intent
+   * too: the money arrived, and the intent completes if it is now fully paid.
+   */
+  finalizeInboundPayment(args: { id: string }): {
+    finalized: boolean;
+    inboundPayment: IInboundPayment;
+  } {
+    const inboundPayment = this._findInboundPayment(args.id);
+    const finalized = inboundPayment.finalize();
+    if (finalized) {
+      this._receivedAmount += inboundPayment.receiveAmount;
+      if (this._state !== 'COMPLETED' && this.isIncomingAmountMet) {
+        this._state = 'COMPLETED';
+      }
+    }
+    return { finalized, inboundPayment: inboundPayment.toObject() };
+  }
+
+  private _findInboundPayment(id: string): InboundPayment {
     const inboundPayment = this._inboundPayments.find((rp) => rp.id === id);
     if (!inboundPayment) {
       throw new PaymentNotFoundError(
         `Inbound payment ${id} not found for ${this.id} payment intent`
       );
     }
-
-    const { receiveAmount } = inboundPayment.finalize();
-    this._receivedAmount += receiveAmount;
-
-    if (this.isIncomingAmountMet) {
-      this._state = 'COMPLETED';
-    }
-    return inboundPayment.toObject();
+    return inboundPayment;
   }
 
   cancelPayment(args: { id: string; reason?: string }): SentPayment {

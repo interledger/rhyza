@@ -2340,7 +2340,8 @@ describe('PaymentIntent Entity', () => {
             peerId: 'peer-1',
             peerAssetCode: 'USD',
             peerAssetScale: 2,
-            sourceAmount: 100n
+            sourceAmount: 100n,
+            ledgerTransferId: crypto.randomUUID()
           }),
         PaymentIntentInvalidState
       );
