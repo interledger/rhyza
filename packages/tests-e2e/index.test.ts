@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { test, describe, before, after, type TestContext } from 'node:test';
 import { setTimeout } from 'node:timers/promises';
@@ -53,31 +53,20 @@ describe('E2E tests', () => {
     // Two nodes can take longer than the 60s default.
     environmentBuilder = environmentBuilder.withStartupTimeout(180_000);
 
-    let startedEnvironment: StartedDockerComposeEnvironment | undefined;
+    const containerEvents = startContainerEventWatch();
     try {
-      await poll({
-        request: async () => {
-          try {
-            startedEnvironment = await environmentBuilder.up();
-          } catch (error) {
-            logRestartingContainers(error, 'tests setup');
-            return false;
-          }
-          return true;
-        },
-        stopWhen: (ready) => ready,
-        pollingFrequencyMs: 2_000,
-        timeoutMs: 180_000
-      });
+      environment = await environmentBuilder.up();
     } catch (error) {
+      const recorded = containerEvents.recorded();
+      console.error(
+        `[tests setup] Containers that died or restarted before removal:\n${recorded || '(none)'}`
+      );
+      logRestartingContainers(error, 'tests setup');
       dumpComposeLogs();
       throw error;
+    } finally {
+      containerEvents.stop();
     }
-
-    if (startedEnvironment === undefined) {
-      throw new Error('Environment failed to start');
-    }
-    environment = startedEnvironment;
 
     adminClient = createAdminClient(ADMIN_API_URL);
   });
@@ -378,6 +367,48 @@ async function step(
       throw error;
     }
   });
+}
+
+function startContainerEventWatch(): {
+  recorded: () => string;
+  stop: () => void;
+} {
+  const lines: string[] = [];
+  const args = [
+    'events',
+    '--filter',
+    'type=container',
+    '--filter',
+    'event=die',
+    '--filter',
+    'event=restart',
+    '--filter',
+    'event=oom',
+    '--format',
+    '{{.Actor.Attributes.name}} {{.Action}} id={{.Actor.ID}} exit={{.Actor.Attributes.exitCode}}'
+  ];
+  if (composeProject) {
+    args.push(
+      '--filter',
+      `label=com.docker.compose.project=${composeProject}`
+    );
+  }
+
+  const child = spawn('docker', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  const append = (chunk: Buffer) => {
+    lines.push(chunk.toString());
+  };
+  child.stdout?.on('data', append);
+  child.stderr?.on('data', append);
+
+  return {
+    recorded: () => lines.join('').trim(),
+    stop: () => {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill();
+      }
+    }
+  };
 }
 
 function logRestartingContainers(error: unknown, testName: string): void {
