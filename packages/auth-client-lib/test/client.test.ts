@@ -1135,7 +1135,9 @@ describe('Auth Client', () => {
       assert.deepStrictEqual(first, {
         grantId: id,
         totalSpentDebitAmount: 40n,
-        totalSpentReceiveAmount: 35n
+        totalSpentReceiveAmount: 35n,
+        intervalSpentDebitAmount: undefined,
+        intervalSpentReceiveAmount: undefined
       });
 
       const second = await authClient.validateOutgoingPaymentGrantLimit(
