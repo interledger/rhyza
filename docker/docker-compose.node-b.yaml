@@ -323,11 +323,15 @@ services:
       # because host needs to reach the continue and interaction
       # URLs this builds. a Docker name only resolves in-network.
       OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:4003
+      REDIS_URL: redis-b:6379
+      SESSION_SECRET: local-dev-session-secret-not-for-production
     ports:
       - '4003:3003'
     depends_on:
       auth-api-service-b:
         condition: service_started
+      redis-b:
+        condition: service_healthy
     networks:
       - rhyza
 
