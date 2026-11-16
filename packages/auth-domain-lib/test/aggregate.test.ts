@@ -35,6 +35,7 @@ import {
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
+  TokenIntrospectionFailedEvent,
   GrantInteractionChoiceFailedEvent,
   GrantInteractionChoiceHandledEvent,
   TokenRevokedEvent,
@@ -1490,7 +1491,7 @@ describe('GrantAggregate.handleBatch', () => {
         );
       });
 
-      it('returns active: false when the request is signed by a different key', async () => {
+      it('fails with UnauthorizedRequestError when the request is signed by a different key', async () => {
         const { id, tokenValue } = await createAndFlushIssuedGrant();
 
         const { events } = await aggregate.handleBatch([
@@ -1498,24 +1499,24 @@ describe('GrantAggregate.handleBatch', () => {
         ]);
 
         assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
-        const payload = (events[0] as TokenIntrospectedEvent).payload;
-        assert.equal(payload.id, id);
-        assert.equal(payload.value, tokenValue);
-        assert.equal(payload.active, false);
+        assert.equal(events[0].msgName, TokenIntrospectionFailedEvent.name);
+        const payload = (events[0] as TokenIntrospectionFailedEvent).payload;
+        assert.equal(payload.grantId, id);
+        assert.equal(payload.errorName, 'UnauthorizedRequestError');
+        assert.equal(payload.errorType, 'PermissionDenied');
       });
 
-      it('returns active: false when the signed request was tampered with', async () => {
+      it('fails with UnauthorizedRequestError when the signed request was tampered with', async () => {
         const { id, tokenValue, keys } = await createAndFlushIssuedGrant();
         const cmd = await makeIntrospectTokenCmd({ id, tokenValue }, keys);
         cmd.payload.signatureData.url = 'https://auth.example/other';
 
         const { events } = await aggregate.handleBatch([cmd]);
 
-        assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
+        assert.equal(events[0].msgName, TokenIntrospectionFailedEvent.name);
         assert.equal(
-          (events[0] as TokenIntrospectedEvent).payload.active,
-          false
+          (events[0] as TokenIntrospectionFailedEvent).payload.errorName,
+          'UnauthorizedRequestError'
         );
       });
 
@@ -1628,7 +1629,7 @@ describe('GrantAggregate.handleBatch', () => {
         );
       });
 
-      it('returns active: false when introspection fails unexpectedly', async () => {
+      it('fails with TokenIntrospectionFailedEvent when introspection fails unexpectedly', async () => {
         const { id, tokenValue, keys } = await createAndFlushIssuedGrant();
         mock.method(GrantEntity.prototype, 'introspectAccessToken', () => {
           throw new Error('unexpected failure');
@@ -1639,10 +1640,10 @@ describe('GrantAggregate.handleBatch', () => {
         ]);
 
         assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
-        const payload = (events[0] as TokenIntrospectedEvent).payload;
-        assert.equal(payload.id, id);
-        assert.equal(payload.active, false);
+        assert.equal(events[0].msgName, TokenIntrospectionFailedEvent.name);
+        const payload = (events[0] as TokenIntrospectionFailedEvent).payload;
+        assert.equal(payload.grantId, id);
+        assert.equal(payload.message, 'unexpected failure');
       });
     });
 
