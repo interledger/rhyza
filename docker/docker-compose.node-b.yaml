@@ -138,8 +138,6 @@ services:
         condition: service_completed_successfully
       payments-command-handler-service-b:
         condition: service_started
-      payments-event-handler-service-b:
-        condition: service_started
     networks:
       - rhyza
 
@@ -286,8 +284,6 @@ services:
       mongodb-b:
         condition: service_healthy
       ilp-command-handler-service-b:
-        condition: service_started
-      ilp-event-handler-service-b:
         condition: service_started
     networks:
       - rhyza
