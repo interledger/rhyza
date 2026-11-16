@@ -14,7 +14,7 @@ import {
   GrantFinish,
   SubjectId,
   AccessLimits,
-  AuthClientPermissionDeniedError,
+  AuthClientUnauthorizedRequestError,
   AuthClientInvalidContinuationError,
   AuthClientInvalidRotationError,
   AuthClientUnknownAccessTokenError
@@ -987,7 +987,7 @@ describe('Auth Client', () => {
       assert.deepStrictEqual(result.access, access);
     });
 
-    test('rejects with AuthClientPermissionDeniedError when signed by a different key', async () => {
+    test('rejects with AuthClientUnauthorizedRequestError when signed by a different key', async () => {
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
@@ -1000,7 +1000,7 @@ describe('Auth Client', () => {
           tokenValue,
           access
         ),
-        AuthClientPermissionDeniedError
+        AuthClientUnauthorizedRequestError
       );
     });
 
