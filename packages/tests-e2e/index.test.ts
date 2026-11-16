@@ -64,7 +64,7 @@ describe('E2E tests', () => {
         )
         .up();
     } catch (error) {
-      logRestartingContainers(error);
+      logRestartingContainers(error, 'tests setup');
       dumpComposeLogs();
       throw error;
     }
@@ -364,13 +364,13 @@ async function step(
       await fn();
     } catch (error) {
       progress.failed = true;
-      logRestartingContainers(error);
+      logRestartingContainers(error, name);
       throw error;
     }
   });
 }
 
-function logRestartingContainers(error: unknown): void {
+function logRestartingContainers(error: unknown, testName: string): void {
   const message = error instanceof Error ? error.message : String(error);
   const id = message.match(/Container ([0-9a-f]{12,64}) is restarting/i)?.[1];
 
@@ -386,7 +386,9 @@ function logRestartingContainers(error: unknown): void {
         ],
         { encoding: 'utf8' }
       );
-      console.error(`Restarting container ${id}: ${inspected.trim()}`);
+      console.error(
+        `[${testName}] Restarting container ${id}: ${inspected.trim()}`
+      );
     }
 
     const restarting = execFileSync(
@@ -401,11 +403,17 @@ function logRestartingContainers(error: unknown): void {
       ],
       { encoding: 'utf8' }
     );
-    console.error(`Restarting containers:\n${restarting || '(none)\n'}`);
+    console.error(
+      `[${testName}] Restarting containers:\n${restarting || '(none)\n'}`
+    );
   } catch (inspectError) {
     const inspectMessage =
-      inspectError instanceof Error ? inspectError.message : String(inspectError);
-    console.error(`Failed to resolve restarting container name: ${inspectMessage}`);
+      inspectError instanceof Error
+        ? inspectError.message
+        : String(inspectError);
+    console.error(
+      `[${testName}] Failed to resolve restarting container name: ${inspectMessage}`
+    );
   }
 }
 
