@@ -53,13 +53,31 @@ describe('E2E tests', () => {
     // Two nodes can take longer than the 60s default.
     environmentBuilder = environmentBuilder.withStartupTimeout(180_000);
 
+    let startedEnvironment: StartedDockerComposeEnvironment | undefined;
     try {
-      environment = await environmentBuilder.up();
+      await poll({
+        request: async () => {
+          try {
+            startedEnvironment = await environmentBuilder.up();
+          } catch (error) {
+            logRestartingContainers(error, 'tests setup');
+            return false;
+          }
+          return true;
+        },
+        stopWhen: (ready) => ready,
+        pollingFrequencyMs: 2_000,
+        timeoutMs: 180_000
+      });
     } catch (error) {
-      logRestartingContainers(error, 'tests setup');
       dumpComposeLogs();
       throw error;
     }
+
+    if (startedEnvironment === undefined) {
+      throw new Error('Environment failed to start');
+    }
+    environment = startedEnvironment;
 
     adminClient = createAdminClient(ADMIN_API_URL);
   });
