@@ -54,16 +54,7 @@ describe('E2E tests', () => {
     environmentBuilder = environmentBuilder.withStartupTimeout(180_000);
 
     try {
-      environment = await environmentBuilder
-        .withWaitStrategy(
-          'ase-mock-service-1',
-          Wait.forHttp('/healthz', ASE_MOCK_PORT)
-        )
-        .withWaitStrategy(
-          'ase-mock-service-b-1',
-          Wait.forHttp('/healthz', ASE_MOCK_PORT)
-        )
-        .up();
+      environment = await environmentBuilder.up();
     } catch (error) {
       logRestartingContainers(error, 'tests setup');
       dumpComposeLogs();
