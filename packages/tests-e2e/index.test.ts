@@ -55,7 +55,16 @@ describe('E2E tests', () => {
 
     const containerEvents = startContainerEventWatch();
     try {
-      environment = await environmentBuilder.up();
+      environment = await environmentBuilder
+        .withWaitStrategy(
+          'admin-api-service-1',
+          Wait.forLogMessage('AdminApiService start complete')
+        )
+        .withWaitStrategy(
+          'admin-api-service-b-1',
+          Wait.forLogMessage('AdminApiService start complete')
+        )
+        .up();
     } catch (error) {
       const recorded = containerEvents.recorded();
       console.error(
