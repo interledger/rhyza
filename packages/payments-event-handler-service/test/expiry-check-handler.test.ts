@@ -11,6 +11,7 @@ import {
 import {
   ExpireRemotePaymentCmd,
   ExpirePaymentIntentCmd,
+  ExpireInboundPaymentCmd,
   PAYMENT_EXPIRY_CHECK_KEY,
   PaymentExpiryCheckTimerEvent
 } from 'payments-domain-lib';
@@ -51,6 +52,10 @@ class MockConsumer implements IMessageConsumer {
 class FakeRepo {
   expiredIntentIds: string[] = [];
   expiredPayments: { paymentIntentId: string; paymentId: string }[] = [];
+  expiredInboundPayments: {
+    paymentIntentId: string;
+    inboundPaymentId: string;
+  }[] = [];
   intentQueryError?: Error;
   queries: { now: Date; limit: number }[] = [];
 
@@ -69,6 +74,14 @@ class FakeRepo {
   ): Promise<{ paymentIntentId: string; paymentId: string }[]> {
     this.queries.push({ now, limit });
     return this.expiredPayments;
+  }
+
+  async fetchExpiredInboundPaymentIds(
+    now: Date,
+    limit: number
+  ): Promise<{ paymentIntentId: string; inboundPaymentId: string }[]> {
+    this.queries.push({ now, limit });
+    return this.expiredInboundPayments;
   }
 }
 
@@ -116,13 +129,18 @@ describe('ExpiryCheckHandler', () => {
       paymentIntentId: crypto.randomUUID(),
       paymentId: crypto.randomUUID()
     };
+    const inboundPayment = {
+      paymentIntentId: crypto.randomUUID(),
+      inboundPaymentId: crypto.randomUUID()
+    };
     repo.expiredIntentIds = [intentId];
     repo.expiredPayments = [payment];
+    repo.expiredInboundPayments = [inboundPayment];
 
     await handler.handleMessages([tick()]);
 
-    assert.equal(producer.sent.length, 2);
-    const [expireIntent, expirePayment] = producer.sent;
+    assert.equal(producer.sent.length, 3);
+    const [expireIntent, expirePayment, expireInbound] = producer.sent;
     assert.equal(expireIntent.msgName, ExpirePaymentIntentCmd.name);
     assert.deepEqual((expireIntent as ExpirePaymentIntentCmd).payload, {
       paymentIntentId: intentId
@@ -134,7 +152,14 @@ describe('ExpiryCheckHandler', () => {
       payment
     );
     assert.equal(expirePayment.msgKey, payment.paymentIntentId);
+    assert.equal(expireInbound.msgName, ExpireInboundPaymentCmd.name);
+    assert.deepEqual(
+      (expireInbound as ExpireInboundPaymentCmd).payload,
+      inboundPayment
+    );
+    assert.equal(expireInbound.msgKey, inboundPayment.paymentIntentId);
     assert.equal(expireIntent.requestId, expirePayment.requestId);
+    assert.equal(expireIntent.requestId, expireInbound.requestId);
   });
 
   it('passes the limit to each query', async () => {
@@ -142,14 +167,14 @@ describe('ExpiryCheckHandler', () => {
 
     assert.deepEqual(
       repo.queries.map((q) => q.limit),
-      [CONFIG.limit, CONFIG.limit]
+      [CONFIG.limit, CONFIG.limit, CONFIG.limit]
     );
   });
 
   it('runs one check for a batch of ticks', async () => {
     await handler.handleMessages([tick(), tick(), tick()]);
 
-    assert.equal(repo.queries.length, 2);
+    assert.equal(repo.queries.length, 3);
   });
 
   it('skips a tick within the minimum check interval, then checks again after it', async (context) => {
@@ -158,11 +183,11 @@ describe('ExpiryCheckHandler', () => {
     await handler.handleMessages([tick()]);
     context.mock.timers.tick(CONFIG.minCheckIntervalMs - 1);
     await handler.handleMessages([tick()]);
-    assert.equal(repo.queries.length, 2);
+    assert.equal(repo.queries.length, 3);
 
     context.mock.timers.tick(1);
     await handler.handleMessages([tick()]);
-    assert.equal(repo.queries.length, 4);
+    assert.equal(repo.queries.length, 6);
   });
 
   it('ignores a batch without a tick', async () => {

@@ -9,6 +9,7 @@ import {
 import {
   ExpireRemotePaymentCmd,
   ExpirePaymentIntentCmd,
+  ExpireInboundPaymentCmd,
   IPaymentIntentRepository,
   PaymentExpiryCheckTimerEvent
 } from 'payments-domain-lib';
@@ -24,11 +25,12 @@ export type ExpiryCheckConfig = {
 
 type ExpiryRepo = Pick<
   IPaymentIntentRepository,
-  'fetchExpiredPaymentIntentIds' | 'fetchExpiredSentPaymentIds'
+  | 'fetchExpiredPaymentIntentIds'
+  | 'fetchExpiredSentPaymentIds'
+  | 'fetchExpiredInboundPaymentIds'
 >;
 
-// One query and the expire command it produces. Receiving-side expiry is
-// meant to be another entry here.
+// One query and the expire command it produces.
 type ExpiryCheck = (
   now: Date,
   limit: number,
@@ -62,6 +64,12 @@ export class ExpiryCheckHandler {
       async (now, limit, requestId) =>
         (await this._repo.fetchExpiredSentPaymentIds(now, limit)).map(
           (payment) => new ExpireRemotePaymentCmd(payment, requestId)
+        ),
+      // Only VALIDATED inbound payments expire. An ACCEPTED one may be
+      // fulfilled at any moment; refusing late fulfills is #421.
+      async (now, limit, requestId) =>
+        (await this._repo.fetchExpiredInboundPaymentIds(now, limit)).map(
+          (payment) => new ExpireInboundPaymentCmd(payment, requestId)
         )
     ];
   }

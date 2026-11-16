@@ -186,6 +186,10 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         state: 1,
         expiresAt: 1
       });
+      await this._inboundPaymentCollection.createIndex({
+        state: 1,
+        expiresAt: 1
+      });
     } catch (e: unknown) {
       if (e instanceof Error) {
         this._logger.error(e);
@@ -1241,6 +1245,34 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
       this._logger.error(e);
       throw new Error(
         `Unable to fetch expired sent payments - error: ${(e as Error).message}`
+      );
+    }
+  }
+
+  async fetchExpiredInboundPaymentIds(
+    now: Date,
+    limit: number
+  ): Promise<{ paymentIntentId: string; inboundPaymentId: string }[]> {
+    this._checkInitialisedOrThrow();
+
+    try {
+      const docs = await this._inboundPaymentCollection
+        .find(
+          { state: 'VALIDATED', expiresAt: { $lte: now } },
+          { projection: { _id: 0, id: 1, paymentIntentId: 1 } }
+        )
+        .sort({ expiresAt: 1 })
+        .limit(limit)
+        .toArray();
+
+      return docs.map((doc) => ({
+        paymentIntentId: doc.paymentIntentId,
+        inboundPaymentId: doc.id
+      }));
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to fetch expired inbound payments - error: ${(e as Error).message}`
       );
     }
   }

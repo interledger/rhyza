@@ -496,6 +496,28 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
       .map((p) => ({ paymentIntentId: p.paymentIntentId, paymentId: p.id }));
   }
 
+  async fetchExpiredInboundPaymentIds(
+    now: Date,
+    limit: number
+  ): Promise<{ paymentIntentId: string; inboundPaymentId: string }[]> {
+    return this.getAll()
+      .flatMap((intent) => intent.inboundPayments)
+      .filter(
+        (p) =>
+          p.state === 'VALIDATED' &&
+          p.expiresAt !== undefined &&
+          p.expiresAt.getTime() <= now.getTime()
+      )
+      .sort(
+        (a, b) => (a.expiresAt?.getTime() ?? 0) - (b.expiresAt?.getTime() ?? 0)
+      )
+      .slice(0, limit)
+      .map((p) => ({
+        paymentIntentId: p.paymentIntentId,
+        inboundPaymentId: p.id
+      }));
+  }
+
   async storeFailedRemotePayments(
     paymentUpdates: {
       sentPayments: {

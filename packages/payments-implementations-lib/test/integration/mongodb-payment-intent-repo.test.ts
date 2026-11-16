@@ -6,7 +6,12 @@ import { randomUUID } from 'crypto';
 import { Db, MongoClient } from 'mongodb';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { ConsoleLogger } from 'common-types-lib';
-import { IPaymentIntent, IQuote, ISentPayment } from 'payments-domain-lib';
+import {
+  IInboundPayment,
+  IPaymentIntent,
+  IQuote,
+  ISentPayment
+} from 'payments-domain-lib';
 import { MongoDbPaymentIntentRepo } from '../../src';
 
 const MONGO_IMAGE = 'mongo:8';
@@ -744,9 +749,91 @@ describe('MongoDbPaymentIntentRepo keyset pagination', () => {
       assert.deepEqual(await repo.fetchExpiredSentPaymentIds(NOW, 10), []);
     });
 
+    /** Stores an inbound payment in `state` on a new local intent. */
+    async function storeInboundPayment(args: {
+      state: IInboundPayment['state'];
+      expiresAt?: Date;
+    }): Promise<{ paymentIntentId: string; inboundPaymentId: string }> {
+      const intent = makeIntentExpiringAt(new Date(T0 + 3_600_000));
+      const inboundPaymentId = randomUUID();
+      intent.inboundPayments = [
+        {
+          id: inboundPaymentId,
+          state: args.state,
+          paymentIntentId: intent.id,
+          packetId: randomUUID(),
+          peerId: 'peer-1',
+          peerAssetCode: 'USD',
+          peerAssetScale: 2,
+          sourceAmount: 100n,
+          receiveAmount: 100n,
+          createdAt: new Date(T0),
+          expiresAt: args.expiresAt,
+          ledgerTransferId: `ledger-${inboundPaymentId}`
+        }
+      ];
+      await repo.storeMany([intent]);
+      await repo.storeInboundPayments([
+        { inboundPaymentIds: [inboundPaymentId], paymentIntent: intent }
+      ]);
+      return { paymentIntentId: intent.id, inboundPaymentId };
+    }
+
+    test('stores and reads back an inbound payment ledgerTransferId', async () => {
+      const { paymentIntentId, inboundPaymentId } = await storeInboundPayment({
+        state: 'VALIDATED'
+      });
+
+      const [stored] = await repo.fetchByIdsWithPayments([paymentIntentId]);
+      assert.equal(
+        stored.inboundPayments[0].ledgerTransferId,
+        `ledger-${inboundPaymentId}`
+      );
+    });
+
+    test('fetchExpiredInboundPaymentIds returns due VALIDATED inbound payments, oldest first', async () => {
+      const due2 = await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(NOW.getTime() - 1)
+      });
+      const due1 = await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(NOW.getTime() - 2)
+      });
+      await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(NOW.getTime() + 1)
+      });
+      await storeInboundPayment({
+        state: 'ACCEPTED',
+        expiresAt: new Date(T0)
+      });
+      await storeInboundPayment({ state: 'VALIDATED' });
+
+      const result = await repo.fetchExpiredInboundPaymentIds(NOW, 10);
+
+      assert.deepEqual(result, [due1, due2]);
+    });
+
+    test('fetchExpiredInboundPaymentIds respects the limit', async () => {
+      const first = await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(T0)
+      });
+      await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(T0 + 1)
+      });
+
+      assert.deepEqual(await repo.fetchExpiredInboundPaymentIds(NOW, 1), [
+        first
+      ]);
+    });
+
     test('init adds the expiry indexes to collections that already exist', async () => {
       await db.collection('paymentIntents').dropIndex('state_1_expiresAt_1');
       await db.collection('sentPayments').dropIndex('state_1_expiresAt_1');
+      await db.collection('inboundPayments').dropIndex('state_1_expiresAt_1');
 
       const second = new MongoDbPaymentIntentRepo(
         `mongodb://${container.getHost()}:${container.getMappedPort(MONGO_PORT)}`,
@@ -755,7 +842,11 @@ describe('MongoDbPaymentIntentRepo keyset pagination', () => {
       await second.init();
       await second.destroy();
 
-      for (const name of ['paymentIntents', 'sentPayments']) {
+      for (const name of [
+        'paymentIntents',
+        'sentPayments',
+        'inboundPayments'
+      ]) {
         const indexes = await db.collection(name).indexes();
         assert.ok(
           indexes.some((index) => index.name === 'state_1_expiresAt_1'),

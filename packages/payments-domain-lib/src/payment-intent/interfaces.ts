@@ -386,6 +386,11 @@ export interface IPaymentIntentRepository {
     now: Date,
     limit: number
   ): Promise<{ paymentIntentId: string; paymentId: string }[]>;
+  /** Ids of VALIDATED inbound payments whose expiresAt is at or before `now`, with their intent ids, oldest first. */
+  fetchExpiredInboundPaymentIds(
+    now: Date,
+    limit: number
+  ): Promise<{ paymentIntentId: string; inboundPaymentId: string }[]>;
   storeCompletedRemotePayments(
     paymentUpdates: {
       paymentIntent: {
