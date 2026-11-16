@@ -595,6 +595,14 @@ export class Ledger {
   private async _processReserveTransferCmd(
     cmd: ReserveTransferCmd
   ): Promise<void> {
+    // Idempotent: a transfer id that is already reserved is left alone.
+    if (this._pendingTransfers.has(cmd.payload.transferId)) {
+      this._logger.debug(
+        `Ledger ${this._id} - transfer ${cmd.payload.transferId} already reserved`
+      );
+      return;
+    }
+
     const payerClearingAccount = this._getAccount(
       cmd.payload.transferDirection === 'OUTGOING'
         ? LedgerAccountTypes.ASE_CLEARING_ACCOUNT

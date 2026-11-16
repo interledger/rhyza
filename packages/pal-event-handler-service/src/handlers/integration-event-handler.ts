@@ -9,11 +9,15 @@ import {
 } from 'common-types-lib';
 import {
   InboundPaymentValidatedEvent,
-  InboundPaymentFailedEvent,
+  InboundPaymentAcceptFailedEvent,
+  InboundPaymentExpiredEvent,
+  InboundPaymentFulfillFailedEvent,
+  InboundPaymentFulfilledEvent,
+  InboundPaymentStepFailedPayload,
+  PaymentExpiredEvent,
   RemotePaymentSendApprovedEvent,
   RemotePaymentSendConfirmedEvent,
-  RemotePaymentSendRejectedEvent,
-  InboundPaymentAcceptedEvent
+  RemotePaymentSendRejectedEvent
 } from 'payments-public-types-lib';
 import {
   CheckBalanceAndReserveTransferCmd,
@@ -70,12 +74,18 @@ export class IntegrationEventHandler {
       await this._handleRemotePaymentSendConfirmed(evt);
     } else if (evt.msgName === RemotePaymentSendRejectedEvent.name) {
       await this._handleRemotePaymentSendRejected(evt);
+    } else if (evt.msgName === PaymentExpiredEvent.name) {
+      await this._handlePaymentExpired(evt);
     } else if (evt.msgName === InboundPaymentValidatedEvent.name) {
       await this._handleInboundPaymentValidated(evt);
-    } else if (evt.msgName === InboundPaymentAcceptedEvent.name) {
-      await this._handleInboundPaymentAccepted(evt);
-    } else if (evt.msgName === InboundPaymentFailedEvent.name) {
-      // RejectTransferCmd (INCOMING)
+    } else if (evt.msgName === InboundPaymentFulfilledEvent.name) {
+      await this._handleInboundPaymentFulfilled(evt);
+    } else if (
+      evt.msgName === InboundPaymentAcceptFailedEvent.name ||
+      evt.msgName === InboundPaymentFulfillFailedEvent.name ||
+      evt.msgName === InboundPaymentExpiredEvent.name
+    ) {
+      await this._voidInboundReservation(evt);
     }
   }
 
@@ -124,13 +134,25 @@ export class IntegrationEventHandler {
     );
   }
 
+  private async _handlePaymentExpired(evt: PaymentExpiredEvent): Promise<void> {
+    this._pendingMessages.push(
+      new RejectTransferCmd(evt.payload.assetCode, {
+        requestId: evt.payload.requestId,
+        transferId: evt.payload.ledgerTransferId,
+        transferDirection: 'OUTGOING',
+        paymentIntentId: evt.payload.paymentIntentId,
+        paymentId: evt.payload.paymentId
+      })
+    );
+  }
+
   private async _handleInboundPaymentValidated(
     evt: InboundPaymentValidatedEvent
   ): Promise<void> {
     this._pendingMessages.push(
       new ReserveTransferCmd(evt.payload.receiveAssetCode, {
         requestId: evt.payload.requestId,
-        transferId: crypto.randomUUID(),
+        transferId: evt.payload.ledgerTransferId,
         peerId: evt.payload.peerId,
         amount: evt.payload.receiveAmount,
         amountScale: evt.payload.receiveAssetScale,
@@ -141,11 +163,25 @@ export class IntegrationEventHandler {
     );
   }
 
-  private async _handleInboundPaymentAccepted(
-    evt: InboundPaymentAcceptedEvent
+  private async _handleInboundPaymentFulfilled(
+    evt: InboundPaymentFulfilledEvent
   ): Promise<void> {
     this._pendingMessages.push(
       new CommitTransferCmd(evt.payload.receiveAssetCode, {
+        requestId: evt.payload.requestId,
+        transferId: evt.payload.ledgerTransferId,
+        transferDirection: 'INCOMING',
+        paymentIntentId: evt.payload.paymentIntentId,
+        paymentId: evt.payload.inboundPaymentId
+      })
+    );
+  }
+
+  private async _voidInboundReservation(
+    evt: DomainEvent & { payload: InboundPaymentStepFailedPayload }
+  ): Promise<void> {
+    this._pendingMessages.push(
+      new RejectTransferCmd(evt.payload.receiveAssetCode, {
         requestId: evt.payload.requestId,
         transferId: evt.payload.ledgerTransferId,
         transferDirection: 'INCOMING',
