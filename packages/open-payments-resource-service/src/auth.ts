@@ -12,6 +12,7 @@ import { OpenPaymentsResourceServerRouteError } from './errors.js';
 declare module 'fastify' {
   interface FastifyRequest {
     grantAccess: AccessItem | null;
+    grantId: string | null;
   }
 }
 
@@ -132,6 +133,7 @@ export async function introspectToken(
   const { authClient, authServerUrl, type, action } = opts;
 
   request.grantAccess = null;
+  request.grantId = null;
 
   try {
     const token = extractGnapToken(request);
@@ -188,6 +190,7 @@ export async function introspectToken(
     }
 
     request.grantAccess = tokenInfo.access[0]!;
+    request.grantId = tokenInfo.grantId;
   } catch (err) {
     if (
       err instanceof OpenPaymentsResourceServerRouteError &&
