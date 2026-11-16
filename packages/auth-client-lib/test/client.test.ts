@@ -1104,6 +1104,9 @@ describe('Auth Client', () => {
         nonce
       );
 
+      // We must wait at least 5 seconds before continuing grant
+      await new Promise((resolve) => setTimeout(resolve, 5_100));
+
       await authClient.continueGrant(
         created.id,
         await signedSignatureData(keys.privateKey, keys.publicKey.kid),
