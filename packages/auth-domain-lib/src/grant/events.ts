@@ -130,6 +130,18 @@ export abstract class AuthDomainEvent extends DomainEvent {
   ): evt is GrantInteractionChoiceFailedEvent {
     return evt.msgName === GrantInteractionChoiceFailedEvent.name;
   }
+
+  static isOutgoingPaymentGrantLimitValidatedEvent(
+    evt: DomainEvent
+  ): evt is OutgoingPaymentGrantLimitValidatedEvent {
+    return evt.msgName === OutgoingPaymentGrantLimitValidatedEvent.name;
+  }
+
+  static isOutgoingPaymentGrantLimitValidationFailedEvent(
+    evt: DomainEvent
+  ): evt is OutgoingPaymentGrantLimitValidationFailedEvent {
+    return evt.msgName === OutgoingPaymentGrantLimitValidationFailedEvent.name;
+  }
 }
 
 export interface GrantCreatedPayload {
@@ -451,11 +463,8 @@ export class OutgoingPaymentGrantLimitValidatedEvent extends AuthDomainEvent {
   }
 }
 
-export interface OutgoingPaymentGrantLimitValidationFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type OutgoingPaymentGrantLimitValidationFailedPayload =
+  GrantDomainErrorPayload;
 
 export class OutgoingPaymentGrantLimitValidationFailedEvent extends AuthDomainEvent {
   payload: OutgoingPaymentGrantLimitValidationFailedPayload;
