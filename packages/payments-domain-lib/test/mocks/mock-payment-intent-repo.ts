@@ -265,7 +265,7 @@ export class MockPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
-  async storeFulfillableInboundPayments(
+  async storeFulfilledInboundPayments(
     inboundPaymentUpdates: {
       inboundPayments: { id: string; state: InboundPaymentState }[];
     }[]

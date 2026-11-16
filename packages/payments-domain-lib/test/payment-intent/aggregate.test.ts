@@ -30,12 +30,15 @@ import {
   ValidateInboundPaymentCmd,
   AcceptInboundPaymentCmd,
   FailInboundPaymentCmd,
-  MarkInboundPaymentFulfillableCmd,
+  MarkInboundPaymentFulfilledCmd,
   FinalizeInboundPaymentCmd,
   ExpireRemotePaymentCmd,
-  ExpirePaymentIntentCmd
+  ExpirePaymentIntentCmd,
+  ExpireInboundPaymentCmd
 } from '../../src/commands';
 import {
+  INBOUND_FULFILL_MARGIN_MS,
+  INBOUND_PAYMENT_EXPIRED_REASON,
   PAYMENT_EXPIRED_REASON,
   PAYMENT_EXPIRY_GRACE_MS
 } from '../../src/payment-intent/entity';
@@ -71,8 +74,13 @@ import {
   InboundPaymentValidationFailedEvent,
   InboundPaymentAcceptedEvent,
   InboundPaymentFailedEvent,
-  InboundPaymentFulfillableEvent,
+  InboundPaymentReserveFailedEvent,
+  InboundPaymentAcceptFailedEvent,
+  InboundPaymentFulfillFailedEvent,
+  InboundPaymentExpiredEvent,
+  InboundPaymentFulfilledEvent,
   InboundPaymentFinalizedEvent,
+  InboundPaymentStepFailedPayload,
   PaymentExpiredEvent,
   PaymentIntentExpiredEvent
 } from 'payments-public-types-lib';
@@ -1163,6 +1171,7 @@ describe('PaymentIntentAggregate.handleBatch', () => {
           peerAssetCode: string;
           peerAssetScale: number;
           expiresAt: string;
+          ledgerTransferId: string;
         }> = {}
       ): ValidateInboundPaymentCmd {
         const peerId = overrides.peerId ?? 'peer-1';
@@ -1178,7 +1187,8 @@ describe('PaymentIntentAggregate.handleBatch', () => {
             packetId: overrides.packetId ?? crypto.randomUUID(),
             peerId,
             sourceAmount: overrides.sourceAmount ?? '100',
-            expiresAt: overrides.expiresAt
+            expiresAt: overrides.expiresAt,
+            ledgerTransferId: overrides.ledgerTransferId ?? crypto.randomUUID()
           },
           crypto.randomUUID()
         );
@@ -1206,7 +1216,34 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         assert.equal(payload.receiveAssetCode, 'USD');
         assert.equal(payload.receiveAssetScale, 2);
         assert.equal(payload.receiverWalletAddressId, 'wallet-1');
+        assert.equal(payload.ledgerTransferId, cmd.payload.ledgerTransferId);
         assert.equal(payload.state, 'VALIDATED');
+      });
+
+      it('fails with InboundPaymentExpiredError when the packet expires within the fulfill margin', async () => {
+        const intent = makeLocalIntent();
+        await repo.storeMany([intent]);
+
+        const cmd = makeValidateInboundPaymentCmd({
+          paymentIntentId: intent.id,
+          expiresAt: new Date(
+            Date.now() + INBOUND_FULFILL_MARGIN_MS / 2
+          ).toISOString()
+        });
+        const { events } = await aggregate.handleBatch([cmd]);
+        await aggregate.flush();
+
+        assert.equal(
+          events[0].msgName,
+          InboundPaymentValidationFailedEvent.name
+        );
+        const payload = (events[0] as InboundPaymentValidationFailedEvent)
+          .payload;
+        assert.equal(payload.errorName, 'InboundPaymentExpiredError');
+        assert.equal(payload.packetId, cmd.payload.packetId);
+        assert.equal(payload.peerId, cmd.payload.peerId);
+        const stored = repo.getAll().find((p) => p.id === intent.id);
+        assert.equal(stored?.inboundPayments.length, 0);
       });
 
       it('stores expiresAt on the inbound payment', async () => {
@@ -1279,6 +1316,10 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         assert.equal(inboundPayment.peerId, cmd.payload.peerId);
         assert.equal(inboundPayment.sourceAmount, 250n);
         assert.equal(inboundPayment.receiveAmount, 250n);
+        assert.equal(
+          inboundPayment.ledgerTransferId,
+          cmd.payload.ledgerTransferId
+        );
       });
 
       it('fails with PaymentIntentNotFoundError when intent missing', async () => {
@@ -1441,529 +1482,670 @@ describe('PaymentIntentAggregate.handleBatch', () => {
       });
     });
 
-    describe('handleAcceptInboundPaymentCommand / handleFailInboundPaymentCommand', () => {
+    describe('inbound payment lifecycle', () => {
       function makeIntentWithInboundPayment(
-        inboundPaymentState: IPaymentIntent['inboundPayments'][number]['state'] = 'VALIDATED'
+        overrides: {
+          inboundPaymentState?: IPaymentIntent['inboundPayments'][number]['state'];
+          intentState?: IPaymentIntent['state'];
+          incomingAmount?: bigint | null;
+          receivedAmount?: bigint;
+          receiveAmount?: bigint;
+          expiresAt?: Date;
+        } = {}
       ): { intent: IPaymentIntent; inboundPaymentId: string } {
         const intentId = crypto.randomUUID();
         const inboundPaymentId = crypto.randomUUID();
         const intent: IPaymentIntent = {
           id: intentId,
-          receivedAmount: 0n,
+          receivedAmount: overrides.receivedAmount ?? 0n,
           receiverWalletAddress: 'domain.com/alice',
           receiverWalletAddressId: 'wallet-1',
           assetCode: 'USD',
           assetScale: 2,
-          state: 'CREATED',
+          state: overrides.intentState ?? 'CREATED',
           destination: 'LOCAL',
           createdAt: new Date(),
           expiresAt: new Date(Date.now() + 60_000),
-          incomingAmount: null,
+          incomingAmount: overrides.incomingAmount ?? null,
           quotes: [],
           sentPayments: [],
           inboundPayments: [
             {
               id: inboundPaymentId,
-              state: inboundPaymentState,
+              state: overrides.inboundPaymentState ?? 'VALIDATED',
               paymentIntentId: intentId,
               packetId: 'packet-1',
               peerId: 'peer-1',
               peerAssetCode: 'USD',
               peerAssetScale: 2,
               sourceAmount: 100n,
-              receiveAmount: 100n,
-              createdAt: new Date()
+              receiveAmount: overrides.receiveAmount ?? 100n,
+              createdAt: new Date(),
+              expiresAt: overrides.expiresAt,
+              ledgerTransferId: 'transfer-1'
             }
           ]
         };
         return { intent, inboundPaymentId };
       }
 
-      it('accepts a VALIDATED inbound payment and emits InboundPaymentAcceptedEvent', async () => {
-        const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
-        await repo.storeMany([intent]);
+      async function storedInboundPayment(inboundPaymentId: string) {
+        const stored = repo
+          .getAll()
+          .flatMap((p) => p.inboundPayments)
+          .find((rp) => rp.id === inboundPaymentId);
+        assert(stored);
+        return stored;
+      }
 
-        const cmd = new AcceptInboundPaymentCmd(
-          {
-            inboundPaymentId,
-            paymentIntentId: intent.id,
-            ledgerTransferId: 'transfer-1'
-          },
-          crypto.randomUUID()
-        );
-        const { events } = await aggregate.handleBatch([cmd]);
-
-        assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, InboundPaymentAcceptedEvent.name);
-        const payload = (events[0] as InboundPaymentAcceptedEvent).payload;
+      function assertStepFailedPayload(
+        payload: InboundPaymentStepFailedPayload,
+        intent: IPaymentIntent,
+        inboundPaymentId: string
+      ) {
         assert.equal(payload.paymentIntentId, intent.id);
         assert.equal(payload.inboundPaymentId, inboundPaymentId);
         assert.equal(payload.packetId, 'packet-1');
         assert.equal(payload.peerId, 'peer-1');
         assert.equal(payload.ledgerTransferId, 'transfer-1');
-        assert.equal(payload.receiveAmount, '100');
         assert.equal(payload.receiveAssetCode, 'USD');
-        assert.equal(payload.receiveAssetScale, 2);
-        assert.equal(payload.state, 'ACCEPTED');
-      });
-
-      it('persists the accepted state and ledgerTransferId after flush', async () => {
-        const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
-        await repo.storeMany([intent]);
-
-        const cmd = new AcceptInboundPaymentCmd(
-          {
-            inboundPaymentId,
-            paymentIntentId: intent.id,
-            ledgerTransferId: 'transfer-1'
-          },
-          crypto.randomUUID()
-        );
-        await aggregate.handleBatch([cmd]);
-        await aggregate.flush();
-
-        const stored = repo
-          .getAll()
-          .flatMap((p) => p.inboundPayments)
-          .find((rp) => rp.id === inboundPaymentId);
-        assert(stored);
-        assert.equal(stored.state, 'ACCEPTED');
-        assert.equal(stored.ledgerTransferId, 'transfer-1');
-      });
-
-      it('fails to accept from a non-VALIDATED state', async () => {
-        const { intent, inboundPaymentId } =
-          makeIntentWithInboundPayment('ACCEPTED');
-        await repo.storeMany([intent]);
-
-        const cmd = new AcceptInboundPaymentCmd(
-          {
-            inboundPaymentId,
-            paymentIntentId: intent.id,
-            ledgerTransferId: 'transfer-1'
-          },
-          crypto.randomUUID()
-        );
-        const { events } = await aggregate.handleBatch([cmd]);
-
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.errorName, 'PaymentInvalidStateError');
-      });
-
-      it('fails to accept when the payment intent is missing', async () => {
-        const cmd = new AcceptInboundPaymentCmd(
-          {
-            inboundPaymentId: crypto.randomUUID(),
-            paymentIntentId: 'nonexistent',
-            ledgerTransferId: 'transfer-1'
-          },
-          crypto.randomUUID()
-        );
-        const { events } = await aggregate.handleBatch([cmd]);
-
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.errorName, 'PaymentIntentNotFoundError');
-      });
-
-      it('fails to accept when the inbound payment is missing', async () => {
-        const { intent } = makeIntentWithInboundPayment();
-        await repo.storeMany([intent]);
-
-        const cmd = new AcceptInboundPaymentCmd(
-          {
-            inboundPaymentId: 'nonexistent',
-            paymentIntentId: intent.id,
-            ledgerTransferId: 'transfer-1'
-          },
-          crypto.randomUUID()
-        );
-        const { events } = await aggregate.handleBatch([cmd]);
-
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.errorName, 'PaymentNotFoundError');
-      });
-
-      it('fails a VALIDATED inbound payment and persists failReason', async () => {
-        const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
-        await repo.storeMany([intent]);
-
-        const cmd = new FailInboundPaymentCmd(
-          {
-            inboundPaymentId,
-            paymentIntentId: intent.id,
-            reason: 'Insufficient funds'
-          },
-          crypto.randomUUID()
-        );
-        const { events } = await aggregate.handleBatch([cmd]);
-        await aggregate.flush();
-
-        assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.inboundPaymentId, inboundPaymentId);
-        assert.equal(payload.packetId, 'packet-1');
-        assert.equal(payload.message, 'Insufficient funds');
-
-        const stored = repo
-          .getAll()
-          .flatMap((p) => p.inboundPayments)
-          .find((rp) => rp.id === inboundPaymentId);
-        assert(stored);
-        assert.equal(stored.state, 'FAILED');
-        assert.equal(stored.failReason, 'Insufficient funds');
-      });
-
-      it('fails an ACCEPTED inbound payment', async () => {
-        const { intent, inboundPaymentId } =
-          makeIntentWithInboundPayment('ACCEPTED');
-        await repo.storeMany([intent]);
-
-        const cmd = new FailInboundPaymentCmd(
-          {
-            inboundPaymentId,
-            paymentIntentId: intent.id,
-            reason: 'Ledger transfer rejected'
-          },
-          crypto.randomUUID()
-        );
-        await aggregate.handleBatch([cmd]);
-        await aggregate.flush();
-
-        const stored = repo
-          .getAll()
-          .flatMap((p) => p.inboundPayments)
-          .find((rp) => rp.id === inboundPaymentId);
-        assert(stored);
-        assert.equal(stored.state, 'FAILED');
-      });
-
-      it('fails a FULFILLABLE inbound payment', async () => {
-        const { intent, inboundPaymentId } =
-          makeIntentWithInboundPayment('FULFILLABLE');
-        await repo.storeMany([intent]);
-
-        const cmd = new FailInboundPaymentCmd(
-          {
-            inboundPaymentId,
-            paymentIntentId: intent.id,
-            reason: 'ILP fulfillment failed'
-          },
-          crypto.randomUUID()
-        );
-        await aggregate.handleBatch([cmd]);
-        await aggregate.flush();
-
-        const stored = repo
-          .getAll()
-          .flatMap((p) => p.inboundPayments)
-          .find((rp) => rp.id === inboundPaymentId);
-        assert(stored);
-        assert.equal(stored.state, 'FAILED');
-      });
-
-      it('cannot fail a FINALIZED inbound payment', async () => {
-        const { intent, inboundPaymentId } =
-          makeIntentWithInboundPayment('FINALIZED');
-        await repo.storeMany([intent]);
-
-        const cmd = new FailInboundPaymentCmd(
-          {
-            inboundPaymentId,
-            paymentIntentId: intent.id,
-            reason: 'too late'
-          },
-          crypto.randomUUID()
-        );
-        const { events } = await aggregate.handleBatch([cmd]);
-
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.errorName, 'PaymentInvalidStateError');
-      });
-    });
-
-    describe('handleMarkInboundPaymentFulfillableCommand', () => {
-      function makeIntentWithInboundPayment(
-        state: IPaymentIntent['inboundPayments'][number]['state'] = 'ACCEPTED'
-      ): { intent: IPaymentIntent; inboundPaymentId: string } {
-        const intentId = crypto.randomUUID();
-        const inboundPaymentId = crypto.randomUUID();
-        const intent: IPaymentIntent = {
-          id: intentId,
-          receivedAmount: 0n,
-          receiverWalletAddress: 'domain.com/alice',
-          receiverWalletAddressId: 'wallet-1',
-          assetCode: 'USD',
-          assetScale: 2,
-          state: 'CREATED',
-          destination: 'LOCAL',
-          createdAt: new Date(),
-          expiresAt: new Date(Date.now() + 60_000),
-          incomingAmount: null,
-          quotes: [],
-          sentPayments: [],
-          inboundPayments: [
-            {
-              id: inboundPaymentId,
-              state,
-              paymentIntentId: intentId,
-              packetId: 'packet-1',
-              peerId: 'peer-1',
-              peerAssetCode: 'USD',
-              peerAssetScale: 2,
-              sourceAmount: 100n,
-              receiveAmount: 100n,
-              createdAt: new Date(),
-              ledgerTransferId: 'transfer-1'
-            }
-          ]
-        };
-        return { intent, inboundPaymentId };
+        assert.equal(payload.state, 'FAILED');
       }
 
-      it('marks an ACCEPTED inbound payment FULFILLABLE and emits InboundPaymentFulfillableEvent', async () => {
-        const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
-        await repo.storeMany([intent]);
-
-        const { events } = await aggregate.handleBatch([
-          new MarkInboundPaymentFulfillableCmd(
-            { inboundPaymentId, paymentIntentId: intent.id },
+      describe('handleAcceptInboundPaymentCommand', () => {
+        function makeAcceptCmd(
+          inboundPaymentId: string,
+          paymentIntentId: string
+        ) {
+          return new AcceptInboundPaymentCmd(
+            { inboundPaymentId, paymentIntentId },
             crypto.randomUUID()
-          )
-        ]);
-        await aggregate.flush();
+          );
+        }
 
-        assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, InboundPaymentFulfillableEvent.name);
-        const payload = (events[0] as InboundPaymentFulfillableEvent).payload;
-        assert.equal(payload.paymentIntentId, intent.id);
-        assert.equal(payload.inboundPaymentId, inboundPaymentId);
-        assert.equal(payload.packetId, 'packet-1');
-        assert.equal(payload.peerId, 'peer-1');
-        assert.equal(payload.receiveAmount, '100');
-        assert.equal(payload.receiveAssetCode, 'USD');
-        assert.equal(payload.receiveAssetScale, 2);
-        assert.equal(payload.state, 'FULFILLABLE');
+        it('accepts a VALIDATED inbound payment and emits InboundPaymentAcceptedEvent', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
+          await repo.storeMany([intent]);
 
-        const stored = repo.getAll().find((p) => p.id === intent.id);
-        assert(stored);
-        assert.equal(stored.inboundPayments[0].state, 'FULFILLABLE');
-        // receivedAmount is only credited at finalize, not here
-        assert.equal(stored.receivedAmount, 0n);
+          const { events } = await aggregate.handleBatch([
+            makeAcceptCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, InboundPaymentAcceptedEvent.name);
+          const payload = (events[0] as InboundPaymentAcceptedEvent).payload;
+          assert.equal(payload.paymentIntentId, intent.id);
+          assert.equal(payload.inboundPaymentId, inboundPaymentId);
+          assert.equal(payload.packetId, 'packet-1');
+          assert.equal(payload.peerId, 'peer-1');
+          assert.equal(payload.ledgerTransferId, 'transfer-1');
+          assert.equal(payload.receiveAmount, '100');
+          assert.equal(payload.receiveAssetCode, 'USD');
+          assert.equal(payload.receiveAssetScale, 2);
+          assert.equal(payload.state, 'ACCEPTED');
+
+          const stored = await storedInboundPayment(inboundPaymentId);
+          assert.equal(stored.state, 'ACCEPTED');
+          // credited only at finalize
+          const storedIntent = repo.getAll().find((p) => p.id === intent.id);
+          assert.equal(storedIntent?.receivedAmount, 0n);
+        });
+
+        for (const state of [
+          'ACCEPTED',
+          'FULFILLED',
+          'FINALIZED',
+          'FAILED'
+        ] as const) {
+          it(`does nothing for a ${state} inbound payment`, async () => {
+            const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+              inboundPaymentState: state
+            });
+            await repo.storeMany([intent]);
+
+            const { events } = await aggregate.handleBatch([
+              makeAcceptCmd(inboundPaymentId, intent.id)
+            ]);
+            await aggregate.flush();
+
+            assert.equal(events.length, 0);
+            assert.equal(
+              (await storedInboundPayment(inboundPaymentId)).state,
+              state
+            );
+          });
+        }
+
+        it('fails the payment with InboundPaymentAcceptFailedEvent when the intent is EXPIRED', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            intentState: 'EXPIRED'
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeAcceptCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, InboundPaymentAcceptFailedEvent.name);
+          const payload = (events[0] as InboundPaymentAcceptFailedEvent)
+            .payload;
+          assertStepFailedPayload(payload, intent, inboundPaymentId);
+          assert.match(payload.reason, /EXPIRED/);
+
+          const stored = await storedInboundPayment(inboundPaymentId);
+          assert.equal(stored.state, 'FAILED');
+          assert.equal(stored.failReason, payload.reason);
+        });
+
+        it('fails the payment with InboundPaymentAcceptFailedEvent when the packet expires within the fulfill margin', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            expiresAt: new Date(Date.now() + INBOUND_FULFILL_MARGIN_MS / 2)
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeAcceptCmd(inboundPaymentId, intent.id)
+          ]);
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, InboundPaymentAcceptFailedEvent.name);
+          assertStepFailedPayload(
+            (events[0] as InboundPaymentAcceptFailedEvent).payload,
+            intent,
+            inboundPaymentId
+          );
+        });
+
+        it('emits InboundPaymentFailedEvent when the payment intent is missing', async () => {
+          const { events } = await aggregate.handleBatch([
+            makeAcceptCmd(crypto.randomUUID(), 'nonexistent')
+          ]);
+
+          assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
+          const payload = (events[0] as InboundPaymentFailedEvent).payload;
+          assert.equal(payload.errorName, 'PaymentIntentNotFoundError');
+        });
+
+        it('emits InboundPaymentFailedEvent when the inbound payment is missing', async () => {
+          const { intent } = makeIntentWithInboundPayment();
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeAcceptCmd('nonexistent', intent.id)
+          ]);
+
+          assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
+          const payload = (events[0] as InboundPaymentFailedEvent).payload;
+          assert.equal(payload.errorName, 'PaymentNotFoundError');
+        });
       });
 
-      it('cannot mark a VALIDATED inbound payment fulfillable', async () => {
-        const { intent, inboundPaymentId } =
-          makeIntentWithInboundPayment('VALIDATED');
-        await repo.storeMany([intent]);
-
-        const { events } = await aggregate.handleBatch([
-          new MarkInboundPaymentFulfillableCmd(
-            { inboundPaymentId, paymentIntentId: intent.id },
+      describe('handleFailInboundPaymentCommand', () => {
+        function makeFailCmd(
+          inboundPaymentId: string,
+          paymentIntentId: string,
+          failedStep: 'RESERVE' | 'FULFILL',
+          reason = 'something failed'
+        ) {
+          return new FailInboundPaymentCmd(
+            { inboundPaymentId, paymentIntentId, failedStep, reason },
             crypto.randomUUID()
-          )
-        ]);
+          );
+        }
 
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.errorName, 'PaymentInvalidStateError');
-      });
-    });
+        it('fails a VALIDATED payment on RESERVE with InboundPaymentReserveFailedEvent', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
+          await repo.storeMany([intent]);
 
-    describe('handleFinalizeInboundPaymentCommand', () => {
-      function makeIntentWithInboundPayment(overrides?: {
-        inboundPaymentState?: IPaymentIntent['inboundPayments'][number]['state'];
-        incomingAmount?: bigint | null;
-        receiveAmount?: bigint;
-      }): { intent: IPaymentIntent; inboundPaymentId: string } {
-        const intentId = crypto.randomUUID();
-        const inboundPaymentId = crypto.randomUUID();
-        const intent: IPaymentIntent = {
-          id: intentId,
-          receivedAmount: 0n,
-          receiverWalletAddress: 'domain.com/alice',
-          receiverWalletAddressId: 'wallet-1',
-          assetCode: 'USD',
-          assetScale: 2,
-          state: 'CREATED',
-          destination: 'LOCAL',
-          createdAt: new Date(),
-          expiresAt: new Date(Date.now() + 60_000),
-          incomingAmount: overrides?.incomingAmount ?? null,
-          quotes: [],
-          sentPayments: [],
-          inboundPayments: [
-            {
-              id: inboundPaymentId,
-              state: overrides?.inboundPaymentState ?? 'FULFILLABLE',
-              paymentIntentId: intentId,
-              packetId: 'packet-1',
-              peerId: 'peer-1',
-              peerAssetCode: 'USD',
-              peerAssetScale: 2,
-              sourceAmount: 100n,
-              receiveAmount: overrides?.receiveAmount ?? 100n,
-              createdAt: new Date(),
-              ledgerTransferId: 'transfer-1'
-            }
-          ]
-        };
-        return { intent, inboundPaymentId };
-      }
+          const { events } = await aggregate.handleBatch([
+            makeFailCmd(
+              inboundPaymentId,
+              intent.id,
+              'RESERVE',
+              'Insufficient funds'
+            )
+          ]);
+          await aggregate.flush();
 
-      function makeFinalizeCmd(
-        inboundPaymentId: string,
-        paymentIntentId: string
-      ): FinalizeInboundPaymentCmd {
-        return new FinalizeInboundPaymentCmd(
-          { inboundPaymentId, paymentIntentId },
-          crypto.randomUUID()
-        );
-      }
+          assert.equal(events.length, 1);
+          assert.equal(
+            events[0].msgName,
+            InboundPaymentReserveFailedEvent.name
+          );
+          const payload = (events[0] as InboundPaymentReserveFailedEvent)
+            .payload;
+          assertStepFailedPayload(payload, intent, inboundPaymentId);
+          assert.equal(payload.reason, 'Insufficient funds');
 
-      it('finalizes an ACCEPTED inbound payment and accumulates receivedAmount', async () => {
-        const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
-        await repo.storeMany([intent]);
-
-        const { events } = await aggregate.handleBatch([
-          makeFinalizeCmd(inboundPaymentId, intent.id)
-        ]);
-        await aggregate.flush();
-
-        assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, InboundPaymentFinalizedEvent.name);
-        const payload = (events[0] as InboundPaymentFinalizedEvent).payload;
-        assert.equal(payload.paymentIntentId, intent.id);
-        assert.equal(payload.inboundPaymentId, inboundPaymentId);
-        assert.equal(payload.packetId, 'packet-1');
-        assert.equal(payload.peerId, 'peer-1');
-        assert.equal(payload.sourceAmount, '100');
-        assert.equal(payload.receiveAmount, '100');
-        assert.equal(payload.receiveAssetCode, 'USD');
-        assert.equal(payload.receiveAssetScale, 2);
-        assert.equal(payload.state, 'FINALIZED');
-
-        const stored = repo.getAll().find((p) => p.id === intent.id);
-        assert(stored);
-        assert.equal(stored.receivedAmount, 100n);
-        assert.equal(stored.state, 'CREATED'); // no incomingAmount -> not completed
-        assert.equal(stored.inboundPayments[0].state, 'FINALIZED');
-      });
-
-      it('completes the intent and emits PaymentIntentCompletedEvent when incomingAmount is met', async () => {
-        const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
-          incomingAmount: 100n
+          const stored = await storedInboundPayment(inboundPaymentId);
+          assert.equal(stored.state, 'FAILED');
+          assert.equal(stored.failReason, 'Insufficient funds');
         });
-        await repo.storeMany([intent]);
 
-        const { events } = await aggregate.handleBatch([
-          makeFinalizeCmd(inboundPaymentId, intent.id)
-        ]);
-        await aggregate.flush();
+        it('fails an ACCEPTED payment on FULFILL with InboundPaymentFulfillFailedEvent', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'ACCEPTED'
+          });
+          await repo.storeMany([intent]);
 
-        assert.equal(events.length, 2);
-        assert.equal(events[0].msgName, InboundPaymentFinalizedEvent.name);
-        assert.equal(events[1].msgName, PaymentIntentCompletedEvent.name);
-        const intentPayload = (events[1] as PaymentIntentCompletedEvent)
-          .payload;
-        assert.equal(intentPayload.receivedAmount, '100');
-        assert.equal(intentPayload.state, 'COMPLETED');
+          const { events } = await aggregate.handleBatch([
+            makeFailCmd(inboundPaymentId, intent.id, 'FULFILL')
+          ]);
+          await aggregate.flush();
 
-        const stored = repo.getAll().find((p) => p.id === intent.id);
-        assert(stored);
-        assert.equal(stored.state, 'COMPLETED');
-      });
-
-      it('accumulates receivedAmount across multiple finalized payments', async () => {
-        const intentId = crypto.randomUUID();
-        const rp = (id: string) => ({
-          id,
-          state: 'FULFILLABLE' as const,
-          paymentIntentId: intentId,
-          packetId: crypto.randomUUID(),
-          peerId: 'peer-1',
-          peerAssetCode: 'USD',
-          peerAssetScale: 2,
-          sourceAmount: 60n,
-          receiveAmount: 60n,
-          createdAt: new Date(),
-          ledgerTransferId: crypto.randomUUID()
+          assert.equal(events.length, 1);
+          assert.equal(
+            events[0].msgName,
+            InboundPaymentFulfillFailedEvent.name
+          );
+          assertStepFailedPayload(
+            (events[0] as InboundPaymentFulfillFailedEvent).payload,
+            intent,
+            inboundPaymentId
+          );
+          assert.equal(
+            (await storedInboundPayment(inboundPaymentId)).state,
+            'FAILED'
+          );
         });
-        const intent: IPaymentIntent = {
-          id: intentId,
-          receivedAmount: 0n,
-          receiverWalletAddress: 'domain.com/alice',
-          receiverWalletAddressId: 'wallet-1',
-          assetCode: 'USD',
-          assetScale: 2,
-          state: 'CREATED',
-          destination: 'LOCAL',
-          createdAt: new Date(),
-          expiresAt: new Date(Date.now() + 60_000),
-          incomingAmount: 120n,
-          quotes: [],
-          sentPayments: [],
-          inboundPayments: [rp('rp-1'), rp('rp-2')]
-        };
-        await repo.storeMany([intent]);
 
-        const { events } = await aggregate.handleBatch([
-          makeFinalizeCmd('rp-1', intentId),
-          makeFinalizeCmd('rp-2', intentId)
-        ]);
-        await aggregate.flush();
+        it('does nothing for a FAILED inbound payment', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'FAILED'
+          });
+          await repo.storeMany([intent]);
 
-        // rp-1 finalized, rp-2 finalized + intent completed
-        assert.equal(events.length, 3);
-        assert.equal(events[2].msgName, PaymentIntentCompletedEvent.name);
+          const { events } = await aggregate.handleBatch([
+            makeFailCmd(inboundPaymentId, intent.id, 'FULFILL')
+          ]);
 
-        const stored = repo.getAll().find((p) => p.id === intentId);
-        assert(stored);
-        assert.equal(stored.receivedAmount, 120n);
-        assert.equal(stored.state, 'COMPLETED');
-        assert(stored.inboundPayments.every((r) => r.state === 'FINALIZED'));
-      });
-
-      it('fails to finalize from a non-ACCEPTED state', async () => {
-        const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
-          inboundPaymentState: 'VALIDATED'
+          assert.equal(events.length, 0);
         });
-        await repo.storeMany([intent]);
 
-        const { events } = await aggregate.handleBatch([
-          makeFinalizeCmd(inboundPaymentId, intent.id)
-        ]);
+        for (const state of ['FULFILLED', 'FINALIZED'] as const) {
+          it(`cannot fail a ${state} inbound payment`, async () => {
+            const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+              inboundPaymentState: state
+            });
+            await repo.storeMany([intent]);
 
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.errorName, 'PaymentInvalidStateError');
+            const { events } = await aggregate.handleBatch([
+              makeFailCmd(inboundPaymentId, intent.id, 'FULFILL')
+            ]);
+
+            assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
+            const payload = (events[0] as InboundPaymentFailedEvent).payload;
+            assert.equal(payload.errorName, 'PaymentInvalidStateError');
+          });
+        }
       });
 
-      it('fails to finalize when the payment intent is missing', async () => {
-        const { events } = await aggregate.handleBatch([
-          makeFinalizeCmd(crypto.randomUUID(), 'nonexistent')
-        ]);
+      describe('handleMarkInboundPaymentFulfilledCommand', () => {
+        function makeMarkFulfilledCmd(
+          inboundPaymentId: string,
+          paymentIntentId: string
+        ) {
+          return new MarkInboundPaymentFulfilledCmd(
+            { inboundPaymentId, paymentIntentId },
+            crypto.randomUUID()
+          );
+        }
 
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.errorName, 'PaymentIntentNotFoundError');
+        it('marks an ACCEPTED inbound payment FULFILLED and emits InboundPaymentFulfilledEvent', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'ACCEPTED'
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeMarkFulfilledCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, InboundPaymentFulfilledEvent.name);
+          const payload = (events[0] as InboundPaymentFulfilledEvent).payload;
+          assert.equal(payload.paymentIntentId, intent.id);
+          assert.equal(payload.inboundPaymentId, inboundPaymentId);
+          assert.equal(payload.ledgerTransferId, 'transfer-1');
+          assert.equal(payload.receiveAmount, '100');
+          assert.equal(payload.receiveAssetCode, 'USD');
+          assert.equal(payload.state, 'FULFILLED');
+
+          const stored = repo.getAll().find((p) => p.id === intent.id);
+          assert(stored);
+          assert.equal(stored.inboundPayments[0].state, 'FULFILLED');
+          // credited only at finalize
+          assert.equal(stored.receivedAmount, 0n);
+        });
+
+        for (const state of ['FULFILLED', 'FINALIZED'] as const) {
+          it(`does nothing for a ${state} inbound payment`, async () => {
+            const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+              inboundPaymentState: state
+            });
+            await repo.storeMany([intent]);
+
+            const { events } = await aggregate.handleBatch([
+              makeMarkFulfilledCmd(inboundPaymentId, intent.id)
+            ]);
+
+            assert.equal(events.length, 0);
+          });
+        }
+
+        it('emits InboundPaymentFailedEvent for a FAILED inbound payment', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'FAILED'
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeMarkFulfilledCmd(inboundPaymentId, intent.id)
+          ]);
+
+          assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
+          const payload = (events[0] as InboundPaymentFailedEvent).payload;
+          assert.equal(payload.errorName, 'PaymentInvalidStateError');
+        });
       });
 
-      it('fails to finalize when the inbound payment is missing', async () => {
-        const { intent } = makeIntentWithInboundPayment();
-        await repo.storeMany([intent]);
+      describe('handleFinalizeInboundPaymentCommand', () => {
+        function makeFinalizeCmd(
+          inboundPaymentId: string,
+          paymentIntentId: string
+        ): FinalizeInboundPaymentCmd {
+          return new FinalizeInboundPaymentCmd(
+            { inboundPaymentId, paymentIntentId },
+            crypto.randomUUID()
+          );
+        }
 
-        const { events } = await aggregate.handleBatch([
-          makeFinalizeCmd('nonexistent', intent.id)
-        ]);
+        it('finalizes a FULFILLED inbound payment and credits the intent', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'FULFILLED'
+          });
+          await repo.storeMany([intent]);
 
-        assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
-        const payload = (events[0] as InboundPaymentFailedEvent).payload;
-        assert.equal(payload.errorName, 'PaymentNotFoundError');
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, InboundPaymentFinalizedEvent.name);
+          const payload = (events[0] as InboundPaymentFinalizedEvent).payload;
+          assert.equal(payload.paymentIntentId, intent.id);
+          assert.equal(payload.inboundPaymentId, inboundPaymentId);
+          assert.equal(payload.packetId, 'packet-1');
+          assert.equal(payload.peerId, 'peer-1');
+          assert.equal(payload.sourceAmount, '100');
+          assert.equal(payload.receiveAmount, '100');
+          assert.equal(payload.receiveAssetCode, 'USD');
+          assert.equal(payload.receiveAssetScale, 2);
+          assert.equal(payload.state, 'FINALIZED');
+
+          const stored = repo.getAll().find((p) => p.id === intent.id);
+          assert(stored);
+          assert.equal(stored.receivedAmount, 100n);
+          assert.equal(stored.state, 'CREATED'); // no incomingAmount -> not completed
+          assert.equal(stored.inboundPayments[0].state, 'FINALIZED');
+        });
+
+        it('completes the intent and emits PaymentIntentCompletedEvent when incomingAmount is met', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'FULFILLED',
+            incomingAmount: 100n
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 2);
+          assert.equal(events[0].msgName, InboundPaymentFinalizedEvent.name);
+          assert.equal(events[1].msgName, PaymentIntentCompletedEvent.name);
+          const intentPayload = (events[1] as PaymentIntentCompletedEvent)
+            .payload;
+          assert.equal(intentPayload.receivedAmount, '100');
+          assert.equal(intentPayload.state, 'COMPLETED');
+
+          const stored = repo.getAll().find((p) => p.id === intent.id);
+          assert(stored);
+          assert.equal(stored.state, 'COMPLETED');
+        });
+
+        it('credits an EXPIRED intent and completes it only once fully paid', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'FULFILLED',
+            intentState: 'EXPIRED',
+            incomingAmount: 200n
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, InboundPaymentFinalizedEvent.name);
+          const stored = repo.getAll().find((p) => p.id === intent.id);
+          assert(stored);
+          assert.equal(stored.receivedAmount, 100n);
+          assert.equal(stored.state, 'EXPIRED');
+        });
+
+        it('completes an EXPIRED intent once fully paid', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'FULFILLED',
+            intentState: 'EXPIRED',
+            incomingAmount: 100n
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 2);
+          assert.equal(events[1].msgName, PaymentIntentCompletedEvent.name);
+          const stored = repo.getAll().find((p) => p.id === intent.id);
+          assert.equal(stored?.state, 'COMPLETED');
+        });
+
+        it('does not emit PaymentIntentCompletedEvent again for an already COMPLETED intent', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'FULFILLED',
+            intentState: 'COMPLETED',
+            incomingAmount: 100n,
+            receivedAmount: 100n
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd(inboundPaymentId, intent.id)
+          ]);
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, InboundPaymentFinalizedEvent.name);
+        });
+
+        it('accumulates receivedAmount across multiple finalized payments', async () => {
+          const intentId = crypto.randomUUID();
+          const rp = (id: string) => ({
+            id,
+            state: 'FULFILLED' as const,
+            paymentIntentId: intentId,
+            packetId: crypto.randomUUID(),
+            peerId: 'peer-1',
+            peerAssetCode: 'USD',
+            peerAssetScale: 2,
+            sourceAmount: 60n,
+            receiveAmount: 60n,
+            createdAt: new Date(),
+            ledgerTransferId: crypto.randomUUID()
+          });
+          const intent: IPaymentIntent = {
+            id: intentId,
+            receivedAmount: 0n,
+            receiverWalletAddress: 'domain.com/alice',
+            receiverWalletAddressId: 'wallet-1',
+            assetCode: 'USD',
+            assetScale: 2,
+            state: 'CREATED',
+            destination: 'LOCAL',
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + 60_000),
+            incomingAmount: 120n,
+            quotes: [],
+            sentPayments: [],
+            inboundPayments: [rp('rp-1'), rp('rp-2')]
+          };
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd('rp-1', intentId),
+            makeFinalizeCmd('rp-2', intentId)
+          ]);
+          await aggregate.flush();
+
+          // rp-1 finalized, rp-2 finalized + intent completed
+          assert.equal(events.length, 3);
+          assert.equal(events[2].msgName, PaymentIntentCompletedEvent.name);
+
+          const stored = repo.getAll().find((p) => p.id === intentId);
+          assert(stored);
+          assert.equal(stored.receivedAmount, 120n);
+          assert.equal(stored.state, 'COMPLETED');
+          assert(stored.inboundPayments.every((r) => r.state === 'FINALIZED'));
+        });
+
+        it('does nothing for a FINALIZED inbound payment', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'FINALIZED'
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 0);
+          const stored = repo.getAll().find((p) => p.id === intent.id);
+          assert.equal(stored?.receivedAmount, 0n);
+        });
+
+        it('emits InboundPaymentFailedEvent for an ACCEPTED inbound payment', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+            inboundPaymentState: 'ACCEPTED'
+          });
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd(inboundPaymentId, intent.id)
+          ]);
+
+          assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
+          const payload = (events[0] as InboundPaymentFailedEvent).payload;
+          assert.equal(payload.errorName, 'PaymentInvalidStateError');
+        });
+
+        it('emits InboundPaymentFailedEvent when the payment intent is missing', async () => {
+          const { events } = await aggregate.handleBatch([
+            makeFinalizeCmd(crypto.randomUUID(), 'nonexistent')
+          ]);
+
+          assert.equal(events[0].msgName, InboundPaymentFailedEvent.name);
+          const payload = (events[0] as InboundPaymentFailedEvent).payload;
+          assert.equal(payload.errorName, 'PaymentIntentNotFoundError');
+        });
+      });
+
+      describe('handleExpireInboundPaymentCommand', () => {
+        function makeExpireCmd(
+          inboundPaymentId: string,
+          paymentIntentId: string
+        ) {
+          return new ExpireInboundPaymentCmd(
+            { inboundPaymentId, paymentIntentId },
+            crypto.randomUUID()
+          );
+        }
+
+        it('fails a VALIDATED inbound payment and emits InboundPaymentExpiredEvent', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeExpireCmd(inboundPaymentId, intent.id)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, InboundPaymentExpiredEvent.name);
+          const payload = (events[0] as InboundPaymentExpiredEvent).payload;
+          assertStepFailedPayload(payload, intent, inboundPaymentId);
+          assert.equal(payload.reason, INBOUND_PAYMENT_EXPIRED_REASON);
+
+          const stored = await storedInboundPayment(inboundPaymentId);
+          assert.equal(stored.state, 'FAILED');
+          assert.equal(stored.failReason, INBOUND_PAYMENT_EXPIRED_REASON);
+        });
+
+        for (const state of [
+          'ACCEPTED',
+          'FULFILLED',
+          'FINALIZED',
+          'FAILED'
+        ] as const) {
+          it(`leaves a ${state} inbound payment alone`, async () => {
+            const { intent, inboundPaymentId } = makeIntentWithInboundPayment({
+              inboundPaymentState: state
+            });
+            await repo.storeMany([intent]);
+
+            const { events } = await aggregate.handleBatch([
+              makeExpireCmd(inboundPaymentId, intent.id)
+            ]);
+
+            assert.equal(events.length, 0);
+          });
+        }
+
+        it('runs after an accept in the same batch, which wins', async () => {
+          const { intent, inboundPaymentId } = makeIntentWithInboundPayment();
+          await repo.storeMany([intent]);
+
+          const { events } = await aggregate.handleBatch([
+            makeExpireCmd(inboundPaymentId, intent.id),
+            new AcceptInboundPaymentCmd(
+              { inboundPaymentId, paymentIntentId: intent.id },
+              crypto.randomUUID()
+            ),
+            makeExpireCmd(inboundPaymentId, intent.id)
+          ]);
+
+          assert.deepEqual(
+            events.map((e) => e.msgName),
+            [InboundPaymentAcceptedEvent.name]
+          );
+        });
+
+        it('emits nothing when the payment intent is missing', async () => {
+          const { events } = await aggregate.handleBatch([
+            makeExpireCmd(crypto.randomUUID(), 'nonexistent')
+          ]);
+
+          assert.equal(events.length, 0);
+        });
       });
     });
 

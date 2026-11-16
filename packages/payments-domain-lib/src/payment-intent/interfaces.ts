@@ -142,7 +142,7 @@ export interface IInboundPayment {
   receiveAmount: bigint;
   createdAt: Date;
   expiresAt?: Date;
-  ledgerTransferId?: string;
+  ledgerTransferId: string;
   failReason?: string;
 }
 
@@ -290,7 +290,7 @@ export interface IPaymentIntentRepository {
       }[];
     }[]
   ): Promise<void>;
-  storeFulfillableInboundPayments(
+  storeFulfilledInboundPayments(
     inboundPaymentUpdates: {
       inboundPayments: { id: string; state: InboundPaymentState }[];
     }[]

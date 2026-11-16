@@ -623,7 +623,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
           peerAssetScale: inboundPayment.peerAssetScale,
           sourceAmount: inboundPayment.sourceAmount,
           receiveAmount: inboundPayment.receiveAmount,
-          expiresAt: inboundPayment.expiresAt
+          expiresAt: inboundPayment.expiresAt,
+          ledgerTransferId: inboundPayment.ledgerTransferId
         });
       }
     }
@@ -716,7 +717,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     }
   }
 
-  async storeFulfillableInboundPayments(
+  async storeFulfilledInboundPayments(
     inboundPaymentUpdates: {
       inboundPayments: { id: string; state: InboundPaymentState }[];
     }[]
@@ -743,7 +744,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
     } catch (e) {
       this._logger.error(e);
       throw new Error(
-        `Unable to store fulfillable inbound payments - error: ${(e as Error).message}`
+        `Unable to store fulfilled inbound payments - error: ${(e as Error).message}`
       );
     }
   }
