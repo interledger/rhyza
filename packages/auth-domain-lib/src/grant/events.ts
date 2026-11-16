@@ -69,6 +69,12 @@ export abstract class AuthDomainEvent extends DomainEvent {
     return evt.msgName === TokenIntrospectedEvent.name;
   }
 
+  static isTokenIntrospectionFailedEvent(
+    evt: DomainEvent
+  ): evt is TokenIntrospectionFailedEvent {
+    return evt.msgName === TokenIntrospectionFailedEvent.name;
+  }
+
   static isTokenRotatedEvent(evt: DomainEvent): evt is TokenRotatedEvent {
     return evt.msgName === TokenRotatedEvent.name;
   }
@@ -264,6 +270,18 @@ export class TokenRotatedEvent extends AuthDomainEvent {
   constructor(payload: TokenRotatedPayload, requestId: string) {
     super(payload.id, requestId);
     this.isErrorEvent = false;
+    this.payload = payload;
+  }
+}
+
+export type TokenIntrospectionFailedPayload = GrantDomainErrorPayload;
+
+export class TokenIntrospectionFailedEvent extends AuthDomainEvent {
+  payload: TokenIntrospectionFailedPayload;
+
+  constructor(payload: TokenIntrospectionFailedPayload, requestId: string) {
+    super(payload.grantId, requestId);
+    this.isErrorEvent = true;
     this.payload = payload;
   }
 }

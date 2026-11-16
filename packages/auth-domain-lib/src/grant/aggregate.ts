@@ -30,6 +30,7 @@ import {
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
+  TokenIntrospectionFailedEvent,
   TokenRotatedEvent,
   TokenRotationFailedEvent,
   TokenRevokedEvent,
@@ -667,12 +668,11 @@ export class GrantAggregate {
         },
         cmd.requestId
       );
-    } catch {
-      return new TokenIntrospectedEvent(
+    } catch (err) {
+      return new TokenIntrospectionFailedEvent(
         {
-          id,
-          value: tokenValue,
-          active: false
+          grantId: id,
+          ...getErrorDetails(err)
         },
         cmd.requestId
       );
