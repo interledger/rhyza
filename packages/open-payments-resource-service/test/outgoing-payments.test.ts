@@ -1,7 +1,14 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
-import { AccessItem, AuthClient, IntrospectTokenResult } from 'auth-client-lib';
+import {
+  AccessItem,
+  AuthClient,
+  AuthClientGrantNotFoundError,
+  AuthClientInsufficientGrantError,
+  AuthClientInvalidGrantError,
+  IntrospectTokenResult
+} from 'auth-client-lib';
 import { PalClient } from 'pal-client-lib';
 import {
   createServiceError,
@@ -19,7 +26,8 @@ import {
   GRANT_ID,
   IntrospectTokenCall,
   signedAuthHeaders,
-  stubAuthClient
+  stubAuthClient,
+  ValidateGrantLimitCall
 } from './helpers';
 
 const OPEN_PAYMENTS_URL = 'https://op.example';
@@ -61,16 +69,29 @@ const storedPayment: IPayment = {
 };
 
 /** Records the createPayment arguments and echoes metadata back, like the payments BC. */
-function paymentsClient(calls: CreatePaymentArgs[]): PaymentsClient {
+function paymentsClient(
+  calls: CreatePaymentArgs[],
+  quoteAmounts: { debitAmount?: bigint; receiveAmount?: bigint } = {
+    debitAmount: EXISTING_QUOTE_DEBIT,
+    receiveAmount: EXISTING_QUOTE_RECEIVE
+  }
+): PaymentsClient {
   return {
     getPayment: async () => storedPayment,
+    getQuote: async () => ({
+      id: QUOTE_ID,
+      paymentIntentId: PAYMENT_INTENT_ID,
+      ...quoteAmounts
+    }),
     getPaymentsPage: async () => ({
       pagination: { hasNextPage: false, hasPreviousPage: false },
       items: [storedPayment]
     }),
     createQuote: async () => ({
       id: QUOTE_ID,
-      paymentIntentId: PAYMENT_INTENT_ID
+      paymentIntentId: PAYMENT_INTENT_ID,
+      debitAmount: 500n,
+      receiveAmount: CREATED_QUOTE_RECEIVE
     }),
     createPayment: async (...args: CreatePaymentArgs) => {
       calls.push(args);
@@ -99,6 +120,7 @@ async function createTestApp(
   authClient: AuthClient,
   overrides: {
     createPaymentCalls?: CreatePaymentArgs[];
+    quoteAmounts?: { debitAmount?: bigint; receiveAmount?: bigint };
     paymentsClient?: Partial<PaymentsClient>;
     palClient?: Partial<PalClient>;
   } = {}
@@ -123,7 +145,10 @@ async function createTestApp(
   await app.register(outgoingPaymentRoutes, {
     palClient: Object.assign(palClient, overrides.palClient ?? {}),
     paymentsClient: Object.assign(
-      paymentsClient(overrides.createPaymentCalls ?? []),
+      paymentsClient(
+        overrides.createPaymentCalls ?? [],
+        ...(overrides.quoteAmounts ? [overrides.quoteAmounts] : [])
+      ),
       overrides.paymentsClient ?? {}
     ),
     authClient,
@@ -145,6 +170,10 @@ const tokenWith = (
       ...(walletAddress ? { identifier: walletAddress } : {})
     } as AccessItem
   ]);
+
+const EXISTING_QUOTE_DEBIT = 700n;
+const EXISTING_QUOTE_RECEIVE = 650n;
+const CREATED_QUOTE_RECEIVE = 480n;
 
 const metadata = { description: 'Order #4711', externalRef: 'INV-4711' };
 
@@ -396,6 +425,133 @@ describe('POST /outgoing-payments', () => {
     });
 
     assert.equal(response.statusCode, 403);
+    assert.equal(calls.length, 0);
+  });
+});
+
+describe('POST /outgoing-payments grant spend limit', () => {
+  test('validates the existing quote amounts and creates the payment with the same createdAt', async () => {
+    const validateCalls: ValidateGrantLimitCall[] = [];
+    const calls: CreatePaymentArgs[] = [];
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['CREATE']), [], { calls: validateCalls }),
+      { createPaymentCalls: calls }
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/outgoing-payments',
+      headers: signedAuthHeaders(),
+      payload: fromQuote()
+    });
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(validateCalls.length, 1);
+    const [validateCall] = validateCalls;
+    assert.equal(validateCall.grantId, GRANT_ID);
+    assert.equal(validateCall.debitAmount, EXISTING_QUOTE_DEBIT);
+    assert.equal(validateCall.receiveAmount, EXISTING_QUOTE_RECEIVE);
+    assert.ok(!Number.isNaN(Date.parse(validateCall.createdAt)));
+    assert.equal(calls[0]?.[4], QUOTE_ID);
+    assert.equal(calls[0]?.[6], validateCall.createdAt);
+    assert.equal(calls[0]?.[7], GRANT_ID);
+  });
+
+  test('validates the internally created quote amounts when created from an incoming payment', async () => {
+    const validateCalls: ValidateGrantLimitCall[] = [];
+    const calls: CreatePaymentArgs[] = [];
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['CREATE']), [], { calls: validateCalls }),
+      { createPaymentCalls: calls }
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/outgoing-payments',
+      headers: signedAuthHeaders(),
+      payload: fromIncomingPayment()
+    });
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(validateCalls.length, 1);
+    assert.equal(validateCalls[0].debitAmount, 500n);
+    assert.equal(validateCalls[0].receiveAmount, CREATED_QUOTE_RECEIVE);
+    assert.equal(calls[0]?.[6], validateCalls[0].createdAt);
+  });
+
+  for (const error of [
+    new AuthClientInsufficientGrantError(),
+    new AuthClientInvalidGrantError()
+  ]) {
+    test(`returns 403 and does not create the payment on ${error.name}`, async () => {
+      const calls: CreatePaymentArgs[] = [];
+      const app = await createTestApp(
+        stubAuthClient(tokenWith(['CREATE']), [], { error }),
+        { createPaymentCalls: calls }
+      );
+
+      for (const payload of [fromQuote(), fromIncomingPayment()]) {
+        const response = await app.inject({
+          method: 'POST',
+          url: '/outgoing-payments',
+          headers: signedAuthHeaders(),
+          payload
+        });
+
+        assert.equal(response.statusCode, 403);
+        assert.deepEqual(response.json(), {
+          error: {
+            code: 'insufficient_grant',
+            description: 'Insufficient Grant'
+          }
+        });
+        assert.equal(
+          response.headers['www-authenticate'],
+          `GNAP as_uri=${AUTH_SERVER_URL}`
+        );
+      }
+      assert.equal(calls.length, 0);
+    });
+  }
+
+  test('returns 500 and does not create the payment on other auth errors', async () => {
+    const calls: CreatePaymentArgs[] = [];
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['CREATE']), [], {
+        error: new AuthClientGrantNotFoundError()
+      }),
+      { createPaymentCalls: calls }
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/outgoing-payments',
+      headers: signedAuthHeaders(),
+      payload: fromQuote()
+    });
+
+    assert.equal(response.statusCode, 500);
+    assert.equal(calls.length, 0);
+  });
+
+  test('returns 400 and skips the limit check when the existing quote has no amounts', async () => {
+    const validateCalls: ValidateGrantLimitCall[] = [];
+    const calls: CreatePaymentArgs[] = [];
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['CREATE']), [], { calls: validateCalls }),
+      { createPaymentCalls: calls, quoteAmounts: {} }
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/outgoing-payments',
+      headers: signedAuthHeaders(),
+      payload: fromQuote()
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.code, 'invalid_request');
+    assert.equal(validateCalls.length, 0);
     assert.equal(calls.length, 0);
   });
 });
