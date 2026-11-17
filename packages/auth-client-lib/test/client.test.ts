@@ -14,6 +14,7 @@ import {
   GrantFinish,
   SubjectId,
   AccessLimits,
+  GrantSpentAmountsResult,
   AuthClientUnauthorizedRequestError,
   AuthClientInvalidContinuationError,
   AuthClientInvalidRotationError,
@@ -1177,6 +1178,47 @@ describe('Auth Client', () => {
           90n,
           new Date().toISOString()
         ),
+        AuthClientInsufficientGrantError
+      );
+    });
+
+    test('does not overspend the debit limit under concurrent requests', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant(debitLimit('100'));
+      const createdAt = new Date().toISOString();
+
+      const results = await Promise.allSettled([
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt),
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt),
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt)
+      ]);
+
+      const fulfilled = results.filter(
+        (r): r is PromiseFulfilledResult<GrantSpentAmountsResult> =>
+          r.status === 'fulfilled'
+      );
+      const rejected = results.filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected'
+      );
+
+      assert.equal(fulfilled.length, 2);
+      assert.equal(rejected.length, 1);
+      assert.ok(rejected[0].reason instanceof AuthClientInsufficientGrantError);
+      assert.deepStrictEqual(
+        fulfilled.map((r) => r.value.totalSpentDebitAmount).sort(),
+        [40n, 80n]
+      );
+
+      // The remaining 20 can still be spent, landing exactly on the limit
+      const remaining = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        20n,
+        20n,
+        createdAt
+      );
+      assert.equal(remaining.totalSpentDebitAmount, 100n);
+
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(id, 1n, 1n, createdAt),
         AuthClientInsufficientGrantError
       );
     });
