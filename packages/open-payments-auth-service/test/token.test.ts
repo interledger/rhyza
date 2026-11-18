@@ -1,4 +1,4 @@
-import { describe, test } from 'node:test';
+import { afterEach, beforeEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
 import {
@@ -150,6 +150,43 @@ describe('POST /token/:id', () => {
     assert.equal(response.json().error.code, 'invalid_client');
     assert.equal(calls.rotate.length, 0);
   });
+
+  const errorCases: { error: Error; status: number; code: string }[] = [
+    {
+      error: new AuthClientUnknownAccessTokenError(),
+      status: 401,
+      code: 'invalid_client'
+    },
+    {
+      error: new AuthClientGrantNotFoundError(),
+      status: 401,
+      code: 'invalid_client'
+    },
+    {
+      error: new AuthClientInvalidRotationError(),
+      status: 404,
+      code: 'invalid_rotation'
+    },
+    {
+      error: new AuthClientInsufficientGrantError(),
+      status: 500,
+      code: 'request_denied'
+    }
+  ];
+
+  for (const { error, status, code } of errorCases) {
+    test(`answers ${status} ${code} for ${error.name}`, async () => {
+      const { app } = await setup(error);
+      const token = issuedToken();
+
+      const response = await app.inject(
+        tokenRequest('POST', token.manage, token.value)
+      );
+
+      assert.equal(response.statusCode, status);
+      assert.equal(response.json().error.code, code);
+    });
+  }
 });
 
 describe('DELETE /token/:id', () => {
@@ -197,60 +234,27 @@ describe('DELETE /token/:id', () => {
     assert.equal(response.json().error.code, 'invalid_client');
     assert.equal(calls.revoke.length, 0);
   });
-});
 
-describe('token route errors', () => {
-  const cases: {
-    method: 'POST' | 'DELETE';
-    error: Error;
-    status: number;
-    code: string;
-  }[] = [
+  const errorCases: { error: Error; status: number; code: string }[] = [
     {
-      method: 'POST',
       error: new AuthClientUnknownAccessTokenError(),
       status: 401,
       code: 'invalid_client'
     },
     {
-      method: 'POST',
-      error: new AuthClientGrantNotFoundError(),
-      status: 401,
-      code: 'invalid_client'
-    },
-    {
-      method: 'POST',
       error: new AuthClientInvalidRotationError(),
-      status: 404,
-      code: 'invalid_rotation'
-    },
-    {
-      method: 'DELETE',
-      error: new AuthClientUnknownAccessTokenError(),
-      status: 401,
-      code: 'invalid_client'
-    },
-    {
-      method: 'DELETE',
-      error: new AuthClientInvalidRotationError(),
-      status: 500,
-      code: 'request_denied'
-    },
-    {
-      method: 'POST',
-      error: new AuthClientInsufficientGrantError(),
       status: 500,
       code: 'request_denied'
     }
   ];
 
-  for (const { method, error, status, code } of cases) {
-    test(`${method} answers ${status} ${code} for ${error.name}`, async () => {
+  for (const { error, status, code } of errorCases) {
+    test(`answers ${status} ${code} for ${error.name}`, async () => {
       const { app } = await setup(error);
       const token = issuedToken();
 
       const response = await app.inject(
-        tokenRequest(method, token.manage, token.value)
+        tokenRequest('DELETE', token.manage, token.value)
       );
 
       assert.equal(response.statusCode, status);

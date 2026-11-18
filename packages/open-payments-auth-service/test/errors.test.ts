@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { AuthClientInsufficientGrantError } from 'auth-client-lib';
@@ -27,11 +27,17 @@ function handle(error: Error): HandledError {
     }
   };
 
-  errorHandler(
-    error as FastifyError,
-    {} as FastifyRequest,
-    reply as unknown as FastifyReply
-  );
+  mock.method(console, 'error', () => {});
+
+  try {
+    errorHandler(
+      error as FastifyError,
+      {} as FastifyRequest,
+      reply as unknown as FastifyReply
+    );
+  } finally {
+    mock.restoreAll();
+  }
 
   return { statusCode, body };
 }
@@ -77,7 +83,7 @@ test('answers 500 for an auth client error a route did not map', () => {
 });
 
 test('answers 500 for an unrecognized error', () => {
-  assert.deepEqual(handle(new Error('boom')), {
+  assert.deepEqual(handle(new Error('unexpected')), {
     statusCode: 500,
     body: { error: { code: 'request_denied', description: 'Unhandled error' } }
   });
