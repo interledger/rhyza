@@ -97,7 +97,7 @@ async function assertErrorResponse(
   assert.equal(response.json().error.code, code);
 }
 
-describe('POST / errors', () => {
+describe('createGrant', () => {
   const cases: ErrorCase[] = [
     {
       error: new AuthClientUnauthorizedRequestError(),
@@ -122,7 +122,7 @@ describe('POST / errors', () => {
   }
 });
 
-describe('POST /continue/:id errors', () => {
+describe('continueGrant', () => {
   const cases: ErrorCase[] = [
     {
       error: new AuthClientUnauthorizedRequestError(),
@@ -167,7 +167,7 @@ describe('POST /continue/:id errors', () => {
   }
 });
 
-describe('DELETE /continue/:id errors', () => {
+describe('revokeGrant', () => {
   const cases: ErrorCase[] = [
     {
       error: new AuthClientUnauthorizedRequestError(),

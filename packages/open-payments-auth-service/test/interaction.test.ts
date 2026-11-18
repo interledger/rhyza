@@ -124,7 +124,7 @@ async function interactionApp(failing: {
   return app;
 }
 
-describe('interaction start errors', () => {
+describe('startInteraction', () => {
   const cases: ErrorCase[] = [
     {
       error: new AuthClientGrantNotFoundError(),
@@ -163,7 +163,7 @@ describe('interaction start errors', () => {
   }
 });
 
-describe('interaction finish errors', () => {
+describe('finishInteraction', () => {
   const cases: ErrorCase[] = [
     {
       error: new AuthClientGrantNotFoundError(),

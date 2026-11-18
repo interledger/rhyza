@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, mock, test } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
 import {
@@ -103,7 +103,7 @@ function tokenRequest(
   };
 }
 
-describe('POST /token/:id', () => {
+describe('rotateToken', () => {
   test('rotates the token by its raw value', async () => {
     const { app, calls } = await setup();
     const token = issuedToken();
@@ -190,7 +190,7 @@ describe('POST /token/:id', () => {
   }
 });
 
-describe('DELETE /token/:id', () => {
+describe('revokeToken', () => {
   test('revokes the token by its raw value', async () => {
     const { app, calls } = await setup();
     const token = issuedToken();
