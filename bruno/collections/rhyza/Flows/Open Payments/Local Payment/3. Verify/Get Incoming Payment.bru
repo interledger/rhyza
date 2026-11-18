@@ -18,6 +18,15 @@ script:pre-request {
   const scripts = require('./scripts');
 
   await scripts.addSignatureHeaders();
+
+  // Settlement is async: poll until the payment completes (up to ~10s) so the
+  // folder can be run end to end.
+  const url = scripts.resolveTemplateVariables(req.getUrl());
+  for (let i = 0; i < 20; i++) {
+    const res = await fetch(url, { headers: req.getHeaders() });
+    if ((await res.json()).completed) break;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 }
 
 tests {
