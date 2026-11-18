@@ -3,7 +3,10 @@
 import { describe, test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { Metadata, ServiceError, status } from '@grpc/grpc-js';
-import { AUTH_ERROR_NAME_METADATA_KEY } from 'auth-public-types-lib';
+import {
+  AUTH_ERROR_NAME_METADATA_KEY,
+  AuthErrorName
+} from 'auth-public-types-lib';
 import {
   AuthClientAlreadyExistsError,
   AuthClientDuplicateGrantError,
@@ -39,7 +42,7 @@ function errorFor(errorName: string, code: status): AuthClientError {
 
 describe('clientErrorFromGrpcError', () => {
   test('maps a not-found domain error', () => {
-    const err = errorFor('GrantNotFoundError', status.NOT_FOUND);
+    const err = errorFor(AuthErrorName.GrantNotFound, status.NOT_FOUND);
     assert.equal(err.constructor, AuthClientGrantNotFoundError);
     assert.equal(err.name, AuthClientGrantNotFoundError.name);
     assert.equal(err.message, 'domain message');
@@ -47,14 +50,15 @@ describe('clientErrorFromGrpcError', () => {
 
   test('maps an invalid-argument domain error', () => {
     assert.equal(
-      errorFor('InvalidGrantInputError', status.INVALID_ARGUMENT).constructor,
+      errorFor(AuthErrorName.InvalidGrantInput, status.INVALID_ARGUMENT)
+        .constructor,
       AuthClientInvalidGrantInputError
     );
   });
 
   test('maps a permission-denied domain error', () => {
     assert.equal(
-      errorFor('UnauthorizedRequestError', status.PERMISSION_DENIED)
+      errorFor(AuthErrorName.UnauthorizedRequest, status.PERMISSION_DENIED)
         .constructor,
       AuthClientUnauthorizedRequestError
     );
@@ -62,16 +66,34 @@ describe('clientErrorFromGrpcError', () => {
 
   test('maps a failed-precondition domain error', () => {
     assert.equal(
-      errorFor('InvalidGrantError', status.FAILED_PRECONDITION).constructor,
+      errorFor(AuthErrorName.InvalidGrant, status.FAILED_PRECONDITION)
+        .constructor,
       AuthClientInvalidGrantError
     );
   });
 
   test('maps an already-exists domain error', () => {
     assert.equal(
-      errorFor('DuplicateGrantError', status.ALREADY_EXISTS).constructor,
+      errorFor(AuthErrorName.DuplicateGrant, status.ALREADY_EXISTS).constructor,
       AuthClientDuplicateGrantError
     );
+  });
+
+  test('maps every auth error name to a specific client error', () => {
+    const fallbacks = [
+      AuthClientUnknownError,
+      AuthClientPermissionDeniedError,
+      AuthClientInvalidInputError,
+      AuthClientNotFoundError,
+      AuthClientAlreadyExistsError
+    ];
+    for (const name of Object.values(AuthErrorName)) {
+      const err = errorFor(name, status.INTERNAL);
+      assert.ok(
+        !fallbacks.some((Fallback) => err.constructor === Fallback),
+        name
+      );
+    }
   });
 
   test('falls back to a status error without a known error name', () => {

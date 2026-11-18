@@ -1,5 +1,9 @@
 import { ServiceError, status } from '@grpc/grpc-js';
-import { AUTH_ERROR_NAME_METADATA_KEY } from 'auth-public-types-lib';
+import {
+  AUTH_ERROR_NAME_METADATA_KEY,
+  AuthErrorName,
+  isAuthErrorName
+} from 'auth-public-types-lib';
 export function isGrpcServiceError(err: unknown): err is ServiceError {
   return (
     typeof err === 'object' &&
@@ -16,7 +20,7 @@ export class AuthClientError extends Error {
   }
 }
 
-// Specific errors, keyed by the auth BC domain error name sent in gRPC metadata.
+// Specific errors, one per AuthErrorName the auth BC sends in gRPC metadata.
 export class AuthClientInvalidGrantError extends AuthClientError {}
 export class AuthClientGrantNotFoundError extends AuthClientError {}
 export class AuthClientUnknownAccessTokenError extends AuthClientError {}
@@ -28,7 +32,6 @@ export class AuthClientInvalidContinuationError extends AuthClientError {}
 export class AuthClientInvalidRotationError extends AuthClientError {}
 export class AuthClientInsufficientGrantError extends AuthClientError {}
 export class AuthClientInvalidInteractionError extends AuthClientError {}
-export class AuthClientNonInteractiveGrantError extends AuthClientError {}
 export class AuthClientDuplicateGrantError extends AuthClientError {}
 
 // Fallbacks, used when the auth BC did not send a domain error name (or sent
@@ -39,31 +42,49 @@ export class AuthClientInvalidInputError extends AuthClientError {}
 export class AuthClientNotFoundError extends AuthClientError {}
 export class AuthClientAlreadyExistsError extends AuthClientError {}
 
-type AuthClientErrorConstructor = new (message?: string) => AuthClientError;
-
-const ERRORS_BY_DOMAIN_NAME: Record<string, AuthClientErrorConstructor> = {
-  GrantNotFoundError: AuthClientGrantNotFoundError,
-  UnknownAccessTokenError: AuthClientUnknownAccessTokenError,
-  UnknownInteractionError: AuthClientUnknownInteractionError,
-  InvalidGrantInputError: AuthClientInvalidGrantInputError,
-  UnauthorizedRequestError: AuthClientUnauthorizedRequestError,
-  ContinuationTooFastError: AuthClientContinuationTooFastError,
-  InvalidContinuationError: AuthClientInvalidContinuationError,
-  InvalidTokenRotationError: AuthClientInvalidRotationError,
-  InsufficientGrantError: AuthClientInsufficientGrantError,
-  InvalidInteractionError: AuthClientInvalidInteractionError,
-  NonInteractiveGrantError: AuthClientNonInteractiveGrantError,
-  InvalidGrantError: AuthClientInvalidGrantError,
-  DuplicateGrantError: AuthClientDuplicateGrantError
-};
-
 export function isAuthClientError(err: unknown): err is AuthClientError {
   return err instanceof AuthClientError;
 }
 
-function domainErrorName(err: ServiceError): string | undefined {
+function domainErrorName(err: ServiceError): AuthErrorName | undefined {
   const [value] = err.metadata?.get(AUTH_ERROR_NAME_METADATA_KEY) ?? [];
-  return typeof value === 'string' ? value : undefined;
+  return isAuthErrorName(value) ? value : undefined;
+}
+
+function clientErrorFromDomainName(
+  name: AuthErrorName,
+  message: string
+): AuthClientError {
+  switch (name) {
+    case AuthErrorName.GrantNotFound:
+      return new AuthClientGrantNotFoundError(message);
+    case AuthErrorName.DuplicateGrant:
+      return new AuthClientDuplicateGrantError(message);
+    case AuthErrorName.InvalidGrant:
+      return new AuthClientInvalidGrantError(message);
+    case AuthErrorName.InvalidGrantInput:
+      return new AuthClientInvalidGrantInputError(message);
+    case AuthErrorName.InsufficientGrant:
+      return new AuthClientInsufficientGrantError(message);
+    case AuthErrorName.UnknownAccessToken:
+      return new AuthClientUnknownAccessTokenError(message);
+    case AuthErrorName.UnknownInteraction:
+      return new AuthClientUnknownInteractionError(message);
+    case AuthErrorName.InvalidInteraction:
+      return new AuthClientInvalidInteractionError(message);
+    case AuthErrorName.UnauthorizedRequest:
+      return new AuthClientUnauthorizedRequestError(message);
+    case AuthErrorName.ContinuationTooFast:
+      return new AuthClientContinuationTooFastError(message);
+    case AuthErrorName.InvalidContinuation:
+      return new AuthClientInvalidContinuationError(message);
+    case AuthErrorName.InvalidTokenRotation:
+      return new AuthClientInvalidRotationError(message);
+    default: {
+      const unhandled: never = name;
+      throw new Error(`Unhandled auth error name: ${unhandled}`);
+    }
+  }
 }
 
 export function clientErrorFromGrpcError(err: unknown): AuthClientError {
@@ -76,8 +97,8 @@ export function clientErrorFromGrpcError(err: unknown): AuthClientError {
   const message = err.details || err.message;
   const name = domainErrorName(err);
 
-  if (name && Object.hasOwn(ERRORS_BY_DOMAIN_NAME, name)) {
-    return new ERRORS_BY_DOMAIN_NAME[name](message);
+  if (name) {
+    return clientErrorFromDomainName(name, message);
   }
 
   switch (err.code) {
