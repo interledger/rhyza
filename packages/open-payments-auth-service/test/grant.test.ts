@@ -13,7 +13,8 @@ import {
   AuthClientUnauthorizedRequestError
 } from 'auth-client-lib';
 import { grantRoutes } from '../src/routes/grant';
-import { errorHandler } from '../src/errors';
+import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 import { createContinueResponse } from '../src/utils';
 
 const AUTH_SERVER_URL = 'https://auth.example';
@@ -39,7 +40,7 @@ async function setup(error: Error) {
   // Request bodies are validated against the Open Payments spec in
   // service.ts; these tests are only about the auth client errors.
   app.setValidatorCompiler(() => () => true);
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
   await app.register(grantRoutes, {
     authClient: failingAuthClient(error),
     openPaymentsAuthServerUrl: AUTH_SERVER_URL

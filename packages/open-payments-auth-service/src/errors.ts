@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply, FastifyError } from 'fastify';
+import { ILogger } from 'common-types-lib';
 
 const AuthServerErrorCode = {
   invalid_client: 'invalid_client',
@@ -40,41 +41,43 @@ export class OpenPaymentsAuthServerRouteError extends Error {
   }
 }
 
-export function errorHandler(
-  error: FastifyError,
-  _: FastifyRequest,
-  reply: FastifyReply
-) {
-  let authServerError: AuthServerErrorResponse;
-  let statusCode: number;
+export function createErrorHandler(logger: ILogger) {
+  return function errorHandler(
+    error: FastifyError,
+    _: FastifyRequest,
+    reply: FastifyReply
+  ) {
+    let authServerError: AuthServerErrorResponse;
+    let statusCode: number;
 
-  if (error.validation) {
-    statusCode = 400;
-    authServerError = {
-      error: {
-        code: 'invalid_request',
-        description: error.message
-      }
-    };
-  } else if (error instanceof OpenPaymentsAuthServerRouteError) {
-    statusCode = error.status;
-    authServerError = {
-      error: {
-        code: error.code,
-        description: error.message
-      }
-    };
-  } else {
-    console.error(error);
+    if (error.validation) {
+      statusCode = 400;
+      authServerError = {
+        error: {
+          code: 'invalid_request',
+          description: error.message
+        }
+      };
+    } else if (error instanceof OpenPaymentsAuthServerRouteError) {
+      statusCode = error.status;
+      authServerError = {
+        error: {
+          code: error.code,
+          description: error.message
+        }
+      };
+    } else {
+      logger.error(error, 'Unhandled error');
 
-    statusCode = 500;
-    authServerError = {
-      error: {
-        code: 'request_denied',
-        description: 'Unhandled error'
-      }
-    };
-  }
+      statusCode = 500;
+      authServerError = {
+        error: {
+          code: 'request_denied',
+          description: 'Unhandled error'
+        }
+      };
+    }
 
-  reply.status(statusCode).send(authServerError);
+    reply.status(statusCode).send(authServerError);
+  };
 }

@@ -11,7 +11,8 @@ import {
   AuthClientInvalidInteractionError,
   AuthClientUnknownInteractionError
 } from 'auth-client-lib';
-import { errorHandler } from '../src/errors';
+import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 import { interactionRoutes } from '../src/routes/interaction';
 import { createInteractResponse } from '../src/utils';
 
@@ -94,7 +95,7 @@ async function interactionApp(failing: {
   finishInteraction?: Error;
 }) {
   const app = Fastify();
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
   app.register(fastifyCookie);
   app.register(fastifySession, {
     cookieName: 'interactionSessionId',

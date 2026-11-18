@@ -10,7 +10,8 @@ import {
   SignatureRequestData
 } from 'auth-client-lib';
 import { tokenRoutes } from '../src/routes/token';
-import { errorHandler } from '../src/errors';
+import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 import { createAccessTokenResponse } from '../src/utils';
 
 const AUTH_SERVER_URL = 'https://auth.example';
@@ -58,7 +59,7 @@ async function setup(failWith?: Error) {
   const calls = { rotate: [] as TokenCall[], revoke: [] as TokenCall[] };
   const client = failWith ? failingAuthClient(failWith) : authClient(calls);
   const app = Fastify();
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
   await app.register(tokenRoutes, {
     authClient: client,
     openPaymentsAuthServerUrl: AUTH_SERVER_URL

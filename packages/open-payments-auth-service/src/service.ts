@@ -10,7 +10,7 @@ import { tokenRoutes } from './routes/token';
 import { interactionRoutes } from './routes/interaction';
 
 import authServerOpenApiJsonSchema from '../../../open-payments-specifications/json/auth-server.json';
-import { errorHandler } from './errors';
+import { createErrorHandler } from './errors';
 import { allowEmptyJsonBody } from './utils';
 
 import { FastifyOpenApiValidator } from './validator';
@@ -101,7 +101,7 @@ export class OpenPaymentsAuthServer {
 
     this.server.setValidatorCompiler(({ schema }) => validator.compile(schema));
 
-    this.server.setErrorHandler(errorHandler);
+    this.server.setErrorHandler(createErrorHandler(this.logger));
 
     allowEmptyJsonBody(this.server);
 

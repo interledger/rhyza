@@ -1,8 +1,12 @@
-import { mock, test } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { AuthClientInsufficientGrantError } from 'auth-client-lib';
-import { errorHandler, OpenPaymentsAuthServerRouteError } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
+import {
+  createErrorHandler,
+  OpenPaymentsAuthServerRouteError
+} from '../src/errors';
 
 interface HandledError {
   statusCode: number;
@@ -27,17 +31,11 @@ function handle(error: Error): HandledError {
     }
   };
 
-  mock.method(console, 'error', () => {});
-
-  try {
-    errorHandler(
-      error as FastifyError,
-      {} as FastifyRequest,
-      reply as unknown as FastifyReply
-    );
-  } finally {
-    mock.restoreAll();
-  }
+  createErrorHandler(new NullLogger())(
+    error as FastifyError,
+    {} as FastifyRequest,
+    reply as unknown as FastifyReply
+  );
 
   return { statusCode, body };
 }
