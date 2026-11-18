@@ -3,7 +3,15 @@ import assert from 'node:assert/strict';
 import Fastify, { FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifySession from '@fastify/session';
-import { AuthClient } from 'auth-client-lib';
+import {
+  AuthClient,
+  AuthClientGrantNotFoundError,
+  AuthClientInvalidContinuationError,
+  AuthClientInvalidGrantError,
+  AuthClientInvalidInteractionError,
+  AuthClientUnknownInteractionError
+} from 'auth-client-lib';
+import { errorHandler } from '../src/errors';
 import { interactionRoutes } from '../src/routes/interaction';
 import { createInteractResponse } from '../src/utils';
 
@@ -69,4 +77,137 @@ describe('interact.redirect', () => {
     assert.equal(`${location.origin}${location.pathname}`, IDP_URL);
     assert.equal(location.searchParams.get('interactId'), GRANT_ID);
   });
+});
+
+interface ErrorCase {
+  error: Error;
+  status: number;
+  code: string;
+}
+
+/**
+ * The interaction routes with an auth client that can start an interaction
+ * (so finish has a session) but fails the call under test.
+ */
+async function interactionApp(failing: {
+  startInteraction?: Error;
+  finishInteraction?: Error;
+}) {
+  const app = Fastify();
+  app.setErrorHandler(errorHandler);
+  app.register(fastifyCookie);
+  app.register(fastifySession, {
+    cookieName: 'interactionSessionId',
+    secret: 'a-test-secret-that-is-at-least-32-characters',
+    cookie: { secure: false }
+  });
+  await app.register(interactionRoutes, {
+    authClient: {
+      startInteraction: async (grantId: string) => {
+        if (failing.startInteraction) throw failing.startInteraction;
+        return {
+          id: grantId,
+          nonce: 'nonce-1',
+          clientUri: 'https://client.example',
+          clientName: 'Client'
+        };
+      },
+      getGrant: async () => ({ interactionNonce: 'nonce-1' }),
+      finishInteraction: async () => {
+        throw failing.finishInteraction;
+      }
+    } as unknown as AuthClient,
+    openPaymentsAuthServerUrl: AUTH_SERVER_URL,
+    idpUrl: IDP_URL
+  });
+  return app;
+}
+
+describe('interaction start errors', () => {
+  const cases: ErrorCase[] = [
+    {
+      error: new AuthClientGrantNotFoundError(),
+      status: 400,
+      code: 'unknown_interaction'
+    },
+    {
+      error: new AuthClientInvalidInteractionError(),
+      status: 403,
+      code: 'invalid_interaction'
+    },
+    {
+      error: new AuthClientInvalidGrantError(),
+      status: 403,
+      code: 'invalid_interaction'
+    },
+    {
+      error: new AuthClientInvalidContinuationError(),
+      status: 500,
+      code: 'request_denied'
+    }
+  ];
+
+  for (const { error, status, code } of cases) {
+    test(`answers ${status} ${code} for ${error.name}`, async () => {
+      const app = await interactionApp({ startInteraction: error });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/interaction/${GRANT_ID}/start`
+      });
+
+      assert.equal(response.statusCode, status);
+      assert.equal(response.json().error.code, code);
+    });
+  }
+});
+
+describe('interaction finish errors', () => {
+  const cases: ErrorCase[] = [
+    {
+      error: new AuthClientGrantNotFoundError(),
+      status: 404,
+      code: 'unknown_interaction'
+    },
+    {
+      error: new AuthClientUnknownInteractionError(),
+      status: 404,
+      code: 'unknown_interaction'
+    },
+    {
+      error: new AuthClientInvalidInteractionError(),
+      status: 401,
+      code: 'invalid_interaction'
+    },
+    {
+      error: new AuthClientInvalidGrantError(),
+      status: 401,
+      code: 'invalid_interaction'
+    },
+    {
+      error: new AuthClientInvalidContinuationError(),
+      status: 500,
+      code: 'request_denied'
+    }
+  ];
+
+  for (const { error, status, code } of cases) {
+    test(`answers ${status} ${code} for ${error.name}`, async () => {
+      const app = await interactionApp({ finishInteraction: error });
+      const start = await app.inject({
+        method: 'GET',
+        url: `/interaction/${GRANT_ID}/start`
+      });
+      const cookie = start.headers['set-cookie'];
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/interaction/${GRANT_ID}/finish`,
+        headers: { cookie: Array.isArray(cookie) ? cookie[0] : cookie }
+      });
+
+      assert.equal(response.statusCode, status);
+      assert.equal(response.json().error.code, code);
+    });
+  }
 });

@@ -2,7 +2,16 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import {
   AccessItem,
   AuthClient,
+  AuthClientContinuationTooFastError,
+  AuthClientGrantNotFoundError,
+  AuthClientInvalidContinuationError,
+  AuthClientInvalidGrantError,
+  AuthClientInvalidGrantInputError,
+  AuthClientInvalidInteractionError,
+  AuthClientUnauthorizedRequestError,
+  ContinueGrantResult,
   CreateGrantOptions,
+  CreateGrantResult,
   SubjectId
 } from 'auth-client-lib';
 import { OpenPaymentsAuthServerRouteError } from '../errors';
@@ -92,11 +101,30 @@ export async function grantRoutes(
             start: interact?.start || []
           };
 
-      const result = await authClient.createGrant(
-        resolveClientIdentifier(client),
-        extractSignatureData(request),
-        options
-      );
+      let result: CreateGrantResult;
+      try {
+        result = await authClient.createGrant(
+          resolveClientIdentifier(client),
+          extractSignatureData(request),
+          options
+        );
+      } catch (err) {
+        if (err instanceof AuthClientUnauthorizedRequestError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            401,
+            'invalid signature',
+            'invalid_client'
+          );
+        }
+        if (err instanceof AuthClientInvalidGrantInputError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            400,
+            'invalid request',
+            'invalid_request'
+          );
+        }
+        throw err;
+      }
 
       const continueResponse = createContinueResponse(
         result.id,
@@ -170,13 +198,60 @@ export async function grantRoutes(
         request.params.id
       );
 
-      const result = await authClient.continueGrant(
-        grantId,
-        extractSignatureData(request),
-        continueId,
-        continueToken,
-        request.body?.interact_ref
-      );
+      let result: ContinueGrantResult;
+      try {
+        result = await authClient.continueGrant(
+          grantId,
+          extractSignatureData(request),
+          continueId,
+          continueToken,
+          request.body?.interact_ref
+        );
+      } catch (err) {
+        if (err instanceof AuthClientUnauthorizedRequestError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            401,
+            'invalid signature',
+            'invalid_client'
+          );
+        }
+        if (err instanceof AuthClientGrantNotFoundError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            404,
+            'grant not found',
+            'invalid_request'
+          );
+        }
+        if (err instanceof AuthClientInvalidContinuationError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            401,
+            'invalid grant',
+            'invalid_continuation'
+          );
+        }
+        if (err instanceof AuthClientContinuationTooFastError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            400,
+            'continued grant faster than "wait" period',
+            'too_fast'
+          );
+        }
+        if (err instanceof AuthClientInvalidInteractionError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            404,
+            'grant not found',
+            'invalid_continuation'
+          );
+        }
+        if (err instanceof AuthClientInvalidGrantError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            401,
+            'grant cannot be continued',
+            'request_denied'
+          );
+        }
+        throw err;
+      }
 
       const continueResponse = createContinueResponse(
         result.id,
@@ -224,12 +299,44 @@ export async function grantRoutes(
         request.params.id
       );
 
-      await authClient.revokeGrant(
-        grantId,
-        extractSignatureData(request),
-        continueId,
-        continueToken
-      );
+      try {
+        await authClient.revokeGrant(
+          grantId,
+          extractSignatureData(request),
+          continueId,
+          continueToken
+        );
+      } catch (err) {
+        if (err instanceof AuthClientUnauthorizedRequestError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            401,
+            'invalid signature',
+            'invalid_client'
+          );
+        }
+        if (err instanceof AuthClientGrantNotFoundError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            404,
+            'unknown grant',
+            'invalid_request'
+          );
+        }
+        if (err instanceof AuthClientInvalidContinuationError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            401,
+            'invalid grant',
+            'invalid_continuation'
+          );
+        }
+        if (err instanceof AuthClientInvalidGrantError) {
+          throw new OpenPaymentsAuthServerRouteError(
+            404,
+            'invalid grant',
+            'invalid_request'
+          );
+        }
+        throw err;
+      }
 
       return reply.status(204).send();
     }

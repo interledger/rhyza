@@ -1,7 +1,14 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
-import { AuthClient, SignatureRequestData } from 'auth-client-lib';
+import {
+  AuthClient,
+  AuthClientGrantNotFoundError,
+  AuthClientInsufficientGrantError,
+  AuthClientInvalidRotationError,
+  AuthClientUnknownAccessTokenError,
+  SignatureRequestData
+} from 'auth-client-lib';
 import { tokenRoutes } from '../src/routes/token';
 import { errorHandler } from '../src/errors';
 import { createAccessTokenResponse } from '../src/utils';
@@ -47,15 +54,24 @@ function authClient(calls: { rotate: TokenCall[]; revoke: TokenCall[] }) {
   } as unknown as AuthClient;
 }
 
-async function setup() {
+async function setup(failWith?: Error) {
   const calls = { rotate: [] as TokenCall[], revoke: [] as TokenCall[] };
+  const client = failWith ? failingAuthClient(failWith) : authClient(calls);
   const app = Fastify();
   app.setErrorHandler(errorHandler);
   await app.register(tokenRoutes, {
-    authClient: authClient(calls),
+    authClient: client,
     openPaymentsAuthServerUrl: AUTH_SERVER_URL
   });
   return { app, calls };
+}
+
+/** An auth client whose token calls all fail with the given error. */
+function failingAuthClient(error: Error) {
+  const fail = async () => {
+    throw error;
+  };
+  return { rotateToken: fail, revokeToken: fail } as unknown as AuthClient;
 }
 
 /** The access token exactly as a grant response hands it to the client. */
@@ -181,4 +197,64 @@ describe('DELETE /token/:id', () => {
     assert.equal(response.json().error.code, 'invalid_client');
     assert.equal(calls.revoke.length, 0);
   });
+});
+
+describe('token route errors', () => {
+  const cases: {
+    method: 'POST' | 'DELETE';
+    error: Error;
+    status: number;
+    code: string;
+  }[] = [
+    {
+      method: 'POST',
+      error: new AuthClientUnknownAccessTokenError(),
+      status: 401,
+      code: 'invalid_client'
+    },
+    {
+      method: 'POST',
+      error: new AuthClientGrantNotFoundError(),
+      status: 401,
+      code: 'invalid_client'
+    },
+    {
+      method: 'POST',
+      error: new AuthClientInvalidRotationError(),
+      status: 404,
+      code: 'invalid_rotation'
+    },
+    {
+      method: 'DELETE',
+      error: new AuthClientUnknownAccessTokenError(),
+      status: 401,
+      code: 'invalid_client'
+    },
+    {
+      method: 'DELETE',
+      error: new AuthClientInvalidRotationError(),
+      status: 500,
+      code: 'request_denied'
+    },
+    {
+      method: 'POST',
+      error: new AuthClientInsufficientGrantError(),
+      status: 500,
+      code: 'request_denied'
+    }
+  ];
+
+  for (const { method, error, status, code } of cases) {
+    test(`${method} answers ${status} ${code} for ${error.name}`, async () => {
+      const { app } = await setup(error);
+      const token = issuedToken();
+
+      const response = await app.inject(
+        tokenRequest(method, token.manage, token.value)
+      );
+
+      assert.equal(response.statusCode, status);
+      assert.equal(response.json().error.code, code);
+    });
+  }
 });
