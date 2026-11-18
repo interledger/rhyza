@@ -9,7 +9,6 @@ import {
   InvalidGrantInputError,
   InvalidInteractionError,
   InvalidTokenRotationError as InvalidTokenRotationError,
-  NonInteractiveGrantError,
   UnknownAccessTokenError,
   UnknownInteractionError
 } from './errors';
@@ -262,7 +261,7 @@ export class GrantEntity implements IGrant {
     clientName: string;
   } {
     if (!this._startMethods || !this._interactionNonce) {
-      throw new NonInteractiveGrantError();
+      throw new InvalidInteractionError();
     }
 
     if (this._state !== GrantState.PENDING) {

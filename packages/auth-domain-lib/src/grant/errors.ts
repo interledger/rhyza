@@ -6,13 +6,6 @@ import {
   PermissionDenied
 } from 'common-types-lib';
 
-export class NonInteractiveGrantError extends FailedPrecondition {
-  constructor(message?: string) {
-    super(message);
-    this.name = this.constructor.name;
-  }
-}
-
 export class InvalidInteractionError extends FailedPrecondition {
   constructor(message?: string) {
     super(message);

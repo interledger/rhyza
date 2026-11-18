@@ -12,7 +12,6 @@ import {
   InvalidGrantInputError,
   InvalidInteractionError,
   UnknownAccessTokenError,
-  NonInteractiveGrantError,
   UnknownInteractionError
 } from '../src/grant/errors';
 import {
@@ -778,7 +777,7 @@ describe('GrantEntity', () => {
       assert.deepEqual(entity.interaction, interaction);
     });
 
-    it('throws NonInteractiveGrantError when the grant has no start methods', () => {
+    it('throws InvalidInteractionError when the grant has no start methods', () => {
       const entity = GrantEntity.fromObject({
         id: randomUUID(),
         state: GrantState.PENDING
@@ -787,7 +786,7 @@ describe('GrantEntity', () => {
       assert.throws(
         () => entity.startInteraction(),
         (err: Error) => {
-          assert(err instanceof NonInteractiveGrantError);
+          assert(err instanceof InvalidInteractionError);
           return true;
         }
       );
