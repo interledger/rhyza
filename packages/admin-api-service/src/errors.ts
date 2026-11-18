@@ -12,7 +12,6 @@ import {
   AuthClientInvalidInputError,
   AuthClientInvalidInteractionError,
   AuthClientInvalidRotationError,
-  AuthClientNonInteractiveGrantError,
   AuthClientNotFoundError,
   AuthClientPermissionDeniedError,
   AuthClientUnauthorizedRequestError,
@@ -36,7 +35,6 @@ const HTTP_STATUS_BY_ERROR_NAME: Record<string, number> = {
   [AuthClientInvalidRotationError.name]: 409,
   [AuthClientInsufficientGrantError.name]: 409,
   [AuthClientInvalidInteractionError.name]: 409,
-  [AuthClientNonInteractiveGrantError.name]: 409,
   [AuthClientAlreadyExistsError.name]: 409,
   [AuthClientDuplicateGrantError.name]: 409
 };
