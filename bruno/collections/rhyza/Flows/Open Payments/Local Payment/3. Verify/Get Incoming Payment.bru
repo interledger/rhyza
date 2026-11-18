@@ -19,8 +19,8 @@ script:pre-request {
 
   await scripts.addSignatureHeaders();
 
-  // Settlement is async: poll until the payment completes (up to ~10s) so the
-  // folder can be run end to end.
+  // Poll until the payment completes (up to ~10s) so the folder can be run
+  // end to end.
   const url = scripts.resolveTemplateVariables(req.getUrl());
   for (let i = 0; i < 20; i++) {
     const res = await fetch(url, { headers: req.getHeaders() });
@@ -42,6 +42,6 @@ docs {
   Read with the incoming payment grant's token (it has `read`). Expect
   `completed: true` and `receivedAmount` equal to `incomingAmount`.
 
-  The payment settles asynchronously, so straight after Create Outgoing
+  The payment is processed asynchronously, so straight after Create Outgoing
   Payment it may not be complete yet. Send this again until it is.
 }
