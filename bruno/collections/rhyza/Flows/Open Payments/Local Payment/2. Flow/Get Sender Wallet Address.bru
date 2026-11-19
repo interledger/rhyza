@@ -1,0 +1,26 @@
+meta {
+  name: Get Sender Wallet Address
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://{{openPaymentsResourceServerUrl}}/{{senderPathName}}
+  body: none
+  auth: none
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.id) {
+    bru.setVar("senderWalletAddressUrl", body.id);
+    bru.setVar("senderAuthServer", body.authServer);
+  }
+}
+
+tests {
+  test("has an auth server", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().authServer).to.be.a("string");
+  });
+}

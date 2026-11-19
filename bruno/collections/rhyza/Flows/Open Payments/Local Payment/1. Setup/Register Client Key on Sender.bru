@@ -1,0 +1,33 @@
+meta {
+  name: Register Client Key on Sender
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://{{adminApiUrl}}/wallet-addresses/{{senderWalletAddressId}}/keys
+  body: json
+  auth: none
+}
+
+script:pre-request {
+  const scripts = require('./scripts');
+
+  if (!bru.getVar('clientPublicJwk')) {
+    scripts.generateClientKeys();
+  }
+
+  req.setBody(JSON.parse(bru.getVar('clientPublicJwk')));
+}
+
+tests {
+  test("created", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  Publishes the client's public key in the sender's `/jwks.json`. Only the
+  interactive outgoing payment grant needs it: that grant identifies the
+  client by wallet address, so the auth server looks the key up there.
+}

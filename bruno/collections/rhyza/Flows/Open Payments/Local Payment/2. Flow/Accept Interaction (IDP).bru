@@ -1,0 +1,27 @@
+meta {
+  name: Accept Interaction (IDP)
+  type: http
+  seq: 9
+}
+
+post {
+  url: http://{{idpInteractionServiceUrl}}/interaction/{{grantId}}/accept
+  body: none
+  auth: none
+}
+
+headers {
+  x-idp-secret: {{idpSecret}}
+}
+
+tests {
+  test("accepted", function () {
+    expect(res.getStatus()).to.equal(202);
+  });
+}
+
+docs {
+  Stands in for the user approving the grant on the IDP's consent screen:
+  the IDP backend calls `idp-interaction-service`, authenticated by the
+  shared `x-idp-secret`.
+}
