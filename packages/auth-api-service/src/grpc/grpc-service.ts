@@ -39,6 +39,7 @@ import {
   RevokeGrantResponse,
   RevokeTokenResponse,
   IntrospectTokenResponse,
+  TokenIntrospectionInactiveReason as PbTokenIntrospectionInactiveReason,
   RotateTokenResponse,
   Grant,
   FinishInteractionRequest,
@@ -74,6 +75,7 @@ import {
   GrantCreatedEvent,
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
+  TokenIntrospectionInactiveReason,
   TokenIntrospectedEvent,
   TokenIntrospectionFailedEvent,
   TokenRotatedEvent,
@@ -672,6 +674,25 @@ export class AuthServiceServer {
     }
   }
 
+  private _tokenIntrospectionInactiveReason(
+    reason: TokenIntrospectionInactiveReason
+  ): PbTokenIntrospectionInactiveReason {
+    switch (reason) {
+      case TokenIntrospectionInactiveReason.EXPIRED:
+        return PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_EXPIRED;
+      case TokenIntrospectionInactiveReason.REVOKED:
+        return PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_REVOKED;
+      case TokenIntrospectionInactiveReason.UNKNOWN_TOKEN:
+        return PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_UNKNOWN_TOKEN;
+      case TokenIntrospectionInactiveReason.INVALID_GRANT:
+        return PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_INVALID_GRANT;
+      case TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS:
+        return PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_INSUFFICIENT_ACCESS;
+      default:
+        return PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_UNSPECIFIED;
+    }
+  }
+
   private _pageErrorToStatus(err: unknown): grpc.ServiceError {
     if (err instanceof InvalidArgument) {
       return {
@@ -861,6 +882,11 @@ export class AuthServiceServer {
       const payload: TokenIntrospectedEvent['payload'] = event.payload;
       response.setGrantId(payload.id);
       response.setActive(payload.active);
+      if (payload.inactiveReason) {
+        response.setInactiveReason(
+          this._tokenIntrospectionInactiveReason(payload.inactiveReason)
+        );
+      }
       for (const access of payload.access || []) {
         response.addAccess(this.getAccessListResponse(access));
       }
