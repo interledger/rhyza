@@ -4,7 +4,6 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import {
   httpStatusFromGrpcError,
-  toClientApiErrorResponse,
   PaymentsClient,
   GetPaymentIntentResult,
   CompletePaymentIntentResult,
@@ -168,8 +167,19 @@ export async function incomingPaymentRoutes(
           metadata
         );
       } catch (err) {
-        const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+        if (httpStatusFromGrpcError(err) === 400) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not create incoming payment',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not create incoming payment',
+          'internal_server_error'
+        );
       }
 
       const streamCredentials = generateStreamCredentials(streamServer, {
@@ -222,8 +232,19 @@ export async function incomingPaymentRoutes(
       try {
         paymentIntent = await paymentsClient.getPaymentIntent(id);
       } catch (err) {
-        const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+        if (httpStatusFromGrpcError(err) === 404) {
+          throw new OpenPaymentsResourceServerRouteError(
+            404,
+            'Incoming payment not found',
+            'not_found'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not get incoming payment',
+          'internal_server_error'
+        );
       }
 
       assertGrantIdentifierMatches(
@@ -338,8 +359,19 @@ export async function incomingPaymentRoutes(
           )
         });
       } catch (err) {
-        const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+        if (httpStatusFromGrpcError(err) === 400) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not list incoming payments',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not list incoming payments',
+          'internal_server_error'
+        );
       }
     }
   );
@@ -367,8 +399,19 @@ export async function incomingPaymentRoutes(
         try {
           existing = await paymentsClient.getPaymentIntent(id);
         } catch (err) {
-          const httpStatus = httpStatusFromGrpcError(err);
-          return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+          if (httpStatusFromGrpcError(err) === 404) {
+            throw new OpenPaymentsResourceServerRouteError(
+              404,
+              'Incoming payment not found',
+              'not_found'
+            );
+          }
+
+          throw new OpenPaymentsResourceServerRouteError(
+            500,
+            'Could not get incoming payment',
+            'internal_server_error'
+          );
         }
         assertGrantIdentifierMatches(request, existing.receiverWalletAddress);
       }
@@ -378,7 +421,28 @@ export async function incomingPaymentRoutes(
         paymentIntent = await paymentsClient.completePaymentIntent(id);
       } catch (err) {
         const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+
+        if (httpStatus === 404) {
+          throw new OpenPaymentsResourceServerRouteError(
+            404,
+            'Incoming payment not found',
+            'not_found'
+          );
+        }
+
+        if (httpStatus === 400 || httpStatus === 409) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not complete incoming payment',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not complete incoming payment',
+          'internal_server_error'
+        );
       }
 
       const response: components['schemas']['incoming-payment'] =
