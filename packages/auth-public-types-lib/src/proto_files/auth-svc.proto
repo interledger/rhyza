@@ -201,10 +201,20 @@ message GrantSpentAmountsResponse {
 	string interval_spent_receive_amount = 5;
 }
 
+enum TokenIntrospectionInactiveReason {
+	TOKEN_INTROSPECTION_INACTIVE_REASON_UNSPECIFIED = 0;
+	TOKEN_INTROSPECTION_INACTIVE_REASON_EXPIRED = 1;
+	TOKEN_INTROSPECTION_INACTIVE_REASON_REVOKED = 2;
+	TOKEN_INTROSPECTION_INACTIVE_REASON_UNKNOWN_TOKEN = 3;
+	TOKEN_INTROSPECTION_INACTIVE_REASON_INVALID_GRANT = 4;
+	TOKEN_INTROSPECTION_INACTIVE_REASON_INSUFFICIENT_ACCESS = 5;
+}
+
 message IntrospectTokenResponse {
 	bool active = 1;
 	string grant_id = 2;
 	repeated AccessItem access = 3;
+	TokenIntrospectionInactiveReason inactive_reason = 4;
 }
 
 message IntrospectTokenRequest {
