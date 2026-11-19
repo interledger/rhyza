@@ -128,7 +128,7 @@ export async function quoteRoutes(
 
         if (!walletAddress) {
           throw new OpenPaymentsResourceServerRouteError(
-            404,
+            400,
             'Wallet address not found',
             'not_found'
           );
