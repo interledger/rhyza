@@ -11,7 +11,8 @@ import {
 } from 'payments-client-lib';
 import { createStreamServer } from 'ilp-client-lib';
 import { incomingPaymentRoutes } from '../src/routes/incoming-payments';
-import { errorHandler } from '../src/errors';
+import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 import { FastifyOpenApiValidator } from '../src/validator';
 import resourceServerOpenApiJsonSchema from '../../../open-payments-specifications/json/resource-server.json';
 import { activeResult, signedAuthHeaders, stubAuthClient } from './helpers';
@@ -70,7 +71,7 @@ async function createTestApp(
   );
   validator.addFormat('uint64', { validate: () => true });
   app.setValidatorCompiler(({ schema }) => validator.compile(schema));
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
   app.decorateRequest('grantAccess', null);
   await app.register(incomingPaymentRoutes, {
     palClient: mockPalClient(),

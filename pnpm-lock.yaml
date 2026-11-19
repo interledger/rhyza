@@ -811,6 +811,9 @@ importers:
       auth-client-lib:
         specifier: workspace:*
         version: link:../auth-client-lib
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
       fastify:
         specifier: ~5.3.3
         version: 5.3.3

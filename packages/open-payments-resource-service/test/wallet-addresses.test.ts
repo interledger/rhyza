@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import Fastify from 'fastify';
 import { PalClient } from 'pal-client-lib';
 import { walletAddressRoutes } from '../src/routes/wallet-addresses';
-import { errorHandler } from '../src/errors';
+import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 
 function palClient(state: 'active' | 'inactive' | 'missing'): PalClient {
   return {
@@ -23,7 +24,7 @@ function palClient(state: 'active' | 'inactive' | 'missing'): PalClient {
 
 async function appFor(state: 'active' | 'inactive' | 'missing') {
   const app = Fastify();
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
   await app.register(walletAddressRoutes, {
     palClient: palClient(state),
     openPaymentsResourceServiceUrl: 'https://op.example',
@@ -52,7 +53,7 @@ test('GET wallet address returns not found when the address is deactivated', asy
 test('GET wallet address returns the document again after the address is reactivated', async () => {
   let active = false;
   const app = Fastify();
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
 
   await app.register(walletAddressRoutes, {
     palClient: {

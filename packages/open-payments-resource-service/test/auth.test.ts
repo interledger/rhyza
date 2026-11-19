@@ -15,7 +15,8 @@ import {
   RequestAction,
   TokenIntrospectionOptions
 } from '../src/auth';
-import { errorHandler } from '../src/errors';
+import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 import {
   activeResult,
   GRANT_ID,
@@ -36,7 +37,7 @@ async function createTestApp(
 ) {
   const { identifierFromBody, ...introspectOpts } = opts;
   const app = Fastify();
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
   app.decorateRequest('grantAccess', null);
   app.post<{ Body: { walletAddress?: string } }>(
     '/things',
