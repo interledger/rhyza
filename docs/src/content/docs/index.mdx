@@ -4,7 +4,7 @@ description: Rhyza is open source software that provides an efficient solution f
 template: splash
 lastUpdated: false
 hero:
-  tagline: Rhyza is a free, open source solution that enables financial service providers to extend their existing financial infrastructure with <strong>Interledger</strong> and offer <strong>Open Payments</strong> enabled accounts.
+  tagline: Rhyza is a free, open source solution that enables financial service providers to extend their existing financial infrastructure with Interledger and offer Open Payments enabled accounts.
   actions:
     - text: Read the docs
       link: /overview
@@ -12,25 +12,10 @@ hero:
       variant: primary
       attrs:
         data-umami-event: Landing page - Rhyza docs
+    - text: View on GitHub
+      link: https://github.com/interledger/rhyza
+      icon: external
+      variant: primary
+      attrs:
+        data-umami-event: Landing page - GitHub repo
 ---
-
-import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
-
-<CardGrid>
-  <a class='card-link' href='/testlocal'>
-    <Card title='Try it out!' icon='document'>
-      Test Rhyza by running two mock FSPs that automatically peer with one
-      another.
-    </Card>
-  </a>
-  <a class='card-link' href='/integration'>
-    <Card title='Integration requirements' icon='document'>
-      Review the requirements for deploying Rhyza to a production environment.
-    </Card>
-  </a>
-  <a class='card-link' href='/apis/#tag/admin-api-overview'>
-    <Card title='View Admin API Specifications' icon='document'>
-      Discover the Admin API.
-    </Card>
-  </a>
-</CardGrid>

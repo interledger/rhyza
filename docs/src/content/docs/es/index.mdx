@@ -12,26 +12,10 @@ hero:
       variant: primary
       attrs:
         data-umami-event: Página de inicio - Documentos de Rhyza
+    - text: Ver en GitHub
+      link: https://github.com/interledger/rhyza
+      icon: external
+      variant: primary
+      attrs:
+        data-umami-event: Página de inicio - Repositorio de GitHub
 ---
-
-import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
-
-<CardGrid>
-  <a class='card-link' href='/testlocal'>
-    <Card title='¡Pruébelo!' icon='document'>
-      Pruebe Rhyza ejecutando dos FSP simuladas que se interconectan
-      automáticamente entre sí.
-    </Card>
-  </a>
-  <a class='card-link' href='/integration#integration-checklist'>
-    <Card title='Requisitos de integración' icon='document'>
-      Revise los requisitos para implementar Rhyza en un entorno de producción.
-    </Card>
-  </a>
-  <a class='card-link' href='/apis/api-overview'>
-    <Card title='Rhyza REST APIs' icon='document'>
-      Obtén una descripción general de cada API disponible y consulta sus
-      especificaciones.
-    </Card>
-  </a>
-</CardGrid>

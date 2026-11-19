@@ -1,0 +1,49 @@
+meta {
+  name: Create Quote
+  type: http
+  seq: 6
+}
+
+post {
+  url: http://{{openPaymentsResourceServerUrl}}/quotes
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: GNAP {{quoteAccessToken}}
+}
+
+body:json {
+  {
+    "walletAddress": "{{senderWalletAddressUrl}}",
+    "receiver": "{{incomingPaymentUrl}}",
+    "method": "ilp"
+  }
+}
+
+script:pre-request {
+  const scripts = require('./scripts');
+
+  await scripts.addSignatureHeaders();
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.id) {
+    bru.setVar("quoteId", body.id);
+    bru.setVar("quoteDebitAmount", JSON.stringify(body.debitAmount));
+  }
+}
+
+tests {
+  test("created", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
+
+docs {
+  No amount: the incoming payment has a fixed `incomingAmount`, so the quote
+  is for exactly that. Its `debitAmount` becomes the outgoing payment grant's
+  limit.
+}

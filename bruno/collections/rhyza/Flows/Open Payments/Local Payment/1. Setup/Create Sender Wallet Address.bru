@@ -1,0 +1,36 @@
+meta {
+  name: Create Sender Wallet Address
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://{{adminApiUrl}}/wallet-addresses
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "pathName": "{{senderPathName}}",
+    "assetCode": "USD",
+    "publicName": "Sender (OP local)"
+  }
+}
+
+script:pre-request {
+  bru.setVar("senderPathName", `op-sender-${Date.now().toString(36)}`);
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.id) {
+    bru.setVar("senderWalletAddressId", body.id);
+  }
+}
+
+tests {
+  test("created", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+}
