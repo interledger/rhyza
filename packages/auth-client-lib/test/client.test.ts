@@ -1039,7 +1039,7 @@ describe('Auth Client', () => {
       assert.deepStrictEqual(result.access, [access[0]]);
     });
 
-    test('returns active: false when the requested access items are not fully covered by the grant', async () => {
+    test('returns only the covered access items when the grant does not cover every requested item', async () => {
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
@@ -1052,8 +1052,8 @@ describe('Auth Client', () => {
         [...access, makeAccessItem({ type: 'QUOTE', actions: ['CREATE'] })]
       );
 
-      assert.equal(result.active, false);
-      assert.equal(result.access.length, 0);
+      assert.equal(result.active, true);
+      assert.deepStrictEqual(result.access, access);
     });
 
     test('returns active: false when the grant does not exist', async () => {
