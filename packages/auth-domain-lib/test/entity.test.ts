@@ -903,7 +903,7 @@ describe('GrantEntity', () => {
       assert.deepEqual(result, { active: true, access: [accesses[0]] });
     });
 
-    it('returns active: true with no access when a matching access item does not have sufficiently overlapping actions', () => {
+    it('returns active: false when a matching access item does not have sufficiently overlapping actions', () => {
       const accesses = [
         { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
       ];
@@ -917,10 +917,10 @@ describe('GrantEntity', () => {
         requestedAccesses
       );
 
-      assert.deepEqual(result, { active: true, access: [] });
+      assert.deepEqual(result, { active: false });
     });
 
-    it('returns active: true with no access when a matching access item only has a subset of the requested actions', () => {
+    it('returns active: false when a matching access item only has a subset of the requested actions', () => {
       const accesses = [
         { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.CREATE] }
       ];
@@ -937,7 +937,7 @@ describe('GrantEntity', () => {
         requestedAccesses
       );
 
-      assert.deepEqual(result, { active: true, access: [] });
+      assert.deepEqual(result, { active: false });
     });
 
     it('returns active: true when a read request matches a grant access item with read-all', () => {
@@ -974,7 +974,7 @@ describe('GrantEntity', () => {
       assert.deepEqual(result, { active: true, access: [accesses[0]] });
     });
 
-    it('returns active: true with only the covered access items when the grant does not cover every requested access', () => {
+    it('returns active: false when the grant does not cover every requested access', () => {
       const accesses = [
         { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
       ];
@@ -988,7 +988,7 @@ describe('GrantEntity', () => {
         }
       ]);
 
-      assert.deepEqual(result, { active: true, access: [accesses[0]] });
+      assert.deepEqual(result, { active: false });
     });
 
     describe('identifier', () => {
@@ -1067,7 +1067,7 @@ describe('GrantEntity', () => {
           }
         ]);
 
-        assert.deepEqual(result, { active: true, access: [] });
+        assert.deepEqual(result, { active: false });
       });
     });
     describe('finishInteraction', () => {
