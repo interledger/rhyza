@@ -57,7 +57,6 @@ import {
   IJsonWebKey,
   InteractionChoice,
   InteractionState,
-  TokenIntrospectionInactiveReason,
   isJWK,
   IStartMethod,
   ISubjectId,
