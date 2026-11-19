@@ -4,8 +4,11 @@ import { components } from './types/generated/resource-server-types.js';
 const ResourceServerErrorCode = {
   invalid_request: 'invalid_request',
   not_found: 'not_found',
-  unauthorized: 'unauthorized',
-  forbidden: 'forbidden'
+  invalid_token: 'invalid_token',
+  invalid_signature: 'invalid_signature',
+  inactive_token: 'inactive_token',
+  insufficient_grant: 'insufficient_grant',
+  internal_server_error: 'internal_server_error'
 } as const;
 type ResourceServerErrorCode = keyof typeof ResourceServerErrorCode;
 
@@ -51,7 +54,8 @@ export function errorHandler(
     resourceServerError = {
       error: {
         code: error.code,
-        description: error.message
+        description: error.message,
+        ...(error.details && { details: error.details })
       }
     };
   } else {
@@ -60,7 +64,7 @@ export function errorHandler(
     statusCode = 500;
     resourceServerError = {
       error: {
-        code: 'invalid_request',
+        code: 'internal_server_error',
         description: 'Unhandled error'
       }
     };
