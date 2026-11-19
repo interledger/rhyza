@@ -5,7 +5,8 @@ import { PalClient } from 'pal-client-lib';
 import { IPayment, PaymentsClient } from 'payments-client-lib';
 import resourceServerOpenApiJsonSchema from '../../../open-payments-specifications/json/resource-server.json';
 import { outgoingPaymentRoutes } from '../src/routes/outgoing-payments';
-import { errorHandler } from '../src/errors';
+import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 import { FastifyOpenApiValidator } from '../src/validator';
 import { encodeCompoundId } from '../src/utils';
 
@@ -71,7 +72,7 @@ async function appFor(calls: CreatePaymentArgs[]) {
     }
   });
   app.setValidatorCompiler(({ schema }) => validator.compile(schema));
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
   await app.register(outgoingPaymentRoutes, {
     palClient,
     paymentsClient: paymentsClient(calls),

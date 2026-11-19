@@ -10,13 +10,13 @@ import { incomingPaymentRoutes } from './routes/incoming-payments.js';
 import { outgoingPaymentRoutes } from './routes/outgoing-payments.js';
 
 import resourceServerOpenApiJsonSchema from '../../../open-payments-specifications/json/resource-server.json';
-import { errorHandler } from './errors.js';
+import { createErrorHandler } from './errors.js';
 import { allowEmptyJsonBody } from './utils.js';
 import { quoteRoutes } from './routes/quotes.js';
 
 import { FastifyOpenApiValidator } from './validator.js';
 import crypto from 'crypto';
-import { ILogger } from '../../common-types-lib/dist/logger.js';
+import { ILogger } from 'common-types-lib';
 import { PinoLogger } from 'implementations-lib';
 
 const BC_NAME = 'OPEN_PAYMENTS';
@@ -97,7 +97,7 @@ export class OpenPaymentsResourceServer {
     });
     this.server.setValidatorCompiler(({ schema }) => validator.compile(schema));
 
-    this.server.setErrorHandler(errorHandler);
+    this.server.setErrorHandler(createErrorHandler(this.logger));
     this.server.decorateRequest('grantAccess', null);
 
     allowEmptyJsonBody(this.server);
