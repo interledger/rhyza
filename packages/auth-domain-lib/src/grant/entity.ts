@@ -17,6 +17,7 @@ import {
   IFinishMethod,
   FinalizedGrantState,
   GrantState,
+  TokenIntrospectionInactiveReason,
   IGrant,
   IInteraction,
   InteractionChoice,
@@ -507,18 +508,38 @@ export class GrantEntity implements IGrant {
   introspectAccessToken(
     value: string,
     requestedAccesses?: IAccessItem[]
-  ): { active: boolean; access?: IAccessItem[] } {
+  ): {
+    active: boolean;
+    access?: IAccessItem[];
+    inactiveReason?: TokenIntrospectionInactiveReason;
+  } {
     const accessToken = this._accessTokens.get(value);
-    if (
-      !accessToken ||
-      accessToken.revokedAt ||
-      accessToken.expiresAt.getTime() < Date.now()
-    ) {
-      return { active: false };
+    if (!accessToken) {
+      return {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.UNKNOWN_TOKEN
+      };
+    }
+
+    if (accessToken.revokedAt) {
+      return {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.REVOKED
+      };
+    }
+
+    if (accessToken.expiresAt.getTime() < Date.now()) {
+      return {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.EXPIRED
+      };
     }
 
     if (this.state !== GrantState.ISSUED) {
-      return { active: false };
+      return {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.INVALID_GRANT
+      };
     }
 
     if (requestedAccesses) {
@@ -532,8 +553,12 @@ export class GrantEntity implements IGrant {
         }
       }
 
-      if (allowedAccessItems.length !== requestedAccesses.length)
-        return { active: false };
+      if (allowedAccessItems.length !== requestedAccesses.length) {
+        return {
+          active: false,
+          inactiveReason: TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS
+        };
+      }
       return { active: true, access: allowedAccessItems };
     } else {
       return { active: true, access: this._accesses };

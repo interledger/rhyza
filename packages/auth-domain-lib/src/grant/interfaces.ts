@@ -121,6 +121,16 @@ export const FinalizedGrantState = {
 } as const;
 export type FinalizedGrantState = keyof typeof FinalizedGrantState;
 
+export const TokenIntrospectionInactiveReason = {
+  EXPIRED: 'EXPIRED',
+  REVOKED: 'REVOKED',
+  UNKNOWN_TOKEN: 'UNKNOWN_TOKEN',
+  INVALID_GRANT: 'INVALID_GRANT',
+  INSUFFICIENT_ACCESS: 'INSUFFICIENT_ACCESS'
+} as const;
+export type TokenIntrospectionInactiveReason =
+  keyof typeof TokenIntrospectionInactiveReason;
+
 export const GrantState = {
   // transitional states
   PROCESSING: 'PROCESSING',

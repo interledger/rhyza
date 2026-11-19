@@ -6,7 +6,8 @@ import {
   IJsonWebKey,
   ISubjectId,
   InteractionChoice,
-  InteractionState
+  InteractionState,
+  TokenIntrospectionInactiveReason
 } from './interfaces';
 
 const BOUNDED_CONTEXT_NAME = 'auth';
@@ -242,6 +243,7 @@ export interface TokenIntrospectedPayload {
   value: string;
   active: boolean;
   access?: IAccessItem[];
+  inactiveReason?: TokenIntrospectionInactiveReason;
 }
 
 export class TokenIntrospectedEvent extends AuthDomainEvent {

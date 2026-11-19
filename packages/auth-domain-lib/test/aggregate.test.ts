@@ -57,7 +57,8 @@ import {
   GrantState,
   IAccessLimit,
   IGrant,
-  InteractionState
+  InteractionState,
+  TokenIntrospectionInactiveReason
 } from '../src/grant/interfaces';
 import { MockGrantRepo, MockWalletAddressService } from './mocks';
 
@@ -1535,6 +1536,10 @@ describe('GrantAggregate.handleBatch', () => {
         const payload = (events[0] as TokenIntrospectedEvent).payload;
         assert.equal(payload.active, false);
         assert.equal(payload.access, undefined);
+        assert.equal(
+          payload.inactiveReason,
+          TokenIntrospectionInactiveReason.UNKNOWN_TOKEN
+        );
       });
 
       it('restricts the returned access to the requested access items', async () => {
@@ -1583,6 +1588,10 @@ describe('GrantAggregate.handleBatch', () => {
         const payload = (events[0] as TokenIntrospectedEvent).payload;
         assert.equal(payload.active, false);
         assert.equal(payload.access, undefined);
+        assert.equal(
+          payload.inactiveReason,
+          TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS
+        );
       });
 
       it('returns active: false when nothing requested is covered', async () => {
@@ -1604,29 +1613,25 @@ describe('GrantAggregate.handleBatch', () => {
         const payload = (events[0] as TokenIntrospectedEvent).payload;
         assert.equal(payload.active, false);
         assert.equal(payload.access, undefined);
+        assert.equal(
+          payload.inactiveReason,
+          TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS
+        );
       });
 
-      it('returns active: false when the grant does not exist', async () => {
+      it('fails with GrantNotFoundError when the grant does not exist', async () => {
         const id = randomUUID();
-        const debugMock = mock.method(logger, 'debug', () => {});
 
         const { events } = await aggregate.handleBatch([
           await makeIntrospectTokenCmd({ id, tokenValue: 'some-token-value' })
         ]);
 
         assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
-        const payload = (events[0] as TokenIntrospectedEvent).payload;
-        assert.equal(payload.id, id);
-        assert.equal(payload.active, false);
-        assert.equal(
-          debugMock.mock.calls.some(
-            (call) =>
-              call.arguments[0] ===
-              `Grant ${id} not found - command: IntrospectTokenCmd`
-          ),
-          true
-        );
+        assert.equal(events[0].msgName, TokenIntrospectionFailedEvent.name);
+        const payload = (events[0] as TokenIntrospectionFailedEvent).payload;
+        assert.equal(payload.grantId, id);
+        assert.equal(payload.errorName, 'GrantNotFoundError');
+        assert.equal(payload.errorType, 'NotFound');
       });
 
       it('fails with TokenIntrospectionFailedEvent when introspection fails unexpectedly', async () => {

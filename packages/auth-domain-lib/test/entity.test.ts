@@ -24,6 +24,7 @@ import {
   IJsonWebKey,
   InteractionState,
   IInteraction,
+  TokenIntrospectionInactiveReason,
   ISpentAmounts
 } from '../src/grant/interfaces';
 
@@ -831,7 +832,10 @@ describe('GrantEntity', () => {
 
       const result = entity.introspectAccessToken('unknown-token-value');
 
-      assert.deepEqual(result, { active: false });
+      assert.deepEqual(result, {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.UNKNOWN_TOKEN
+      });
     });
 
     it('returns active: false for a revoked access token', () => {
@@ -840,7 +844,10 @@ describe('GrantEntity', () => {
 
       const result = entity.introspectAccessToken(accessToken.value);
 
-      assert.deepEqual(result, { active: false });
+      assert.deepEqual(result, {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.REVOKED
+      });
     });
 
     it('returns active: false for an expired access token', (context) => {
@@ -852,7 +859,10 @@ describe('GrantEntity', () => {
 
       const result = entity.introspectAccessToken(accessToken.value);
 
-      assert.deepEqual(result, { active: false });
+      assert.deepEqual(result, {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.EXPIRED
+      });
     });
 
     it('returns active: true with the grant accesses when no requestedAccesses are given', () => {
@@ -917,7 +927,10 @@ describe('GrantEntity', () => {
         requestedAccesses
       );
 
-      assert.deepEqual(result, { active: false });
+      assert.deepEqual(result, {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS
+      });
     });
 
     it('returns active: false when a matching access item only has a subset of the requested actions', () => {
@@ -937,7 +950,10 @@ describe('GrantEntity', () => {
         requestedAccesses
       );
 
-      assert.deepEqual(result, { active: false });
+      assert.deepEqual(result, {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS
+      });
     });
 
     it('returns active: true when a read request matches a grant access item with read-all', () => {
@@ -988,7 +1004,10 @@ describe('GrantEntity', () => {
         }
       ]);
 
-      assert.deepEqual(result, { active: false });
+      assert.deepEqual(result, {
+        active: false,
+        inactiveReason: TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS
+      });
     });
 
     describe('identifier', () => {
@@ -1067,7 +1086,10 @@ describe('GrantEntity', () => {
           }
         ]);
 
-        assert.deepEqual(result, { active: false });
+        assert.deepEqual(result, {
+          active: false,
+          inactiveReason: TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS
+        });
       });
     });
     describe('finishInteraction', () => {

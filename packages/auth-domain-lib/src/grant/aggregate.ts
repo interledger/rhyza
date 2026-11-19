@@ -57,6 +57,7 @@ import {
   IJsonWebKey,
   InteractionChoice,
   InteractionState,
+  TokenIntrospectionInactiveReason,
   isJWK,
   IStartMethod,
   ISubjectId,
@@ -622,16 +623,8 @@ export class GrantAggregate {
     try {
       const grant = this.grantMap.get(id);
       if (!grant) {
-        this._logger.debug(
+        throw new GrantNotFoundError(
           `Grant ${id} not found - command: ${IntrospectTokenCmd.name}`
-        );
-        return new TokenIntrospectedEvent(
-          {
-            id,
-            value: tokenValue,
-            active: false
-          },
-          cmd.requestId
         );
       }
 
@@ -664,7 +657,8 @@ export class GrantAggregate {
           id,
           value: tokenValue,
           active: accessToken.active,
-          access: accessToken.access
+          access: accessToken.access,
+          inactiveReason: accessToken.inactiveReason
         },
         cmd.requestId
       );
