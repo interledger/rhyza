@@ -75,6 +75,7 @@ import {
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
+  TokenIntrospectionFailedEvent,
   TokenRotatedEvent,
   TokenRotationFailedEvent,
   TokenRevokedEvent,
@@ -273,14 +274,15 @@ export class AuthServiceServer {
       const accessList = call.request.getAccessList().map((item: any) => ({
         type: item.getType().toString(),
         actions: item.getActionsList().map((a: any) => a.toString()),
-        identifier: item.getIdentifier(),
+        identifier: item.getIdentifier() || undefined,
         limits: item.getLimits()
           ? {
               receiver: item.getLimits().getReceiver(),
               assetCode: item.getLimits().getAssetCode(),
               assetScale: item.getLimits().getAssetScale(),
-              debitAmount: item.getLimits().getDebitAmountValue(),
-              receiveAmount: item.getLimits().getReceiveAmountValue(),
+              debitAmount: item.getLimits().getDebitAmountValue() || undefined,
+              receiveAmount:
+                item.getLimits().getReceiveAmountValue() || undefined,
               interval: item.getLimits().getInterval()
             }
           : undefined
@@ -448,6 +450,21 @@ export class AuthServiceServer {
       );
       await this._msgProducer.send(cmd);
     } else if (call.request instanceof IntrospectTokenRequest) {
+      const signatureDataMsg = call.request.getSignatureData();
+      if (!signatureDataMsg) {
+        callback(new Error('Missing signature data'));
+        return;
+      }
+      const signatureData = {
+        url: signatureDataMsg.getUrl(),
+        method: signatureDataMsg.getMethod(),
+        body: signatureDataMsg.hasBody()
+          ? signatureDataMsg.getBody()
+          : undefined,
+        headers: JSON.parse(signatureDataMsg.getHeaders()),
+        kid: signatureDataMsg.getKid()
+      };
+
       const commandId = crypto.randomUUID();
       this._storePendingResponse(commandId, call, callback);
 
@@ -455,17 +472,20 @@ export class AuthServiceServer {
         {
           id: call.request.getId(),
           tokenValue: call.request.getTokenValue(),
+          signatureData,
           access: call.request.getAccessList().map((item: any) => ({
             type: item.getType().toString(),
             actions: item.getActionsList().map((a: any) => a.toString()),
-            identifier: item.getIdentifier(),
+            identifier: item.getIdentifier() || undefined,
             limits: item.getLimits()
               ? {
                   receiver: item.getLimits().getReceiver(),
                   assetCode: item.getLimits().getAssetCode(),
                   assetScale: item.getLimits().getAssetScale(),
-                  debitAmount: item.getLimits().getDebitAmountValue(),
-                  receiveAmount: item.getLimits().getReceiveAmountValue(),
+                  debitAmount:
+                    item.getLimits().getDebitAmountValue() || undefined,
+                  receiveAmount:
+                    item.getLimits().getReceiveAmountValue() || undefined,
                   interval: item.getLimits().getInterval()
                 }
               : undefined
@@ -845,6 +865,9 @@ export class AuthServiceServer {
         response.addAccess(this.getAccessListResponse(access));
       }
       this._resolvePendingResponse(pending, requestId, null, response);
+    } else if (AuthDomainEvent.isTokenIntrospectionFailedEvent(event)) {
+      const payload: TokenIntrospectionFailedEvent['payload'] = event.payload;
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isTokenRotatedEvent(event)) {
       const response = new RotateTokenResponse();
       const payload: TokenRotatedEvent['payload'] = event.payload;
