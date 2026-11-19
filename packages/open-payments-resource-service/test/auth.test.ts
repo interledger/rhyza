@@ -22,7 +22,7 @@ import {
   GRANT_ID,
   RAW_TOKEN,
   signedAuthHeaders,
-  spyAuthClient,
+  IntrospectTokenCall,
   stubAuthClient,
   TOKEN
 } from './helpers';
@@ -103,10 +103,13 @@ describe('introspectToken', () => {
   }
 
   test('401 without an authorization header', async () => {
-    const { authClient, introspectToken: introspectSpy } = spyAuthClient(
-      activeTokenIntrospectionResult([readItem])
+    const introspectTokenCalls: IntrospectTokenCall[] = [];
+    const app = await createTestApp(
+      stubAuthClient(
+        activeTokenIntrospectionResult([readItem]),
+        introspectTokenCalls
+      )
     );
-    const app = await createTestApp(authClient);
     const { signature, 'signature-input': signatureInput } =
       signedAuthHeaders();
     const headers = { signature, 'signature-input': signatureInput };
@@ -118,7 +121,7 @@ describe('introspectToken', () => {
       'Missing or invalid authorization header value',
       'invalid_token'
     );
-    assert.equal(introspectSpy.mock.callCount(), 0);
+    assert.equal(introspectTokenCalls.length, 0);
   });
 
   test('401 for a non-GNAP authorization header', async () => {
@@ -169,10 +172,13 @@ describe('introspectToken', () => {
   });
 
   test('401 when the token does not decode to a grant id', async () => {
-    const { authClient, introspectToken: introspectSpy } = spyAuthClient(
-      activeTokenIntrospectionResult([readItem])
+    const introspectTokenCalls: IntrospectTokenCall[] = [];
+    const app = await createTestApp(
+      stubAuthClient(
+        activeTokenIntrospectionResult([readItem]),
+        introspectTokenCalls
+      )
     );
-    const app = await createTestApp(authClient);
 
     await expectError(
       app,
@@ -181,7 +187,7 @@ describe('introspectToken', () => {
       'Invalid Token',
       'invalid_token'
     );
-    assert.equal(introspectSpy.mock.callCount(), 0);
+    assert.equal(introspectTokenCalls.length, 0);
   });
 
   test('401 when the Auth BC rejects the signature', async () => {
@@ -241,12 +247,14 @@ describe('introspectToken', () => {
   });
 
   test('introspects the requested access with signature data and sets the matched access item', async () => {
-    const { authClient, introspectToken: introspectSpy } = spyAuthClient(
-      activeTokenIntrospectionResult([readItem])
+    const introspectTokenCalls: IntrospectTokenCall[] = [];
+    const app = await createTestApp(
+      stubAuthClient(
+        activeTokenIntrospectionResult([readItem]),
+        introspectTokenCalls
+      ),
+      { identifierFromBody: true }
     );
-    const app = await createTestApp(authClient, {
-      identifierFromBody: true
-    });
 
     const response = await app.inject({
       method: 'POST',
@@ -258,9 +266,9 @@ describe('introspectToken', () => {
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json().grantAccess, readItem);
 
-    assert.equal(introspectSpy.mock.callCount(), 1);
-    const [grantId, signatureData, tokenValue, access] =
-      introspectSpy.mock.calls[0].arguments;
+    assert.equal(introspectTokenCalls.length, 1);
+    const { grantId, signatureData, tokenValue, access } =
+      introspectTokenCalls[0];
     assert.equal(grantId, GRANT_ID);
     assert.equal(tokenValue, RAW_TOKEN);
     assert.deepEqual(access, [
@@ -281,10 +289,13 @@ describe('introspectToken', () => {
   });
 
   test('omits the identifier when none is known for the request', async () => {
-    const { authClient, introspectToken: introspectSpy } = spyAuthClient(
-      activeTokenIntrospectionResult([readItem])
+    const introspectTokenCalls: IntrospectTokenCall[] = [];
+    const app = await createTestApp(
+      stubAuthClient(
+        activeTokenIntrospectionResult([readItem]),
+        introspectTokenCalls
+      )
     );
-    const app = await createTestApp(authClient);
 
     await app.inject({
       method: 'POST',
@@ -293,7 +304,7 @@ describe('introspectToken', () => {
       payload: {}
     });
 
-    const [, , , access] = introspectSpy.mock.calls[0].arguments;
+    const { access } = introspectTokenCalls[0];
     assert.deepEqual(access, [
       { type: 'INCOMING_PAYMENT', actions: ['CREATE'] }
     ]);
