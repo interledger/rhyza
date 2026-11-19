@@ -1,4 +1,3 @@
-import { mock } from 'node:test';
 import {
   AccessItem,
   AuthClient,
@@ -18,22 +17,29 @@ export const signedAuthHeaders = (token: string = TOKEN) => ({
   'signature-input': 'sig1=("@method" "@target-uri");keyid="key-1";created=1'
 });
 
+export type IntrospectTokenCall = {
+  grantId: string;
+  signatureData: SignatureRequestData;
+  tokenValue: string;
+  access: AccessItem[];
+};
+
 export function stubAuthClient(
-  result: IntrospectTokenResult | Error
+  result: IntrospectTokenResult | Error,
+  calls: IntrospectTokenCall[] = []
 ): AuthClient {
-  return spyAuthClient(result).authClient;
-}
-
-export function spyAuthClient(result: IntrospectTokenResult | Error): {
-  authClient: AuthClient;
-  introspectToken: ReturnType<typeof introspectTokenMock>;
-} {
-  const introspectToken = introspectTokenMock(result);
-
-  return {
-    authClient: { introspectToken } as unknown as AuthClient,
-    introspectToken
+  const introspectToken: IntrospectToken = async (
+    grantId,
+    signatureData,
+    tokenValue,
+    access
+  ) => {
+    calls.push({ grantId, signatureData, tokenValue, access });
+    if (result instanceof Error) throw result;
+    return result;
   };
+
+  return { introspectToken } as unknown as AuthClient;
 }
 
 type IntrospectToken = (
@@ -42,15 +48,6 @@ type IntrospectToken = (
   tokenValue: string,
   access: AccessItem[]
 ) => Promise<IntrospectTokenResult>;
-
-function introspectTokenMock(result: IntrospectTokenResult | Error) {
-  const introspect: IntrospectToken = async () => {
-    if (result instanceof Error) throw result;
-    return result;
-  };
-
-  return mock.fn(introspect);
-}
 
 export const activeTokenIntrospectionResult = (
   access: AccessItem[]
