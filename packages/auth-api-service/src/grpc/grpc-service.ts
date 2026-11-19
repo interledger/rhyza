@@ -867,11 +867,7 @@ export class AuthServiceServer {
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isTokenIntrospectionFailedEvent(event)) {
       const payload: TokenIntrospectionFailedEvent['payload'] = event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isTokenRotatedEvent(event)) {
       const response = new RotateTokenResponse();
       const payload: TokenRotatedEvent['payload'] = event.payload;
