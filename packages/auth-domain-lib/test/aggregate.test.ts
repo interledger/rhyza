@@ -1558,7 +1558,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.deepEqual(payload.access, [access[0]]);
       });
 
-      it('returns active: false when the requested access items are not fully covered by the grant', async () => {
+      it('returns active: true with only the covered access items when the grant does not cover every requested item', async () => {
         const access = [
           { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
         ];
@@ -1581,11 +1581,11 @@ describe('GrantAggregate.handleBatch', () => {
 
         assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
         const payload = (events[0] as TokenIntrospectedEvent).payload;
-        assert.equal(payload.active, false);
-        assert.equal(payload.access, undefined);
+        assert.equal(payload.active, true);
+        assert.deepEqual(payload.access, access);
       });
 
-      it('returns active: false when nothing requested is covered', async () => {
+      it('returns active: true with no access items when nothing requested is covered', async () => {
         const { id, tokenValue, keys } = await createAndFlushIssuedGrant();
 
         const { events } = await aggregate.handleBatch([
@@ -1602,8 +1602,8 @@ describe('GrantAggregate.handleBatch', () => {
         ]);
 
         const payload = (events[0] as TokenIntrospectedEvent).payload;
-        assert.equal(payload.active, false);
-        assert.equal(payload.access, undefined);
+        assert.equal(payload.active, true);
+        assert.deepEqual(payload.access, []);
       });
 
       it('returns active: false when the grant does not exist', async () => {
