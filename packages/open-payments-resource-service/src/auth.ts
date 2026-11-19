@@ -74,7 +74,7 @@ export function extractSignatureData(
     throw new OpenPaymentsResourceServerRouteError(
       401,
       'Missing signature header',
-      'unauthorized'
+      'invalid_signature'
     );
   }
 
@@ -82,7 +82,7 @@ export function extractSignatureData(
     throw new OpenPaymentsResourceServerRouteError(
       401,
       'Missing signature-input header',
-      'unauthorized'
+      'invalid_signature'
     );
   }
 
@@ -91,7 +91,7 @@ export function extractSignatureData(
     throw new OpenPaymentsResourceServerRouteError(
       401,
       'Missing key-id in signature input',
-      'unauthorized'
+      'invalid_signature'
     );
   }
 
@@ -110,7 +110,7 @@ function extractGnapToken(request: FastifyRequest): string {
     throw new OpenPaymentsResourceServerRouteError(
       401,
       'Missing or invalid authorization header value',
-      'unauthorized'
+      'invalid_token'
     );
   }
   return parts[1];
@@ -148,7 +148,7 @@ export async function introspectToken(
       throw new OpenPaymentsResourceServerRouteError(
         401,
         'Invalid Token',
-        'unauthorized'
+        'invalid_token'
       );
     }
 
@@ -171,7 +171,7 @@ export async function introspectToken(
         throw new OpenPaymentsResourceServerRouteError(
           401,
           'Invalid signature',
-          'unauthorized'
+          'invalid_signature'
         );
       }
       throw err;
@@ -181,7 +181,7 @@ export async function introspectToken(
       throw new OpenPaymentsResourceServerRouteError(
         403,
         'Inactive Token',
-        'forbidden'
+        'inactive_token'
       );
     }
 
@@ -189,7 +189,7 @@ export async function introspectToken(
       throw new OpenPaymentsResourceServerRouteError(
         403,
         'Insufficient Grant',
-        'forbidden'
+        'insufficient_grant'
       );
     }
 
@@ -219,7 +219,7 @@ export function assertGrantIdentifierMatches(
   const error = new OpenPaymentsResourceServerRouteError(
     403,
     'Insufficient Grant',
-    'forbidden'
+    'insufficient_grant'
   );
 
   try {

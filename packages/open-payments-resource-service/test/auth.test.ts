@@ -83,7 +83,8 @@ describe('introspectToken', () => {
     app: Awaited<ReturnType<typeof createTestApp>>,
     headers: Record<string, string>,
     status: number,
-    description: string
+    description: string,
+    code: string
   ) {
     const response = await app.inject({
       method: 'POST',
@@ -93,6 +94,7 @@ describe('introspectToken', () => {
     });
     assert.equal(response.statusCode, status);
     assert.equal(response.json().error.description, description);
+    assert.equal(response.json().error.code, code);
     assert.equal(
       response.headers['www-authenticate'],
       `GNAP as_uri=${AUTH_SERVER_URL}`
@@ -112,7 +114,8 @@ describe('introspectToken', () => {
       app,
       headers,
       401,
-      'Missing or invalid authorization header value'
+      'Missing or invalid authorization header value',
+      'invalid_token'
     );
     assert.equal(calls.length, 0);
   });
@@ -124,7 +127,8 @@ describe('introspectToken', () => {
       app,
       { ...signedAuthHeaders(), authorization: `Bearer ${TOKEN}` },
       401,
-      'Missing or invalid authorization header value'
+      'Missing or invalid authorization header value',
+      'invalid_token'
     );
   });
 
@@ -134,7 +138,13 @@ describe('introspectToken', () => {
       signedAuthHeaders();
     const headers = { authorization, 'signature-input': signatureInput };
 
-    await expectError(app, headers, 401, 'Missing signature header');
+    await expectError(
+      app,
+      headers,
+      401,
+      'Missing signature header',
+      'invalid_signature'
+    );
   });
 
   test('401 without a signature-input header', async () => {
@@ -142,7 +152,13 @@ describe('introspectToken', () => {
     const { authorization, signature } = signedAuthHeaders();
     const headers = { authorization, signature };
 
-    await expectError(app, headers, 401, 'Missing signature-input header');
+    await expectError(
+      app,
+      headers,
+      401,
+      'Missing signature-input header',
+      'invalid_signature'
+    );
   });
 
   test('401 when the token does not decode to a grant id', async () => {
@@ -151,7 +167,13 @@ describe('introspectToken', () => {
       stubAuthClient(activeResult([readItem]), calls)
     );
 
-    await expectError(app, signedAuthHeaders('garbage'), 401, 'Invalid Token');
+    await expectError(
+      app,
+      signedAuthHeaders('garbage'),
+      401,
+      'Invalid Token',
+      'invalid_token'
+    );
     assert.equal(calls.length, 0);
   });
 
@@ -160,7 +182,13 @@ describe('introspectToken', () => {
       stubAuthClient(new AuthClientPermissionDeniedError('denied'))
     );
 
-    await expectError(app, signedAuthHeaders(), 401, 'Invalid signature');
+    await expectError(
+      app,
+      signedAuthHeaders(),
+      401,
+      'Invalid signature',
+      'invalid_signature'
+    );
   });
 
   test('403 for an inactive token', async () => {
@@ -168,13 +196,25 @@ describe('introspectToken', () => {
       stubAuthClient({ active: false, grantId: GRANT_ID, access: [] })
     );
 
-    await expectError(app, signedAuthHeaders(), 403, 'Inactive Token');
+    await expectError(
+      app,
+      signedAuthHeaders(),
+      403,
+      'Inactive Token',
+      'inactive_token'
+    );
   });
 
   test('403 when the grant has no matching access', async () => {
     const app = await createTestApp(stubAuthClient(activeResult([])));
 
-    await expectError(app, signedAuthHeaders(), 403, 'Insufficient Grant');
+    await expectError(
+      app,
+      signedAuthHeaders(),
+      403,
+      'Insufficient Grant',
+      'insufficient_grant'
+    );
   });
 
   test('500 when introspection fails unexpectedly', async () => {

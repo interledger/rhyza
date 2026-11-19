@@ -139,7 +139,7 @@ export async function incomingPaymentRoutes(
 
       if (!walletAddress) {
         throw new OpenPaymentsResourceServerRouteError(
-          400,
+          404,
           'Wallet address not found',
           'not_found'
         );
@@ -151,7 +151,7 @@ export async function incomingPaymentRoutes(
           incomingAmount.assetScale !== walletAddress.assetScale)
       ) {
         throw new OpenPaymentsResourceServerRouteError(
-          404,
+          400,
           'incomingAmount asset does not match wallet address asset',
           'invalid_request'
         );
