@@ -16,7 +16,8 @@ import {
   InboundPaymentState,
   IWalletAddress,
   QuoteState,
-  ILocalPaymentIntent
+  ILocalPaymentIntent,
+  IInboundPayment
 } from './interfaces';
 import { PaymentIntent } from './entity';
 import {
@@ -37,8 +38,11 @@ import {
   ValidateInboundPaymentCmd,
   AcceptInboundPaymentCmd,
   FailInboundPaymentCmd,
-  MarkInboundPaymentFulfillableCmd,
-  FinalizeInboundPaymentCmd
+  MarkInboundPaymentFulfilledCmd,
+  FinalizeInboundPaymentCmd,
+  ExpirePaymentIntentCmd,
+  ExpireRemotePaymentCmd,
+  ExpireInboundPaymentCmd
 } from '../commands';
 import {
   CannotCreateDuplicatePaymentIntentError,
@@ -77,13 +81,20 @@ import {
   RemotePaymentSendConfirmedEvent,
   RemotePaymentSendRejectedEvent,
   InboundPaymentValidatedEvent,
-  InboundPaymentFulfillableEvent,
   InboundPaymentValidationFailedEvent,
   InboundPaymentAcceptedEvent,
   InboundPaymentFailedEvent,
+  InboundPaymentReserveFailedEvent,
+  InboundPaymentAcceptFailedEvent,
+  InboundPaymentFulfillFailedEvent,
+  InboundPaymentExpiredEvent,
+  InboundPaymentFulfilledEvent,
   InboundPaymentFinalizedEvent,
+  InboundPaymentStepFailedPayload,
   PaymentIntentCompletedPayload,
-  PaymentCompleteFailedAdditionalData
+  PaymentCompleteFailedAdditionalData,
+  PaymentIntentExpiredEvent,
+  PaymentExpiredEvent
 } from 'payments-public-types-lib';
 
 const fxKey = (
@@ -108,11 +119,13 @@ export class PaymentIntentAggregate {
   private rejectedRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private completedRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private failedRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
+  private expiredRemotePayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
+  private expiredPaymentIntentIds: string[] = [];
   private cancelledPayments = new Map<string, string[]>(); // paymentIntentId, paymentIds
   private newInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
   private acceptedInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
   private failedInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
-  private fulfillableInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
+  private fulfilledInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
   private finalizedInboundPayments = new Map<string, string[]>(); // paymentIntentId, inboundPaymentIds
   private paymentIntentMap = new Map<string, IPaymentIntent>();
   private walletAddressMap = new Map<string, IWalletAddress>();
@@ -135,8 +148,9 @@ export class PaymentIntentAggregate {
     private _logger: ILogger
   ) {}
 
-  async handleBatch(cmds: IMessage[]): Promise<{ events: IMessage[] }> {
-    this._logger.debug(`handleBatch — ${cmds.length} cmd(s)`);
+  async handleBatch(batch: IMessage[]): Promise<{ events: IMessage[] }> {
+    this._logger.debug(`handleBatch — ${batch.length} cmd(s)`);
+    const cmds = this._orderExpiryLast(batch);
     const outputEvents: IMessage[] = [];
 
     // prefetch any external data needed to process the batch
@@ -147,78 +161,22 @@ export class PaymentIntentAggregate {
       if (cmd.msgName === CreatePaymentIntentCmd.name) {
         const payload = (cmd as CreatePaymentIntentCmd).payload;
         walletAddressIdSet.add(payload.receiverWalletAddressId);
-        paymentIntentIdsSet.add(payload.id);
-      } else if (cmd.msgName === CompletePaymentIntentCmd.name) {
-        const payload = (cmd as CompletePaymentIntentCmd).payload;
-        paymentIntentIdsSet.add(payload.id);
-      } else if (cmd.msgName === CreateQuoteCmd.name) {
-        const payload = (cmd as CreateQuoteCmd).payload;
+      } else if (
+        cmd.msgName === CreateQuoteCmd.name ||
+        cmd.msgName === CreatePaymentCmd.name
+      ) {
+        const payload = (cmd as CreateQuoteCmd | CreatePaymentCmd).payload;
         walletAddressIdSet.add(payload.senderWalletAddressId);
         if (payload.remotePaymentIntentUrl) {
+          // imported from the remote below, not fetched locally
           remoteUrlByProposedId.set(
             payload.paymentIntentId,
             payload.remotePaymentIntentUrl
           );
-        } else {
-          paymentIntentIdsSet.add(payload.paymentIntentId);
+          continue;
         }
-      } else if (cmd.msgName === CreatePaymentCmd.name) {
-        const payload = (cmd as CreatePaymentCmd).payload;
-        walletAddressIdSet.add(payload.senderWalletAddressId);
-        if (payload.remotePaymentIntentUrl) {
-          remoteUrlByProposedId.set(
-            payload.paymentIntentId,
-            payload.remotePaymentIntentUrl
-          );
-        } else {
-          paymentIntentIdsSet.add(payload.paymentIntentId);
-        }
-      } else if (cmd.msgName === ApprovePaymentCmd.name) {
-        const payload = (cmd as ApprovePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === CancelPaymentCmd.name) {
-        const payload = (cmd as CancelPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === CompleteRemoteQuoteCmd.name) {
-        const payload = (cmd as CompleteRemoteQuoteCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === FailRemoteQuoteCmd.name) {
-        const payload = (cmd as FailRemoteQuoteCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === CalculateRemoteQuoteCmd.name) {
-        const payload = (cmd as CalculateRemoteQuoteCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === PrepareRemotePaymentCmd.name) {
-        const payload = (cmd as PrepareRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === FailRemotePaymentCmd.name) {
-        const payload = (cmd as FailRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === ConfirmRemotePaymentCmd.name) {
-        const payload = (cmd as ConfirmRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === RejectRemotePaymentCmd.name) {
-        const payload = (cmd as RejectRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === CompleteRemotePaymentCmd.name) {
-        const payload = (cmd as CompleteRemotePaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === ValidateInboundPaymentCmd.name) {
-        const payload = (cmd as ValidateInboundPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === AcceptInboundPaymentCmd.name) {
-        const payload = (cmd as AcceptInboundPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === FailInboundPaymentCmd.name) {
-        const payload = (cmd as FailInboundPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === MarkInboundPaymentFulfillableCmd.name) {
-        const payload = (cmd as MarkInboundPaymentFulfillableCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
-      } else if (cmd.msgName === FinalizeInboundPaymentCmd.name) {
-        const payload = (cmd as FinalizeInboundPaymentCmd).payload;
-        paymentIntentIdsSet.add(payload.paymentIntentId);
       }
+      if (cmd.msgKey) paymentIntentIdsSet.add(cmd.msgKey);
     }
 
     const uniqueRemoteUrls = [...new Set(remoteUrlByProposedId.values())];
@@ -254,6 +212,7 @@ export class PaymentIntentAggregate {
         peerIdsToFetch.add((cmd as ValidateInboundPaymentCmd).payload.peerId);
       }
     }
+    // TODO: batch fetch from PAL (eg getPeers)?)
     await Promise.all(
       Array.from(peerIdsToFetch, async (peerId) => {
         try {
@@ -396,13 +355,25 @@ export class PaymentIntentAggregate {
         event = this.handleFailInboundPaymentCommand(
           cmd as FailInboundPaymentCmd
         );
-      } else if (cmd.msgName === MarkInboundPaymentFulfillableCmd.name) {
-        event = this.handleMarkInboundPaymentFulfillableCommand(
-          cmd as MarkInboundPaymentFulfillableCmd
+      } else if (cmd.msgName === MarkInboundPaymentFulfilledCmd.name) {
+        event = this.handleMarkInboundPaymentFulfilledCommand(
+          cmd as MarkInboundPaymentFulfilledCmd
         );
       } else if (cmd.msgName === FinalizeInboundPaymentCmd.name) {
         event = this.handleFinalizeInboundPaymentCommand(
           cmd as FinalizeInboundPaymentCmd
+        );
+      } else if (cmd.msgName === ExpirePaymentIntentCmd.name) {
+        event = this.handleExpirePaymentIntentCommand(
+          cmd as ExpirePaymentIntentCmd
+        );
+      } else if (cmd.msgName === ExpireRemotePaymentCmd.name) {
+        event = this.handleExpireRemotePaymentCommand(
+          cmd as ExpireRemotePaymentCmd
+        );
+      } else if (cmd.msgName === ExpireInboundPaymentCmd.name) {
+        event = this.handleExpireInboundPaymentCommand(
+          cmd as ExpireInboundPaymentCmd
         );
       } else {
         throw new Error('Unexpected command');
@@ -412,6 +383,35 @@ export class PaymentIntentAggregate {
     }
 
     return { events: outputEvents };
+  }
+
+  /**
+   * Moves expire commands after every other command in the batch, and drops
+   * repeats. A confirm or reject for the same payment in this batch then
+   * settles it first, and the expiry finds it no longer expirable. The expiry
+   * check can resend a command before the first is handled, hence the dedupe.
+   */
+  private _orderExpiryLast(cmds: IMessage[]): IMessage[] {
+    const others: IMessage[] = [];
+    const expiries = new Map<string, IMessage>();
+    for (const cmd of cmds) {
+      if (cmd.msgName === ExpirePaymentIntentCmd.name) {
+        const { paymentIntentId } = (cmd as ExpirePaymentIntentCmd).payload;
+        expiries.set(`intent:${paymentIntentId}`, cmd);
+      } else if (cmd.msgName === ExpireRemotePaymentCmd.name) {
+        const { paymentIntentId, paymentId } = (cmd as ExpireRemotePaymentCmd)
+          .payload;
+        expiries.set(`payment:${paymentIntentId}:${paymentId}`, cmd);
+      } else if (cmd.msgName === ExpireInboundPaymentCmd.name) {
+        const { paymentIntentId, inboundPaymentId } = (
+          cmd as ExpireInboundPaymentCmd
+        ).payload;
+        expiries.set(`inbound:${paymentIntentId}:${inboundPaymentId}`, cmd);
+      } else {
+        others.push(cmd);
+      }
+    }
+    return [...others, ...expiries.values()];
   }
 
   private handleCreatePaymentIntentCommand(cmd: CreatePaymentIntentCmd) {
@@ -1331,7 +1331,7 @@ export class PaymentIntentAggregate {
           paymentIntent.remoteUrl
         );
 
-      const payment = paymentIntent.prepareRemotePayment({
+      const { payment, packetExpiresAt } = paymentIntent.prepareRemotePayment({
         id: paymentId,
         ledgerTransferId
       });
@@ -1364,8 +1364,9 @@ export class PaymentIntentAggregate {
           assetCode: payment.assetCode,
           assetScale: payment.assetScale,
           sharedSecret: remoteDetails.sharedSecret,
-          // TODO: packet expiry — picked 30s to match the ILP quote handler.
-          expiresAt: new Date(Date.now() + 30_000).toISOString()
+          // The packet deadline. The payment itself expires a grace period
+          // later, so a fulfill that arrives in time reaches Payments first.
+          expiresAt: packetExpiresAt.toISOString()
         },
         cmd.requestId
       );
@@ -1432,7 +1433,7 @@ export class PaymentIntentAggregate {
           assetScale: payment.assetScale,
           receiveAssetCode: paymentIntent.assetCode,
           receiveAssetScale: paymentIntent.assetScale,
-          reason,
+          reason: reason ?? payment.failReason,
           grantId: payment.grantId
         },
         cmd.requestId
@@ -1477,6 +1478,32 @@ export class PaymentIntentAggregate {
         throw new PaymentNotFoundError(
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
+      }
+      if (existingPayment.state === 'EXPIRED') {
+        // TODO: Needs reconciliaiton or redesign that avoids this case.
+        //
+        // The fulfill reached Payments after the expiry check. The payment's
+        // reservation may already be released, so the sender was not debited
+        // for money the peer delivered. Nothing reconciles this yet.
+        //
+        // Potential redesign: Let ILP decide
+        // - Payments sees payment should be exired, leaves as SENDIGN, fires event to ILp
+        // - ILP: if packet pending, emite failure and tell payments to expire.
+        //        if fulfulled (the gap case we are redesigning for), tell payments to complete.
+        //        if packet not found, tell payments to expire.
+        this._logger.error(
+          {
+            paymentIntentId,
+            paymentId,
+            ledgerTransferId: existingPayment.ledgerTransferId,
+            peerId: existingPayment.peerId,
+            debitAmount: String(existingPayment.debitAmount),
+            assetCode: existingPayment.assetCode,
+            expiresAt: existingPayment.expiresAt?.toISOString()
+          },
+          `Payment ${paymentId} was fulfilled after it expired; needs reconciliation`
+        );
+        return [];
       }
       errorContext = {
         sentAmount: existingPayment.sentAmount.toString(),
@@ -1558,6 +1585,14 @@ export class PaymentIntentAggregate {
         throw new PaymentNotFoundError(
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
+      }
+      if (existingPayment.state === 'EXPIRED') {
+        // Expiry already started releasing the reservation; ILP's late
+        // failure has nothing left to do.
+        this._logger.debug(
+          `Ignoring ILP failure for already expired payment ${paymentId}`
+        );
+        return [];
       }
       errorContext = {
         sentAmount: existingPayment.sentAmount.toString(),
@@ -1710,7 +1745,8 @@ export class PaymentIntentAggregate {
       id: inboundPaymentId,
       paymentIntentId,
       packetId,
-      peerId
+      peerId,
+      ledgerTransferId
     } = cmd.payload;
 
     try {
@@ -1758,7 +1794,8 @@ export class PaymentIntentAggregate {
         fxRate,
         expiresAt: cmd.payload.expiresAt
           ? new Date(cmd.payload.expiresAt)
-          : undefined
+          : undefined,
+        ledgerTransferId
       });
 
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
@@ -1775,6 +1812,7 @@ export class PaymentIntentAggregate {
           packetId,
           peerId,
           requestId: cmd.requestId,
+          ledgerTransferId: inboundPayment.ledgerTransferId,
           sourceAmount: String(inboundPayment.sourceAmount),
           peerAssetCode,
           peerAssetScale,
@@ -1804,82 +1842,96 @@ export class PaymentIntentAggregate {
     }
   }
 
-  private handleAcceptInboundPaymentCommand(cmd: AcceptInboundPaymentCmd) {
+  // Idempotent: no-op unless the inbound payment is VALIDATED.
+  private handleAcceptInboundPaymentCommand(
+    cmd: AcceptInboundPaymentCmd
+  ): IMessage[] {
+    const { inboundPaymentId, paymentIntentId } = cmd.payload;
     this._logger.debug(
-      `handleAcceptInboundPaymentCommand — inboundPaymentId: ${cmd.payload.inboundPaymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
+      `handleAcceptInboundPaymentCommand — inboundPaymentId: ${inboundPaymentId} paymentIntentId: ${paymentIntentId}`
     );
-    const { inboundPaymentId, paymentIntentId, ledgerTransferId } = cmd.payload;
 
     try {
-      const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
-      if (!paymentIntentObj) {
-        throw new PaymentIntentNotFoundError(
-          `Payment intent ${paymentIntentId} not found`
+      const paymentIntent = this._getPaymentIntent(paymentIntentId);
+      const { outcome, inboundPayment } = paymentIntent.acceptInboundPayment({
+        id: inboundPaymentId
+      });
+      if (outcome === 'UNCHANGED') {
+        this._logger.debug(
+          `Inbound payment ${inboundPaymentId} not accepted: state ${inboundPayment.state}`
         );
+        return [];
       }
 
-      const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
-      const inboundPayment = paymentIntent.acceptInboundPayment({
-        id: inboundPaymentId,
-        ledgerTransferId
-      });
-
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
+
+      if (outcome === 'FAILED') {
+        this._appendToMap(
+          this.failedInboundPayments,
+          paymentIntent.id,
+          inboundPaymentId
+        );
+        return [
+          new InboundPaymentAcceptFailedEvent(
+            this._toStepFailedPayload(
+              paymentIntent,
+              inboundPayment,
+              cmd.requestId
+            ),
+            cmd.requestId
+          )
+        ];
+      }
+
       this._appendToMap(
         this.acceptedInboundPayments,
         paymentIntent.id,
         inboundPaymentId
       );
-
-      return new InboundPaymentAcceptedEvent(
-        {
-          paymentIntentId: paymentIntent.id,
-          inboundPaymentId: inboundPayment.id,
-          packetId: inboundPayment.packetId,
-          peerId: inboundPayment.peerId,
-          requestId: cmd.requestId,
-          ledgerTransferId,
-          receiveAmount: String(inboundPayment.receiveAmount),
-          receiveAssetCode: paymentIntent.assetCode,
-          receiveAssetScale: paymentIntent.assetScale,
-          state: inboundPayment.state
-        },
-        cmd.requestId
-      );
+      return [
+        new InboundPaymentAcceptedEvent(
+          {
+            paymentIntentId: paymentIntent.id,
+            inboundPaymentId: inboundPayment.id,
+            packetId: inboundPayment.packetId,
+            peerId: inboundPayment.peerId,
+            requestId: cmd.requestId,
+            ledgerTransferId: inboundPayment.ledgerTransferId,
+            receiveAmount: String(inboundPayment.receiveAmount),
+            receiveAssetCode: paymentIntent.assetCode,
+            receiveAssetScale: paymentIntent.assetScale,
+            state: inboundPayment.state
+          },
+          cmd.requestId
+        )
+      ];
     } catch (err) {
-      this._logger.debug(
-        `handleAcceptInboundPaymentCommand — failed paymentIntentId: ${paymentIntentId} error: ${(err as Error).message}`
-      );
-      return new InboundPaymentFailedEvent(
-        {
-          paymentIntentId,
-          inboundPaymentId,
-          ...getErrorDetails(err)
-        },
-        cmd.requestId
-      );
+      return [this._toInboundPaymentFailedEvent(cmd, err)];
     }
   }
 
-  private handleFailInboundPaymentCommand(cmd: FailInboundPaymentCmd) {
+  // Idempotent: no-op if the inbound payment is already FAILED.
+  private handleFailInboundPaymentCommand(
+    cmd: FailInboundPaymentCmd
+  ): IMessage[] {
+    const { inboundPaymentId, paymentIntentId, failedStep, reason } =
+      cmd.payload;
     this._logger.debug(
-      `handleFailInboundPaymentCommand — inboundPaymentId: ${cmd.payload.inboundPaymentId} paymentIntentId: ${cmd.payload.paymentIntentId} reason: ${cmd.payload.reason}`
+      `handleFailInboundPaymentCommand — inboundPaymentId: ${inboundPaymentId} paymentIntentId: ${paymentIntentId} failedStep: ${failedStep} reason: ${reason}`
     );
-    const { inboundPaymentId, paymentIntentId, reason } = cmd.payload;
 
     try {
-      const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
-      if (!paymentIntentObj) {
-        throw new PaymentIntentNotFoundError(
-          `Payment intent ${paymentIntentId} not found`
-        );
-      }
-
-      const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
-      const inboundPayment = paymentIntent.failInboundPayment({
+      const paymentIntent = this._getPaymentIntent(paymentIntentId);
+      const { failed, inboundPayment } = paymentIntent.failInboundPayment({
         id: inboundPaymentId,
         reason
       });
+      if (!failed) {
+        this._logger.debug(
+          `Inbound payment ${inboundPaymentId} already FAILED`
+        );
+        return [];
+      }
 
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
@@ -1888,108 +1940,90 @@ export class PaymentIntentAggregate {
         inboundPaymentId
       );
 
-      return new InboundPaymentFailedEvent(
-        {
-          paymentIntentId: paymentIntent.id,
-          inboundPaymentId: inboundPayment.id,
-          packetId: inboundPayment.packetId,
-          peerId: inboundPayment.peerId,
-          errorName: 'InboundPaymentFailed',
-          errorType: 'Internal',
-          message: reason ?? 'Inbound payment failed'
-        },
+      const payload = this._toStepFailedPayload(
+        paymentIntent,
+        inboundPayment,
         cmd.requestId
       );
+      return [
+        failedStep === 'RESERVE'
+          ? new InboundPaymentReserveFailedEvent(payload, cmd.requestId)
+          : new InboundPaymentFulfillFailedEvent(payload, cmd.requestId)
+      ];
     } catch (err) {
-      this._logger.debug(
-        `handleFailInboundPaymentCommand — failed paymentIntentId: ${paymentIntentId} error: ${(err as Error).message}`
-      );
-      return new InboundPaymentFailedEvent(
-        {
-          paymentIntentId,
-          inboundPaymentId,
-          ...getErrorDetails(err)
-        },
-        cmd.requestId
-      );
+      return [this._toInboundPaymentFailedEvent(cmd, err)];
     }
   }
 
-  private handleMarkInboundPaymentFulfillableCommand(
-    cmd: MarkInboundPaymentFulfillableCmd
-  ) {
-    this._logger.debug(
-      `handleMarkInboundPaymentFulfillableCommand — inboundPaymentId: ${cmd.payload.inboundPaymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
-    );
+  // Idempotent: no-op if the inbound payment is already FULFILLED or FINALIZED.
+  private handleMarkInboundPaymentFulfilledCommand(
+    cmd: MarkInboundPaymentFulfilledCmd
+  ): IMessage[] {
     const { inboundPaymentId, paymentIntentId } = cmd.payload;
+    this._logger.debug(
+      `handleMarkInboundPaymentFulfilledCommand — inboundPaymentId: ${inboundPaymentId} paymentIntentId: ${paymentIntentId}`
+    );
 
     try {
-      const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
-      if (!paymentIntentObj) {
-        throw new PaymentIntentNotFoundError(
-          `Payment intent ${paymentIntentId} not found`
+      const paymentIntent = this._getPaymentIntent(paymentIntentId);
+      const { fulfilled, inboundPayment } =
+        paymentIntent.markInboundPaymentFulfilled({ id: inboundPaymentId });
+      if (!fulfilled) {
+        this._logger.debug(
+          `Inbound payment ${inboundPaymentId} already ${inboundPayment.state}`
         );
+        return [];
       }
-
-      const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
-      const inboundPayment = paymentIntent.markInboundPaymentFulfillable({
-        id: inboundPaymentId
-      });
 
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
-        this.fulfillableInboundPayments,
+        this.fulfilledInboundPayments,
         paymentIntent.id,
         inboundPaymentId
       );
 
-      return new InboundPaymentFulfillableEvent(
-        {
-          paymentIntentId: paymentIntent.id,
-          inboundPaymentId: inboundPayment.id,
-          packetId: inboundPayment.packetId,
-          peerId: inboundPayment.peerId,
-          requestId: cmd.requestId,
-          receiveAmount: String(inboundPayment.receiveAmount),
-          receiveAssetCode: paymentIntent.assetCode,
-          receiveAssetScale: paymentIntent.assetScale,
-          state: inboundPayment.state
-        },
-        cmd.requestId
-      );
+      return [
+        new InboundPaymentFulfilledEvent(
+          {
+            paymentIntentId: paymentIntent.id,
+            inboundPaymentId: inboundPayment.id,
+            packetId: inboundPayment.packetId,
+            peerId: inboundPayment.peerId,
+            requestId: cmd.requestId,
+            ledgerTransferId: inboundPayment.ledgerTransferId,
+            receiveAmount: String(inboundPayment.receiveAmount),
+            receiveAssetCode: paymentIntent.assetCode,
+            receiveAssetScale: paymentIntent.assetScale,
+            state: inboundPayment.state
+          },
+          cmd.requestId
+        )
+      ];
     } catch (err) {
-      this._logger.debug(
-        `handleMarkInboundPaymentFulfillableCommand — failed paymentIntentId: ${paymentIntentId} error: ${(err as Error).message}`
-      );
-      return new InboundPaymentFailedEvent(
-        {
-          paymentIntentId,
-          inboundPaymentId,
-          ...getErrorDetails(err)
-        },
-        cmd.requestId
-      );
+      return [this._toInboundPaymentFailedEvent(cmd, err)];
     }
   }
 
-  private handleFinalizeInboundPaymentCommand(cmd: FinalizeInboundPaymentCmd) {
-    this._logger.debug(
-      `handleFinalizeInboundPaymentCommand — inboundPaymentId: ${cmd.payload.inboundPaymentId} paymentIntentId: ${cmd.payload.paymentIntentId}`
-    );
+  // Idempotent: no-op if the inbound payment is already FINALIZED.
+  private handleFinalizeInboundPaymentCommand(
+    cmd: FinalizeInboundPaymentCmd
+  ): IMessage[] {
     const { inboundPaymentId, paymentIntentId } = cmd.payload;
+    this._logger.debug(
+      `handleFinalizeInboundPaymentCommand — inboundPaymentId: ${inboundPaymentId} paymentIntentId: ${paymentIntentId}`
+    );
 
     try {
-      const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
-      if (!paymentIntentObj) {
-        throw new PaymentIntentNotFoundError(
-          `Payment intent ${paymentIntentId} not found`
+      const paymentIntent = this._getPaymentIntent(paymentIntentId);
+      const stateBefore: PaymentIntentState = paymentIntent.state;
+      const { finalized, inboundPayment } =
+        paymentIntent.finalizeInboundPayment({ id: inboundPaymentId });
+      if (!finalized) {
+        this._logger.debug(
+          `Inbound payment ${inboundPaymentId} already FINALIZED`
         );
+        return [];
       }
-
-      const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
-      const inboundPayment = paymentIntent.finalizeInboundPayment({
-        id: inboundPaymentId
-      });
 
       this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
       this._appendToMap(
@@ -2014,7 +2048,7 @@ export class PaymentIntentAggregate {
           cmd.requestId
         )
       ];
-      if (paymentIntent.state === 'COMPLETED') {
+      if (stateBefore !== 'COMPLETED' && paymentIntent.state === 'COMPLETED') {
         events.push(
           new PaymentIntentCompletedEvent(
             this._toCompletedPayload(paymentIntent.toObject()),
@@ -2024,18 +2058,100 @@ export class PaymentIntentAggregate {
       }
       return events;
     } catch (err) {
-      this._logger.debug(
-        `handleFinalizeInboundPaymentCommand — failed paymentIntentId: ${paymentIntentId} error: ${(err as Error).message}`
+      return [this._toInboundPaymentFailedEvent(cmd, err)];
+    }
+  }
+
+  // Idempotent: no-op unless the inbound payment is VALIDATED.
+  private handleExpireInboundPaymentCommand(
+    cmd: ExpireInboundPaymentCmd
+  ): IMessage[] {
+    const { paymentIntentId, inboundPaymentId } = cmd.payload;
+    this._logger.debug(
+      `handleExpireInboundPaymentCommand — inboundPaymentId: ${inboundPaymentId} paymentIntentId: ${paymentIntentId}`
+    );
+
+    try {
+      const paymentIntent = this._getPaymentIntent(paymentIntentId);
+      const { expired, inboundPayment } = paymentIntent.expireInboundPayment({
+        id: inboundPaymentId
+      });
+      if (!expired) {
+        this._logger.debug(
+          `Inbound payment ${inboundPaymentId} not expired: state ${inboundPayment.state}`
+        );
+        return [];
+      }
+
+      this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
+      this._appendToMap(
+        this.failedInboundPayments,
+        paymentIntent.id,
+        inboundPaymentId
       );
-      return new InboundPaymentFailedEvent(
-        {
-          paymentIntentId,
-          inboundPaymentId,
-          ...getErrorDetails(err)
-        },
-        cmd.requestId
+
+      return [
+        new InboundPaymentExpiredEvent(
+          this._toStepFailedPayload(
+            paymentIntent,
+            inboundPayment,
+            cmd.requestId
+          ),
+          cmd.requestId
+        )
+      ];
+    } catch (err) {
+      this._logger.warn(
+        `Cannot expire inbound payment ${inboundPaymentId} of payment intent ${paymentIntentId}: ${(err as Error).message}`
+      );
+      return [];
+    }
+  }
+
+  private _getPaymentIntent(paymentIntentId: string): PaymentIntent {
+    const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
+    if (!paymentIntentObj) {
+      throw new PaymentIntentNotFoundError(
+        `Payment intent ${paymentIntentId} not found`
       );
     }
+    return PaymentIntent.fromObject(paymentIntentObj);
+  }
+
+  private _toStepFailedPayload(
+    paymentIntent: PaymentIntent,
+    inboundPayment: IInboundPayment,
+    requestId: string
+  ): InboundPaymentStepFailedPayload {
+    return {
+      paymentIntentId: paymentIntent.id,
+      inboundPaymentId: inboundPayment.id,
+      packetId: inboundPayment.packetId,
+      peerId: inboundPayment.peerId,
+      requestId,
+      ledgerTransferId: inboundPayment.ledgerTransferId,
+      receiveAssetCode: paymentIntent.assetCode,
+      reason: inboundPayment.failReason ?? 'Inbound payment failed',
+      state: inboundPayment.state
+    };
+  }
+
+  private _toInboundPaymentFailedEvent(
+    cmd:
+      | AcceptInboundPaymentCmd
+      | FailInboundPaymentCmd
+      | MarkInboundPaymentFulfilledCmd
+      | FinalizeInboundPaymentCmd,
+    err: unknown
+  ): InboundPaymentFailedEvent {
+    const { paymentIntentId, inboundPaymentId } = cmd.payload;
+    this._logger.error(
+      `${cmd.msgName} failed — inboundPaymentId: ${inboundPaymentId} paymentIntentId: ${paymentIntentId} error: ${(err as Error).message}`
+    );
+    return new InboundPaymentFailedEvent(
+      { paymentIntentId, inboundPaymentId, ...getErrorDetails(err) },
+      cmd.requestId
+    );
   }
 
   private async handleCancelPaymentCommand(cmd: CancelPaymentCmd) {
@@ -2079,6 +2195,109 @@ export class PaymentIntentAggregate {
         },
         cmd.requestId
       );
+    }
+  }
+
+  // Idempotent: no-op unless the intent is CREATED.
+  private handleExpirePaymentIntentCommand(
+    cmd: ExpirePaymentIntentCmd
+  ): IMessage[] {
+    const { paymentIntentId } = cmd.payload;
+    this._logger.debug(
+      `handleExpirePaymentIntentCommand — paymentIntentId: ${paymentIntentId}`
+    );
+
+    const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
+    if (!paymentIntentObj) {
+      this._logger.warn(
+        `Cannot expire payment intent ${paymentIntentId}: not found`
+      );
+      return [];
+    }
+
+    const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
+    if (!paymentIntent.expire()) {
+      this._logger.debug(
+        `Payment intent ${paymentIntentId} not expired: state ${paymentIntent.state}`
+      );
+      return [];
+    }
+    this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
+    this.expiredPaymentIntentIds.push(paymentIntent.id);
+
+    return [
+      new PaymentIntentExpiredEvent(
+        {
+          id: paymentIntent.id,
+          state: paymentIntent.state,
+          expiresAt: paymentIntent.expiresAt
+        },
+        cmd.requestId
+      )
+    ];
+  }
+
+  // Idempotent: no-op unless the payment is SENDING.
+  private handleExpireRemotePaymentCommand(
+    cmd: ExpireRemotePaymentCmd
+  ): IMessage[] {
+    const { paymentIntentId, paymentId } = cmd.payload;
+    this._logger.debug(
+      `handleExpireRemotePaymentCommand — paymentId: ${paymentId} paymentIntentId: ${paymentIntentId}`
+    );
+
+    try {
+      const paymentIntentObj = this.paymentIntentMap.get(paymentIntentId);
+      if (!paymentIntentObj) {
+        throw new PaymentIntentNotFoundError(
+          `Payment intent ${paymentIntentId} not found`
+        );
+      }
+
+      const paymentIntent = PaymentIntent.fromObject(paymentIntentObj);
+      const { expired, payment } = paymentIntent.expireRemotePayment({
+        id: paymentId
+      });
+      if (!expired) {
+        this._logger.debug(
+          `Payment ${paymentId} not expired: state ${payment.state}`
+        );
+        return [];
+      }
+      // Only a SENDING remote payment expires, and prepare set both of these.
+      if (!payment.ledgerTransferId || !payment.expiresAt) {
+        throw new Error(
+          `Payment ${paymentId} is missing ledgerTransferId or expiresAt at expiry`
+        );
+      }
+      this.paymentIntentMap.set(paymentIntent.id, paymentIntent.toObject());
+      this._appendToMap(
+        this.expiredRemotePayments,
+        paymentIntent.id,
+        paymentId
+      );
+
+      return [
+        new PaymentExpiredEvent(
+          {
+            paymentIntentId: paymentIntent.id,
+            paymentId: payment.id,
+            ledgerTransferId: payment.ledgerTransferId,
+            peerId: payment.peerId,
+            requestId: cmd.requestId,
+            debitAmount: String(payment.debitAmount),
+            assetCode: payment.assetCode,
+            assetScale: payment.assetScale,
+            expiresAt: payment.expiresAt
+          },
+          cmd.requestId
+        )
+      ];
+    } catch (err) {
+      this._logger.warn(
+        `Cannot expire payment ${paymentId} of payment intent ${paymentIntentId}: ${(err as Error).message}`
+      );
+      return [];
     }
   }
 
@@ -2543,7 +2762,7 @@ export class PaymentIntentAggregate {
             .map((rp) => ({
               id: rp.id,
               state: rp.state,
-              ledgerTransferId: rp.ledgerTransferId ?? ''
+              ledgerTransferId: rp.ledgerTransferId
             }))
         });
       }
@@ -2586,7 +2805,7 @@ export class PaymentIntentAggregate {
       promises.push(this._repo.storeFailedInboundPayments(updates));
     }
 
-    if (this.fulfillableInboundPayments.size > 0) {
+    if (this.fulfilledInboundPayments.size > 0) {
       const updates: {
         inboundPayments: { id: string; state: InboundPaymentState }[];
       }[] = [];
@@ -2594,11 +2813,11 @@ export class PaymentIntentAggregate {
       for (const [
         paymentIntentId,
         inboundPaymentIds
-      ] of this.fulfillableInboundPayments.entries()) {
+      ] of this.fulfilledInboundPayments.entries()) {
         const paymentIntent = this.paymentIntentMap.get(paymentIntentId);
         if (!paymentIntent) {
           this._logger.error(
-            `Payment intent ${paymentIntentId} missing from paymentIntentMap during flush (fulfillable inbound payments)`
+            `Payment intent ${paymentIntentId} missing from paymentIntentMap during flush (fulfilled inbound payments)`
           );
           continue;
         }
@@ -2610,7 +2829,7 @@ export class PaymentIntentAggregate {
         });
       }
 
-      promises.push(this._repo.storeFulfillableInboundPayments(updates));
+      promises.push(this._repo.storeFulfilledInboundPayments(updates));
     }
 
     if (this.finalizedInboundPayments.size > 0) {
@@ -2771,6 +2990,7 @@ export class PaymentIntentAggregate {
           id: string;
           state: SentPaymentState;
           ledgerTransferId: string;
+          expiresAt: Date;
         }[];
       }[] = [];
 
@@ -2793,7 +3013,10 @@ export class PaymentIntentAggregate {
             (p) => ({
               id: p.id,
               state: p.state,
-              ledgerTransferId: p.ledgerTransferId ?? ''
+              ledgerTransferId: p.ledgerTransferId ?? '',
+              // prepare() always sets it; no fallback, since a made-up expiry
+              // would expire the payment early
+              expiresAt: p.expiresAt!
             })
           )
         });
@@ -2897,6 +3120,59 @@ export class PaymentIntentAggregate {
       promises.push(this._repo.storeFailedRemotePayments(updates));
     }
 
+    if (this.expiredPaymentIntentIds.length > 0) {
+      const expiredEntities: { id: string; state: PaymentIntentState }[] = [];
+      for (const id of this.expiredPaymentIntentIds) {
+        const paymentIntent = this.paymentIntentMap.get(id);
+        if (!paymentIntent) {
+          this._logger.error(
+            `Payment intent ${id} missing from paymentIntentMap during flush (expired payment intents)`
+          );
+          continue;
+        }
+
+        expiredEntities.push({
+          id: paymentIntent.id,
+          state: paymentIntent.state
+        });
+      }
+
+      promises.push(this._repo.storeExpiredPaymentIntents(expiredEntities));
+    }
+
+    if (this.expiredRemotePayments.size > 0) {
+      const updates: {
+        sentPayments: {
+          id: string;
+          state: SentPaymentState;
+          failReason?: string;
+        }[];
+      }[] = [];
+
+      for (const [
+        paymentIntentId,
+        paymentIds
+      ] of this.expiredRemotePayments.entries()) {
+        const paymentIntent = this.paymentIntentMap.get(paymentIntentId);
+        if (!paymentIntent) {
+          this._logger.error(
+            `Payment intent ${paymentIntentId} missing from paymentIntentMap during flush (expired remote payments)`
+          );
+          continue;
+        }
+
+        updates.push({
+          sentPayments: this._collectRemotePayments(
+            paymentIntent.sentPayments,
+            paymentIds,
+            (p) => ({ id: p.id, state: p.state, failReason: p.failReason })
+          )
+        });
+      }
+
+      promises.push(this._repo.storeExpiredRemotePayments(updates));
+    }
+
     if (this.cancelledPayments.size > 0) {
       const updates: {
         sentPayments: {
@@ -2946,7 +3222,7 @@ export class PaymentIntentAggregate {
       this.newInboundPayments.clear();
       this.acceptedInboundPayments.clear();
       this.failedInboundPayments.clear();
-      this.fulfillableInboundPayments.clear();
+      this.fulfilledInboundPayments.clear();
       this.finalizedInboundPayments.clear();
       this.completedLocalPayments.clear();
       this.approvedRemotePayments.clear();
@@ -2956,6 +3232,8 @@ export class PaymentIntentAggregate {
       this.completedRemotePayments.clear();
       this.failedRemotePayments.clear();
       this.cancelledPayments.clear();
+      this.expiredRemotePayments.clear();
+      this.expiredPaymentIntentIds = [];
       this.updatedQuotePaymentIntentIds.clear();
       this.newPaymentIntentIds = [];
       this.completedPaymentIntentIds = [];

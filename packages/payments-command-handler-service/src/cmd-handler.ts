@@ -23,9 +23,12 @@ import {
   CompleteRemotePaymentCmd,
   ValidateInboundPaymentCmd,
   AcceptInboundPaymentCmd,
-  MarkInboundPaymentFulfillableCmd,
+  MarkInboundPaymentFulfilledCmd,
   FailInboundPaymentCmd,
-  FinalizeInboundPaymentCmd
+  FinalizeInboundPaymentCmd,
+  ExpirePaymentIntentCmd,
+  ExpireRemotePaymentCmd,
+  ExpireInboundPaymentCmd
 } from 'payments-domain-lib';
 
 export class PaymentsCommandHandler {
@@ -112,13 +115,22 @@ export class PaymentsCommandHandler {
         case AcceptInboundPaymentCmd.name:
           commandMessages.push(msg);
           break;
-        case MarkInboundPaymentFulfillableCmd.name:
+        case MarkInboundPaymentFulfilledCmd.name:
           commandMessages.push(msg);
           break;
         case FailInboundPaymentCmd.name:
           commandMessages.push(msg);
           break;
         case FinalizeInboundPaymentCmd.name:
+          commandMessages.push(msg);
+          break;
+        case ExpirePaymentIntentCmd.name:
+          commandMessages.push(msg);
+          break;
+        case ExpireRemotePaymentCmd.name:
+          commandMessages.push(msg);
+          break;
+        case ExpireInboundPaymentCmd.name:
           commandMessages.push(msg);
           break;
         default:

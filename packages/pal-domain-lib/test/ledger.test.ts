@@ -2343,6 +2343,65 @@ test('PAL Ledger Domain HighLevel API - Incoming - Reserve Transfer', async () =
   ]);
 });
 
+test('PAL Ledger Domain HighLevel API - Incoming - Reserve Transfer twice reserves once', async () => {
+  // run setup commands
+  await aggregate.processCommands([
+    new CreateLedgerCmd({ id: EUR_LEDGER_ID }),
+    new CreateLedgerAccountForAssetCmd(EUR_LEDGER_ID, {
+      id: assetSystemAccId,
+      assetCode: EUR_LEDGER_ID
+    }),
+    new CreateLedgerAccountsForPeerCmd(EUR_LEDGER_ID, {
+      ...peerOneAccounts,
+      peerId: PEER_ONE_ID,
+      assetCode: EUR_LEDGER_ID
+    }),
+    // deposit
+    new DepositToPeerCmd({
+      requestId: '1',
+      peerId: PEER_ONE_ID,
+      assetCode: EUR_LEDGER_ID,
+      amount: DEPOSIT_AMOUNT.toString(),
+      amountScale: AMOUNT_SCALE
+    })
+  ]);
+
+  // run test
+  const reserve = () =>
+    new ReserveTransferCmd(EUR_LEDGER_ID, {
+      requestId: 'req3',
+      transferId: '1',
+      amount: AMOUNT.toString(),
+      amountScale: AMOUNT_SCALE,
+      peerId: PEER_ONE_ID,
+      transferDirection: 'INCOMING',
+      paymentIntentId: 'intent-1',
+      paymentId: 'payment-1'
+    });
+
+  const sentBefore = mockProducer.messages.length;
+  await aggregate.processCommands(reserve());
+  await aggregate.processCommands(reserve());
+
+  const reservedEvents = mockProducer.messages
+    .slice(sentBefore)
+    .filter((msg) => msg.msgName === LedgerIncomingTransferReservedEvent.name);
+  assert.equal(reservedEvents.length, 1);
+
+  assertAccountsBalances([
+    {
+      accId: peerOneAccounts.peerClearingAccId,
+      debitedBalance: AMOUNT,
+      creditedBalance: 0n
+    },
+    {
+      accId: peerOneAccounts.suspenseAccId,
+      debitedBalance: 0n,
+      creditedBalance: AMOUNT
+    }
+  ]);
+});
+
 test('PAL Ledger Domain HighLevel API - Incoming - Withdraw Peer liquidity', async () => {
   // run setup commands
   await aggregate.processCommands([

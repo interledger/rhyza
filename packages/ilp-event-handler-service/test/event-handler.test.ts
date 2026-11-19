@@ -23,8 +23,14 @@ import {
   RemoteQuoteCalculatedEvent,
   RemoteQuoteCalculationFailedEvent,
   RemoteQuoteRequestedEvent,
-  InboundPaymentFulfillableEvent,
+  InboundPaymentAcceptedEvent,
+  InboundPaymentValidationFailedEvent,
+  InboundPaymentReserveFailedEvent,
+  InboundPaymentAcceptFailedEvent,
+  InboundPaymentFulfillFailedEvent,
+  InboundPaymentExpiredEvent,
   InboundPaymentFailedEvent,
+  InboundPaymentStepFailedPayload,
   RemotePaymentPreparedEvent
 } from 'payments-public-types-lib';
 import { PeerActivatedEvent, PeerDeactivatedEvent } from 'pal-public-types-lib';
@@ -211,7 +217,7 @@ describe('IlpEventHandler', () => {
     assert.equal(cmd.requestId, 'req-1');
   });
 
-  test('maps an InboundPaymentFulfillableEvent to a FulfillInboundPaymentCmd', async () => {
+  test('maps an InboundPaymentAcceptedEvent to a FulfillInboundPaymentCmd', async () => {
     const producer = new MockProducer();
     const consumer = new MockConsumer();
     const handler = new IlpEventHandler(
@@ -222,16 +228,17 @@ describe('IlpEventHandler', () => {
     await handler.start();
 
     await consumer.deliver([
-      new InboundPaymentFulfillableEvent({
+      new InboundPaymentAcceptedEvent({
         paymentIntentId: 'intent-1',
         inboundPaymentId: 'rp-1',
         packetId: 'packet-in-1',
         peerId: 'peer-1',
         requestId: 'req-1',
+        ledgerTransferId: 'xfer-1',
         receiveAmount: '100',
         receiveAssetCode: 'USD',
         receiveAssetScale: 2,
-        state: 'FULFILLABLE'
+        state: 'ACCEPTED'
       })
     ]);
 
@@ -248,7 +255,7 @@ describe('IlpEventHandler', () => {
     assert.equal(cmd.requestId, 'req-1');
   });
 
-  test('maps an InboundPaymentFailedEvent to a RejectInboundPaymentCmd without a reject code', async () => {
+  test('maps an InboundPaymentValidationFailedEvent to a RejectInboundPaymentCmd without a reject code', async () => {
     const producer = new MockProducer();
     const consumer = new MockConsumer();
     const handler = new IlpEventHandler(
@@ -259,14 +266,15 @@ describe('IlpEventHandler', () => {
     await handler.start();
 
     await consumer.deliver([
-      new InboundPaymentFailedEvent(
+      new InboundPaymentValidationFailedEvent(
         {
           paymentIntentId: 'intent-1',
           inboundPaymentId: 'rp-1',
           packetId: 'packet-in-1',
           peerId: 'peer-1',
-          errorName: 'InboundPaymentFailed',
-          message: 'Ledger transfer failed'
+          errorName: 'PaymentIntentExpired',
+          errorType: 'FailedPrecondition',
+          message: 'Payment intent is expired'
         },
         'req-fail-1'
       )
@@ -278,11 +286,50 @@ describe('IlpEventHandler', () => {
     assert.equal(cmd.msgTopic, 'ilp-commands');
     assert.equal(cmd.msgKey, 'packet-in-1');
     assert.equal(cmd.payload.rejectCode, undefined);
-    assert.equal(cmd.payload.rejectMessage, 'Ledger transfer failed');
+    assert.equal(cmd.payload.rejectMessage, 'Payment intent is expired');
     assert.equal(cmd.requestId, 'req-fail-1');
   });
 
-  test('skips InboundPaymentFailedEvent without packet/peer correlation', async () => {
+  const stepFailedPayload = (): InboundPaymentStepFailedPayload => ({
+    paymentIntentId: 'intent-1',
+    inboundPaymentId: 'rp-1',
+    packetId: 'packet-in-1',
+    peerId: 'peer-1',
+    requestId: 'req-fail-1',
+    ledgerTransferId: 'xfer-1',
+    receiveAssetCode: 'USD',
+    reason: 'Insufficient liquidity',
+    state: 'FAILED'
+  });
+
+  for (const Event of [
+    InboundPaymentReserveFailedEvent,
+    InboundPaymentAcceptFailedEvent,
+    InboundPaymentExpiredEvent
+  ]) {
+    test(`maps an ${Event.name} to a RejectInboundPaymentCmd`, async () => {
+      const producer = new MockProducer();
+      const consumer = new MockConsumer();
+      const handler = new IlpEventHandler(
+        consumer,
+        producer,
+        new ConsoleLogger()
+      );
+      await handler.start();
+
+      await consumer.deliver([new Event(stepFailedPayload())]);
+
+      assert.equal(producer.sent.length, 1);
+      const cmd = producer.sent[0] as RejectInboundPaymentCmd;
+      assert.equal(cmd.msgName, RejectInboundPaymentCmd.name);
+      assert.equal(cmd.msgKey, 'packet-in-1');
+      assert.equal(cmd.payload.inboundPaymentId, 'rp-1');
+      assert.equal(cmd.payload.rejectMessage, 'Insufficient liquidity');
+      assert.equal(cmd.requestId, 'req-fail-1');
+    });
+  }
+
+  test('ignores InboundPaymentFulfillFailedEvent and InboundPaymentFailedEvent', async () => {
     const producer = new MockProducer();
     const consumer = new MockConsumer();
     const handler = new IlpEventHandler(
@@ -293,11 +340,15 @@ describe('IlpEventHandler', () => {
     await handler.start();
 
     await consumer.deliver([
+      new InboundPaymentFulfillFailedEvent(stepFailedPayload()),
       new InboundPaymentFailedEvent({
         paymentIntentId: 'intent-1',
         inboundPaymentId: 'rp-1',
-        errorName: 'PaymentIntentNotFoundError',
-        message: 'not found'
+        packetId: 'packet-in-1',
+        peerId: 'peer-1',
+        errorName: 'PaymentInvalidStateError',
+        errorType: 'FailedPrecondition',
+        message: 'unexpected'
       })
     ]);
 

@@ -6,7 +6,12 @@ import { randomUUID } from 'crypto';
 import { Db, MongoClient } from 'mongodb';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { ConsoleLogger } from 'common-types-lib';
-import { IPaymentIntent, IQuote, ISentPayment } from 'payments-domain-lib';
+import {
+  IInboundPayment,
+  IPaymentIntent,
+  IQuote,
+  ISentPayment
+} from 'payments-domain-lib';
 import { MongoDbPaymentIntentRepo } from '../../src';
 
 const MONGO_IMAGE = 'mongo:8';
@@ -558,6 +563,296 @@ describe('MongoDbPaymentIntentRepo keyset pagination', () => {
         stored.quotes.map((q) => q.id).sort(),
         [quoteA.id, quoteB.id].sort()
       );
+    });
+  });
+
+  describe('expiry', () => {
+    const NOW = new Date(T0 + 60_000);
+
+    function makeIntentExpiringAt(
+      expiresAt: Date,
+      state: IPaymentIntent['state'] = 'CREATED'
+    ): IPaymentIntent {
+      return {
+        ...makeIntent({
+          id: randomUUID(),
+          walletAddressId: RECEIVER_WALLET,
+          createdAt: new Date(T0)
+        }),
+        state,
+        expiresAt
+      };
+    }
+
+    function makeRemoteIntent(): IPaymentIntent {
+      return {
+        ...makeIntent({
+          id: randomUUID(),
+          walletAddressId: RECEIVER_WALLET,
+          createdAt: new Date(T0)
+        }),
+        destination: 'REMOTE',
+        receiverWalletAddressId: undefined,
+        destinationIlpAddress: 'g.peer.123'
+      };
+    }
+
+    /** Stores a remote payment, then moves it to `state` as prepare would. */
+    async function storeRemotePayment(args: {
+      state: ISentPayment['state'];
+      expiresAt?: Date;
+    }): Promise<{ paymentIntentId: string; paymentId: string }> {
+      const intent = makeRemoteIntent();
+      const paymentId = randomUUID();
+      intent.sentPayments = [
+        {
+          id: paymentId,
+          state: 'PROCESSING',
+          senderWalletAddress: 'test.com/page-sender',
+          senderWalletAddressId: SENDER_WALLET,
+          paymentIntentId: intent.id,
+          assetCode: 'USD',
+          assetScale: 2,
+          createdAt: new Date(T0),
+          debitAmount: 100n,
+          receiveAmount: 100n,
+          sentAmount: 0n,
+          destination: 'REMOTE',
+          peerId: 'peer-1'
+        }
+      ];
+      await repo.storeMany([intent]);
+      await repo.storeSentPayments([
+        { paymentIds: [paymentId], paymentIntent: intent }
+      ]);
+      if (args.expiresAt) {
+        await repo.storeSendingRemotePayments([
+          {
+            sentPayments: [
+              {
+                id: paymentId,
+                state: args.state,
+                ledgerTransferId: 'ledger-1',
+                expiresAt: args.expiresAt
+              }
+            ]
+          }
+        ]);
+      }
+      return { paymentIntentId: intent.id, paymentId };
+    }
+
+    test('stores and reads back a sending payment expiresAt', async () => {
+      const expiresAt = new Date(T0 + 35_000);
+      const { paymentIntentId, paymentId } = await storeRemotePayment({
+        state: 'SENDING',
+        expiresAt
+      });
+
+      const [stored] = await repo.fetchByIdsWithPayments([paymentIntentId]);
+      const payment = stored.sentPayments.find((p) => p.id === paymentId);
+      assert.ok(payment && payment.destination === 'REMOTE');
+      assert.equal(payment.expiresAt?.getTime(), expiresAt.getTime());
+    });
+
+    test('fetchExpiredPaymentIntentIds returns due CREATED intents, oldest first', async () => {
+      const due2 = makeIntentExpiringAt(new Date(NOW.getTime() - 1));
+      const due1 = makeIntentExpiringAt(new Date(NOW.getTime() - 2));
+      const dueNow = makeIntentExpiringAt(NOW);
+      const notDue = makeIntentExpiringAt(new Date(NOW.getTime() + 1));
+      const completed = makeIntentExpiringAt(new Date(T0), 'COMPLETED');
+      const expired = makeIntentExpiringAt(new Date(T0), 'EXPIRED');
+      await repo.storeMany([due2, due1, dueNow, notDue, completed, expired]);
+
+      const result = await repo.fetchExpiredPaymentIntentIds(NOW, 10);
+
+      assert.deepEqual(result, [due1.id, due2.id, dueNow.id]);
+    });
+
+    test('fetchExpiredPaymentIntentIds respects the limit', async () => {
+      const first = makeIntentExpiringAt(new Date(T0));
+      const second = makeIntentExpiringAt(new Date(T0 + 1));
+      await repo.storeMany([second, first]);
+
+      assert.deepEqual(await repo.fetchExpiredPaymentIntentIds(NOW, 1), [
+        first.id
+      ]);
+    });
+
+    test('fetchExpiredSentPaymentIds returns due SENDING payments, oldest first', async () => {
+      const due2 = await storeRemotePayment({
+        state: 'SENDING',
+        expiresAt: new Date(NOW.getTime() - 1)
+      });
+      const due1 = await storeRemotePayment({
+        state: 'SENDING',
+        expiresAt: new Date(NOW.getTime() - 2)
+      });
+      await storeRemotePayment({
+        state: 'SENDING',
+        expiresAt: new Date(NOW.getTime() + 1)
+      });
+      await storeRemotePayment({
+        state: 'CONFIRMED',
+        expiresAt: new Date(T0)
+      });
+      // Not prepared yet, so no expiresAt.
+      await storeRemotePayment({ state: 'PROCESSING' });
+
+      const result = await repo.fetchExpiredSentPaymentIds(NOW, 10);
+
+      assert.deepEqual(result, [due1, due2]);
+    });
+
+    test('fetchExpiredSentPaymentIds respects the limit', async () => {
+      const first = await storeRemotePayment({
+        state: 'SENDING',
+        expiresAt: new Date(T0)
+      });
+      await storeRemotePayment({
+        state: 'SENDING',
+        expiresAt: new Date(T0 + 1)
+      });
+
+      assert.deepEqual(await repo.fetchExpiredSentPaymentIds(NOW, 1), [first]);
+    });
+
+    test('storeExpiredPaymentIntents and storeExpiredRemotePayments update state', async () => {
+      const intent = makeIntentExpiringAt(new Date(T0));
+      await repo.storeMany([intent]);
+      const { paymentIntentId, paymentId } = await storeRemotePayment({
+        state: 'SENDING',
+        expiresAt: new Date(T0)
+      });
+
+      await repo.storeExpiredPaymentIntents([
+        { id: intent.id, state: 'EXPIRED' }
+      ]);
+      await repo.storeExpiredRemotePayments([
+        {
+          sentPayments: [
+            { id: paymentId, state: 'EXPIRED', failReason: 'expired' }
+          ]
+        }
+      ]);
+
+      const [storedIntent] = await repo.fetchByIds([intent.id]);
+      assert.equal(storedIntent.state, 'EXPIRED');
+      const [storedRemote] = await repo.fetchByIdsWithPayments([
+        paymentIntentId
+      ]);
+      const payment = storedRemote.sentPayments[0];
+      assert.ok(payment.destination === 'REMOTE');
+      assert.equal(payment.state, 'EXPIRED');
+      assert.equal(payment.failReason, 'expired');
+      assert.deepEqual(await repo.fetchExpiredPaymentIntentIds(NOW, 10), []);
+      assert.deepEqual(await repo.fetchExpiredSentPaymentIds(NOW, 10), []);
+    });
+
+    /** Stores an inbound payment in `state` on a new local intent. */
+    async function storeInboundPayment(args: {
+      state: IInboundPayment['state'];
+      expiresAt?: Date;
+    }): Promise<{ paymentIntentId: string; inboundPaymentId: string }> {
+      const intent = makeIntentExpiringAt(new Date(T0 + 3_600_000));
+      const inboundPaymentId = randomUUID();
+      intent.inboundPayments = [
+        {
+          id: inboundPaymentId,
+          state: args.state,
+          paymentIntentId: intent.id,
+          packetId: randomUUID(),
+          peerId: 'peer-1',
+          peerAssetCode: 'USD',
+          peerAssetScale: 2,
+          sourceAmount: 100n,
+          receiveAmount: 100n,
+          createdAt: new Date(T0),
+          expiresAt: args.expiresAt,
+          ledgerTransferId: `ledger-${inboundPaymentId}`
+        }
+      ];
+      await repo.storeMany([intent]);
+      await repo.storeInboundPayments([
+        { inboundPaymentIds: [inboundPaymentId], paymentIntent: intent }
+      ]);
+      return { paymentIntentId: intent.id, inboundPaymentId };
+    }
+
+    test('stores and reads back an inbound payment ledgerTransferId', async () => {
+      const { paymentIntentId, inboundPaymentId } = await storeInboundPayment({
+        state: 'VALIDATED'
+      });
+
+      const [stored] = await repo.fetchByIdsWithPayments([paymentIntentId]);
+      assert.equal(
+        stored.inboundPayments[0].ledgerTransferId,
+        `ledger-${inboundPaymentId}`
+      );
+    });
+
+    test('fetchExpiredInboundPaymentIds returns due VALIDATED inbound payments, oldest first', async () => {
+      const due2 = await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(NOW.getTime() - 1)
+      });
+      const due1 = await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(NOW.getTime() - 2)
+      });
+      await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(NOW.getTime() + 1)
+      });
+      await storeInboundPayment({
+        state: 'ACCEPTED',
+        expiresAt: new Date(T0)
+      });
+      await storeInboundPayment({ state: 'VALIDATED' });
+
+      const result = await repo.fetchExpiredInboundPaymentIds(NOW, 10);
+
+      assert.deepEqual(result, [due1, due2]);
+    });
+
+    test('fetchExpiredInboundPaymentIds respects the limit', async () => {
+      const first = await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(T0)
+      });
+      await storeInboundPayment({
+        state: 'VALIDATED',
+        expiresAt: new Date(T0 + 1)
+      });
+
+      assert.deepEqual(await repo.fetchExpiredInboundPaymentIds(NOW, 1), [
+        first
+      ]);
+    });
+
+    test('init adds the expiry indexes to collections that already exist', async () => {
+      await db.collection('paymentIntents').dropIndex('state_1_expiresAt_1');
+      await db.collection('sentPayments').dropIndex('state_1_expiresAt_1');
+      await db.collection('inboundPayments').dropIndex('state_1_expiresAt_1');
+
+      const second = new MongoDbPaymentIntentRepo(
+        `mongodb://${container.getHost()}:${container.getMappedPort(MONGO_PORT)}`,
+        new ConsoleLogger()
+      );
+      await second.init();
+      await second.destroy();
+
+      for (const name of [
+        'paymentIntents',
+        'sentPayments',
+        'inboundPayments'
+      ]) {
+        const indexes = await db.collection(name).indexes();
+        assert.ok(
+          indexes.some((index) => index.name === 'state_1_expiresAt_1'),
+          `${name} is missing the expiry index`
+        );
+      }
     });
   });
 });

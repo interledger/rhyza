@@ -20,8 +20,12 @@ import {
   RemoteQuoteCalculationFailedEvent,
   RemoteQuoteRequestedEvent,
   RemotePaymentPreparedEvent,
-  InboundPaymentFulfillableEvent,
-  InboundPaymentFailedEvent
+  InboundPaymentAcceptedEvent,
+  InboundPaymentValidationFailedEvent,
+  InboundPaymentReserveFailedEvent,
+  InboundPaymentAcceptFailedEvent,
+  InboundPaymentExpiredEvent,
+  InboundPaymentStepFailedPayload
 } from 'payments-public-types-lib';
 import { PeerActivatedEvent, PeerDeactivatedEvent } from 'pal-public-types-lib';
 
@@ -126,11 +130,11 @@ export class IlpEventHandler {
           payload.requestId
         );
       }
-      case InboundPaymentFulfillableEvent.name: {
+      case InboundPaymentAcceptedEvent.name: {
         const payload =
-          message.payload as InboundPaymentFulfillableEvent['payload'];
+          message.payload as InboundPaymentAcceptedEvent['payload'];
         this._logger.debug(
-          `Inbound payment fulfillable for packet ${payload.packetId}; dispatching fulfillment`
+          `Inbound payment accepted for packet ${payload.packetId}; dispatching fulfillment`
         );
         return new FulfillInboundPaymentCmd({
           peerId: payload.peerId,
@@ -143,16 +147,11 @@ export class IlpEventHandler {
           receiveAssetScale: payload.receiveAssetScale
         });
       }
-      case InboundPaymentFailedEvent.name: {
-        const payload = message.payload as InboundPaymentFailedEvent['payload'];
-        if (!payload.packetId || !payload.peerId) {
-          this._logger.debug(
-            `InboundPaymentFailedEvent for ${payload.inboundPaymentId} missing packet/peer; skipping wire reject`
-          );
-          return undefined;
-        }
+      case InboundPaymentValidationFailedEvent.name: {
+        const payload =
+          message.payload as InboundPaymentValidationFailedEvent['payload'];
         this._logger.debug(
-          `Inbound payment failed for packet ${payload.packetId}; dispatching reject`
+          `Inbound payment validation failed for packet ${payload.packetId}; dispatching reject`
         );
         return new RejectInboundPaymentCmd({
           peerId: payload.peerId,
@@ -161,6 +160,22 @@ export class IlpEventHandler {
           inboundPaymentId: payload.inboundPaymentId,
           requestId: message.requestId ?? crypto.randomUUID(),
           rejectMessage: payload.message
+        });
+      }
+      case InboundPaymentReserveFailedEvent.name:
+      case InboundPaymentAcceptFailedEvent.name:
+      case InboundPaymentExpiredEvent.name: {
+        const payload = message.payload as InboundPaymentStepFailedPayload;
+        this._logger.debug(
+          `${message.msgName} for packet ${payload.packetId}; dispatching reject`
+        );
+        return new RejectInboundPaymentCmd({
+          peerId: payload.peerId,
+          packetId: payload.packetId,
+          paymentIntentId: payload.paymentIntentId,
+          inboundPaymentId: payload.inboundPaymentId,
+          requestId: payload.requestId,
+          rejectMessage: payload.reason
         });
       }
       case PeerActivatedEvent.name: {

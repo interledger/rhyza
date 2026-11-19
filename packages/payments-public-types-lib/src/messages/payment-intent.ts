@@ -152,10 +152,34 @@ export abstract class PaymentIntentDomainEvent extends DomainEvent {
     return evt.msgName === InboundPaymentFailedEvent.name;
   }
 
-  static isInboundPaymentFulfillableEvent(
+  static isInboundPaymentReserveFailedEvent(
     evt: DomainEvent
-  ): evt is InboundPaymentFulfillableEvent {
-    return evt.msgName === InboundPaymentFulfillableEvent.name;
+  ): evt is InboundPaymentReserveFailedEvent {
+    return evt.msgName === InboundPaymentReserveFailedEvent.name;
+  }
+
+  static isInboundPaymentAcceptFailedEvent(
+    evt: DomainEvent
+  ): evt is InboundPaymentAcceptFailedEvent {
+    return evt.msgName === InboundPaymentAcceptFailedEvent.name;
+  }
+
+  static isInboundPaymentFulfillFailedEvent(
+    evt: DomainEvent
+  ): evt is InboundPaymentFulfillFailedEvent {
+    return evt.msgName === InboundPaymentFulfillFailedEvent.name;
+  }
+
+  static isInboundPaymentExpiredEvent(
+    evt: DomainEvent
+  ): evt is InboundPaymentExpiredEvent {
+    return evt.msgName === InboundPaymentExpiredEvent.name;
+  }
+
+  static isInboundPaymentFulfilledEvent(
+    evt: DomainEvent
+  ): evt is InboundPaymentFulfilledEvent {
+    return evt.msgName === InboundPaymentFulfilledEvent.name;
   }
 
   static isInboundPaymentFinalizedEvent(
@@ -246,6 +270,22 @@ export class PaymentIntentCompleteFailedEvent extends PaymentIntentDomainEvent {
   isErrorEvent = true;
 
   constructor(payload: PaymentIntentCompleteFailedPayload, requestId?: string) {
+    super(payload.id);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+export type PaymentIntentExpiredPayload = {
+  id: string;
+  state: PaymentIntentState;
+  expiresAt: Date;
+};
+
+export class PaymentIntentExpiredEvent extends PaymentIntentDomainEvent {
+  payload: PaymentIntentExpiredPayload;
+
+  constructor(payload: PaymentIntentExpiredPayload, requestId?: string) {
     super(payload.id);
     this.payload = payload;
     this.requestId = requestId;
@@ -574,6 +614,28 @@ export class PaymentFailedEvent extends PaymentIntentDomainEvent {
   }
 }
 
+export type PaymentExpiredPayload = {
+  paymentIntentId: string;
+  paymentId: string;
+  ledgerTransferId: string;
+  peerId: string;
+  requestId: string;
+  debitAmount: string;
+  assetCode: string;
+  assetScale: number;
+  expiresAt: Date;
+};
+
+export class PaymentExpiredEvent extends PaymentIntentDomainEvent {
+  payload: PaymentExpiredPayload;
+
+  constructor(payload: PaymentExpiredPayload, requestId?: string) {
+    super(payload.paymentIntentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
 export type RemotePaymentSendConfirmedPayload = {
   paymentIntentId: string;
   paymentId: string;
@@ -627,6 +689,7 @@ export type InboundPaymentValidatedPayload = {
   packetId: string;
   peerId: string;
   requestId: string;
+  ledgerTransferId: string;
   sourceAmount: string;
   peerAssetCode: string;
   peerAssetScale: number;
@@ -692,6 +755,7 @@ export class InboundPaymentAcceptedEvent extends PaymentIntentDomainEvent {
   }
 }
 
+/** An unexpected error handling an inbound payment command. */
 export type InboundPaymentFailedPayload = {
   paymentIntentId: string;
   inboundPaymentId: string;
@@ -710,22 +774,84 @@ export class InboundPaymentFailedEvent extends PaymentIntentDomainEvent {
   }
 }
 
-export type InboundPaymentFulfillablePayload = {
+/** The payment is FAILED. Identifies its packet and its reservation. */
+export type InboundPaymentStepFailedPayload = {
   paymentIntentId: string;
   inboundPaymentId: string;
   packetId: string;
   peerId: string;
   requestId: string;
+  ledgerTransferId: string;
+  receiveAssetCode: string;
+  reason: string;
+  state: InboundPaymentState;
+};
+
+/** PAL could not reserve the funds. */
+export class InboundPaymentReserveFailedEvent extends PaymentIntentDomainEvent {
+  payload: InboundPaymentStepFailedPayload;
+  isErrorEvent = true;
+
+  constructor(payload: InboundPaymentStepFailedPayload, requestId?: string) {
+    super(payload.paymentIntentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+/** Funds were reserved, but Payments refused to accept the payment. */
+export class InboundPaymentAcceptFailedEvent extends PaymentIntentDomainEvent {
+  payload: InboundPaymentStepFailedPayload;
+  isErrorEvent = true;
+
+  constructor(payload: InboundPaymentStepFailedPayload, requestId?: string) {
+    super(payload.paymentIntentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+/** ILP could not send the fulfill. */
+export class InboundPaymentFulfillFailedEvent extends PaymentIntentDomainEvent {
+  payload: InboundPaymentStepFailedPayload;
+  isErrorEvent = true;
+
+  constructor(payload: InboundPaymentStepFailedPayload, requestId?: string) {
+    super(payload.paymentIntentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+/** The packet expired before the payment was accepted. */
+export class InboundPaymentExpiredEvent extends PaymentIntentDomainEvent {
+  payload: InboundPaymentStepFailedPayload;
+
+  constructor(payload: InboundPaymentStepFailedPayload, requestId?: string) {
+    super(payload.paymentIntentId);
+    this.payload = payload;
+    this.requestId = requestId;
+  }
+}
+
+export type InboundPaymentFulfilledPayload = {
+  paymentIntentId: string;
+  inboundPaymentId: string;
+  packetId: string;
+  peerId: string;
+  requestId: string;
+  ledgerTransferId: string;
   receiveAmount: string;
   receiveAssetCode: string;
   receiveAssetScale: number;
   state: InboundPaymentState;
 };
 
-export class InboundPaymentFulfillableEvent extends PaymentIntentDomainEvent {
-  payload: InboundPaymentFulfillablePayload;
+/** ILP sent the fulfill. */
+export class InboundPaymentFulfilledEvent extends PaymentIntentDomainEvent {
+  payload: InboundPaymentFulfilledPayload;
 
-  constructor(payload: InboundPaymentFulfillablePayload, requestId?: string) {
+  constructor(payload: InboundPaymentFulfilledPayload, requestId?: string) {
     super(payload.paymentIntentId);
     this.payload = payload;
     this.requestId = requestId;
