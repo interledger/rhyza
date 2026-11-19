@@ -8,7 +8,7 @@ import {
   InsufficientGrantError,
   InvalidGrantInputError,
   InvalidInteractionError,
-  InvalidTokenRotationError as InvalidTokenRotationError,
+  InvalidTokenRotationError,
   UnknownAccessTokenError,
   UnknownInteractionError
 } from './errors';

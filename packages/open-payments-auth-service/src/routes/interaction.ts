@@ -82,8 +82,6 @@ export async function interactionRoutes(
         grant.interactionNonce
       );
     } catch (err) {
-      // Status codes follow Rafiki: 404 for an unknown interaction and 401
-      // for an invalid one on finish.
       if (
         err instanceof AuthClientGrantNotFoundError ||
         err instanceof AuthClientUnknownInteractionError
