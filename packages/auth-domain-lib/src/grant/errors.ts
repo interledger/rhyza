@@ -6,13 +6,6 @@ import {
   PermissionDenied
 } from 'common-types-lib';
 
-export class NonInteractiveGrantError extends FailedPrecondition {
-  constructor(message?: string) {
-    super(message);
-    this.name = this.constructor.name;
-  }
-}
-
 export class InvalidInteractionError extends FailedPrecondition {
   constructor(message?: string) {
     super(message);
@@ -70,6 +63,27 @@ export class GrantNotFoundError extends NotFound {
 }
 
 export class UnauthorizedRequestError extends PermissionDenied {
+  constructor(message?: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+export class ContinuationTooFastError extends FailedPrecondition {
+  constructor(message?: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+export class InvalidContinuationError extends FailedPrecondition {
+  constructor(message?: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+export class InvalidTokenRotationError extends FailedPrecondition {
   constructor(message?: string) {
     super(message);
     this.name = this.constructor.name;

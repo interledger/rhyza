@@ -1,5 +1,14 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { AuthClient } from 'auth-client-lib';
+import {
+  AuthClient,
+  AuthClientGrantNotFoundError,
+  AuthClientInvalidGrantError,
+  AuthClientInvalidInteractionError,
+  AuthClientUnknownInteractionError,
+  FinishInteractionResult,
+  StartInteractionResult
+} from 'auth-client-lib';
+import { OpenPaymentsAuthServerRouteError } from '../errors';
 import { calculateInteractionHash } from '../utils';
 
 interface InteractionRouteOptions extends FastifyPluginOptions {
@@ -18,8 +27,30 @@ export async function interactionRoutes(
   }>('/interaction/:grantId/start', async (request, reply) => {
     const { authClient } = opts;
     const { grantId } = request.params;
-    const { id, nonce, clientUri, clientName } =
-      await authClient.startInteraction(grantId);
+    let interaction: StartInteractionResult;
+    try {
+      interaction = await authClient.startInteraction(grantId);
+    } catch (err) {
+      if (err instanceof AuthClientGrantNotFoundError) {
+        throw new OpenPaymentsAuthServerRouteError(
+          400,
+          'unknown interaction',
+          'unknown_interaction'
+        );
+      }
+      if (
+        err instanceof AuthClientInvalidInteractionError ||
+        err instanceof AuthClientInvalidGrantError
+      ) {
+        throw new OpenPaymentsAuthServerRouteError(
+          403,
+          'invalid interaction',
+          'invalid_interaction'
+        );
+      }
+      throw err;
+    }
+    const { id, nonce, clientUri, clientName } = interaction;
 
     request.session.interactionSessionId = nonce;
 
@@ -44,10 +75,35 @@ export async function interactionRoutes(
     if (request.session.interactionSessionId !== grant.interactionNonce) {
       return reply.status(401).send();
     }
-    const result = await authClient.finishInteraction(
-      grantId,
-      grant.interactionNonce
-    );
+    let result: FinishInteractionResult;
+    try {
+      result = await authClient.finishInteraction(
+        grantId,
+        grant.interactionNonce
+      );
+    } catch (err) {
+      if (
+        err instanceof AuthClientGrantNotFoundError ||
+        err instanceof AuthClientUnknownInteractionError
+      ) {
+        throw new OpenPaymentsAuthServerRouteError(
+          404,
+          'unknown interaction',
+          'unknown_interaction'
+        );
+      }
+      if (
+        err instanceof AuthClientInvalidInteractionError ||
+        err instanceof AuthClientInvalidGrantError
+      ) {
+        throw new OpenPaymentsAuthServerRouteError(
+          401,
+          'interaction is not active',
+          'invalid_interaction'
+        );
+      }
+      throw err;
+    }
 
     if (result.finishUri) {
       const interactionHash = calculateInteractionHash(
