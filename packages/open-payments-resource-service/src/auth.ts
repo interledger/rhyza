@@ -65,8 +65,12 @@ function cleanHeaders(
   return cleaned;
 }
 
-export function requireSignatureHeaders(request: FastifyRequest): void {
-  if (!request.headers['signature']) {
+export function extractSignatureData(
+  request: FastifyRequest
+): SignatureRequestData {
+  const headers = cleanHeaders(request.headers);
+
+  if (!headers['signature']) {
     throw new OpenPaymentsResourceServerRouteError(
       401,
       'Missing signature header',
@@ -74,23 +78,15 @@ export function requireSignatureHeaders(request: FastifyRequest): void {
     );
   }
 
-  if (!request.headers['signature-input']) {
+  if (!headers['signature-input']) {
     throw new OpenPaymentsResourceServerRouteError(
       401,
       'Missing signature-input header',
       'unauthorized'
     );
   }
-}
 
-export function extractSignatureData(
-  request: FastifyRequest
-): SignatureRequestData {
-  const headers = cleanHeaders(request.headers);
-
-  const keyId = headers['signature-input']
-    ? extractKeyId(headers['signature-input'])
-    : undefined;
+  const keyId = extractKeyId(headers['signature-input']);
   if (!keyId) {
     throw new OpenPaymentsResourceServerRouteError(
       401,
@@ -145,7 +141,6 @@ export async function introspectToken(
 
   try {
     const token = extractGnapToken(request);
-    requireSignatureHeaders(request);
     const signatureData = extractSignatureData(request);
 
     const decoded = decodeAccessTokenValue(token);
