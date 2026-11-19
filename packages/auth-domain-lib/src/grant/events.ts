@@ -240,7 +240,6 @@ export class GrantRevokeFailedEvent extends AuthDomainEvent {
 
 export interface TokenIntrospectedPayload {
   id: string;
-  value: string;
   active: boolean;
   access?: IAccessItem[];
   inactiveReason?: TokenIntrospectionInactiveReason;

@@ -655,7 +655,6 @@ export class GrantAggregate {
       return new TokenIntrospectedEvent(
         {
           id,
-          value: tokenValue,
           active: accessToken.active,
           access: accessToken.access,
           inactiveReason: accessToken.inactiveReason
