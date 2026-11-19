@@ -30,7 +30,14 @@ function toSentPayment(
   row: IStoredSentPayment,
   destination: PaymentIntentDestination
 ): ISentPayment {
-  const { peerId, ledgerTransferId, failReason, receiveAmount, ...base } = row;
+  const {
+    peerId,
+    ledgerTransferId,
+    expiresAt,
+    failReason,
+    receiveAmount,
+    ...base
+  } = row;
 
   if (destination === 'REMOTE') {
     if (!peerId) {
@@ -42,6 +49,7 @@ function toSentPayment(
       peerId,
       receiveAmount,
       ledgerTransferId,
+      expiresAt,
       failReason
     };
   }
@@ -167,6 +175,17 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
           paymentIntentId: 1
         });
       }
+
+      // Safe to create on every start because create index is idempotetant
+      // but should ideally be in a migration
+      await this._paymentIntentCollection.createIndex({
+        state: 1,
+        expiresAt: 1
+      });
+      await this._sentPaymentCollection.createIndex({
+        state: 1,
+        expiresAt: 1
+      });
     } catch (e: unknown) {
       if (e instanceof Error) {
         this._logger.error(e);
@@ -870,6 +889,7 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
         id: string;
         state: SentPaymentState;
         ledgerTransferId: string;
+        expiresAt: Date;
       }[];
     }[]
   ): Promise<void> {
@@ -885,7 +905,8 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
             update: {
               $set: {
                 state: payment.state,
-                ledgerTransferId: payment.ledgerTransferId
+                ledgerTransferId: payment.ledgerTransferId,
+                expiresAt: payment.expiresAt
               }
             }
           }
@@ -1103,6 +1124,122 @@ export class MongoDbPaymentIntentRepo implements IPaymentIntentRepository {
       this._logger.error(e);
       throw new Error(
         `Unable to store payments - error: ${(e as Error).message}`
+      );
+    }
+  }
+
+  async storeExpiredPaymentIntents(
+    paymentIntents: { id: string; state: PaymentIntentState }[]
+  ): Promise<void> {
+    this._checkInitialisedOrThrow();
+
+    if (paymentIntents.length === 0) return;
+
+    try {
+      await this._paymentIntentCollection.bulkWrite(
+        paymentIntents.map((paymentIntent) => ({
+          updateOne: {
+            filter: { id: paymentIntent.id },
+            update: { $set: { state: paymentIntent.state } }
+          }
+        }))
+      );
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to store expired payment intents - error: ${(e as Error).message}`
+      );
+    }
+  }
+
+  async storeExpiredRemotePayments(
+    paymentUpdates: {
+      sentPayments: {
+        id: string;
+        state: SentPaymentState;
+        failReason?: string;
+      }[];
+    }[]
+  ): Promise<void> {
+    this._checkInitialisedOrThrow();
+
+    if (paymentUpdates.length === 0) return;
+
+    try {
+      const paymentWrites = paymentUpdates.flatMap((update) =>
+        update.sentPayments.map((payment) => ({
+          updateOne: {
+            filter: { id: payment.id },
+            update: {
+              $set: {
+                state: payment.state,
+                ...(payment.failReason
+                  ? { failReason: payment.failReason }
+                  : {})
+              }
+            }
+          }
+        }))
+      );
+
+      await this._sentPaymentCollection.bulkWrite(paymentWrites);
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to store expired remote payments - error: ${(e as Error).message}`
+      );
+    }
+  }
+
+  async fetchExpiredPaymentIntentIds(
+    now: Date,
+    limit: number
+  ): Promise<string[]> {
+    this._checkInitialisedOrThrow();
+
+    try {
+      const docs = await this._paymentIntentCollection
+        .find(
+          { state: 'CREATED', expiresAt: { $lte: now } },
+          { projection: { _id: 0, id: 1 } }
+        )
+        .sort({ expiresAt: 1 })
+        .limit(limit)
+        .toArray();
+
+      return docs.map((doc) => doc.id);
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to fetch expired payment intents - error: ${(e as Error).message}`
+      );
+    }
+  }
+
+  async fetchExpiredSentPaymentIds(
+    now: Date,
+    limit: number
+  ): Promise<{ paymentIntentId: string; paymentId: string }[]> {
+    this._checkInitialisedOrThrow();
+
+    try {
+      const docs = await this._sentPaymentCollection
+        .find(
+          { state: 'SENDING', expiresAt: { $lte: now } },
+          { projection: { _id: 0, id: 1, paymentIntentId: 1 } }
+        )
+        .sort({ expiresAt: 1 })
+        .limit(limit)
+        .toArray();
+
+      return docs.map((doc) => ({
+        paymentIntentId: doc.paymentIntentId,
+        paymentId: doc.id
+      }));
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to fetch expired sent payments - error: ${(e as Error).message}`
       );
     }
   }

@@ -14,7 +14,8 @@
     "ilp-domain-lib": "workspace:*",
     "implementations-lib": "workspace:*",
     "pal-public-types-lib": "workspace:*",
-    "payments-domain-lib": "workspace:*"
+    "payments-domain-lib": "workspace:*",
+    "payments-implementations-lib": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.3"

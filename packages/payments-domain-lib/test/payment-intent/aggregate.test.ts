@@ -31,8 +31,14 @@ import {
   AcceptInboundPaymentCmd,
   FailInboundPaymentCmd,
   MarkInboundPaymentFulfillableCmd,
-  FinalizeInboundPaymentCmd
+  FinalizeInboundPaymentCmd,
+  ExpireRemotePaymentCmd,
+  ExpirePaymentIntentCmd
 } from '../../src/commands';
+import {
+  PAYMENT_EXPIRED_REASON,
+  PAYMENT_EXPIRY_GRACE_MS
+} from '../../src/payment-intent/entity';
 import {
   MockPaymentIntentRepo,
   MockRemotePaymentIntentService,
@@ -66,7 +72,9 @@ import {
   InboundPaymentAcceptedEvent,
   InboundPaymentFailedEvent,
   InboundPaymentFulfillableEvent,
-  InboundPaymentFinalizedEvent
+  InboundPaymentFinalizedEvent,
+  PaymentExpiredEvent,
+  PaymentIntentExpiredEvent
 } from 'payments-public-types-lib';
 
 function makeApprovePaymentCmd(
@@ -3004,6 +3012,35 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         assert.equal(storedPayment.ledgerTransferId, palTransferId);
       });
 
+      it('sends the packet deadline on the event and stores the payment expiry a grace period later', async (context) => {
+        const now = Date.now();
+        context.mock.timers.enable({ apis: ['Date'], now });
+        const paymentIntentId = crypto.randomUUID();
+        const paymentId = crypto.randomUUID();
+        await repo.storeMany([
+          makeRemoteIntentWithPayment(paymentIntentId, paymentId, 'PROCESSING')
+        ]);
+
+        const cmd = new PrepareRemotePaymentCmd(
+          { paymentIntentId, paymentId, ledgerTransferId: 'ledger-1' },
+          crypto.randomUUID()
+        );
+        const { events } = await aggregate.handleBatch([cmd]);
+        await aggregate.flush();
+
+        const payload = (events[0] as RemotePaymentPreparedEvent).payload;
+        assert.equal(Date.parse(payload.expiresAt), now + 30_000);
+        const storedPayment = repo
+          .getAll()
+          .find((i) => i.id === paymentIntentId)
+          ?.sentPayments.find((p) => p.id === paymentId);
+        assert.ok(storedPayment && isRemoteSentPayment(storedPayment));
+        assert.equal(
+          storedPayment.expiresAt?.getTime(),
+          now + 30_000 + PAYMENT_EXPIRY_GRACE_MS
+        );
+      });
+
       it('fails to prepare if payment intent not found', async () => {
         const cmd = new PrepareRemotePaymentCmd(
           {
@@ -3576,6 +3613,354 @@ describe('PaymentIntentAggregate.handleBatch', () => {
         assert.ok(storedPayment && isRemoteSentPayment(storedPayment));
         assert.equal(storedPayment.state, 'FAILED');
         assert.equal(storedPayment.failReason, 'PAL voided reserved transfer');
+      });
+    });
+
+    describe('payment expiry', () => {
+      const PAST = () => new Date(Date.now() - 1_000);
+      const FUTURE = () => new Date(Date.now() + 60_000);
+
+      function makeRemoteIntentWithPayment(
+        paymentIntentId: string,
+        paymentId: string,
+        paymentState: SentPaymentState,
+        paymentExpiresAt: Date
+      ): IPaymentIntent {
+        return {
+          id: paymentIntentId,
+          receivedAmount: 0n,
+          receiverWalletAddress: 'remote.domain.com/alice',
+          assetCode: 'USD',
+          assetScale: 2,
+          state: 'CREATED',
+          destination: 'REMOTE',
+          createdAt: new Date(),
+          expiresAt: FUTURE(),
+          incomingAmount: null,
+          destinationIlpAddress: 'g.peer.123',
+          quotes: [],
+          inboundPayments: [],
+          sentPayments: [
+            {
+              destination: 'REMOTE',
+              peerId: 'peer-1',
+              id: paymentId,
+              state: paymentState,
+              senderWalletAddress: 'domain.com/bob',
+              senderWalletAddressId: 'wallet-1',
+              paymentIntentId,
+              assetCode: 'USD',
+              assetScale: 2,
+              createdAt: new Date(),
+              debitAmount: 500n,
+              receiveAmount: 100n,
+              sentAmount: 0n,
+              ledgerTransferId: 'ledger-pal-1',
+              expiresAt: paymentExpiresAt
+            }
+          ]
+        };
+      }
+
+      async function storeRemotePayment(
+        paymentState: SentPaymentState,
+        paymentExpiresAt: Date
+      ) {
+        const paymentIntentId = crypto.randomUUID();
+        const paymentId = crypto.randomUUID();
+        await repo.storeMany([
+          makeRemoteIntentWithPayment(
+            paymentIntentId,
+            paymentId,
+            paymentState,
+            paymentExpiresAt
+          )
+        ]);
+        return { paymentIntentId, paymentId };
+      }
+
+      function storedPayment(paymentIntentId: string, paymentId: string) {
+        const payment = repo
+          .getAll()
+          .find((i) => i.id === paymentIntentId)
+          ?.sentPayments.find((p) => p.id === paymentId);
+        assert.ok(payment && isRemoteSentPayment(payment));
+        return payment;
+      }
+
+      function expirePayment(paymentIntentId: string, paymentId: string) {
+        return new ExpireRemotePaymentCmd(
+          { paymentIntentId, paymentId },
+          crypto.randomUUID()
+        );
+      }
+
+      it('keys expire commands by payment intent', () => {
+        const paymentIntentId = crypto.randomUUID();
+
+        assert.equal(
+          expirePayment(paymentIntentId, crypto.randomUUID()).msgKey,
+          paymentIntentId
+        );
+        assert.equal(
+          new ExpirePaymentIntentCmd({ paymentIntentId }, crypto.randomUUID())
+            .msgKey,
+          paymentIntentId
+        );
+      });
+
+      it('expires a SENDING payment past its expiry and emits PaymentExpiredEvent', async () => {
+        const expiresAt = PAST();
+        const { paymentIntentId, paymentId } = await storeRemotePayment(
+          'SENDING',
+          expiresAt
+        );
+        const cmd = expirePayment(paymentIntentId, paymentId);
+
+        const { events } = await aggregate.handleBatch([cmd]);
+        await aggregate.flush();
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, PaymentExpiredEvent.name);
+        assert.equal(events[0].msgKey, paymentIntentId);
+        const payload = (events[0] as PaymentExpiredEvent).payload;
+        assert.deepEqual(payload, {
+          paymentIntentId,
+          paymentId,
+          ledgerTransferId: 'ledger-pal-1',
+          peerId: 'peer-1',
+          requestId: cmd.requestId,
+          debitAmount: '500',
+          assetCode: 'USD',
+          assetScale: 2,
+          expiresAt
+        });
+        const stored = storedPayment(paymentIntentId, paymentId);
+        assert.equal(stored.state, 'EXPIRED');
+        assert.equal(stored.failReason, PAYMENT_EXPIRED_REASON);
+      });
+
+      for (const state of [
+        'CONFIRMED',
+        'REJECTED',
+        'COMPLETED',
+        'FAILED'
+      ] as const) {
+        it(`does nothing for a ${state} payment`, async () => {
+          const { paymentIntentId, paymentId } = await storeRemotePayment(
+            state,
+            PAST()
+          );
+
+          const { events } = await aggregate.handleBatch([
+            expirePayment(paymentIntentId, paymentId)
+          ]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 0);
+          assert.equal(storedPayment(paymentIntentId, paymentId).state, state);
+        });
+      }
+
+      it('does nothing for an unknown payment intent', async () => {
+        const { events } = await aggregate.handleBatch([
+          expirePayment(crypto.randomUUID(), crypto.randomUUID())
+        ]);
+
+        assert.equal(events.length, 0);
+      });
+
+      it('lets a confirm in the same batch win over the expiry', async () => {
+        const { paymentIntentId, paymentId } = await storeRemotePayment(
+          'SENDING',
+          PAST()
+        );
+
+        // The expiry arrives first, but is handled after the confirm.
+        const { events } = await aggregate.handleBatch([
+          expirePayment(paymentIntentId, paymentId),
+          new ConfirmRemotePaymentCmd(
+            { paymentIntentId, paymentId },
+            crypto.randomUUID()
+          )
+        ]);
+        await aggregate.flush();
+
+        assert.deepEqual(
+          events.map((e) => e.msgName),
+          [RemotePaymentSendConfirmedEvent.name]
+        );
+        assert.equal(
+          storedPayment(paymentIntentId, paymentId).state,
+          'CONFIRMED'
+        );
+      });
+
+      it('handles a repeated expire command in one batch once', async () => {
+        const { paymentIntentId, paymentId } = await storeRemotePayment(
+          'SENDING',
+          PAST()
+        );
+
+        const { events } = await aggregate.handleBatch([
+          expirePayment(paymentIntentId, paymentId),
+          expirePayment(paymentIntentId, paymentId)
+        ]);
+
+        assert.deepEqual(
+          events.map((e) => e.msgName),
+          [PaymentExpiredEvent.name]
+        );
+      });
+
+      it('ignores a confirm that arrives after the payment expired', async () => {
+        const { paymentIntentId, paymentId } = await storeRemotePayment(
+          'EXPIRED',
+          PAST()
+        );
+
+        const { events } = await aggregate.handleBatch([
+          new ConfirmRemotePaymentCmd(
+            { paymentIntentId, paymentId },
+            crypto.randomUUID()
+          )
+        ]);
+        await aggregate.flush();
+
+        assert.equal(events.length, 0);
+        assert.equal(
+          storedPayment(paymentIntentId, paymentId).state,
+          'EXPIRED'
+        );
+      });
+
+      it('ignores an ILP failure that arrives after the payment expired', async () => {
+        const { paymentIntentId, paymentId } = await storeRemotePayment(
+          'EXPIRED',
+          PAST()
+        );
+
+        const { events } = await aggregate.handleBatch([
+          new RejectRemotePaymentCmd(
+            { paymentIntentId, paymentId, reason: 'EXPIRED' },
+            crypto.randomUUID()
+          )
+        ]);
+        await aggregate.flush();
+
+        assert.equal(events.length, 0);
+        assert.equal(
+          storedPayment(paymentIntentId, paymentId).state,
+          'EXPIRED'
+        );
+      });
+
+      it('fails an expired payment once PAL releases it, keeping the expiry reason', async () => {
+        const { paymentIntentId, paymentId } = await storeRemotePayment(
+          'SENDING',
+          PAST()
+        );
+        await aggregate.handleBatch([
+          expirePayment(paymentIntentId, paymentId)
+        ]);
+        await aggregate.flush();
+
+        // PAL's LedgerOutgoingTransferRejectedEvent becomes a FailRemotePaymentCmd
+        // with no reason.
+        const { events } = await aggregate.handleBatch([
+          new FailRemotePaymentCmd(
+            { paymentIntentId, paymentId },
+            crypto.randomUUID()
+          )
+        ]);
+        await aggregate.flush();
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, PaymentFailedEvent.name);
+        const payload = (events[0] as PaymentFailedEvent).payload;
+        assert.equal(payload.state, 'FAILED');
+        assert.equal(payload.reason, PAYMENT_EXPIRED_REASON);
+        const stored = storedPayment(paymentIntentId, paymentId);
+        assert.equal(stored.state, 'FAILED');
+        assert.equal(stored.failReason, PAYMENT_EXPIRED_REASON);
+      });
+
+      describe('payment intents', () => {
+        async function storeLocalIntent(
+          state: 'CREATED' | 'COMPLETED',
+          expiresAt: Date
+        ): Promise<string> {
+          const id = crypto.randomUUID();
+          await repo.storeMany([
+            {
+              id,
+              receiverWalletAddressId: 'wallet-1',
+              receiverWalletAddress: 'domain.com/alice',
+              receivedAmount: 0n,
+              assetCode: 'USD',
+              assetScale: 2,
+              state,
+              destination: 'LOCAL',
+              createdAt: new Date(),
+              expiresAt,
+              incomingAmount: null,
+              quotes: [],
+              sentPayments: [],
+              inboundPayments: []
+            }
+          ]);
+          return id;
+        }
+
+        function expireIntent(paymentIntentId: string) {
+          return new ExpirePaymentIntentCmd(
+            { paymentIntentId },
+            crypto.randomUUID()
+          );
+        }
+
+        it('expires a CREATED intent past its expiry and emits PaymentIntentExpiredEvent', async () => {
+          const expiresAt = PAST();
+          const id = await storeLocalIntent('CREATED', expiresAt);
+          const cmd = expireIntent(id);
+
+          const { events } = await aggregate.handleBatch([cmd]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, PaymentIntentExpiredEvent.name);
+          assert.equal(events[0].requestId, cmd.requestId);
+          assert.deepEqual((events[0] as PaymentIntentExpiredEvent).payload, {
+            id,
+            state: 'EXPIRED',
+            expiresAt
+          });
+          assert.equal(
+            repo.getAll().find((i) => i.id === id)?.state,
+            'EXPIRED'
+          );
+        });
+
+        it('does nothing for a COMPLETED intent', async () => {
+          const id = await storeLocalIntent('COMPLETED', PAST());
+
+          const { events } = await aggregate.handleBatch([expireIntent(id)]);
+          await aggregate.flush();
+
+          assert.equal(events.length, 0);
+          assert.equal(
+            repo.getAll().find((i) => i.id === id)?.state,
+            'COMPLETED'
+          );
+        });
+
+        it('does nothing for an unknown intent', async () => {
+          const { events } = await aggregate.handleBatch([
+            expireIntent(crypto.randomUUID())
+          ]);
+
+          assert.equal(events.length, 0);
+        });
       });
     });
 
