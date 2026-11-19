@@ -118,15 +118,9 @@ function extractGnapToken(request: FastifyRequest): string {
 
 export interface TokenIntrospectionOptions {
   authClient: AuthClient;
-  /** Grant request endpoint, advertised in `WWW-Authenticate` on 401/403. */
   authServerUrl: string;
   type: AccessType;
   action: RequestAction;
-  /**
-   * Wallet address the request targets, when known before the resource is
-   * fetched (create and list). Passed to introspection so the Auth BC only
-   * matches access items scoped to it.
-   */
   identifier?: string;
 }
 
@@ -199,7 +193,7 @@ export async function introspectToken(
       err instanceof OpenPaymentsResourceServerRouteError &&
       (err.status === 401 || err.status === 403)
     ) {
-      // GNAP (RFC 9635, Section 12.1) lets a resource server that rejects a
+      // This lets the resource server that rejects a
       // request tell the client where to get a suitable grant: a 401/403 may
       // carry `WWW-Authenticate: GNAP as_uri=<AS grant endpoint>`, pointing the
       // client at the AS it should start a new grant request with.
