@@ -17,7 +17,9 @@ import {
   AuthClientUnauthorizedRequestError,
   AuthClientInvalidContinuationError,
   AuthClientInvalidRotationError,
-  AuthClientUnknownAccessTokenError
+  AuthClientUnknownAccessTokenError,
+  AuthClientGrantNotFoundError,
+  TokenIntrospectionInactiveReason
 } from '../src/';
 
 describe('Auth Client', () => {
@@ -1019,6 +1021,10 @@ describe('Auth Client', () => {
 
       assert.equal(result.active, false);
       assert.equal(result.access.length, 0);
+      assert.equal(
+        result.inactiveReason,
+        TokenIntrospectionInactiveReason.UNKNOWN_TOKEN
+      );
     });
 
     test('restricts the returned access to the requested access items', async () => {
@@ -1054,17 +1060,24 @@ describe('Auth Client', () => {
 
       assert.equal(result.active, false);
       assert.equal(result.access.length, 0);
+      assert.equal(
+        result.inactiveReason,
+        TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS
+      );
     });
 
-    test('returns active: false when the grant does not exist', async () => {
-      const result = await authClient.introspectToken(
-        randomUUID(),
-        await sign(generateTestKeys()),
-        'some-token-value',
-        []
-      );
-
-      assert.equal(result.active, false);
+    test('rejects with AuthClientGrantNotFoundError when the grant does not exist', async () => {
+      try {
+        await authClient.introspectToken(
+          randomUUID(),
+          await sign(generateTestKeys()),
+          'some-token-value',
+          []
+        );
+        assert.fail('expected error for unknown grant');
+      } catch (e) {
+        assert.ok(e instanceof AuthClientGrantNotFoundError);
+      }
     });
   });
   describe('startInteraction', () => {

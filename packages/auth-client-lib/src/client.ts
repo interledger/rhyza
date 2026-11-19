@@ -27,6 +27,7 @@ import {
   RevokeGrantRequest as PbRevokeGrantRequest,
   AdminRevokeGrantRequest as PbAdminRevokeGrantRequest,
   IntrospectTokenResponse as PbIntrospectTokenResponse,
+  TokenIntrospectionInactiveReason as PbTokenIntrospectionInactiveReason,
   IntrospectTokenRequest as PbIntrospectTokenRequest,
   RotateTokenRequest as PbRotateTokenRequest,
   RevokeTokenRequest as PbRevokeTokenRequest,
@@ -45,6 +46,7 @@ import {
   HandleInteractionChoiceResult,
   InteractionResult,
   IntrospectTokenResult,
+  TokenIntrospectionInactiveReason,
   RevokeGrantResult,
   RevokeTokenResult,
   RotateTokenResult,
@@ -652,13 +654,35 @@ function fromPbRotateTokenResponse(
   };
 }
 
+function fromPbTokenIntrospectionInactiveReason(
+  reason: PbTokenIntrospectionInactiveReason
+): TokenIntrospectionInactiveReason | undefined {
+  switch (reason) {
+    case PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_EXPIRED:
+      return TokenIntrospectionInactiveReason.EXPIRED;
+    case PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_REVOKED:
+      return TokenIntrospectionInactiveReason.REVOKED;
+    case PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_UNKNOWN_TOKEN:
+      return TokenIntrospectionInactiveReason.UNKNOWN_TOKEN;
+    case PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_INVALID_GRANT:
+      return TokenIntrospectionInactiveReason.INVALID_GRANT;
+    case PbTokenIntrospectionInactiveReason.TOKEN_INTROSPECTION_INACTIVE_REASON_INSUFFICIENT_ACCESS:
+      return TokenIntrospectionInactiveReason.INSUFFICIENT_ACCESS;
+    default:
+      return undefined;
+  }
+}
+
 function fromPbIntrospectTokenResponse(
   response: PbIntrospectTokenResponse
 ): IntrospectTokenResult {
   return {
     active: response.getActive(),
     grantId: response.getGrantId(),
-    access: response.getAccessList().map(fromPbAccessItem)
+    access: response.getAccessList().map(fromPbAccessItem),
+    inactiveReason: fromPbTokenIntrospectionInactiveReason(
+      response.getInactiveReason()
+    )
   };
 }
 

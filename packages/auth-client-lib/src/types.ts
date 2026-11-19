@@ -135,10 +135,21 @@ export interface RevokeGrantResult {
   id: string;
 }
 
+export const TokenIntrospectionInactiveReason = {
+  EXPIRED: 'EXPIRED',
+  REVOKED: 'REVOKED',
+  UNKNOWN_TOKEN: 'UNKNOWN_TOKEN',
+  INVALID_GRANT: 'INVALID_GRANT',
+  INSUFFICIENT_ACCESS: 'INSUFFICIENT_ACCESS'
+} as const;
+export type TokenIntrospectionInactiveReason =
+  keyof typeof TokenIntrospectionInactiveReason;
+
 export interface IntrospectTokenResult {
   active: boolean;
   grantId: string;
   access: AccessItem[];
+  inactiveReason?: TokenIntrospectionInactiveReason;
 }
 
 export interface RotateTokenResult {
