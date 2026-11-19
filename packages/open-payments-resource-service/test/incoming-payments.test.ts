@@ -15,7 +15,11 @@ import { createErrorHandler } from '../src/errors';
 import { NullLogger } from 'common-types-lib';
 import { FastifyOpenApiValidator } from '../src/validator';
 import resourceServerOpenApiJsonSchema from '../../../open-payments-specifications/json/resource-server.json';
-import { activeResult, signedAuthHeaders, stubAuthClient } from './helpers';
+import {
+  activeTokenIntrospectionResult,
+  signedAuthHeaders,
+  stubAuthClient
+} from './helpers';
 
 // grpc status codes, inlined to avoid depending on @grpc/grpc-js here
 const GRPC_INVALID_ARGUMENT = 3;
@@ -92,7 +96,7 @@ const tokenWith = (
   actions: string[],
   walletAddress?: string
 ): IntrospectTokenResult =>
-  activeResult([
+  activeTokenIntrospectionResult([
     {
       type: 'INCOMING_PAYMENT',
       actions,
