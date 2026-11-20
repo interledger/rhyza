@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import Fastify from 'fastify';
 import { AccessItem, AuthClient, IntrospectTokenResult } from 'auth-client-lib';
 import { PalClient } from 'pal-client-lib';
-import { IPayment, PaymentsClient } from 'payments-client-lib';
+import {
+  createServiceError,
+  IPayment,
+  PaymentsClient
+} from 'payments-client-lib';
 import resourceServerOpenApiJsonSchema from '../../../open-payments-specifications/json/resource-server.json';
 import { outgoingPaymentRoutes } from '../src/routes/outgoing-payments';
 import { createErrorHandler } from '../src/errors';
@@ -11,9 +15,9 @@ import { NullLogger } from 'common-types-lib';
 import { FastifyOpenApiValidator } from '../src/validator';
 import { encodeCompoundId } from '../src/utils';
 import {
-  activeResult,
+  activeTokenIntrospectionResult,
   GRANT_ID,
-  IntrospectCall,
+  IntrospectTokenCall,
   signedAuthHeaders,
   stubAuthClient
 } from './helpers';
@@ -25,6 +29,11 @@ const PAYMENT_INTENT_ID = 'intent-1';
 const QUOTE_ID = 'quote-1';
 const PAYMENT_ID = 'payment-1';
 const PAYMENT_PATH = `/outgoing-payments/${encodeCompoundId(PAYMENT_INTENT_ID, PAYMENT_ID)}`;
+
+const GRPC_INVALID_ARGUMENT = 3;
+const GRPC_NOT_FOUND = 5;
+const GRPC_FAILED_PRECONDITION = 9;
+const GRPC_INTERNAL = 13;
 
 const palClient = {
   resolveWalletAddressByAlias: async () => ({
@@ -86,9 +95,13 @@ function paymentsClient(calls: CreatePaymentArgs[]): PaymentsClient {
 }
 
 // Validates request bodies against the Open Payments spec, like service.ts.
-async function appFor(
-  calls: CreatePaymentArgs[],
-  authClient: AuthClient = stubAuthClient(accessFor(['CREATE']))
+async function createTestApp(
+  authClient: AuthClient,
+  overrides: {
+    createPaymentCalls?: CreatePaymentArgs[];
+    paymentsClient?: Partial<PaymentsClient>;
+    palClient?: Partial<PalClient>;
+  } = {}
 ) {
   const app = Fastify();
   const validator = new FastifyOpenApiValidator(
@@ -108,8 +121,11 @@ async function appFor(
   app.decorateRequest('grantAccess', null);
   app.decorateRequest('grantId', null);
   await app.register(outgoingPaymentRoutes, {
-    palClient,
-    paymentsClient: paymentsClient(calls),
+    palClient: Object.assign(palClient, overrides.palClient ?? {}),
+    paymentsClient: Object.assign(
+      paymentsClient(overrides.createPaymentCalls ?? []),
+      overrides.paymentsClient ?? {}
+    ),
     authClient,
     openPaymentsUrl: OPEN_PAYMENTS_URL,
     openPaymentsAuthServiceUrl: AUTH_SERVER_URL
@@ -117,15 +133,16 @@ async function appFor(
   return app;
 }
 
-const accessFor = (
+/** An active introspection result for a token granting `actions`. */
+const tokenWith = (
   actions: string[],
-  identifier?: string
+  walletAddress?: string
 ): IntrospectTokenResult =>
-  activeResult([
+  activeTokenIntrospectionResult([
     {
       type: 'OUTGOING_PAYMENT',
       actions,
-      ...(identifier ? { identifier } : {})
+      ...(walletAddress ? { identifier: walletAddress } : {})
     } as AccessItem
   ]);
 
@@ -147,7 +164,9 @@ const fromIncomingPayment = (extra: Record<string, unknown> = {}) => ({
 describe('POST /outgoing-payments', () => {
   test('passes metadata to createPayment and returns it when created from a quote', async () => {
     const calls: CreatePaymentArgs[] = [];
-    const app = await appFor(calls);
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      createPaymentCalls: calls
+    });
 
     const response = await app.inject({
       method: 'POST',
@@ -164,7 +183,9 @@ describe('POST /outgoing-payments', () => {
 
   test('passes metadata to createPayment and returns it when created from an incoming payment', async () => {
     const calls: CreatePaymentArgs[] = [];
-    const app = await appFor(calls);
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      createPaymentCalls: calls
+    });
 
     const response = await app.inject({
       method: 'POST',
@@ -181,7 +202,9 @@ describe('POST /outgoing-payments', () => {
 
   test('creates the payment without metadata when the request has none', async () => {
     const calls: CreatePaymentArgs[] = [];
-    const app = await appFor(calls);
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      createPaymentCalls: calls
+    });
 
     for (const payload of [fromQuote(), fromIncomingPayment()]) {
       const response = await app.inject({
@@ -201,7 +224,9 @@ describe('POST /outgoing-payments', () => {
 
   test('rejects metadata that is not an object', async () => {
     const calls: CreatePaymentArgs[] = [];
-    const app = await appFor(calls);
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      createPaymentCalls: calls
+    });
 
     const response = await app.inject({
       method: 'POST',
@@ -214,12 +239,104 @@ describe('POST /outgoing-payments', () => {
     assert.equal(response.json().error.code, 'invalid_request');
     assert.equal(calls.length, 0);
   });
-});
 
-describe('POST /outgoing-payments token introspection', () => {
+  test('maps INVALID_ARGUMENT to 400 invalid_request', async () => {
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      paymentsClient: {
+        createPayment: async () => {
+          throw createServiceError(GRPC_INVALID_ARGUMENT, 'bad argument');
+        }
+      } as unknown as Partial<PaymentsClient>
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/outgoing-payments',
+      headers: signedAuthHeaders(),
+      payload: fromQuote()
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.deepEqual(response.json().error, {
+      code: 'invalid_request',
+      description: 'Could not create outgoing payment'
+    });
+  });
+
+  test('maps FAILED_PRECONDITION to 400 invalid_request', async () => {
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      paymentsClient: {
+        createPayment: async () => {
+          throw createServiceError(GRPC_FAILED_PRECONDITION, 'quote expired');
+        }
+      } as unknown as Partial<PaymentsClient>
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/outgoing-payments',
+      headers: signedAuthHeaders(),
+      payload: fromQuote()
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.deepEqual(response.json().error, {
+      code: 'invalid_request',
+      description: 'Could not create outgoing payment'
+    });
+  });
+
+  test('maps NOT_FOUND to 500', async () => {
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      paymentsClient: {
+        createPayment: async () => {
+          throw createServiceError(GRPC_NOT_FOUND, 'no such quote');
+        }
+      } as unknown as Partial<PaymentsClient>
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/outgoing-payments',
+      headers: signedAuthHeaders(),
+      payload: fromQuote()
+    });
+
+    assert.equal(response.statusCode, 500);
+    assert.deepEqual(response.json().error, {
+      code: 'internal_server_error',
+      description: 'Could not create outgoing payment'
+    });
+  });
+
+  test('maps an unexpected grpc error to 500', async () => {
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      paymentsClient: {
+        createPayment: async () => {
+          throw createServiceError(GRPC_INTERNAL, 'unexpected');
+        }
+      } as unknown as Partial<PaymentsClient>
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/outgoing-payments',
+      headers: signedAuthHeaders(),
+      payload: fromQuote()
+    });
+
+    assert.equal(response.statusCode, 500);
+    assert.deepEqual(response.json().error, {
+      code: 'internal_server_error',
+      description: 'Could not create outgoing payment'
+    });
+  });
+
   test('returns 401 without a token', async () => {
     const calls: CreatePaymentArgs[] = [];
-    const app = await appFor(calls);
+    const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
+      createPaymentCalls: calls
+    });
 
     const response = await app.inject({
       method: 'POST',
@@ -236,11 +353,14 @@ describe('POST /outgoing-payments token introspection', () => {
   });
 
   test('introspects for the body wallet address and passes the grant id to createPayment', async () => {
-    const introspectCalls: IntrospectCall[] = [];
+    const introspectCalls: IntrospectTokenCall[] = [];
     const calls: CreatePaymentArgs[] = [];
-    const app = await appFor(
-      calls,
-      stubAuthClient(accessFor(['CREATE'], WALLET_ADDRESS_URL), introspectCalls)
+    const app = await createTestApp(
+      stubAuthClient(
+        tokenWith(['CREATE'], WALLET_ADDRESS_URL),
+        introspectCalls
+      ),
+      { createPaymentCalls: calls }
     );
 
     const response = await app.inject({
@@ -263,7 +383,10 @@ describe('POST /outgoing-payments token introspection', () => {
 
   test('returns 403 when the grant has no matching access', async () => {
     const calls: CreatePaymentArgs[] = [];
-    const app = await appFor(calls, stubAuthClient(activeResult([])));
+    const app = await createTestApp(
+      stubAuthClient(activeTokenIntrospectionResult([])),
+      { createPaymentCalls: calls }
+    );
 
     const response = await app.inject({
       method: 'POST',
@@ -279,7 +402,7 @@ describe('POST /outgoing-payments token introspection', () => {
 
 describe('GET /outgoing-payments/:id', () => {
   test('returns 401 without a token', async () => {
-    const app = await appFor([], stubAuthClient(accessFor(['READ'])));
+    const app = await createTestApp(stubAuthClient(tokenWith(['READ'])));
 
     const response = await app.inject({ method: 'GET', url: PAYMENT_PATH });
 
@@ -291,8 +414,8 @@ describe('GET /outgoing-payments/:id', () => {
   });
 
   test('returns 200 for outgoing payment read access', async () => {
-    const calls: IntrospectCall[] = [];
-    const app = await appFor([], stubAuthClient(accessFor(['READ']), calls));
+    const calls: IntrospectTokenCall[] = [];
+    const app = await createTestApp(stubAuthClient(tokenWith(['READ']), calls));
 
     const response = await app.inject({
       method: 'GET',
@@ -307,9 +430,8 @@ describe('GET /outgoing-payments/:id', () => {
   });
 
   test('returns 200 for a grant scoped to the sending wallet address', async () => {
-    const app = await appFor(
-      [],
-      stubAuthClient(accessFor(['READ'], WALLET_ADDRESS_URL))
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['READ'], WALLET_ADDRESS_URL))
     );
 
     const response = await app.inject({
@@ -323,9 +445,8 @@ describe('GET /outgoing-payments/:id', () => {
   });
 
   test('returns 403 for a grant scoped to a different wallet address', async () => {
-    const app = await appFor(
-      [],
-      stubAuthClient(accessFor(['READ'], `${OPEN_PAYMENTS_URL}/bob`))
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['READ'], `${OPEN_PAYMENTS_URL}/bob`))
     );
 
     const response = await app.inject({
@@ -337,13 +458,57 @@ describe('GET /outgoing-payments/:id', () => {
     assert.equal(response.statusCode, 403);
     assert.equal(response.json().error.description, 'Insufficient Grant');
   });
+
+  test('maps NOT_FOUND to 404 not_found', async () => {
+    const app = await createTestApp(stubAuthClient(tokenWith(['READ'])), {
+      paymentsClient: {
+        getPayment: async () => {
+          throw createServiceError(GRPC_NOT_FOUND, 'no such payment');
+        }
+      } as unknown as Partial<PaymentsClient>
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: PAYMENT_PATH,
+      headers: signedAuthHeaders()
+    });
+
+    assert.equal(response.statusCode, 404);
+    assert.deepEqual(response.json().error, {
+      code: 'not_found',
+      description: 'Outgoing payment not found'
+    });
+  });
+
+  test('maps an unexpected grpc error to 500', async () => {
+    const app = await createTestApp(stubAuthClient(tokenWith(['READ'])), {
+      paymentsClient: {
+        getPayment: async () => {
+          throw createServiceError(GRPC_INTERNAL, 'unexpected');
+        }
+      } as unknown as Partial<PaymentsClient>
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: PAYMENT_PATH,
+      headers: signedAuthHeaders()
+    });
+
+    assert.equal(response.statusCode, 500);
+    assert.deepEqual(response.json().error, {
+      code: 'internal_server_error',
+      description: 'Could not get outgoing payment'
+    });
+  });
 });
 
 describe('GET /outgoing-payments', () => {
   const listUrl = `/outgoing-payments?wallet-address=${encodeURIComponent(WALLET_ADDRESS_URL)}`;
 
   test('returns 401 without a token', async () => {
-    const app = await appFor([], stubAuthClient(accessFor(['LIST'])));
+    const app = await createTestApp(stubAuthClient(tokenWith(['LIST'])));
 
     const response = await app.inject({ method: 'GET', url: listUrl });
 
@@ -351,10 +516,9 @@ describe('GET /outgoing-payments', () => {
   });
 
   test('introspects for the queried wallet address and returns the page', async () => {
-    const calls: IntrospectCall[] = [];
-    const app = await appFor(
-      [],
-      stubAuthClient(accessFor(['LIST'], WALLET_ADDRESS_URL), calls)
+    const calls: IntrospectTokenCall[] = [];
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['LIST'], WALLET_ADDRESS_URL), calls)
     );
 
     const response = await app.inject({
@@ -375,7 +539,9 @@ describe('GET /outgoing-payments', () => {
   });
 
   test('returns 403 when the grant has no matching access', async () => {
-    const app = await appFor([], stubAuthClient(activeResult([])));
+    const app = await createTestApp(
+      stubAuthClient(activeTokenIntrospectionResult([]))
+    );
 
     const response = await app.inject({
       method: 'GET',
@@ -384,5 +550,49 @@ describe('GET /outgoing-payments', () => {
     });
 
     assert.equal(response.statusCode, 403);
+  });
+
+  test('maps INVALID_ARGUMENT to 400 invalid_request', async () => {
+    const app = await createTestApp(stubAuthClient(tokenWith(['LIST'])), {
+      paymentsClient: {
+        getPaymentsPage: async () => {
+          throw createServiceError(GRPC_INVALID_ARGUMENT, 'bad cursor');
+        }
+      } as unknown as Partial<PaymentsClient>
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: listUrl,
+      headers: signedAuthHeaders()
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.deepEqual(response.json().error, {
+      code: 'invalid_request',
+      description: 'Could not list outgoing payments'
+    });
+  });
+
+  test('maps an unexpected grpc error to 500', async () => {
+    const app = await createTestApp(stubAuthClient(tokenWith(['LIST'])), {
+      paymentsClient: {
+        getPaymentsPage: async () => {
+          throw createServiceError(GRPC_INTERNAL, 'unexpected');
+        }
+      } as unknown as Partial<PaymentsClient>
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: listUrl,
+      headers: signedAuthHeaders()
+    });
+
+    assert.equal(response.statusCode, 500);
+    assert.deepEqual(response.json().error, {
+      code: 'internal_server_error',
+      description: 'Could not list outgoing payments'
+    });
   });
 });
