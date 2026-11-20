@@ -94,7 +94,8 @@ import {
   IGrant,
   ValidateOutgoingPaymentGrantLimitCmd,
   OutgoingPaymentGrantLimitValidatedEvent,
-  OutgoingPaymentGrantLimitValidationFailedEvent
+  OutgoingPaymentGrantLimitValidationFailedEvent,
+  ISerializedSpentAmounts
 } from 'auth-domain-lib';
 import crypto from 'crypto';
 import { IGrantRepository } from 'auth-domain-lib/src';
@@ -478,6 +479,7 @@ export class AuthServiceServer {
         {
           id: call.request.getId(),
           tokenValue: call.request.getTokenValue(),
+          returnSpentAmounts: call.request.getReturnSpentAmounts(),
           signatureData,
           access: call.request.getAccessList().map((item: any) => ({
             type: item.getType().toString(),
@@ -886,6 +888,11 @@ export class AuthServiceServer {
       for (const access of payload.access || []) {
         response.addAccess(this.getAccessListResponse(access));
       }
+      if (payload.spentAmounts) {
+        response.setSpentAmounts(
+          this._toPbGrantSpentAmounts(payload.id, payload.spentAmounts)
+        );
+      }
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isTokenIntrospectionFailedEvent(event)) {
       const payload: TokenIntrospectionFailedEvent['payload'] = event.payload;
@@ -940,18 +947,10 @@ export class AuthServiceServer {
     ) {
       const payload: OutgoingPaymentGrantLimitValidatedEvent['payload'] =
         event.payload;
-      const response = new GrantSpentAmountsResponse();
-      response.setId(payload.id);
-      response.setTotalSpentDebitAmount(payload.spentAmounts.total.debit);
-      response.setTotalSpentReceiveAmount(payload.spentAmounts.total.receive);
-      if (payload.spentAmounts.interval) {
-        response.setIntervalSpentDebitAmount(
-          payload.spentAmounts.interval.total.debit
-        );
-        response.setIntervalSpentReceiveAmount(
-          payload.spentAmounts.interval.total.receive
-        );
-      }
+      const response = this._toPbGrantSpentAmounts(
+        payload.id,
+        payload.spentAmounts
+      );
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (
       AuthDomainEvent.isOutgoingPaymentGrantLimitValidationFailedEvent(event)
@@ -964,6 +963,23 @@ export class AuthServiceServer {
         `Unknown response event — msgName: ${message.msgName}, requestId: ${requestId}`
       );
     }
+  }
+
+  private _toPbGrantSpentAmounts(
+    grantId: string,
+    spentAmounts: ISerializedSpentAmounts
+  ): GrantSpentAmountsResponse {
+    const response = new GrantSpentAmountsResponse();
+    response.setId(grantId);
+    response.setTotalSpentDebitAmount(spentAmounts.total.debit);
+    response.setTotalSpentReceiveAmount(spentAmounts.total.receive);
+    if (spentAmounts.interval) {
+      response.setIntervalSpentDebitAmount(spentAmounts.interval.total.debit);
+      response.setIntervalSpentReceiveAmount(
+        spentAmounts.interval.total.receive
+      );
+    }
+    return response;
   }
 
   private _resolvePendingResponse(
