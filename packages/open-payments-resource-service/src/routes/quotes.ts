@@ -2,8 +2,18 @@
 
 import { randomUUID } from 'crypto';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
-import { PaymentsClient } from 'payments-client-lib';
+import {
+  IGetWalletAddressResponse,
+  PalClient,
+  pathNameFromWalletAddress
+} from 'pal-client-lib';
+import {
+  CreateQuoteResult,
+  GetPaymentIntentResult,
+  GetQuoteResult,
+  httpStatusFromGrpcError,
+  PaymentsClient
+} from 'payments-client-lib';
 import { AuthClient } from 'auth-client-lib';
 import { OpenPaymentsResourceServerRouteError } from '../errors.js';
 import {
@@ -59,7 +69,25 @@ export async function quoteRoutes(
       const { id } = request.params;
 
       const { paymentIntentId, resourceId: quoteId } = decodeCompoundId(id);
-      const quote = await paymentsClient.getQuote(paymentIntentId, quoteId);
+
+      let quote: GetQuoteResult;
+      try {
+        quote = await paymentsClient.getQuote(paymentIntentId, quoteId);
+      } catch (err) {
+        if (httpStatusFromGrpcError(err) === 404) {
+          throw new OpenPaymentsResourceServerRouteError(
+            404,
+            'Quote not found',
+            'not_found'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not get quote',
+          'internal_server_error'
+        );
+      }
 
       assertGrantIdentifierMatches(request, quote.senderWalletAddress);
 
@@ -71,13 +99,38 @@ export async function quoteRoutes(
         );
       }
 
-      const paymentIntent =
-        await paymentsClient.getPaymentIntent(paymentIntentId);
+      let paymentIntent: GetPaymentIntentResult;
+      try {
+        paymentIntent = await paymentsClient.getPaymentIntent(paymentIntentId);
+      } catch (err) {
+        if (httpStatusFromGrpcError(err) === 404) {
+          throw new OpenPaymentsResourceServerRouteError(
+            404,
+            'Quote not found',
+            'not_found'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not get quote',
+          'internal_server_error'
+        );
+      }
 
       // get sender wallet address for debit amount asset
-      const walletAddresses = await palClient.getWalletAddresses([
-        quote.senderWalletAddressId
-      ]);
+      let walletAddresses: IGetWalletAddressResponse[];
+      try {
+        walletAddresses = await palClient.getWalletAddresses([
+          quote.senderWalletAddressId
+        ]);
+      } catch {
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not get quote',
+          'internal_server_error'
+        );
+      }
 
       const senderWallet = walletAddresses.find(
         (wallet) => wallet.id === quote.senderWalletAddressId
@@ -140,10 +193,19 @@ export async function quoteRoutes(
 
       const pathName = pathNameFromWalletAddress(walletAddressUrl);
 
-      const walletAddress = await palClient.resolveWalletAddressByAlias(
-        null,
-        pathName
-      );
+      let walletAddress: IGetWalletAddressResponse | null;
+      try {
+        walletAddress = await palClient.resolveWalletAddressByAlias(
+          null,
+          pathName
+        );
+      } catch {
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not create quote',
+          'internal_server_error'
+        );
+      }
 
       if (!walletAddress) {
         throw new OpenPaymentsResourceServerRouteError(
@@ -177,18 +239,46 @@ export async function quoteRoutes(
 
       const id = randomUUID();
 
-      const result = await paymentsClient.createQuote(
-        id,
-        { paymentIntentUrl: incomingPaymentUrl },
-        walletAddress.id,
-        walletAddressUrl,
-        debitAmountValue,
-        receiveAmountValue
-      );
+      let result: CreateQuoteResult;
+      try {
+        result = await paymentsClient.createQuote(
+          id,
+          { paymentIntentUrl: incomingPaymentUrl },
+          walletAddress.id,
+          walletAddressUrl,
+          debitAmountValue,
+          receiveAmountValue
+        );
+      } catch (err) {
+        const httpStatus = httpStatusFromGrpcError(err);
 
-      const paymentIntent = await paymentsClient.getPaymentIntent(
-        result.paymentIntentId
-      );
+        if (httpStatus === 400 || httpStatus === 409) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not create quote',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not create quote',
+          'internal_server_error'
+        );
+      }
+
+      let paymentIntent: GetPaymentIntentResult;
+      try {
+        paymentIntent = await paymentsClient.getPaymentIntent(
+          result.paymentIntentId
+        );
+      } catch {
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not create quote',
+          'internal_server_error'
+        );
+      }
 
       const response: components['schemas']['quote'] = {
         id: `${openPaymentsUrl}/quotes/${encodeCompoundId(result.paymentIntentId, result.id)}`,
