@@ -5,7 +5,6 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import {
   httpStatusFromGrpcError,
-  toClientApiErrorResponse,
   IAmount,
   PaymentsClient,
   IPayment
@@ -189,7 +188,20 @@ export async function outgoingPaymentRoutes(
           .send(toOutgoingPaymentBody(payment, openPaymentsUrl));
       } catch (err) {
         const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+
+        if (httpStatus === 400 || httpStatus === 409) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not create outgoing payment',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not create outgoing payment',
+          'internal_server_error'
+        );
       }
     }
   );
@@ -212,8 +224,19 @@ export async function outgoingPaymentRoutes(
       try {
         payment = await paymentsClient.getPayment(paymentIntentId, paymentId);
       } catch (err) {
-        const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+        if (httpStatusFromGrpcError(err) === 404) {
+          throw new OpenPaymentsResourceServerRouteError(
+            404,
+            'Outgoing payment not found',
+            'not_found'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not get outgoing payment',
+          'internal_server_error'
+        );
       }
 
       assertGrantIdentifierMatches(request, payment.senderWalletAddress);
@@ -292,8 +315,19 @@ export async function outgoingPaymentRoutes(
           )
         });
       } catch (err) {
-        const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+        if (httpStatusFromGrpcError(err) === 400) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not list outgoing payments',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not list outgoing payments',
+          'internal_server_error'
+        );
       }
     }
   );
