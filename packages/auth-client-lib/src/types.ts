@@ -139,6 +139,8 @@ export interface IntrospectTokenResult {
   active: boolean;
   grantId: string;
   access: AccessItem[];
+  // Only set when requested, and the token is active with the requested access.
+  spentAmounts?: GrantSpentAmountsResult;
 }
 
 export interface GrantSpentAmountsResult {

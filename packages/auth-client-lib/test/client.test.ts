@@ -1071,12 +1071,16 @@ describe('Auth Client', () => {
       assert.equal(result.active, false);
     });
   });
-  describe('validateOutgoingPaymentGrantLimit', () => {
+  describe('outgoing payment grant spent amounts', () => {
     // Takes an outgoing payment grant through the interaction flow so it is
     // ISSUED, which is required before spent amounts can be validated.
     async function createIssuedOutgoingPaymentGrant(
       limits?: AccessLimits
-    ): Promise<{ id: string }> {
+    ): Promise<{
+      id: string;
+      tokenValue: string;
+      keys: ReturnType<typeof generateTestKeys>;
+    }> {
       const keys = generateTestKeys();
       const created = await authClient.createGrant(
         registerWalletAddress(keys.publicKey, `Test Client ${randomUUID()}`),
@@ -1108,7 +1112,7 @@ describe('Auth Client', () => {
       // We must wait at least 5 seconds before continuing grant
       await new Promise((resolve) => setTimeout(resolve, 5_100));
 
-      await authClient.continueGrant(
+      const continued = await authClient.continueGrant(
         created.id,
         await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         created.continueId,
@@ -1116,11 +1120,113 @@ describe('Auth Client', () => {
         interactRef
       );
 
-      return { id: created.id };
+      return {
+        id: created.id,
+        tokenValue: continued.accessTokenValue as string,
+        keys
+      };
     }
 
     const debitLimit = (value: string): AccessLimits => ({
       debitAmount: { assetCode: 'USD', assetScale: 2, value }
+    });
+
+    describe('introspectToken with returnSpentAmounts', () => {
+      const createAccess = [
+        makeAccessItem({ type: 'OUTGOING_PAYMENT', actions: ['CREATE'] })
+      ];
+
+      test('returns the grant spent amounts for an active token', async () => {
+        const { id, tokenValue, keys } = await createIssuedOutgoingPaymentGrant(
+          debitLimit('100')
+        );
+        await authClient.validateOutgoingPaymentGrantLimit(
+          id,
+          40n,
+          35n,
+          new Date().toISOString()
+        );
+
+        const result = await authClient.introspectToken(
+          id,
+          await signedSignatureData(keys.privateKey, keys.publicKey.kid),
+          tokenValue,
+          createAccess,
+          { returnSpentAmounts: true }
+        );
+
+        assert.equal(result.active, true);
+        assert.equal(result.grantId, id);
+        assert.equal(result.access.length, 1);
+        assert.deepStrictEqual(result.spentAmounts, {
+          grantId: id,
+          totalSpentDebitAmount: 40n,
+          totalSpentReceiveAmount: 35n,
+          intervalSpentDebitAmount: undefined,
+          intervalSpentReceiveAmount: undefined
+        });
+      });
+
+      test('returns the current interval spent amounts for a grant with an interval', async () => {
+        const { id, tokenValue, keys } = await createIssuedOutgoingPaymentGrant(
+          {
+            ...debitLimit('100'),
+            interval: 'R/2026-01-01T00:00:00Z/P1M'
+          }
+        );
+        await authClient.validateOutgoingPaymentGrantLimit(
+          id,
+          10n,
+          8n,
+          new Date().toISOString()
+        );
+
+        const result = await authClient.introspectToken(
+          id,
+          await signedSignatureData(keys.privateKey, keys.publicKey.kid),
+          tokenValue,
+          createAccess,
+          { returnSpentAmounts: true }
+        );
+
+        assert.equal(result.spentAmounts?.intervalSpentDebitAmount, 10n);
+        assert.equal(result.spentAmounts?.intervalSpentReceiveAmount, 8n);
+      });
+
+      test('omits spent amounts when the requested access is not granted', async () => {
+        const { id, tokenValue, keys } = await createIssuedOutgoingPaymentGrant(
+          debitLimit('100')
+        );
+
+        const result = await authClient.introspectToken(
+          id,
+          await signedSignatureData(keys.privateKey, keys.publicKey.kid),
+          tokenValue,
+          [makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })],
+          { returnSpentAmounts: true }
+        );
+
+        assert.equal(result.active, true);
+        assert.equal(result.access.length, 0);
+        assert.equal(result.spentAmounts, undefined);
+      });
+
+      test('omits spent amounts for an inactive token', async () => {
+        const { id, keys } = await createIssuedOutgoingPaymentGrant(
+          debitLimit('100')
+        );
+
+        const result = await authClient.introspectToken(
+          id,
+          await signedSignatureData(keys.privateKey, keys.publicKey.kid),
+          'unknown-token-value',
+          createAccess,
+          { returnSpentAmounts: true }
+        );
+
+        assert.equal(result.active, false);
+        assert.equal(result.spentAmounts, undefined);
+      });
     });
 
     test('adds the amounts to the grant spent totals', async () => {
