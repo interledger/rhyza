@@ -1946,6 +1946,112 @@ describe('GrantEntity', () => {
     });
   });
 
+  describe('getCurrentSpentAmounts', () => {
+    const MONTHLY = 'R/2024-01-01T00:00:00.000Z/P1M';
+    const january = {
+      start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+      end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+      total: { debit: 30n, receive: 25n }
+    };
+
+    function makeGrant(
+      spentAmounts: ISpentAmounts | undefined,
+      interval?: string
+    ): GrantEntity {
+      return GrantEntity.fromObject({
+        id: randomUUID(),
+        createdAt: new Date(),
+        state: GrantState.ISSUED,
+        accessTokens: [],
+        accesses: [
+          {
+            type: AccessType.OUTGOING_PAYMENT,
+            actions: [AccessAction.CREATE],
+            limits: {
+              receiver: 'https://wallet.example/bob',
+              debitAmount: 100n,
+              assetCode: 'USD',
+              assetScale: 2,
+              ...(interval ? { interval } : {})
+            } as IAccessLimit
+          }
+        ],
+        spentAmounts
+      } as IGrant);
+    }
+
+    it('returns undefined when spent amounts have not been initialized', () => {
+      assert.equal(makeGrant(undefined).getCurrentSpentAmounts(), undefined);
+    });
+
+    it('returns only the totals for a grant without an interval', () => {
+      const entity = makeGrant({
+        total: { debit: 40n, receive: 35n },
+        interval: january
+      });
+
+      assert.deepEqual(
+        entity.getCurrentSpentAmounts(new Date('2024-01-15T00:00:00.000Z')),
+        { total: { debit: 40n, receive: 35n } }
+      );
+    });
+
+    it('returns the tracked interval when it contains the given date', () => {
+      const entity = makeGrant(
+        { total: { debit: 40n, receive: 35n }, interval: january },
+        MONTHLY
+      );
+
+      assert.deepEqual(
+        entity.getCurrentSpentAmounts(new Date('2024-01-15T00:00:00.000Z')),
+        { total: { debit: 40n, receive: 35n }, interval: january }
+      );
+    });
+
+    it('returns a zeroed current interval when the tracked interval has passed', () => {
+      const entity = makeGrant(
+        { total: { debit: 40n, receive: 35n }, interval: january },
+        MONTHLY
+      );
+
+      const result = entity.getCurrentSpentAmounts(
+        new Date('2024-03-10T00:00:00.000Z')
+      );
+
+      assert.deepEqual(result, {
+        total: { debit: 40n, receive: 35n },
+        interval: {
+          start: new Date('2024-03-01T00:00:00.000Z').getTime(),
+          end: new Date('2024-04-01T00:00:00.000Z').getTime(),
+          total: { debit: 0n, receive: 0n }
+        }
+      });
+      assert.deepEqual(entity.spentAmounts?.interval, january);
+    });
+
+    it('returns a zeroed current interval when nothing has been spent yet', () => {
+      const entity = makeGrant({ total: { debit: 0n, receive: 0n } }, MONTHLY);
+
+      const result = entity.getCurrentSpentAmounts(
+        new Date('2024-01-15T00:00:00.000Z')
+      );
+
+      assert.deepEqual(result?.interval?.total, { debit: 0n, receive: 0n });
+    });
+
+    it('omits the interval when no repetition contains the given date', () => {
+      const entity = makeGrant(
+        { total: { debit: 40n, receive: 35n }, interval: january },
+        'R2/2024-01-01T00:00:00.000Z/P1M'
+      );
+
+      assert.deepEqual(
+        entity.getCurrentSpentAmounts(new Date('2024-06-10T00:00:00.000Z')),
+        { total: { debit: 40n, receive: 35n } }
+      );
+    });
+  });
+
   describe('handleInteractionChoice', () => {
     function makeGrantWithInteraction(
       overrides: Partial<IInteraction> = {}
