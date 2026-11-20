@@ -268,17 +268,22 @@ export class AuthClient {
     });
   }
 
+  // With `returnSpentAmounts`, an active token with the requested access also
+  // returns the grant's spent amounts. Interval amounts are for the interval
+  // containing the time of introspection.
   introspectToken(
     id: string,
     signatureData: SignatureRequestData,
     tokenValue: string,
-    access: AccessItem[]
+    access: AccessItem[],
+    options: { returnSpentAmounts?: boolean } = {}
   ): Promise<IntrospectTokenResult> {
     const request = new PbIntrospectTokenRequest();
     request.setId(id);
     request.setTokenValue(tokenValue);
     request.setAccessList(access.map(toPbAccessItem));
     request.setSignatureData(this.toSignatureData(signatureData));
+    request.setReturnSpentAmounts(options.returnSpentAmounts ?? false);
 
     return new Promise((resolve, reject) => {
       this._grpcClient.introspectToken(
@@ -684,10 +689,14 @@ function fromPbRotateTokenResponse(
 function fromPbIntrospectTokenResponse(
   response: PbIntrospectTokenResponse
 ): IntrospectTokenResult {
+  const spentAmounts = response.getSpentAmounts();
   return {
     active: response.getActive(),
     grantId: response.getGrantId(),
-    access: response.getAccessList().map(fromPbAccessItem)
+    access: response.getAccessList().map(fromPbAccessItem),
+    ...(spentAmounts
+      ? { spentAmounts: fromPbGrantSpentAmountsResponse(spentAmounts) }
+      : {})
   };
 }
 
