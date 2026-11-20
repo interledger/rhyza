@@ -1,0 +1,47 @@
+meta {
+  name: Get Outgoing Payment Grant
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://{{openPaymentsResourceServerUrl}}/outgoing-payment-grant
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: GNAP {{outgoingPaymentAccessToken}}
+}
+
+script:pre-request {
+  const scripts = require('./scripts');
+
+  await scripts.addSignatureHeaders();
+}
+
+tests {
+  test("spent the full debit amount against the grant", function () {
+    const body = res.getBody();
+    expect(res.getStatus()).to.equal(200);
+    // The grant's debitAmount limit was set to the quote's debit amount, so
+    // one payment spends it exactly to the limit.
+    expect(body.spentDebitAmount).to.deep.equal(
+      JSON.parse(bru.getVar("quoteDebitAmount"))
+    );
+    // The grant has no receiveAmount limit, so there is no asset to report
+    // a spent receive amount in.
+    expect(body.spentReceiveAmount).to.equal(null);
+  });
+}
+
+docs {
+  Read with the outgoing payment grant's token, which must have `create`
+  access — this reports spend against the grant's limits, so it expects the
+  token used to create outgoing payments rather than a read-only one.
+
+  Spent amounts are reported per access limit, in that limit's asset. This
+  grant sets only a `debitAmount` limit, so `spentReceiveAmount` is `null`.
+  For a grant with an `interval`, the amounts returned are for the current
+  interval rather than the grant's lifetime.
+}
