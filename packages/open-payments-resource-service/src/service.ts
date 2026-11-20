@@ -100,6 +100,7 @@ export class OpenPaymentsResourceServer {
     this.server.setErrorHandler(createErrorHandler(this.logger));
     this.server.decorateRequest('grantAccess', null);
     this.server.decorateRequest('grantId', null);
+    this.server.decorateRequest('grantSpentAmounts', null);
 
     allowEmptyJsonBody(this.server);
 
