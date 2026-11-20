@@ -104,7 +104,7 @@ const tokenWith = (
     } as AccessItem
   ]);
 
-describe('createIncomingPayment', () => {
+describe('POST /incoming-payments', () => {
   const createBody = {
     walletAddress: ALICE,
     incomingAmount: { value: '100', assetCode: 'USD', assetScale: 2 }
@@ -159,7 +159,7 @@ describe('createIncomingPayment', () => {
   });
 });
 
-describe('getIncomingPayment', () => {
+describe('GET /incoming-payments/{id}', () => {
   test('serves the public view without a token', async () => {
     const app = await createTestApp(stubAuthClient(tokenWith(['READ'])));
 
@@ -261,7 +261,7 @@ describe('getIncomingPayment', () => {
   });
 });
 
-describe('listIncomingPayments', () => {
+describe('GET /incoming-payments', () => {
   test('maps an unexpected grpc error to 500', async () => {
     const app = await createTestApp(
       stubAuthClient(tokenWith(['LIST'], ALICE)),
@@ -286,7 +286,7 @@ describe('listIncomingPayments', () => {
   });
 });
 
-describe('completeIncomingPayment', () => {
+describe('POST /incoming-payments/{id}/complete', () => {
   const completePaymentIntentMockFn = () =>
     mock.fn(async () => ({ ...paymentIntent, state: 'COMPLETED' }));
 
