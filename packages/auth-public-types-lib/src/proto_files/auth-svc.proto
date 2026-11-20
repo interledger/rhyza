@@ -205,6 +205,7 @@ message IntrospectTokenResponse {
 	bool active = 1;
 	string grant_id = 2;
 	repeated AccessItem access = 3;
+	GrantSpentAmountsResponse spent_amounts = 4;
 }
 
 message IntrospectTokenRequest {
@@ -212,6 +213,7 @@ message IntrospectTokenRequest {
 	string token_value = 2;
 	repeated AccessItem access = 3;
 	SignatureData signature_data = 4;
+	bool return_spent_amounts = 5;
 }
 
 message RotateTokenRequest {
