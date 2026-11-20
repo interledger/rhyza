@@ -627,6 +627,52 @@ export class GrantEntity implements IGrant {
     };
   }
 
+  getCurrentSpentAmounts(
+    asOfDate: Date = new Date()
+  ): ISpentAmounts | undefined {
+    if (!this._spentAmounts) return undefined;
+
+    const total = {
+      debit: this._spentAmounts.total.debit,
+      receive: this._spentAmounts.total.receive
+    };
+    const intervalString = this.getGrantIntervalString();
+    if (!intervalString) {
+      return { total };
+    }
+
+    if (
+      this.getSpentAmountInterval()?.contains(DateTime.fromJSDate(asOfDate))
+    ) {
+      const stored = this._spentAmounts.interval!;
+      return {
+        total,
+        interval: {
+          start: stored.start,
+          end: stored.end,
+          total: {
+            debit: stored.total.debit,
+            receive: stored.total.receive
+          }
+        }
+      };
+    }
+
+    const interval = getInterval(intervalString, asOfDate);
+    if (!interval?.start || !interval.end) {
+      return { total };
+    }
+
+    return {
+      total,
+      interval: {
+        start: interval.start.toMillis(),
+        end: interval.end.toMillis(),
+        total: { debit: 0n, receive: 0n }
+      }
+    };
+  }
+
   private validateAmountValue(value: string): void {
     let parsed: bigint;
     try {

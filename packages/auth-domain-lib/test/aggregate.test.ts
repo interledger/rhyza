@@ -1973,6 +1973,163 @@ describe('GrantAggregate.handleBatch', () => {
         };
       }
 
+      describe('handleIntrospectTokenCommand with returnSpentAmounts', () => {
+        const TOKEN_VALUE = 'op-token';
+
+        async function storeGrantWithToken(
+          grant: IGrant,
+          keys: TestKeys
+        ): Promise<IGrant> {
+          const now = new Date();
+          const withToken: IGrant = {
+            ...grant,
+            client: JSON.stringify(keys.publicKey),
+            accessTokens: [
+              {
+                value: TOKEN_VALUE,
+                managementId: randomUUID(),
+                expiresInMs: 600_000,
+                expiresAt: new Date(now.getTime() + 600_000),
+                createdAt: now
+              }
+            ]
+          };
+          await repo.storeMany([withToken]);
+          return withToken;
+        }
+
+        const introspect = async (
+          id: string,
+          keys: TestKeys,
+          overrides: Partial<IntrospectTokenCmdPayload> = {}
+        ) => {
+          const { events } = await aggregate.handleBatch([
+            await makeIntrospectTokenCmd(
+              {
+                id,
+                tokenValue: TOKEN_VALUE,
+                returnSpentAmounts: true,
+                access: [
+                  {
+                    type: AccessType.OUTGOING_PAYMENT,
+                    actions: [AccessAction.CREATE]
+                  }
+                ],
+                ...overrides
+              },
+              keys
+            )
+          ]);
+          assert.equal(events.length, 1);
+          assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
+          return (events[0] as TokenIntrospectedEvent).payload;
+        };
+
+        it('returns the total spent amounts when requested', async () => {
+          const keys = generateTestKeys();
+          const grant = await storeGrantWithToken(
+            makeIssuedOutgoingPaymentGrant({
+              limits: { debitAmount: 100n },
+              spentAmounts: { total: { debit: 40n, receive: 35n } }
+            }),
+            keys
+          );
+
+          const payload = await introspect(grant.id, keys);
+
+          assert.equal(payload.active, true);
+          assert.deepEqual(payload.spentAmounts, {
+            total: { debit: '40', receive: '35' },
+            interval: undefined
+          });
+        });
+
+        it('returns a zeroed current interval when the tracked interval has passed', async () => {
+          const keys = generateTestKeys();
+          const grant = await storeGrantWithToken(
+            makeIssuedOutgoingPaymentGrant({
+              limits: {
+                debitAmount: 100n,
+                interval: 'R/2024-01-01T00:00:00.000Z/P1M'
+              },
+              spentAmounts: {
+                total: { debit: 40n, receive: 35n },
+                interval: {
+                  start: new Date('2024-01-01T00:00:00.000Z').getTime(),
+                  end: new Date('2024-02-01T00:00:00.000Z').getTime(),
+                  total: { debit: 40n, receive: 35n }
+                }
+              }
+            }),
+            keys
+          );
+
+          const payload = await introspect(grant.id, keys);
+
+          assert.deepEqual(payload.spentAmounts?.total, {
+            debit: '40',
+            receive: '35'
+          });
+          assert.deepEqual(payload.spentAmounts?.interval?.total, {
+            debit: '0',
+            receive: '0'
+          });
+          assert.ok(payload.spentAmounts!.interval!.start <= Date.now());
+          assert.ok(payload.spentAmounts!.interval!.end > Date.now());
+        });
+
+        it('does not return spent amounts unless requested', async () => {
+          const keys = generateTestKeys();
+          const grant = await storeGrantWithToken(
+            makeIssuedOutgoingPaymentGrant({ limits: { debitAmount: 100n } }),
+            keys
+          );
+
+          const payload = await introspect(grant.id, keys, {
+            returnSpentAmounts: false
+          });
+
+          assert.equal(payload.active, true);
+          assert.equal(payload.spentAmounts, undefined);
+        });
+
+        it('does not return spent amounts when the requested access is not granted', async () => {
+          const keys = generateTestKeys();
+          const grant = await storeGrantWithToken(
+            makeIssuedOutgoingPaymentGrant({ limits: { debitAmount: 100n } }),
+            keys
+          );
+
+          const payload = await introspect(grant.id, keys, {
+            access: [
+              {
+                type: AccessType.INCOMING_PAYMENT,
+                actions: [AccessAction.READ]
+              }
+            ]
+          });
+
+          assert.equal(payload.active, true);
+          assert.deepEqual(payload.access, []);
+          assert.equal(payload.spentAmounts, undefined);
+        });
+
+        it('does not return spent amounts for an inactive token', async () => {
+          const keys = generateTestKeys();
+          const grant = await storeGrantWithToken(
+            makeIssuedOutgoingPaymentGrant({ limits: { debitAmount: 100n } }),
+            keys
+          );
+
+          const payload = await introspect(grant.id, keys, {
+            tokenValue: 'unknown-token'
+          });
+
+          assert.equal(payload.active, false);
+          assert.equal(payload.spentAmounts, undefined);
+        });
+      });
+
       describe('handleValidateOutgoingPaymentGrantLimitCommand', () => {
         it('validates and updates the debit total, returning OutgoingPaymentGrantLimitValidatedEvent', async () => {
           const grant = makeIssuedOutgoingPaymentGrant({
@@ -2158,7 +2315,7 @@ describe('GrantAggregate.handleBatch', () => {
           assert.equal(events[0].msgName, RevertedGrantSpentAmountEvent.name);
           const payload = (events[0] as RevertedGrantSpentAmountEvent).payload;
           assert.equal(payload.id, grant.id);
-          assert.equal(payload.spentAmounts?.total.debit, 30n);
+          assert.equal(payload.spentAmounts?.total.debit, '30');
           assert.equal(events[0].requestId, requestId);
         });
 
@@ -2182,7 +2339,7 @@ describe('GrantAggregate.handleBatch', () => {
           assert.equal(events.length, 1);
           assert.equal(events[0].msgName, RevertedGrantSpentAmountEvent.name);
           const payload = (events[0] as RevertedGrantSpentAmountEvent).payload;
-          assert.equal(payload.spentAmounts?.total.receive, 25n);
+          assert.equal(payload.spentAmounts?.total.receive, '25');
         });
 
         it('fails with RevertGrantSpentAmountFailedEvent when the grant does not exist', async () => {

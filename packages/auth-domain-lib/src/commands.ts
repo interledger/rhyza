@@ -132,6 +132,7 @@ export interface IntrospectTokenCmdPayload
   id: string;
   tokenValue: string;
   access?: IAccessItem[];
+  returnSpentAmounts?: boolean;
 }
 
 export class IntrospectTokenCmd extends AuthCmd {
