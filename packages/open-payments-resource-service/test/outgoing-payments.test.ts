@@ -7,6 +7,7 @@ import {
   AuthClientGrantNotFoundError,
   AuthClientInsufficientGrantError,
   AuthClientInvalidGrantError,
+  GrantSpentAmountsResult,
   IntrospectTokenResult
 } from 'auth-client-lib';
 import { PalClient } from 'pal-client-lib';
@@ -142,6 +143,7 @@ async function createTestApp(
   app.setErrorHandler(createErrorHandler(new NullLogger()));
   app.decorateRequest('grantAccess', null);
   app.decorateRequest('grantId', null);
+  app.decorateRequest('grantSpentAmounts', null);
   await app.register(outgoingPaymentRoutes, {
     palClient: Object.assign(palClient, overrides.palClient ?? {}),
     paymentsClient: Object.assign(
@@ -750,5 +752,176 @@ describe('GET /outgoing-payments', () => {
       code: 'internal_server_error',
       description: 'Could not list outgoing payments'
     });
+  });
+});
+
+describe('GET /outgoing-payment-grant', () => {
+  const USD = { assetCode: 'USD', assetScale: 2 };
+  const EUR = { assetCode: 'EUR', assetScale: 2 };
+
+  const spentAmounts: GrantSpentAmountsResult = {
+    grantId: GRANT_ID,
+    totalSpentDebitAmount: 1200n,
+    totalSpentReceiveAmount: 1100n,
+    intervalSpentDebitAmount: 300n,
+    intervalSpentReceiveAmount: 250n
+  };
+
+  /**
+   * An active token for an outgoing payment grant with `limits`. Create-only,
+   * since reporting spend does not require read access.
+   */
+  const grantWith = (
+    limits: AccessItem['limits'],
+    spent: GrantSpentAmountsResult | null = spentAmounts
+  ): IntrospectTokenResult => ({
+    ...activeTokenIntrospectionResult([
+      { type: 'OUTGOING_PAYMENT', actions: ['CREATE'], limits }
+    ]),
+    ...(spent ? { spentAmounts: spent } : {})
+  });
+
+  const getGrant = async (
+    result: IntrospectTokenResult | Error,
+    calls: IntrospectTokenCall[] = []
+  ) => {
+    const app = await createTestApp(stubAuthClient(result, calls));
+    return app.inject({
+      method: 'GET',
+      url: '/outgoing-payment-grant',
+      headers: signedAuthHeaders()
+    });
+  };
+
+  test('returns 401 without a token', async () => {
+    const app = await createTestApp(stubAuthClient(grantWith(undefined)));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/outgoing-payment-grant'
+    });
+
+    assert.equal(response.statusCode, 401);
+    assert.equal(
+      response.headers['www-authenticate'],
+      `GNAP as_uri=${AUTH_SERVER_URL}`
+    );
+  });
+
+  test('introspects for outgoing payment create access and requests spent amounts', async () => {
+    const calls: IntrospectTokenCall[] = [];
+
+    const response = await getGrant(grantWith(undefined), calls);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.grantId, GRANT_ID);
+    assert.equal(calls[0]?.returnSpentAmounts, true);
+    assert.deepEqual(calls[0]?.access, [
+      { type: 'OUTGOING_PAYMENT', actions: ['CREATE'] }
+    ]);
+  });
+
+  test('returns 403 when the grant has no matching access', async () => {
+    const response = await getGrant(activeTokenIntrospectionResult([]));
+
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.json().error.code, 'insufficient_grant');
+  });
+
+  test('returns 403 for an inactive token', async () => {
+    const response = await getGrant({
+      active: false,
+      grantId: GRANT_ID,
+      access: []
+    });
+
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.json().error.code, 'inactive_token');
+  });
+
+  test('returns the total spent debit amount in the debit limit asset', async () => {
+    const response = await getGrant(
+      grantWith({ debitAmount: { value: '5000', ...USD } })
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      spentDebitAmount: { value: '1200', ...USD },
+      spentReceiveAmount: null
+    });
+  });
+
+  test('returns the total spent receive amount in the receive limit asset', async () => {
+    const response = await getGrant(
+      grantWith({ receiveAmount: { value: '5000', ...EUR } })
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      spentDebitAmount: null,
+      spentReceiveAmount: { value: '1100', ...EUR }
+    });
+  });
+
+  test('returns the current interval amount for a grant with an interval', async () => {
+    const response = await getGrant(
+      grantWith({
+        debitAmount: { value: '500', ...USD },
+        interval: 'R/2026-01-01T00:00:00Z/P1M'
+      })
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      spentDebitAmount: { value: '300', ...USD },
+      spentReceiveAmount: null
+    });
+  });
+
+  test('returns zero when nothing was spent in the current interval', async () => {
+    const response = await getGrant(
+      grantWith(
+        {
+          debitAmount: { value: '500', ...USD },
+          interval: 'R/2026-01-01T00:00:00Z/P1M'
+        },
+        { ...spentAmounts, intervalSpentDebitAmount: undefined }
+      )
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      spentDebitAmount: { value: '0', ...USD },
+      spentReceiveAmount: null
+    });
+  });
+
+  test('returns null amounts for a grant without amount limits', async () => {
+    const response = await getGrant(grantWith(undefined));
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      spentDebitAmount: null,
+      spentReceiveAmount: null
+    });
+  });
+
+  test('returns null amounts when the auth server returns no spent amounts', async () => {
+    const response = await getGrant(
+      grantWith({ debitAmount: { value: '5000', ...USD } }, null)
+    );
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      spentDebitAmount: null,
+      spentReceiveAmount: null
+    });
+  });
+
+  test('returns 500 on an unexpected auth error', async () => {
+    const response = await getGrant(new AuthClientGrantNotFoundError());
+
+    assert.equal(response.statusCode, 500);
   });
 });

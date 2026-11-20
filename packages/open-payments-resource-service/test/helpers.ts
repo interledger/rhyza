@@ -22,6 +22,7 @@ export type IntrospectTokenCall = {
   signatureData: SignatureRequestData;
   tokenValue: string;
   access: AccessItem[];
+  returnSpentAmounts: boolean;
 };
 
 export type ValidateGrantLimitCall = {
@@ -33,7 +34,8 @@ export type ValidateGrantLimitCall = {
 
 /**
  * AuthClient stub returning `result` (or throwing it) from introspection and
- * recording calls. `validateOutgoingPaymentGrantLimit` succeeds unless
+ * recording calls. `result.spentAmounts` is only returned when the call asks
+ * for spent amounts. `validateOutgoingPaymentGrantLimit` succeeds unless
  * `validateGrantLimit.error` is set.
  */
 export function stubAuthClient(
@@ -49,11 +51,22 @@ export function stubAuthClient(
       grantId: string,
       signatureData: SignatureRequestData,
       tokenValue: string,
-      access: AccessItem[]
+      access: AccessItem[],
+      options: { returnSpentAmounts?: boolean } = {}
     ) => {
-      calls.push({ grantId, signatureData, tokenValue, access });
+      const returnSpentAmounts = options.returnSpentAmounts ?? false;
+      calls.push({
+        grantId,
+        signatureData,
+        tokenValue,
+        access,
+        returnSpentAmounts
+      });
       if (result instanceof Error) throw result;
-      return result;
+      if (returnSpentAmounts) return result;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { spentAmounts, ...introspection } = result;
+      return introspection;
     },
     validateOutgoingPaymentGrantLimit: async (
       grantId: string,
