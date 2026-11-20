@@ -2,8 +2,8 @@ import { DomainEventTopics, DomainEvent, AppErrorType } from 'common-types-lib';
 import {
   GrantState,
   IAccessItem,
-  IGrant,
   IJsonWebKey,
+  ISerializedSpentAmounts,
   ISubjectId,
   InteractionChoice,
   InteractionState
@@ -254,6 +254,7 @@ export interface TokenIntrospectedPayload {
   value: string;
   active: boolean;
   access?: IAccessItem[];
+  spentAmounts?: ISerializedSpentAmounts;
 }
 
 export class TokenIntrospectedEvent extends AuthDomainEvent {
@@ -434,20 +435,7 @@ export class GrantInteractionChoiceFailedEvent extends AuthDomainEvent {
 
 export interface OutgoingPaymentGrantLimitValidatedPayload {
   id: string;
-  spentAmounts: {
-    total: {
-      debit: string;
-      receive: string;
-    };
-    interval?: {
-      start: number;
-      end: number;
-      total: {
-        debit: string;
-        receive: string;
-      };
-    };
-  };
+  spentAmounts: ISerializedSpentAmounts;
 }
 
 export class OutgoingPaymentGrantLimitValidatedEvent extends AuthDomainEvent {
@@ -481,7 +469,7 @@ export class OutgoingPaymentGrantLimitValidationFailedEvent extends AuthDomainEv
 
 export interface RevertedGrantSpentAmountPayload {
   id: string;
-  spentAmounts: IGrant['spentAmounts'];
+  spentAmounts: ISerializedSpentAmounts;
 }
 
 export class RevertedGrantSpentAmountEvent extends AuthDomainEvent {
