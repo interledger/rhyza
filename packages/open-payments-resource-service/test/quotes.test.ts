@@ -74,12 +74,12 @@ const paymentIntent: GetPaymentIntentResult = {
   createdAt: new Date().toISOString()
 };
 
-function mockPaymentsClient(created: string[]): PaymentsClient {
+function mockPaymentsClient(createdQuoteIds: string[]): PaymentsClient {
   return {
     getQuote: async () => quote,
     getPaymentIntent: async () => paymentIntent,
     createQuote: async (id: string): Promise<CreateQuoteResult> => {
-      created.push(id);
+      createdQuoteIds.push(id);
       return {
         id,
         paymentIntentId: PAYMENT_INTENT_ID,
@@ -98,7 +98,7 @@ function mockPaymentsClient(created: string[]): PaymentsClient {
 async function createTestApp(
   authClient: AuthClient,
   overrides: {
-    created?: string[];
+    createdQuoteIds?: string[];
     paymentsClient?: Partial<PaymentsClient>;
     palClient?: Partial<PalClient>;
   } = {}
@@ -114,7 +114,7 @@ async function createTestApp(
   await app.register(quoteRoutes, {
     palClient: Object.assign(mockPalClient(), overrides.palClient ?? {}),
     paymentsClient: Object.assign(
-      mockPaymentsClient(overrides.created ?? []),
+      mockPaymentsClient(overrides.createdQuoteIds ?? []),
       overrides.paymentsClient ?? {}
     ),
     authClient,
@@ -334,9 +334,9 @@ describe('GET /quotes/:id', () => {
 
 describe('POST /quotes', () => {
   test('returns 401 without a token', async () => {
-    const created: string[] = [];
+    const createdQuoteIds: string[] = [];
     const app = await createTestApp(stubAuthClient(tokenWith(['CREATE'])), {
-      created
+      createdQuoteIds
     });
 
     const response = await app.inject({
@@ -346,15 +346,15 @@ describe('POST /quotes', () => {
     });
 
     assert.equal(response.statusCode, 401);
-    assert.equal(created.length, 0);
+    assert.equal(createdQuoteIds.length, 0);
   });
 
   test('returns 201 for a grant scoped to the body wallet address', async () => {
     const calls: IntrospectTokenCall[] = [];
-    const created: string[] = [];
+    const createdQuoteIds: string[] = [];
     const app = await createTestApp(
       stubAuthClient(tokenWith(['CREATE'], WALLET_ADDRESS_URL), calls),
-      { created }
+      { createdQuoteIds }
     );
 
     const response = await app.inject({
@@ -365,17 +365,17 @@ describe('POST /quotes', () => {
     });
 
     assert.equal(response.statusCode, 201);
-    assert.equal(created.length, 1);
+    assert.equal(createdQuoteIds.length, 1);
     assert.deepEqual(calls[0]?.access, [
       { type: 'QUOTE', actions: ['CREATE'], identifier: WALLET_ADDRESS_URL }
     ]);
   });
 
   test('returns 403 when the grant has no matching access', async () => {
-    const created: string[] = [];
+    const createdQuoteIds: string[] = [];
     const app = await createTestApp(
       stubAuthClient(activeTokenIntrospectionResult([])),
-      { created }
+      { createdQuoteIds }
     );
 
     const response = await app.inject({
@@ -386,15 +386,15 @@ describe('POST /quotes', () => {
     });
 
     assert.equal(response.statusCode, 403);
-    assert.equal(created.length, 0);
+    assert.equal(createdQuoteIds.length, 0);
   });
 
   test('maps a wallet address resolution failure to 500', async () => {
-    const created: string[] = [];
+    const createdQuoteIds: string[] = [];
     const app = await createTestApp(
       stubAuthClient(tokenWith(['CREATE'], WALLET_ADDRESS_URL)),
       {
-        created,
+        createdQuoteIds,
         palClient: {
           resolveWalletAddressByAlias: async () => {
             throw new Error('unexpected');
@@ -415,7 +415,7 @@ describe('POST /quotes', () => {
       code: 'internal_server_error',
       description: 'Could not create quote'
     });
-    assert.equal(created.length, 0);
+    assert.equal(createdQuoteIds.length, 0);
   });
 
   test('returns 404 for an unknown wallet address', async () => {
