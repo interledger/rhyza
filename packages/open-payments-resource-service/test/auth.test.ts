@@ -39,6 +39,7 @@ async function createTestApp(
   const app = Fastify();
   app.setErrorHandler(createErrorHandler(new NullLogger()));
   app.decorateRequest('grantAccess', null);
+  app.decorateRequest('grantId', null);
   app.post<{ Body: { walletAddress?: string } }>(
     '/things',
     {

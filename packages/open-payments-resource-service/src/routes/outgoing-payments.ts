@@ -5,20 +5,28 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import {
   httpStatusFromGrpcError,
-  toClientApiErrorResponse,
   IAmount,
   PaymentsClient,
   IPayment
 } from 'payments-client-lib';
+import { AuthClient } from 'auth-client-lib';
 import { OpenPaymentsResourceServerRouteError } from '../errors.js';
+import {
+  AccessType,
+  assertGrantIdentifierMatches,
+  introspectToken,
+  RequestAction
+} from '../auth.js';
 import { components } from '../types/generated/resource-server-types.js';
 import { decodeCompoundId, encodeCompoundId } from '../utils.js';
 
 interface OutgoingPaymentRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
   paymentsClient: PaymentsClient;
+  authClient: AuthClient;
   /** Base URL of this instance's Open Payments resource server, used to construct receiver URLs for LOCAL parents. */
   openPaymentsUrl: string;
+  openPaymentsAuthServiceUrl: string;
 }
 
 function toAmountBody(amount: IAmount): components['schemas']['amount'] {
@@ -72,7 +80,19 @@ export async function outgoingPaymentRoutes(
   server: FastifyInstance,
   opts: OutgoingPaymentRouteOptions
 ): Promise<void> {
-  const { palClient, paymentsClient, openPaymentsUrl } = opts;
+  const {
+    palClient,
+    paymentsClient,
+    authClient,
+    openPaymentsUrl,
+    openPaymentsAuthServiceUrl
+  } = opts;
+
+  const introspectionOpts = {
+    authClient,
+    authServerUrl: openPaymentsAuthServiceUrl,
+    type: AccessType.OutgoingPayment
+  };
 
   server.post<{
     Body: components['schemas']['create-outgoing-payment-request'];
@@ -81,7 +101,13 @@ export async function outgoingPaymentRoutes(
     {
       schema: {
         body: { $ref: '#/components/schemas/create-outgoing-payment-request#' }
-      }
+      },
+      preHandler: async (request, reply) =>
+        await introspectToken(request, reply, {
+          ...introspectionOpts,
+          action: RequestAction.Create,
+          identifier: request.body.walletAddress
+        })
     },
     async (request, reply) => {
       const { walletAddress: walletAddressUrl, metadata } = request.body;
@@ -153,7 +179,7 @@ export async function outgoingPaymentRoutes(
           quote.id,
           undefined, // debitAmount
           undefined, // createdAt
-          undefined, // grantId
+          request.grantId ?? undefined,
           metadata
         );
 
@@ -162,31 +188,62 @@ export async function outgoingPaymentRoutes(
           .send(toOutgoingPaymentBody(payment, openPaymentsUrl));
       } catch (err) {
         const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+
+        if (httpStatus === 400 || httpStatus === 409) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not create outgoing payment',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not create outgoing payment',
+          'internal_server_error'
+        );
       }
     }
   );
 
   server.get<{ Params: { id: string } }>(
     '/outgoing-payments/:id',
+    {
+      preHandler: async (request, reply) =>
+        await introspectToken(request, reply, {
+          ...introspectionOpts,
+          action: RequestAction.Read
+        })
+    },
     async (request, reply) => {
       const { paymentIntentId, resourceId: paymentId } = decodeCompoundId(
         request.params.id
       );
 
+      let payment: IPayment;
       try {
-        const payment = await paymentsClient.getPayment(
-          paymentIntentId,
-          paymentId
-        );
-
-        return reply
-          .status(200)
-          .send(toOutgoingPaymentBody(payment, openPaymentsUrl));
+        payment = await paymentsClient.getPayment(paymentIntentId, paymentId);
       } catch (err) {
-        const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+        if (httpStatusFromGrpcError(err) === 404) {
+          throw new OpenPaymentsResourceServerRouteError(
+            404,
+            'Outgoing payment not found',
+            'not_found'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not get outgoing payment',
+          'internal_server_error'
+        );
       }
+
+      assertGrantIdentifierMatches(request, payment.senderWalletAddress);
+
+      return reply
+        .status(200)
+        .send(toOutgoingPaymentBody(payment, openPaymentsUrl));
     }
   );
 
@@ -197,57 +254,81 @@ export async function outgoingPaymentRoutes(
       first?: string;
       last?: string;
     };
-  }>('/outgoing-payments', async (request, reply) => {
-    const walletAddressUrl = request.query['wallet-address'];
+  }>(
+    '/outgoing-payments',
+    {
+      preHandler: async (request, reply) =>
+        await introspectToken(request, reply, {
+          ...introspectionOpts,
+          action: RequestAction.List,
+          identifier: request.query['wallet-address']
+        })
+    },
+    async (request, reply) => {
+      const walletAddressUrl = request.query['wallet-address'];
 
-    if (!walletAddressUrl) {
-      throw new OpenPaymentsResourceServerRouteError(
-        400,
-        "Missing required query parameter 'wallet-address'",
-        'invalid_request'
+      if (!walletAddressUrl) {
+        throw new OpenPaymentsResourceServerRouteError(
+          400,
+          "Missing required query parameter 'wallet-address'",
+          'invalid_request'
+        );
+      }
+
+      const pathName = pathNameFromWalletAddress(walletAddressUrl);
+
+      const walletAddress = await palClient.resolveWalletAddressByAlias(
+        null,
+        pathName
       );
+
+      if (!walletAddress) {
+        // An unknown wallet address returns an empty page rather than an
+        // error — indistinguishable from a wallet address with no payments,
+        // so wallet address existence is not leaked.
+        return reply.status(200).send({
+          pagination: { hasNextPage: false, hasPreviousPage: false },
+          result: []
+        });
+      }
+
+      try {
+        // Open Payments does not expose a sort order, so it is pinned here
+        // rather than inherited from the payments-side default. This ensures
+        // consistency with Rafiki.
+        const page = await paymentsClient.getPaymentsPage({
+          sortOrder: 'desc',
+          walletAddressId: walletAddress.id,
+          cursor: request.query.cursor,
+          first:
+            request.query.first != null
+              ? Number(request.query.first)
+              : undefined,
+          last:
+            request.query.last != null ? Number(request.query.last) : undefined
+        });
+
+        return reply.status(200).send({
+          pagination: page.pagination,
+          result: page.items.map((payment) =>
+            toOutgoingPaymentBody(payment, openPaymentsUrl)
+          )
+        });
+      } catch (err) {
+        if (httpStatusFromGrpcError(err) === 400) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not list outgoing payments',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not list outgoing payments',
+          'internal_server_error'
+        );
+      }
     }
-
-    const pathName = pathNameFromWalletAddress(walletAddressUrl);
-
-    const walletAddress = await palClient.resolveWalletAddressByAlias(
-      null,
-      pathName
-    );
-
-    if (!walletAddress) {
-      // An unknown wallet address returns an empty page rather than an
-      // error — indistinguishable from a wallet address with no payments,
-      // so wallet address existence is not leaked.
-      return reply.status(200).send({
-        pagination: { hasNextPage: false, hasPreviousPage: false },
-        result: []
-      });
-    }
-
-    try {
-      // Open Payments does not expose a sort order, so it is pinned here
-      // rather than inherited from the payments-side default. This ensures
-      // consistency with Rafiki.
-      const page = await paymentsClient.getPaymentsPage({
-        sortOrder: 'desc',
-        walletAddressId: walletAddress.id,
-        cursor: request.query.cursor,
-        first:
-          request.query.first != null ? Number(request.query.first) : undefined,
-        last:
-          request.query.last != null ? Number(request.query.last) : undefined
-      });
-
-      return reply.status(200).send({
-        pagination: page.pagination,
-        result: page.items.map((payment) =>
-          toOutgoingPaymentBody(payment, openPaymentsUrl)
-        )
-      });
-    } catch (err) {
-      const httpStatus = httpStatusFromGrpcError(err);
-      return reply.status(httpStatus).send(toClientApiErrorResponse(err));
-    }
-  });
+  );
 }

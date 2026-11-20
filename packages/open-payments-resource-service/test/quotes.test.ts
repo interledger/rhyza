@@ -111,6 +111,7 @@ async function createTestApp(
   app.setValidatorCompiler(({ schema }) => validator.compile(schema));
   app.setErrorHandler(createErrorHandler(new NullLogger()));
   app.decorateRequest('grantAccess', null);
+  app.decorateRequest('grantId', null);
   await app.register(quoteRoutes, {
     palClient: Object.assign(mockPalClient(), overrides.palClient ?? {}),
     paymentsClient: Object.assign(

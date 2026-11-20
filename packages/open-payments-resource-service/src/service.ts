@@ -99,6 +99,7 @@ export class OpenPaymentsResourceServer {
 
     this.server.setErrorHandler(createErrorHandler(this.logger));
     this.server.decorateRequest('grantAccess', null);
+    this.server.decorateRequest('grantId', null);
 
     allowEmptyJsonBody(this.server);
 
@@ -117,7 +118,9 @@ export class OpenPaymentsResourceServer {
     this.server.register(outgoingPaymentRoutes, {
       palClient: this.palClient,
       paymentsClient: this.paymentsClient,
-      openPaymentsUrl: OPEN_PAYMENTS_RESOURCE_SERVICE_URL
+      authClient: this.authClient,
+      openPaymentsUrl: OPEN_PAYMENTS_RESOURCE_SERVICE_URL,
+      openPaymentsAuthServiceUrl: OPEN_PAYMENTS_AUTH_SERVICE_URL
     });
 
     this.server.register(quoteRoutes, {
