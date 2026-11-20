@@ -141,6 +141,14 @@ export interface IntrospectTokenResult {
   access: AccessItem[];
 }
 
+export interface GrantSpentAmountsResult {
+  grantId: string;
+  totalSpentDebitAmount: bigint;
+  totalSpentReceiveAmount: bigint;
+  intervalSpentDebitAmount?: bigint;
+  intervalSpentReceiveAmount?: bigint;
+}
+
 export interface RotateTokenResult {
   grantId: string;
   newAccessTokenValue: string;

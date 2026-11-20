@@ -24,30 +24,58 @@ export type IntrospectTokenCall = {
   access: AccessItem[];
 };
 
+export type ValidateGrantLimitCall = {
+  grantId: string;
+  debitAmount: bigint;
+  receiveAmount: bigint;
+  createdAt: string;
+};
+
+/**
+ * AuthClient stub returning `result` (or throwing it) from introspection and
+ * recording calls. `validateOutgoingPaymentGrantLimit` succeeds unless
+ * `validateGrantLimit.error` is set.
+ */
 export function stubAuthClient(
   result: IntrospectTokenResult | Error,
-  calls: IntrospectTokenCall[] = []
+  calls: IntrospectTokenCall[] = [],
+  validateGrantLimit: {
+    calls?: ValidateGrantLimitCall[];
+    error?: Error;
+  } = {}
 ): AuthClient {
-  const introspectToken: IntrospectToken = async (
-    grantId,
-    signatureData,
-    tokenValue,
-    access
-  ) => {
-    calls.push({ grantId, signatureData, tokenValue, access });
-    if (result instanceof Error) throw result;
-    return result;
-  };
-
-  return { introspectToken } as unknown as AuthClient;
+  return {
+    introspectToken: async (
+      grantId: string,
+      signatureData: SignatureRequestData,
+      tokenValue: string,
+      access: AccessItem[]
+    ) => {
+      calls.push({ grantId, signatureData, tokenValue, access });
+      if (result instanceof Error) throw result;
+      return result;
+    },
+    validateOutgoingPaymentGrantLimit: async (
+      grantId: string,
+      debitAmount: bigint,
+      receiveAmount: bigint,
+      createdAt: string
+    ) => {
+      validateGrantLimit.calls?.push({
+        grantId,
+        debitAmount,
+        receiveAmount,
+        createdAt
+      });
+      if (validateGrantLimit.error) throw validateGrantLimit.error;
+      return {
+        grantId,
+        totalSpentDebitAmount: debitAmount,
+        totalSpentReceiveAmount: receiveAmount
+      };
+    }
+  } as unknown as AuthClient;
 }
-
-type IntrospectToken = (
-  grantId: string,
-  signatureData: SignatureRequestData,
-  tokenValue: string,
-  access: AccessItem[]
-) => Promise<IntrospectTokenResult>;
 
 export const activeTokenIntrospectionResult = (
   access: AccessItem[]

@@ -2061,6 +2061,7 @@ describe('GrantAggregate.handleBatch', () => {
             events[0] as OutgoingPaymentGrantLimitValidationFailedEvent
           ).payload;
           assert.equal(payload.errorName, 'InsufficientGrantError');
+          assert.equal(payload.errorType, 'FailedPrecondition');
           assert.equal(payload.grantId, grant.id);
           assert.equal(events[0].requestId, requestId);
 
@@ -2092,6 +2093,7 @@ describe('GrantAggregate.handleBatch', () => {
             events[0] as OutgoingPaymentGrantLimitValidationFailedEvent
           ).payload;
           assert.equal(payload.errorName, 'GrantNotFoundError');
+          assert.equal(payload.errorType, 'NotFound');
           assert.equal(events[0].requestId, requestId);
         });
 
