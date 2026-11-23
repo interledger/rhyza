@@ -262,6 +262,9 @@ export type QuoteCompletedPayload = {
   debitAmount: string;
   receiveAmount: string;
   exchangeRate: number;
+  receiveAssetCode: string;
+  receiveAssetScale: number;
+  paymentIntentRemoteUrl?: string;
 };
 
 export class QuoteCompletedEvent extends PaymentIntentDomainEvent {
