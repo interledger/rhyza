@@ -129,8 +129,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build admin-client-lib
-        run: pnpm --filter admin-client-lib build
+      - name: Build tests-e2e workspace dependencies
+        run: pnpm --filter "tests-e2e^..." build
 
       - name: Run E2E tests against release images
         env:
