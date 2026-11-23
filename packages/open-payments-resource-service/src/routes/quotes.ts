@@ -44,9 +44,6 @@ export async function quoteRoutes(
         );
       }
 
-      const paymentIntent =
-        await paymentsClient.getPaymentIntent(paymentIntentId);
-
       // get sender wallet address for debit amount asset
       const walletAddresses = await palClient.getWalletAddresses([
         quote.senderWalletAddressId
@@ -76,13 +73,13 @@ export async function quoteRoutes(
         },
         receiveAmount: {
           value: String(quote.receiveAmount),
-          assetCode: paymentIntent.assetCode,
-          assetScale: paymentIntent.assetScale
+          assetCode: quote.receiveAssetCode,
+          assetScale: quote.receiveAssetScale
         },
         method: 'ilp',
         createdAt: quote.createdAt,
         receiver:
-          paymentIntent.remoteUrl ??
+          quote.paymentIntentRemoteUrl ??
           `${openPaymentsUrl}/incoming-payments/${quote.paymentIntentId}`
       };
       return reply.status(200).send(response);
@@ -158,7 +155,7 @@ export async function quoteRoutes(
 
         const id = randomUUID();
 
-        const result = await paymentsClient.createQuote(
+        const quote = await paymentsClient.createQuote(
           id,
           { paymentIntentUrl: incomingPaymentUrl },
           walletAddress.id,
@@ -167,29 +164,25 @@ export async function quoteRoutes(
           receiveAmountValue
         );
 
-        const paymentIntent = await paymentsClient.getPaymentIntent(
-          result.paymentIntentId
-        );
-
         const response: components['schemas']['quote'] = {
-          id: `${openPaymentsUrl}/quotes/${encodeCompoundId(result.paymentIntentId, result.id)}`,
-          walletAddress: result.senderWalletAddress,
-          expiresAt: result.expiresAt,
+          id: `${openPaymentsUrl}/quotes/${encodeCompoundId(quote.paymentIntentId, quote.id)}`,
+          walletAddress: quote.senderWalletAddress,
+          expiresAt: quote.expiresAt,
           debitAmount: {
-            value: String(result.debitAmount),
+            value: String(quote.debitAmount),
             assetCode: walletAddress.assetCode,
             assetScale: walletAddress.assetScale
           },
           receiveAmount: {
-            value: String(result.receiveAmount),
-            assetCode: paymentIntent.assetCode,
-            assetScale: paymentIntent.assetScale
+            value: String(quote.receiveAmount),
+            assetCode: quote.receiveAssetCode,
+            assetScale: quote.receiveAssetScale
           },
           method: 'ilp',
-          createdAt: result.createdAt,
+          createdAt: quote.createdAt,
           receiver:
-            paymentIntent.remoteUrl ??
-            `${openPaymentsUrl}/incoming-payments/${result.paymentIntentId}`
+            quote.paymentIntentRemoteUrl ??
+            `${openPaymentsUrl}/incoming-payments/${quote.paymentIntentId}`
         };
 
         return reply.status(201).send(response);
