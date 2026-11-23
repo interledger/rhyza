@@ -1475,6 +1475,20 @@ describe('GrantAggregate.handleBatch', () => {
         assert.deepEqual(payload.access, access);
       });
 
+      it('verifies the signature against a client key provided through directed identity', async () => {
+        const { grantId, tokenValue, keys } = await createIssuedGrant();
+
+        const { events } = await aggregate.handleBatch([
+          await makeIntrospectTokenCmd({ id: grantId, tokenValue }, keys)
+        ]);
+
+        assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
+        assert.equal(
+          (events[0] as TokenIntrospectedEvent).payload.active,
+          true
+        );
+      });
+
       it('verifies the signature against a client key hosted at a wallet address', async () => {
         const { grantId, tokenValue, keys } = await createIssuedGrant({
           useWalletAddress: true
