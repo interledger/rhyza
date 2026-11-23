@@ -1,4 +1,9 @@
-import { IPacketCorrelation, IPeer, IPeerRepository } from 'ilp-domain-lib';
+import {
+  DuplicatePacket,
+  IPacketCorrelation,
+  IPeer,
+  IPeerRepository
+} from 'ilp-domain-lib';
 
 export class InMemoryPeerRepository implements IPeerRepository {
   private readonly _peers = new Map<string, IPeer>();
@@ -33,6 +38,9 @@ export class InMemoryPeerRepository implements IPeerRepository {
   }
 
   async storePacket(packet: IPacketCorrelation): Promise<void> {
+    if (this._packets.has(packet.packetId)) {
+      throw new DuplicatePacket(`Packet ${packet.packetId} already exists`);
+    }
     this._packets.set(packet.packetId, packet);
   }
 

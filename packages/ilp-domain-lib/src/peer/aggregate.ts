@@ -15,8 +15,12 @@ import {
   StartRemoteQuoteCmd,
   UpdatePeerCmd
 } from '../commands';
-import { IPeeringClient, PacketCorrelation } from '../packet';
-import { PacketNotFound } from '../packet/errors';
+import {
+  IPacketCorrelation,
+  IPeeringClient,
+  PacketCorrelation
+} from '../packet';
+import { DuplicatePacket, PacketNotFound } from '../packet/errors';
 import {
   decodeStreamReply,
   encodeOutgoingStreamPrepare,
@@ -54,6 +58,9 @@ import { IPeer, IPeerRepository } from './interfaces';
 // must not be mistaken for a probe. T00 is the generic temporary reject
 // (inactive peer, quote calc failure, post-accept receive fail). F06 / F03
 // are final: bad STREAM credentials / invalid amount. R00 is wire timeout.
+// F00 refuses a prepare whose packet id we already hold for another peer
+// or for one of our own outbound packets.
+const REJECT_CODE_BAD_REQUEST = 'F00';
 const REJECT_CODE_QUOTE_RESPONSE = 'F99';
 const REJECT_CODE_WRONG_CONDITION = 'F05';
 const REJECT_CODE_INTERNAL = 'T00';
@@ -496,7 +503,9 @@ export class IlpPeerAggregate {
         requestId,
         inboundPrepare
       });
-      await this.peerRepo.storePacket(correlation.toObject());
+      if (!(await this.storeInboundPacket(correlation.toObject()))) {
+        return [];
+      }
       return [
         new ILPPaymentReceivedEvent({
           peerId: peer.peerId,
@@ -548,7 +557,9 @@ export class IlpPeerAggregate {
       requestId: cmd.requestId ?? crypto.randomUUID(),
       inboundPrepare
     });
-    await this.peerRepo.storePacket(correlation.toObject());
+    if (!(await this.storeInboundPacket(correlation.toObject()))) {
+      return [];
+    }
 
     return [
       new ILPQuoteRequestReceivedEvent({
@@ -739,6 +750,31 @@ export class IlpPeerAggregate {
 
     await this.rejectInbound(stored, rejectCode);
     return [];
+  }
+
+  // An inbound packet id is the peer's Request-Id, so it can match a packet
+  // we already hold. Returns false when the prepare must go no further.
+  private async storeInboundPacket(
+    packet: IPacketCorrelation
+  ): Promise<boolean> {
+    try {
+      await this.peerRepo.storePacket(packet);
+      return true;
+    } catch (e) {
+      if (!(e instanceof DuplicatePacket)) {
+        throw e;
+      }
+    }
+
+    const existing = await this.peerRepo.fetchPacketById(packet.packetId);
+    // The same peer sending the same id again is a redelivered command or a
+    // retried POST. The peer matches replies by Request-Id, so any reply here
+    // would settle the packet we already hold
+    if (existing?.inboundPrepare && existing.peerId === packet.peerId) {
+      return false;
+    }
+    await this.rejectInbound(packet, REJECT_CODE_BAD_REQUEST);
+    return false;
   }
 
   private async rejectInbound(

@@ -1,6 +1,7 @@
 'use strict';
 
 import assert from 'node:assert';
+import { randomUUID } from 'node:crypto';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, test } from 'node:test';
@@ -46,7 +47,7 @@ const waitFor = async (
 
 const prepare = (overrides: Partial<WirePrepare> = {}): WirePrepare => ({
   peerId: 'self',
-  packetId: 'packet-1',
+  packetId: randomUUID(),
   destinationIlpAddress: 'g.us.alice',
   amount: '100',
   expiresAt: new Date(Date.now() + 30_000).toISOString(),
@@ -221,11 +222,12 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
         await transport.sendFulfill(fulfillPacket(p), p.peerId, p.expiresAt);
       });
 
-      await transport.sendPrepare(prepare());
+      const sent = prepare();
+      await transport.sendPrepare(sent);
       await waitFor(() => responses.length > 0);
 
       assert.equal(responses[0].kind, 'FULFILL');
-      assert.equal(responses[0].packetId, 'packet-1');
+      assert.equal(responses[0].packetId, sent.packetId);
     } finally {
       await transport.stop();
     }
@@ -248,7 +250,7 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
         );
       });
 
-      await transport.sendPrepare(prepare({ packetId: 'packet-2' }));
+      await transport.sendPrepare(prepare());
       await waitFor(() => responses.length > 0);
 
       assert.equal(responses[0].kind, 'REJECT');
@@ -270,7 +272,7 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
       });
 
       const before = Date.now();
-      await transport.sendPrepare(prepare({ packetId: 'packet-async' }));
+      await transport.sendPrepare(prepare());
       const sendPrepareDuration = Date.now() - before;
 
       assert.ok(
@@ -294,7 +296,7 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
         responses.push(r);
       });
 
-      await transport.sendPrepare(prepare({ packetId: 'packet-401' }));
+      await transport.sendPrepare(prepare());
       await waitFor(() => responses.length > 0);
 
       // 4xx per RFC 0035 -> a final error, not a retryable/temporary one.
@@ -313,7 +315,7 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
         responses.push(r);
       });
 
-      await transport.sendPrepare(prepare({ packetId: 'packet-403' }));
+      await transport.sendPrepare(prepare());
       await waitFor(() => responses.length > 0);
 
       assert.equal(responses[0].kind, 'REJECT');
@@ -337,7 +339,7 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
         responses.push(r);
       });
 
-      await transport.sendPrepare(prepare({ packetId: 'packet-late' }));
+      await transport.sendPrepare(prepare());
       await waitFor(() => deliverFulfill !== undefined);
 
       directory.upsertFromEvent(
@@ -376,7 +378,8 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
         responses.push(r);
       });
 
-      await transport.sendPrepare(prepare({ packetId: 'packet-replica-b' }));
+      const sent = prepare();
+      await transport.sendPrepare(sent);
       await waitFor(() => capturedPrepare !== undefined);
 
       await transport.sendFulfill(
@@ -387,7 +390,7 @@ describe('HttpConnectorTransport — self-loop over real HTTP (async/callback)',
       await waitFor(() => responses.length > 0);
 
       assert.equal(responses[0].kind, 'FULFILL');
-      assert.equal(responses[0].packetId, 'packet-replica-b');
+      assert.equal(responses[0].packetId, sent.packetId);
     } finally {
       await transport.stop();
     }
@@ -520,19 +523,20 @@ describe('HttpConnectorTransport — OER ILP-over-HTTP bodies', () => {
         data: streamData
       });
 
+      const requestId = randomUUID();
       const res = await fetch(`http://127.0.0.1:${transport.boundPort}/ilp`, {
         method: 'POST',
         headers: {
           'content-type': 'application/octet-stream',
           authorization: 'Bearer shared-token',
-          'request-id': 'inbound-packet-1'
+          'request-id': requestId
         },
         body: new Uint8Array(body)
       });
 
       assert.equal(res.status, 202);
       await waitFor(() => received.length > 0);
-      assert.equal(received[0].packetId, 'inbound-packet-1');
+      assert.equal(received[0].packetId, requestId);
       assert.equal(received[0].peerId, 'self');
       assert.equal(received[0].destinationIlpAddress, 'g.us.bob');
       assert.equal(received[0].amount, '250');
@@ -542,6 +546,39 @@ describe('HttpConnectorTransport — OER ILP-over-HTTP bodies', () => {
         executionCondition.toString('base64')
       );
       assert.equal(received[0].data, streamData.toString('base64'));
+    } finally {
+      await transport.stop();
+    }
+  });
+
+  test('an inbound prepare whose Request-Id is not a UUID is a bad request', async () => {
+    const { transport } = await startSelfLoopTransport();
+    try {
+      const received: WirePrepare[] = [];
+      transport.onInboundPrepare((p) => {
+        received.push(p);
+      });
+
+      const body = serializeIlpPrepare({
+        amount: '100',
+        executionCondition: Buffer.alloc(32),
+        expiresAt: new Date(Date.now() + 30_000),
+        destination: 'g.us.bob',
+        data: Buffer.alloc(0)
+      });
+
+      const res = await fetch(`http://127.0.0.1:${transport.boundPort}/ilp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/octet-stream',
+          authorization: 'Bearer shared-token',
+          'request-id': 'packet-1'
+        },
+        body: new Uint8Array(body)
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(received.length, 0);
     } finally {
       await transport.stop();
     }
@@ -718,7 +755,7 @@ describe('HttpConnectorTransport — OER ILP-over-HTTP bodies', () => {
         headers: {
           'content-type': 'application/json',
           authorization: 'Bearer shared-token',
-          'request-id': 'json-prepare'
+          'request-id': randomUUID()
         },
         body: JSON.stringify({
           destinationIlpAddress: 'g.us.alice',

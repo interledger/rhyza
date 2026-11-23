@@ -37,7 +37,8 @@ import {
   FulfillInboundPaymentCmd,
   DispatchFulfillPacketCmd,
   RespondToRemoteQuoteCmd,
-  RejectInboundPaymentCmd
+  RejectInboundPaymentCmd,
+  PacketCorrelation
 } from 'ilp-domain-lib';
 import {
   InMemoryPeerRepository,
@@ -959,5 +960,145 @@ describe('IlpCommandHandler — remote quote receiving', () => {
     const stored = await repo.fetchPacketById('packet-pay-reject');
     assert.ok(stored);
     assert.equal(stored.state, 'REJECTED');
+  });
+});
+
+describe('IlpCommandHandler — reused packet id', () => {
+  const PEER_2: IPeer = { ...PEER, peerId: 'peer-2' };
+
+  const sentOf = <T extends IMessage>(
+    producer: MockProducer,
+    msgName: string
+  ): T[] => producer.sent.filter((m) => m.msgName === msgName) as T[];
+
+  test('a repeated payment prepare from the same peer is dropped without a second event or reply', async () => {
+    const { producer, consumer, repo, credentials, fake } =
+      await startedHandler();
+    const resolved = await fake.resolveStreamCredentials(
+      credentials.ilpAddress
+    );
+    assert.ok(resolved);
+    const { data, executionCondition } = fulfillablePrepareData(
+      resolved!.sharedSecret
+    );
+    const prepare = inboundProbe(credentials.ilpAddress, {
+      packetId: 'packet-repeat',
+      data,
+      executionCondition
+    });
+
+    await consumer.deliver([prepare]);
+    await consumer.deliver([prepare]);
+
+    const received = sentOf<ILPPaymentReceivedEvent>(
+      producer,
+      ILPPaymentReceivedEvent.name
+    );
+    assert.equal(received.length, 1);
+    assert.equal(sentOf(producer, DispatchRejectPacketCmd.name).length, 0);
+    const stored = await repo.fetchPacketById('packet-repeat');
+    assert.ok(stored);
+    assert.equal(stored!.paymentId, received[0].payload.paymentId);
+  });
+
+  test('a repeated quote probe from the same peer is dropped without a second event or reply', async () => {
+    const { producer, consumer, credentials, fake } = await startedHandler();
+    const resolved = await fake.resolveStreamCredentials(
+      credentials.ilpAddress
+    );
+    assert.ok(resolved);
+    const probe = inboundProbe(credentials.ilpAddress, {
+      packetId: 'probe-repeat',
+      ...unfulfillableStreamPrepare(resolved!.sharedSecret)
+    });
+
+    await consumer.deliver([probe]);
+    await consumer.deliver([probe]);
+
+    assert.equal(sentOf(producer, ILPQuoteRequestReceivedEvent.name).length, 1);
+    assert.equal(sentOf(producer, DispatchRejectPacketCmd.name).length, 0);
+  });
+
+  test("a prepare reusing another peer's packet id is rejected with F00 and the first packet is kept", async () => {
+    const { producer, consumer, repo, credentials, fake } =
+      await startedHandler([PEER, PEER_2]);
+    const resolved = await fake.resolveStreamCredentials(
+      credentials.ilpAddress
+    );
+    assert.ok(resolved);
+    const { data, executionCondition } = fulfillablePrepareData(
+      resolved!.sharedSecret
+    );
+
+    await consumer.deliver([
+      inboundProbe(credentials.ilpAddress, {
+        packetId: 'packet-shared',
+        data,
+        executionCondition
+      })
+    ]);
+    await consumer.deliver([
+      inboundProbe(credentials.ilpAddress, {
+        peerId: 'peer-2',
+        packetId: 'packet-shared',
+        data,
+        executionCondition
+      })
+    ]);
+
+    const received = sentOf<ILPPaymentReceivedEvent>(
+      producer,
+      ILPPaymentReceivedEvent.name
+    );
+    assert.equal(received.length, 1);
+    assert.equal(received[0].payload.peerId, 'peer-1');
+    const reject = rejectFor(producer);
+    assert.ok(reject, 'expected the second prepare to be rejected');
+    assert.equal(reject.payload.peerId, 'peer-2');
+    assert.equal(reject.payload.packetId, 'packet-shared');
+    assert.equal(reject.payload.rejectCode, 'F00');
+    const stored = await repo.fetchPacketById('packet-shared');
+    assert.ok(stored);
+    assert.equal(stored!.peerId, 'peer-1');
+    assert.equal(stored!.paymentId, received[0].payload.paymentId);
+  });
+
+  test('a prepare reusing one of our outbound packet ids is rejected with F00 and the outbound packet is kept', async () => {
+    const { producer, consumer, repo, credentials, fake } =
+      await startedHandler();
+    const outbound = PacketCorrelation.createPayment({
+      packetId: 'packet-outbound',
+      peerId: 'peer-1',
+      paymentIntentId: 'intent-outbound',
+      expiresAt: new Date(Date.now() + 30_000),
+      paymentId: 'payment-outbound',
+      requestId: 'request-outbound',
+      executionCondition: Buffer.alloc(32).toString('base64'),
+      sharedSecret: Buffer.alloc(32).toString('base64')
+    }).toObject();
+    await repo.storePacket(outbound);
+    const resolved = await fake.resolveStreamCredentials(
+      credentials.ilpAddress
+    );
+    assert.ok(resolved);
+    const { data, executionCondition } = fulfillablePrepareData(
+      resolved!.sharedSecret
+    );
+
+    await consumer.deliver([
+      inboundProbe(credentials.ilpAddress, {
+        packetId: 'packet-outbound',
+        data,
+        executionCondition
+      })
+    ]);
+
+    assert.equal(sentOf(producer, ILPPaymentReceivedEvent.name).length, 0);
+    const reject = rejectFor(producer);
+    assert.ok(reject, 'expected the inbound prepare to be rejected');
+    assert.equal(reject.payload.peerId, 'peer-1');
+    assert.equal(reject.payload.packetId, 'packet-outbound');
+    assert.equal(reject.payload.rejectCode, 'F00');
+    assert.deepEqual(await repo.fetchPacketById('packet-outbound'), outbound);
   });
 });
