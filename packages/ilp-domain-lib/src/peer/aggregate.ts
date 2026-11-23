@@ -775,16 +775,6 @@ export class IlpPeerAggregate {
     if (stored.state === 'EXPIRED') {
       return [];
     }
-    if (
-      stored.kind === 'QUOTE' &&
-      stored.state === 'PENDING' &&
-      packetHasExpired(stored.expiresAt)
-    ) {
-      await this.peerRepo.updatePacket(
-        PacketCorrelation.fromObject(stored).expire().toObject()
-      );
-      return [];
-    }
 
     // Read before transitioning: going terminal drops the secret so it isn't
     // left at rest in the correlation.
@@ -792,25 +782,6 @@ export class IlpPeerAggregate {
       stored.kind === 'PAYMENT' ? stored.sharedSecret : undefined;
 
     if (stored.kind === 'PAYMENT') {
-      if (packetHasExpired(stored.expiresAt)) {
-        const expired = PacketCorrelation.fromObject(stored)
-          .expire()
-          .toObject();
-        await this.peerRepo.updatePacket(expired);
-        return [
-          new ILPPaymentFailedEvent(
-            {
-              peerId: stored.peerId,
-              paymentIntentId: stored.paymentIntentId,
-              paymentId: stored.paymentId,
-              failedAt: payload.fulfilledAt,
-              reason: 'EXPIRED'
-            },
-            stored.requestId
-          )
-        ];
-      }
-
       const fulfillment = payload.fulfillment
         ? Buffer.from(payload.fulfillment, 'base64')
         : Buffer.alloc(0);
@@ -891,16 +862,6 @@ export class IlpPeerAggregate {
       throw new PacketNotFound(`Packet ${payload.packetId} not found`);
     }
     if (stored.state === 'EXPIRED') {
-      return [];
-    }
-    if (
-      stored.kind === 'QUOTE' &&
-      stored.state === 'PENDING' &&
-      packetHasExpired(stored.expiresAt)
-    ) {
-      await this.peerRepo.updatePacket(
-        PacketCorrelation.fromObject(stored).expire().toObject()
-      );
       return [];
     }
     // Read before transitioning: going terminal drops the secret so it isn't

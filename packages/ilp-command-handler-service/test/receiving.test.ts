@@ -530,7 +530,7 @@ describe('IlpCommandHandler — remote quote receiving', () => {
     assert.equal(pending!.state, 'PENDING');
     assert.ok(pending!.inboundPrepare);
 
-    // Payments expired the payment and told ILP to expire the packet.
+    // Payments never answers before expiresAt.
     await consumer.deliver([
       new ExpirePacketCmd({
         peerId: 'peer-1',

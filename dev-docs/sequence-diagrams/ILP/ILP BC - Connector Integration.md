@@ -93,5 +93,6 @@ When a peer is administratively deactivated, in-flight packets are handled by th
 - Connector is almost stateless. It only holds what is needed to correlate fulfill/reject back to the originating prepare, with a TTL at the packet's `expiresAt`, and is easy to replicate.
 - Packet correlation persistence, routing/next-hop lookup (from PAL data), and applying `ExpirePacketCmd` all live in the aggregate. Payments owns the expiry timer and emits `PaymentExpiredEvent`. The connector does not synthesize a reject when a callback never arrives.
 - A fulfill or reject for a packet that is already `EXPIRED` is a no-op in the aggregate.
+- The aggregate does not check the clock on a fulfill or reject. The connector already drops replies that arrive after `expiresAt`, so a reply that gets through arrived in time, however late the aggregate processes it. A fulfill that got through has already been paid out by the receiver, so failing it would leave the two nodes disagreeing.
 - Cross-BC integration (Payments, PAL, etc.) continues to go through `ilp-domain-events`.
 - **TBD:** Auth tokens / peer credential handling

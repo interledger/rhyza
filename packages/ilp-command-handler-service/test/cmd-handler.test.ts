@@ -824,7 +824,7 @@ describe('IlpCommandHandler — remote payment sending', () => {
     assert.equal(failed.payload.reason, 'REJECTED');
   });
 
-  test('a late outbound fulfill does not confirm the payment', async () => {
+  test('a fulfill processed after expiresAt still confirms the payment', async () => {
     const { producer, consumer } = await startedHandler();
     const { dispatch, fulfillment } = await startRemotePayment(
       consumer,
@@ -843,16 +843,15 @@ describe('IlpCommandHandler — remote payment sending', () => {
       })
     ]);
 
+    assert.ok(
+      producer.sent.find((m) => m.msgName === ILPPaymentConfirmedEvent.name),
+      'expected the payment to be confirmed'
+    );
     assert.equal(
-      producer.sent.filter((m) => m.msgName === ILPPaymentConfirmedEvent.name)
+      producer.sent.filter((m) => m.msgName === ILPPaymentFailedEvent.name)
         .length,
       0
     );
-    const failed = producer.sent.find(
-      (m) => m.msgName === ILPPaymentFailedEvent.name
-    ) as ILPPaymentFailedEvent;
-    assert.ok(failed);
-    assert.equal(failed.payload.reason, 'EXPIRED');
   });
 
   test('StartRemotePaymentCmd passes sharedSecret and STREAM fields on PaymentDispatch', async () => {
@@ -1293,7 +1292,7 @@ describe('IlpCommandHandler — remote quote sending', () => {
     );
   });
 
-  test('a quote reply after expiresAt emits no quote result', async () => {
+  test('a quote reply processed after expiresAt still yields a quote', async () => {
     const { producer, consumer, repo } = await startedHandler();
     await consumer.deliver([startQuote()]);
     const dispatch = producer.sent.find(
@@ -1326,18 +1325,11 @@ describe('IlpCommandHandler — remote quote sending', () => {
       })
     ]);
 
-    assert.equal(
-      producer.sent.filter((m) => m.msgName === ILPQuoteReceivedEvent.name)
-        .length,
-      0
-    );
-    assert.equal(
-      producer.sent.filter((m) => m.msgName === ILPQuoteFailedEvent.name)
-        .length,
-      0
-    );
-    const expired = await repo.fetchPacketById(packetId);
-    assert.equal(expired?.state, 'EXPIRED');
+    const received = producer.sent.find(
+      (m) => m.msgName === ILPQuoteReceivedEvent.name
+    ) as ILPQuoteReceivedEvent;
+    assert.ok(received, 'expected a ILPQuoteReceivedEvent');
+    assert.equal(received.payload.destinationAmount, '95');
   });
 
   test('a transient reject is not a rate, however well it decrypts', async () => {
