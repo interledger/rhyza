@@ -3,14 +3,16 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "DEBUG=testcontainers* node --import tsx --test index.test.ts",
+    "test": "node --import tsx --test index.test.ts",
     "build": "tsc --build"
   },
   "keywords": [],
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "admin-client-lib": "workspace:*"
+    "@interledger/open-payments": "^7.4.0",
+    "admin-client-lib": "workspace:*",
+    "implementations-lib": "workspace:*"
   },
   "devDependencies": {
     "testcontainers": "^12.0.4",
