@@ -1277,12 +1277,78 @@ importers:
 
   packages/rhyza-lite-service:
     dependencies:
+      admin-api-service:
+        specifier: workspace:*
+        version: link:../admin-api-service
+      ase-mock-service:
+        specifier: workspace:*
+        version: link:../ase-mock-service
+      auth-api-service:
+        specifier: workspace:*
+        version: link:../auth-api-service
+      auth-command-handler-service:
+        specifier: workspace:*
+        version: link:../auth-command-handler-service
+      auth-event-handler-service:
+        specifier: workspace:*
+        version: link:../auth-event-handler-service
       common-types-lib:
         specifier: workspace:*
         version: link:../common-types-lib
+      http-signature-service:
+        specifier: workspace:*
+        version: link:../http-signature-service
+      idp-interaction-service:
+        specifier: workspace:*
+        version: link:../idp-interaction-service
+      ilp-api-service:
+        specifier: workspace:*
+        version: link:../ilp-api-service
+      ilp-command-handler-service:
+        specifier: workspace:*
+        version: link:../ilp-command-handler-service
+      ilp-connector-service:
+        specifier: workspace:*
+        version: link:../ilp-connector-service
+      ilp-event-handler-service:
+        specifier: workspace:*
+        version: link:../ilp-event-handler-service
       implementations-lib:
         specifier: workspace:*
         version: link:../implementations-lib
+      notifications-command-handler-service:
+        specifier: workspace:*
+        version: link:../notifications-command-handler-service
+      notifications-event-handler-service:
+        specifier: workspace:*
+        version: link:../notifications-event-handler-service
+      open-payments-auth-service:
+        specifier: workspace:*
+        version: link:../open-payments-auth-service
+      open-payments-resource-service:
+        specifier: workspace:*
+        version: link:../open-payments-resource-service
+      pal-api-service:
+        specifier: workspace:*
+        version: link:../pal-api-service
+      pal-event-handler-service:
+        specifier: workspace:*
+        version: link:../pal-event-handler-service
+      pal-implementations-lib:
+        specifier: workspace:*
+        version: link:../pal-implementations-lib
+      pal-ledger-command-handler-service:
+        specifier: workspace:*
+        version: link:../pal-ledger-command-handler-service
+      payments-api-service:
+        specifier: workspace:*
+        version: link:../payments-api-service
+      payments-command-handler-service:
+        specifier: workspace:*
+        version: link:../payments-command-handler-service
+      payments-event-handler-service:
+        specifier: workspace:*
+        version: link:../payments-event-handler-service
     devDependencies:
       tsx:
         specifier: ^4.19.3

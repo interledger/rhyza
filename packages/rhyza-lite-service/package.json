@@ -10,8 +10,30 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
+    "admin-api-service": "workspace:*",
+    "ase-mock-service": "workspace:*",
+    "auth-api-service": "workspace:*",
+    "auth-command-handler-service": "workspace:*",
+    "auth-event-handler-service": "workspace:*",
     "common-types-lib": "workspace:*",
-    "implementations-lib": "workspace:*"
+    "http-signature-service": "workspace:*",
+    "idp-interaction-service": "workspace:*",
+    "ilp-api-service": "workspace:*",
+    "ilp-command-handler-service": "workspace:*",
+    "ilp-connector-service": "workspace:*",
+    "ilp-event-handler-service": "workspace:*",
+    "implementations-lib": "workspace:*",
+    "notifications-command-handler-service": "workspace:*",
+    "notifications-event-handler-service": "workspace:*",
+    "open-payments-auth-service": "workspace:*",
+    "open-payments-resource-service": "workspace:*",
+    "pal-api-service": "workspace:*",
+    "pal-event-handler-service": "workspace:*",
+    "pal-implementations-lib": "workspace:*",
+    "pal-ledger-command-handler-service": "workspace:*",
+    "payments-api-service": "workspace:*",
+    "payments-command-handler-service": "workspace:*",
+    "payments-event-handler-service": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.3"
