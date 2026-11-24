@@ -96,6 +96,7 @@ services:
     extends:
       file: docker-compose.node-b.yaml
       service: mongodb-b
+    image: mongo:7
     mem_limit: 512m
     command: ['--wiredTigerCacheSizeGB', '0.25']
 

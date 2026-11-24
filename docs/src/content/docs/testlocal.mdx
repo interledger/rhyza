@@ -84,7 +84,14 @@ Run these from the root directory.
 
 The stack is ready when the `rhyza-lite` container logs `Rhyza lite start complete`.
 
-To run only some services, set `RHYZA_SERVICES` on the `rhyza-lite` container to a comma-separated list of service package names. It defaults to all 21, including `ase-mock-service`.
+To run only some services, set `RHYZA_SERVICES` to a comma-separated list of service package names, for example `RHYZA_SERVICES=a,b pnpm lite:up`. It defaults to all 21, including `ase-mock-service`.
+
+To run the e2e suite against two lite nodes, build with `docker compose -f docker/docker-compose.lite.e2e.yaml build`, then run:
+
+```sh
+E2E_COMPOSE_FILE=docker-compose.lite.e2e.yaml E2E_WAIT_CONTAINER_A=rhyza-lite-1 \
+  E2E_WAIT_CONTAINER_B=rhyza-lite-b-1 E2E_WAIT_LOG='Rhyza lite start complete' pnpm e2e
+```
 
 Lite mode publishes the same host ports as the full stack, so you can't run the two at the same time. Stop one before starting the other.
 

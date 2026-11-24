@@ -3,7 +3,7 @@
 # observability services. Infra config comes from docker-compose.yaml through `extends`.
 # The mem_limit values are safety ceilings, not the 1GB budget (see docker/lite-memory.sh).
 # mongodb covers the 0.25GB WiredTiger cache plus overhead; rhyza-lite leaves room for cache
-# growth; kafka and redis are about 1.5x the idle usage measured.
+# growth; kafka's ceiling is about 1.7x its idle usage (640m vs ~365-378 MiB measured), redis has similar headroom.
 name: rhyza-lite
 services:
   rhyza-lite:
@@ -19,6 +19,8 @@ services:
     # (each service listens on its own default port, on 0.0.0.0). Hostnames resolve through
     # the network aliases below.
     environment:
+      # Empty means all 21 services (see selectServices).
+      RHYZA_SERVICES: ${RHYZA_SERVICES:-}
       KAFKA_URL: kafka:19092
       MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
       MONGO_URL: mongodb://root:mongoPass@mongodb:27017/
