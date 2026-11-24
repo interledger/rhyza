@@ -6,7 +6,7 @@ import { PaymentFailedPayload } from 'payments-public-types-lib';
 import { notificationToWebhookBody } from '../src/webhook-mapper';
 
 test('maps a failed payment to a payment.failed webhook body', () => {
-  const createdAt = new Date();
+  const createdAt = new Date().toISOString();
   const payload: PaymentFailedPayload = {
     id: randomUUID(),
     paymentIntentId: randomUUID(),
@@ -62,7 +62,7 @@ test('omits failReason when the payment failed without a reason', () => {
         receiveAmount: null,
         sentAmount: '0',
         state: 'FAILED',
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
         assetCode: 'USD',
         assetScale: 2,
         receiveAssetCode: 'USD',
