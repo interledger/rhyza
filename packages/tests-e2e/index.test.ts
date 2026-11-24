@@ -45,6 +45,18 @@ describe('E2E tests', () => {
           : {})
       });
 
+    // The lite ASE mocks sit behind the with-ase-mock profile. --profile flags make compose
+    // ignore COMPOSE_PROFILES, so keep any the caller set.
+    if (COMPOSE_FILE.includes('lite')) {
+      const callerProfiles = (process.env.COMPOSE_PROFILES || '')
+        .split(',')
+        .filter(Boolean);
+      environmentBuilder = environmentBuilder.withProfiles(
+        'with-ase-mock',
+        ...callerProfiles
+      );
+    }
+
     if (composeProject) {
       environmentBuilder = environmentBuilder.withProjectName(composeProject);
     }
