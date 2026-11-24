@@ -10,7 +10,8 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "common-types-lib": "workspace:*"
+    "common-types-lib": "workspace:*",
+    "implementations-lib": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.3"

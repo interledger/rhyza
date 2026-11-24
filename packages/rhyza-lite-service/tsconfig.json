@@ -5,5 +5,8 @@
     "outDir": "./dist"
   },
   "include": ["src/**/*"],
-  "references": [{ "path": "../common-types-lib" }]
+  "references": [
+    { "path": "../common-types-lib" },
+    { "path": "../implementations-lib" }
+  ]
 }
