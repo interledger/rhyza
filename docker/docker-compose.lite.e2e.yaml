@@ -1,9 +1,13 @@
 # Two lite nodes for the e2e suite: node A from docker-compose.lite.yaml, node B from
 # docker-compose.lite.node-b.yaml.
 #
-#   docker compose -f docker/docker-compose.lite.e2e.yaml build
-#   E2E_COMPOSE_FILE=docker-compose.lite.e2e.yaml E2E_WAIT_CONTAINER_A=rhyza-lite-1 \
-#     E2E_WAIT_CONTAINER_B=rhyza-lite-b-1 E2E_WAIT_LOG='Rhyza lite start complete' pnpm e2e
+# The ASE mocks are behind the with-ase-mock profile, so both commands turn it on (the
+# e2e suite passes COMPOSE_PROFILES through to compose).
+#
+#   docker compose -f docker/docker-compose.lite.e2e.yaml --profile with-ase-mock build
+#   COMPOSE_PROFILES=with-ase-mock E2E_COMPOSE_FILE=docker-compose.lite.e2e.yaml \
+#     E2E_WAIT_CONTAINER_A=rhyza-lite-1 E2E_WAIT_CONTAINER_B=rhyza-lite-b-1 \
+#     E2E_WAIT_LOG='Rhyza lite start complete' pnpm e2e
 name: rhyza-lite
 
 include:

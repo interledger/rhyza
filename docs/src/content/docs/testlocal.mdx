@@ -68,9 +68,11 @@ Here are some common commands to use while working with the local playground. Ru
 
 ## Lite mode
 
-Lite mode runs all 21 Rhyza services in a single Node process (`packages/rhyza-lite-service`), next to Kafka, MongoDB and Redis. It's the same service code and the same Kafka and gRPC paths as the full stack, only the process layout differs. Use it when you want Rhyza on a laptop without the memory cost of 21 containers. It's for local development only.
+Lite mode runs 20 Rhyza services in a single Node process (`packages/rhyza-lite-service`), next to Kafka, MongoDB and Redis. It's the same service code and the same Kafka and gRPC paths as the full stack, only the process layout differs. Use it when you want Rhyza on a laptop without the memory cost of 21 containers. It's for local development only.
 
 The compose file is `docker/docker-compose.lite.yaml` (project `rhyza-lite`). It has no observability services, and the runner creates the Kafka topics itself.
+
+The ASE mock (`ase-mock-service`, which approves each payment when it gets the `PaymentCreated` webhook) isn't part of the lite process. It runs as its own container under the `with-ase-mock` compose profile, and the `lite:*` scripts turn that profile on.
 
 Run these from the root directory.
 
@@ -84,30 +86,43 @@ Run these from the root directory.
 
 The stack is ready when the `rhyza-lite` container logs `Rhyza lite start complete`.
 
-To run only some services, set `RHYZA_SERVICES` to a comma-separated list of service package names, for example `RHYZA_SERVICES=a,b pnpm lite:up`. It defaults to all 21, including `ase-mock-service`.
+To run only some services, set `RHYZA_SERVICES` to a comma-separated list of service package names, for example `RHYZA_SERVICES=a,b pnpm lite:up`. It defaults to all 20.
 
-To run the e2e suite against two lite nodes, build with `docker compose -f docker/docker-compose.lite.e2e.yaml build`, then run:
+To run the e2e suite against two lite nodes, build with `docker compose -f docker/docker-compose.lite.e2e.yaml --profile with-ase-mock build`, then run:
 
 ```sh
-E2E_COMPOSE_FILE=docker-compose.lite.e2e.yaml E2E_WAIT_CONTAINER_A=rhyza-lite-1 \
-  E2E_WAIT_CONTAINER_B=rhyza-lite-b-1 E2E_WAIT_LOG='Rhyza lite start complete' pnpm e2e
+COMPOSE_PROFILES=with-ase-mock E2E_COMPOSE_FILE=docker-compose.lite.e2e.yaml \
+  E2E_WAIT_CONTAINER_A=rhyza-lite-1 E2E_WAIT_CONTAINER_B=rhyza-lite-b-1 \
+  E2E_WAIT_LOG='Rhyza lite start complete' pnpm e2e
 ```
 
 Lite mode publishes the same host ports as the full stack, so you can't run the two at the same time. Stop one before starting the other.
 
+### Running lite as an ASE
+
+An ASE doesn't need the mock. Start the stack without the profile and point `WEBHOOK_URL` at your own endpoint:
+
+```sh
+WEBHOOK_URL=https://your-ase.example/webhooks \
+  docker compose -f docker/docker-compose.lite.yaml up --build -d
+```
+
+Rhyza then sends payment webhooks there. When you get `PaymentCreated`, approve the payment through the admin API on port 3001 (`POST /payment-intents/{intentId}/payments/{id}/approve`), the same call the mock makes. If `WEBHOOK_URL` isn't set it still points at the mock, which isn't running, so webhook delivery fails and retries and payments stay unapproved.
+
 ### Memory
 
-Measured on 2026-11-24 with `docker stats` in Docker Desktop's Linux VM, about 4 minutes after the ready line:
+Measured on 2026-11-24 with `docker stats` in Docker Desktop's Linux VM, about 4 minutes after the ready line, across two runs. MongoDB varied the most between them. The `ase-mock-service` row only applies with the `with-ase-mock` profile:
 
-| Container    | Memory           |
-| ------------ | ---------------- |
-| `rhyza-lite` | ~100 MiB         |
-| `kafka`      | ~365 MiB         |
-| `mongodb`    | ~30-45 MiB       |
-| `redis`      | ~4 MiB           |
-| **Total**    | **~500-535 MiB** |
+| Container          | Memory           |
+| ------------------ | ---------------- |
+| `rhyza-lite`       | ~95-100 MiB      |
+| `kafka`            | ~365-375 MiB     |
+| `mongodb`          | ~30-110 MiB      |
+| `redis`            | ~4-5 MiB         |
+| `ase-mock-service` | ~18 MiB          |
+| **Total**          | **~520-600 MiB** |
 
-Right after startup the total is higher (about 600-700 MiB, mostly MongoDB and the Node process settling), and it drops over the first few minutes. The budget is 1 GiB. Kafka runs with a 256 MiB heap and MongoDB with a 0.25 GB WiredTiger cache. Each container also has a `mem_limit` ceiling (`rhyza-lite` 384m, `kafka` 640m, `mongodb` 512m, `redis` 32m). Those are safety ceilings, not the 1 GB budget, which `pnpm lite:mem` checks.
+Right after startup the total is higher (about 600-700 MiB, mostly MongoDB and the Node process settling), and it drops over the first few minutes. The budget is 1 GiB. Kafka runs with a 256 MiB heap and MongoDB with a 0.25 GB WiredTiger cache. Each container also has a `mem_limit` ceiling (`rhyza-lite` 384m, `kafka` 640m, `mongodb` 512m, `redis` 32m, `ase-mock-service` 128m). Those are safety ceilings, not the 1 GB budget, which `pnpm lite:mem` checks.
 
 ## Running two nodes
 
