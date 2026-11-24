@@ -37,7 +37,10 @@ export class LiteRunner {
       } catch (err) {
         if (this.stopping) {
           // stop() is already tearing down; don't surface a late failure.
-          this.logger.error({ err }, `${entry.name} failed to start while stopping`);
+          this.logger.error(
+            { err },
+            `${entry.name} failed to start while stopping`
+          );
           return;
         }
         this.logger.error({ err }, `${entry.name} failed to start`);

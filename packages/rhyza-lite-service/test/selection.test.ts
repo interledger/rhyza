@@ -17,10 +17,9 @@ test('explicit list is returned in start order, trimmed and deduplicated', () =>
   );
 });
 test('unknown name throws and names it', () => {
-  assert.throws(
-    () => selectServices('pal-api-service,pal-apiservice'),
-    { message: 'unknown service in RHYZA_SERVICES: "pal-apiservice"' }
-  );
+  assert.throws(() => selectServices('pal-api-service,pal-apiservice'), {
+    message: 'unknown service in RHYZA_SERVICES: "pal-apiservice"'
+  });
 });
 test('start order has all 21 services, no duplicates', () => {
   assert.equal(SERVICE_START_ORDER.length, 21);

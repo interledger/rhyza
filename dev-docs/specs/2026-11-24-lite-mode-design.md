@@ -13,13 +13,13 @@ Rhyza takes a lot of resources to start. We want a way to run the full stack (ev
 
 Measured 2026-11-24 on a MacBook (arm64), each piece idle right after startup, no load:
 
-| Piece | Idle RAM |
-|---|---|
-| One Node service (`payments-command-handler-service`, native `node dist/index.js`) | ~91MB RSS |
-| 21 Node services (extrapolated from the one above) | ~1.9GB |
+| Piece                                                                                                 | Idle RAM         |
+| ----------------------------------------------------------------------------------------------------- | ---------------- |
+| One Node service (`payments-command-handler-service`, native `node dist/index.js`)                    | ~91MB RSS        |
+| 21 Node services (extrapolated from the one above)                                                    | ~1.9GB           |
 | Kafka (`apache/kafka:4.0.0`, no heap options set, so the image default of about 1GB max heap applies) | ~350MB, can grow |
-| MongoDB 7 (default WiredTiger cache, which is about half the machine's RAM) | ~125MB, can grow |
-| Valkey 9 | ~5MB |
+| MongoDB 7 (default WiredTiger cache, which is about half the machine's RAM)                           | ~125MB, can grow |
+| Valkey 9                                                                                              | ~5MB             |
 
 That's about 2.4GB idle. The Node services alone are close to twice the budget, so swapping Kafka by itself can't hit the target.
 

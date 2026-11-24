@@ -5,7 +5,11 @@ import path from 'node:path';
 import type { IKafkaAdmin } from 'implementations-lib';
 import { LITE_TOPICS, ensureTopics } from '../src/topics';
 
-type Topic = { topic: string; numPartitions: number; replicationFactor: number };
+type Topic = {
+  topic: string;
+  numPartitions: number;
+  replicationFactor: number;
+};
 
 class FakeAdmin implements IKafkaAdmin {
   readonly calls: string[] = [];
@@ -45,7 +49,9 @@ test('lite topics match init-kafka in docker-compose.yaml', () => {
     compose.indexOf('\n  redis:\n')
   );
   const expected = [
-    ...initKafka.matchAll(/--create --if-not-exists(?: --partitions (\d+))? --topic (\S+)/g)
+    ...initKafka.matchAll(
+      /--create --if-not-exists(?: --partitions (\d+))? --topic (\S+)/g
+    )
   ].map((m) => ({ topic: m[2], numPartitions: m[1] ? Number(m[1]) : 1 }));
   assert.ok(expected.length > 0);
   assert.deepEqual([...LITE_TOPICS], expected);
