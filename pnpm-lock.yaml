@@ -1276,6 +1276,10 @@ importers:
         version: 4.19.3
 
   packages/rhyza-lite-service:
+    dependencies:
+      common-types-lib:
+        specifier: workspace:*
+        version: link:../common-types-lib
     devDependencies:
       tsx:
         specifier: ^4.19.3
