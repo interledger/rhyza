@@ -9,7 +9,7 @@ services:
       context: ../
       dockerfile: ./packages/rhyza-lite-service/Dockerfile
     restart: always
-    mem_limit: 768m
+    mem_limit: 256m
     # Union of every app service's environment in docker-compose.yaml, minus PORT and HOST
     # (each service listens on its own default port, on 0.0.0.0). Hostnames resolve through
     # the network aliases below.
@@ -86,7 +86,7 @@ services:
     extends:
       file: docker-compose.yaml
       service: kafka
-    mem_limit: 512m
+    mem_limit: 640m
     environment:
       KAFKA_HEAP_OPTS: '-Xmx256m -Xms256m'
       # With a 256MB heap and the default 50 __consumer_offsets partitions, the broker logs
@@ -100,14 +100,14 @@ services:
     extends:
       file: docker-compose.yaml
       service: mongodb
-    mem_limit: 384m
+    mem_limit: 320m
     command: ['--wiredTigerCacheSizeGB', '0.25']
 
   redis:
     extends:
       file: docker-compose.yaml
       service: redis
-    mem_limit: 64m
+    mem_limit: 32m
 
 networks:
   rhyza:
