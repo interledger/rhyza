@@ -66,6 +66,42 @@ Here are some common commands to use while working with the local playground. Ru
 | `pnpm docker logs -f`                | Follow the logs of all running services                                 |
 | `pnpm docker logs -f [service_name]` | Follow logs for a specific service (e.g., `admin-api-service`)          |
 
+## Lite mode
+
+Lite mode runs all 21 Rhyza services in a single Node process (`packages/rhyza-lite-service`), next to Kafka, MongoDB and Redis. It's the same service code and the same Kafka and gRPC paths as the full stack, only the process layout differs. Use it when you want Rhyza on a laptop without the memory cost of 21 containers. It's for local development only.
+
+The compose file is `docker/docker-compose.lite.yaml` (project `rhyza-lite`). It has no observability services, and the runner creates the Kafka topics itself.
+
+Run these from the root directory.
+
+| Command          | Description                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| `pnpm lite:build` | Build the lite image.                                        |
+| `pnpm lite:up`    | Rebuild and start the stack (removes old lite volumes first). |
+| `pnpm lite:stop`  | Stop the containers.                                         |
+| `pnpm lite:down`  | Remove the containers and volumes.                           |
+| `pnpm lite:mem`   | Print memory per container and the total, exit 1 if over 1 GiB. |
+
+The stack is ready when the `rhyza-lite` container logs `Rhyza lite start complete`.
+
+To run only some services, set `RHYZA_SERVICES` on the `rhyza-lite` container to a comma-separated list of service package names. It defaults to all 21, including `ase-mock-service`.
+
+Lite mode publishes the same host ports as the full stack, so you can't run the two at the same time. Stop one before starting the other.
+
+### Memory
+
+Measured on 2026-11-24 with `docker stats` in Docker Desktop's Linux VM, about 4 minutes after the ready line:
+
+| Container   | Memory   |
+| ----------- | -------- |
+| `rhyza-lite` | ~100 MiB |
+| `kafka`      | ~365 MiB |
+| `mongodb`    | ~30-45 MiB |
+| `redis`      | ~4 MiB   |
+| **Total**    | **~500-535 MiB** |
+
+Right after startup the total is higher (about 600-700 MiB, mostly MongoDB and the Node process settling), and it drops over the first few minutes. The budget is 1 GiB. Kafka runs with a 256 MiB heap and MongoDB with a 0.25 GB WiredTiger cache. Each container also has a `mem_limit` as a safety ceiling.
+
 ## Running two nodes
 
 The playground can also run a second, independent Rhyza instance ("Node B") alongside the default instance ("Node A"), pre-configured to peer with it. This is useful for testing ILP payments between two peered financial service providers (FSPs) without standing up separate infrastructure.
