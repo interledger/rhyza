@@ -28,7 +28,9 @@ const KAFKA_URL = process.env['KAFKA_URL'] || 'localhost:9092';
 const OPEN_TELEMETRY_COLLECTOR_URL =
   process.env['OPEN_TELEMETRY_COLLECTOR_URL'] || 'http://127.0.0.1:4317';
 
-const FORCE_EXIT_TIMEOUT_MS = 5000;
+// Covers stopping every service in turn (Kafka consumers, producers, Redis, gRPC). Keep it
+// under stop_grace_period in docker-compose.lite*.yaml so docker doesn't SIGKILL first.
+const FORCE_EXIT_TIMEOUT_MS = 25_000;
 
 const logger = new PinoLogger({
   bcName: BC_NAME,
@@ -102,7 +104,7 @@ process.on('exit', () => {
 process.on('uncaughtException', (err: Error) => {
   console.error(err);
   console.log('UncaughtException - EXITING...');
-  process.exit(999);
+  process.exit(1);
 });
 
 main().catch((err) => {
