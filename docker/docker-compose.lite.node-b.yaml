@@ -1,0 +1,113 @@
+# Lite node B: the second, independent Rhyza node from docker-compose.node-b.yaml, run as
+# one lite process (rhyza-lite-b) plus its own kafka-b, mongodb-b and redis-b. Used with
+# docker-compose.lite.yaml through docker-compose.lite.e2e.yaml; it shares the `rhyza`
+# network declared there.
+services:
+  rhyza-lite-b:
+    # Built by rhyza-lite in docker-compose.lite.yaml.
+    image: rhyza-lite-service
+    pull_policy: never
+    restart: always
+    mem_limit: 384m
+    environment:
+      # Every service except http-signature-service and auth-event-handler-service, which
+      # node B doesn't run today.
+      RHYZA_SERVICES: pal-api-service,payments-api-service,ilp-api-service,auth-api-service,pal-ledger-command-handler-service,payments-command-handler-service,ilp-command-handler-service,auth-command-handler-service,notifications-command-handler-service,pal-event-handler-service,payments-event-handler-service,ilp-event-handler-service,notifications-event-handler-service,admin-api-service,open-payments-resource-service,open-payments-auth-service,idp-interaction-service,ilp-connector-service,ase-mock-service
+      # Union of every app service's environment in docker-compose.node-b.yaml, minus PORT
+      # and HOST (each service listens on its own default port, on 0.0.0.0).
+      KAFKA_URL: kafka-b:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
+      MONGO_URL: mongodb://root:mongoPass@mongodb-b:27017/
+      REDIS_URL: redis-b:6379
+      UV_THREADPOOL_SIZE: 128
+      LOG_LEVEL: debug
+      PAL_GRPC_URL: pal-api-service-b:50051
+      PAYMENTS_GRPC_URL: payments-api-service-b:50052
+      ILP_GRPC_URL: ilp-api-service-b:50053
+      AUTH_GRPC_URL: auth-api-service-b:50054
+      ADMIN_URL: http://admin-api-service-b:3001
+      OPEN_PAYMENTS_URL: http://open-payments-resource-service-b:3002
+      OPEN_PAYMENTS_RESOURCE_SERVICE_URL: http://open-payments-resource-service-b:3002
+      OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:4003
+      STREAM_SERVER_SECRET: cmFmaWtpLXYyLWRldi1zdHJlYW0tc2VjcmV0LTAwMDE
+      ILP_ADDRESS: private.rhyza.b
+      SESSION_SECRET: local-dev-session-secret-not-for-production
+      IDP_URL: http://localhost:4030/consent
+      IDP_SECRET: idp-secret
+      WEBHOOK_URL: http://ase-mock-service-b:3000/webhooks
+      NOTIFICATION_BATCH_SIZE: 10
+      RETRY_INTERVAL_MS: 20000
+      ILP_CONNECTOR_HTTP_PORT: 4000
+      ILP_CONNECTOR_PUBLIC_URL: http://ilp-connector-service-b:4000
+    # Node B's host ports from docker-compose.node-b.yaml.
+    ports:
+      - '4001:3001'
+      - '4002:3002'
+      - '4003:3003'
+      - '4004:3004'
+      - '4051:50051'
+      - '4052:50052'
+      - '4053:50053'
+      - '4054:50054'
+      - '4100:4000'
+      - '4300:3000'
+    depends_on:
+      kafka-b:
+        condition: service_healthy
+      mongodb-b:
+        condition: service_healthy
+      redis-b:
+        condition: service_healthy
+    networks:
+      rhyza:
+        aliases:
+          - admin-api-service-b
+          - ase-mock-service-b
+          - auth-api-service-b
+          - auth-command-handler-service-b
+          - idp-interaction-service-b
+          - ilp-api-service-b
+          - ilp-command-handler-service-b
+          - ilp-connector-service-b
+          - ilp-event-handler-service-b
+          - notifications-command-handler-service-b
+          - notifications-event-handler-service-b
+          - open-payments-auth-service-b
+          - open-payments-resource-service-b
+          - pal-api-service-b
+          - pal-event-handler-service-b
+          - pal-ledger-command-handler-service-b
+          - payments-api-service-b
+          - payments-command-handler-service-b
+          - payments-event-handler-service-b
+
+  # Same caps as node A in docker-compose.lite.yaml (see the comments there).
+  kafka-b:
+    extends:
+      file: docker-compose.node-b.yaml
+      service: kafka-b
+    mem_limit: 640m
+    environment:
+      KAFKA_HEAP_OPTS: '-Xmx256m -Xms256m'
+      KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  mongodb-b:
+    extends:
+      file: docker-compose.node-b.yaml
+      service: mongodb-b
+    mem_limit: 512m
+    command: ['--wiredTigerCacheSizeGB', '0.25']
+
+  redis-b:
+    extends:
+      file: docker-compose.node-b.yaml
+      service: redis-b
+    mem_limit: 32m
+
+networks:
+  rhyza:
+    driver: bridge
+
+volumes:
+  mongodb-b-data:

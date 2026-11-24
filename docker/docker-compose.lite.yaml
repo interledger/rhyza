@@ -7,6 +7,9 @@
 name: rhyza-lite
 services:
   rhyza-lite:
+    # Fixed image name so node B in docker-compose.lite.e2e.yaml runs the same image under
+    # any project name, without a second build.
+    image: rhyza-lite-service
     build:
       context: ../
       dockerfile: ./packages/rhyza-lite-service/Dockerfile
@@ -97,6 +100,12 @@ services:
       # write buffers by message.max.bytes (40MB here), and they seem to be kept per offsets
       # partition: one partition fixes it, a single coordinator thread doesn't.
       KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+      # The runner starts the services one after another, so with the default 3s initial
+      # rebalance delay a new consumer group (auto.offset.reset=latest) can still be
+      # unassigned after "Rhyza lite start complete", and miss the first events. The e2e
+      # Local payment was never approved because notifications-event-handler-service got
+      # its partitions after the PaymentCreatedEvent was written.
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
   mongodb:
     extends:

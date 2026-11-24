@@ -21,7 +21,7 @@ const ADMIN_API_URL = 'http://localhost:' + ADMIN_API_PORT;
 const NODE_B_ADMIN_API_URL = 'http://localhost:' + NODE_B_ADMIN_API_PORT;
 const NODE_A_PEER_ID = '9f3c1e2a-4b5d-4c6e-8a7f-1b2c3d4e5f60';
 const NODE_B_PEER_ID = '04978037-26b8-4b4d-854a-278ed7548959';
-const COMPOSE_FILE = 'docker-compose.e2e.yaml';
+const COMPOSE_FILE = process.env.E2E_COMPOSE_FILE || 'docker-compose.e2e.yaml';
 
 const composeDir = path.resolve(__dirname, '../../docker');
 const composeProject = process.env.E2E_COMPOSE_PROJECT;
@@ -56,12 +56,16 @@ describe('E2E tests', () => {
     try {
       environment = await environmentBuilder
         .withWaitStrategy(
-          'admin-api-service-1',
-          Wait.forLogMessage('AdminApiService start complete')
+          process.env.E2E_WAIT_CONTAINER_A || 'admin-api-service-1',
+          Wait.forLogMessage(
+            process.env.E2E_WAIT_LOG || 'AdminApiService start complete'
+          )
         )
         .withWaitStrategy(
-          'admin-api-service-b-1',
-          Wait.forLogMessage('AdminApiService start complete')
+          process.env.E2E_WAIT_CONTAINER_B || 'admin-api-service-b-1',
+          Wait.forLogMessage(
+            process.env.E2E_WAIT_LOG || 'AdminApiService start complete'
+          )
         )
         .up();
     } catch (error) {
