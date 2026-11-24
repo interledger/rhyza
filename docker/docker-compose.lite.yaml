@@ -59,6 +59,11 @@ services:
       - '50052:50052'
       - '50053:50053'
       - '50054:50054'
+    # Lets WEBHOOK_URL reach an ASE endpoint running on the host
+    # (http://host.docker.internal:<port>/...). Docker Desktop resolves it already; Linux
+    # needs this mapping.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       kafka:
         condition: service_healthy

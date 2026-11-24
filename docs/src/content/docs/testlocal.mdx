@@ -107,6 +107,8 @@ WEBHOOK_URL=https://your-ase.example/webhooks \
   docker compose -f docker/docker-compose.lite.yaml up --build -d
 ```
 
+If your endpoint runs on your own machine, use `http://host.docker.internal:<port>/webhooks`, not `localhost`. Inside the container `localhost` is Rhyza itself.
+
 Rhyza then sends payment webhooks there. When you get `PaymentCreated`, approve the payment through the admin API on port 3001 (`POST /payment-intents/{intentId}/payments/{id}/approve`), the same call the mock makes. If `WEBHOOK_URL` isn't set it still points at the mock, which isn't running, so webhook delivery fails and retries and payments stay unapproved.
 
 ### Memory
