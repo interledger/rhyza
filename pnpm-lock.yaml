@@ -1280,9 +1280,6 @@ importers:
       admin-api-service:
         specifier: workspace:*
         version: link:../admin-api-service
-      ase-mock-service:
-        specifier: workspace:*
-        version: link:../ase-mock-service
       auth-api-service:
         specifier: workspace:*
         version: link:../auth-api-service

@@ -18,6 +18,5 @@ export const SERVICE_START_ORDER: readonly string[] = [
   'open-payments-auth-service',
   'idp-interaction-service',
   'http-signature-service',
-  'ilp-connector-service',
-  'ase-mock-service'
+  'ilp-connector-service'
 ];

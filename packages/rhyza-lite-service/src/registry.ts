@@ -5,7 +5,6 @@ import type {
 // Import every service from dist/service, never the package root: each package's
 // main (dist/index.js) calls start() and installs signal handlers on import.
 import { AdminApiService } from 'admin-api-service/dist/service';
-import { MockWebhookIntegrationService } from 'ase-mock-service/dist/service';
 import { AuthApiService } from 'auth-api-service/dist/service';
 import { AuthCommandHandlerService } from 'auth-command-handler-service/dist/service';
 import { AuthEventHandlerService } from 'auth-event-handler-service/dist/service';
@@ -160,10 +159,6 @@ export function buildServiceEntries(deps: SharedDeps): LiteServiceEntry[] {
     'ilp-connector-service': {
       start: () => IlpConnectorService.start(),
       stop: () => IlpConnectorService.stop()
-    },
-    'ase-mock-service': {
-      start: () => MockWebhookIntegrationService.start(),
-      stop: () => MockWebhookIntegrationService.stop()
     }
   };
   return SERVICE_START_ORDER.map((name) => {

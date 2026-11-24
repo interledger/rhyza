@@ -12,8 +12,8 @@ test('empty or blank string selects every service', () => {
 });
 test('explicit list is returned in start order, trimmed and deduplicated', () => {
   assert.deepEqual(
-    selectServices(' ase-mock-service ,pal-api-service,pal-api-service'),
-    ['pal-api-service', 'ase-mock-service']
+    selectServices(' ilp-connector-service ,pal-api-service,pal-api-service'),
+    ['pal-api-service', 'ilp-connector-service']
   );
 });
 test('unknown name throws and names it', () => {
@@ -21,7 +21,12 @@ test('unknown name throws and names it', () => {
     message: 'unknown service in RHYZA_SERVICES: "pal-apiservice"'
   });
 });
-test('start order has all 21 services, no duplicates', () => {
-  assert.equal(SERVICE_START_ORDER.length, 21);
-  assert.equal(new Set(SERVICE_START_ORDER).size, 21);
+test('start order has all 20 services, no duplicates', () => {
+  assert.equal(SERVICE_START_ORDER.length, 20);
+  assert.equal(new Set(SERVICE_START_ORDER).size, 20);
+});
+test('ase-mock-service is not part of lite', () => {
+  assert.throws(() => selectServices('ase-mock-service'), {
+    message: 'unknown service in RHYZA_SERVICES: "ase-mock-service"'
+  });
 });
