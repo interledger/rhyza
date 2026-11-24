@@ -2,6 +2,8 @@
 # plus Kafka, MongoDB and Valkey. No init-kafka (the runner creates the topics) and no
 # observability services. Infra config comes from docker-compose.yaml through `extends`.
 # The mem_limit values are safety ceilings, not the 1GB budget (see docker/lite-memory.sh).
+# mongodb covers the 0.25GB WiredTiger cache plus overhead; rhyza-lite leaves room for cache
+# growth; kafka and redis are about 1.5x the idle usage measured.
 name: rhyza-lite
 services:
   rhyza-lite:
@@ -9,7 +11,7 @@ services:
       context: ../
       dockerfile: ./packages/rhyza-lite-service/Dockerfile
     restart: always
-    mem_limit: 256m
+    mem_limit: 384m
     # Union of every app service's environment in docker-compose.yaml, minus PORT and HOST
     # (each service listens on its own default port, on 0.0.0.0). Hostnames resolve through
     # the network aliases below.
@@ -100,7 +102,7 @@ services:
     extends:
       file: docker-compose.yaml
       service: mongodb
-    mem_limit: 320m
+    mem_limit: 512m
     command: ['--wiredTigerCacheSizeGB', '0.25']
 
   redis:

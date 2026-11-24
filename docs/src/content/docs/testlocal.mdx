@@ -74,12 +74,12 @@ The compose file is `docker/docker-compose.lite.yaml` (project `rhyza-lite`). It
 
 Run these from the root directory.
 
-| Command          | Description                                                  |
-| ---------------- | ------------------------------------------------------------ |
-| `pnpm lite:build` | Build the lite image.                                        |
-| `pnpm lite:up`    | Rebuild and start the stack (removes old lite volumes first). |
-| `pnpm lite:stop`  | Stop the containers.                                         |
-| `pnpm lite:down`  | Remove the containers and volumes.                           |
+| Command           | Description                                                     |
+| ----------------- | --------------------------------------------------------------- |
+| `pnpm lite:build` | Build the lite image.                                           |
+| `pnpm lite:up`    | Rebuild and start the stack (removes old lite volumes first).   |
+| `pnpm lite:stop`  | Stop the containers.                                            |
+| `pnpm lite:down`  | Remove the containers and volumes.                              |
 | `pnpm lite:mem`   | Print memory per container and the total, exit 1 if over 1 GiB. |
 
 The stack is ready when the `rhyza-lite` container logs `Rhyza lite start complete`.
@@ -92,15 +92,15 @@ Lite mode publishes the same host ports as the full stack, so you can't run the 
 
 Measured on 2026-11-24 with `docker stats` in Docker Desktop's Linux VM, about 4 minutes after the ready line:
 
-| Container   | Memory   |
-| ----------- | -------- |
-| `rhyza-lite` | ~100 MiB |
-| `kafka`      | ~365 MiB |
-| `mongodb`    | ~30-45 MiB |
-| `redis`      | ~4 MiB   |
+| Container    | Memory           |
+| ------------ | ---------------- |
+| `rhyza-lite` | ~100 MiB         |
+| `kafka`      | ~365 MiB         |
+| `mongodb`    | ~30-45 MiB       |
+| `redis`      | ~4 MiB           |
 | **Total**    | **~500-535 MiB** |
 
-Right after startup the total is higher (about 600-700 MiB, mostly MongoDB and the Node process settling), and it drops over the first few minutes. The budget is 1 GiB. Kafka runs with a 256 MiB heap and MongoDB with a 0.25 GB WiredTiger cache. Each container also has a `mem_limit` as a safety ceiling.
+Right after startup the total is higher (about 600-700 MiB, mostly MongoDB and the Node process settling), and it drops over the first few minutes. The budget is 1 GiB. Kafka runs with a 256 MiB heap and MongoDB with a 0.25 GB WiredTiger cache. Each container also has a `mem_limit` ceiling (`rhyza-lite` 384m, `kafka` 640m, `mongodb` 512m, `redis` 32m). Those are safety ceilings, not the 1 GB budget, which `pnpm lite:mem` checks.
 
 ## Running two nodes
 
