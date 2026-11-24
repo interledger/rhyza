@@ -9,6 +9,8 @@ services:
     pull_policy: never
     restart: always
     mem_limit: 384m
+    # Same as rhyza-lite in docker-compose.lite.yaml.
+    stop_grace_period: 30s
     environment:
       # Every lite service except http-signature-service and auth-event-handler-service,
       # which node B doesn't run today. The ASE mock is ase-mock-service-b below.
@@ -52,6 +54,9 @@ services:
       - '4053:50053'
       - '4054:50054'
       - '4100:4000'
+    # Same as rhyza-lite: lets WEBHOOK_URL_B reach an ASE endpoint on the host (Linux needs it).
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       kafka-b:
         condition: service_healthy
