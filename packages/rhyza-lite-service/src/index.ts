@@ -89,7 +89,8 @@ async function handleSignal(signal: NodeJS.Signals): Promise<void> {
   // armed before awaiting stop(), which waits for any in-flight service start
   setTimeout(() => process.exit(99), FORCE_EXIT_TIMEOUT_MS);
   await runner?.stop();
-  process.exit();
+  // a signal during the teardown after a start failure must not turn it into exit 0
+  process.exit(runner?.startFailed ? 1 : 0);
 }
 
 process.on('SIGINT', handleSignal);

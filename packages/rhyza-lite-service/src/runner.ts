@@ -11,11 +11,17 @@ export class LiteRunner {
   private stopping = false;
   private stopPromise: Promise<void> | undefined;
   private startPromise: Promise<void> | undefined;
+  private failed = false;
 
   constructor(
     private readonly entries: readonly LiteServiceEntry[],
     private readonly logger: ILogger
   ) {}
+
+  /** True once a service start failed outside a requested stop. */
+  get startFailed(): boolean {
+    return this.failed;
+  }
 
   async start(): Promise<void> {
     this.startPromise = this.runStart();
@@ -35,6 +41,7 @@ export class LiteRunner {
           return;
         }
         this.logger.error({ err }, `${entry.name} failed to start`);
+        this.failed = true;
         this.stopping = true;
         this.stopPromise = this.drain();
         await this.stopPromise;

@@ -153,3 +153,41 @@ test('concurrent stop calls do not double-stop', async () => {
   await Promise.all([runner.stop(), runner.stop()]);
   assert.deepEqual(calls, ['start:a', 'stop:a']);
 });
+
+test('startFailed is false after a clean start and stop', async () => {
+  const runner = new LiteRunner([createEntry('a', [])], createLogger());
+  await runner.start();
+  await runner.stop();
+  assert.equal(runner.startFailed, false);
+});
+
+test('startFailed is true when stop is called while a start failure drains', async () => {
+  const calls: string[] = [];
+  let releaseStop = () => {};
+  let markDraining = () => {};
+  const draining = new Promise<void>((resolve) => (markDraining = resolve));
+  const stopGate = new Promise<void>((resolve) => (releaseStop = resolve));
+  const gatedStop: LiteServiceEntry = {
+    name: 'a',
+    async start() {
+      calls.push('start:a');
+    },
+    async stop() {
+      calls.push('stop:a');
+      markDraining();
+      await stopGate;
+    }
+  };
+  const runner = new LiteRunner(
+    [gatedStop, createEntry('b', calls, { failStart: new Error('boom') })],
+    createLogger()
+  );
+  const started = runner.start();
+  await draining;
+  const stopped = runner.stop();
+  releaseStop();
+  await stopped;
+  await assert.rejects(started, { message: 'boom' });
+  assert.equal(runner.startFailed, true);
+  assert.deepEqual(calls, ['start:a', 'start:b', 'stop:a']);
+});
