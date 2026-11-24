@@ -1,0 +1,117 @@
+# Lite mode: every Rhyza service in one Node process (packages/rhyza-lite-service),
+# plus Kafka, MongoDB and Valkey. No init-kafka (the runner creates the topics) and no
+# observability services. Infra config comes from docker-compose.yaml through `extends`.
+# The mem_limit values are safety ceilings, not the 1GB budget (see docker/lite-memory.sh).
+name: rhyza-lite
+services:
+  rhyza-lite:
+    build:
+      context: ../
+      dockerfile: ./packages/rhyza-lite-service/Dockerfile
+    restart: always
+    mem_limit: 768m
+    # Union of every app service's environment in docker-compose.yaml, minus PORT and HOST
+    # (each service listens on its own default port, on 0.0.0.0). Hostnames resolve through
+    # the network aliases below.
+    environment:
+      KAFKA_URL: kafka:19092
+      MONGODB_URL: mongodb://root:mongoPass@mongodb:27017
+      MONGO_URL: mongodb://root:mongoPass@mongodb:27017/
+      REDIS_URL: redis:6379
+      UV_THREADPOOL_SIZE: 128
+      LOG_LEVEL: debug
+      PAL_GRPC_URL: pal-api-service:50051
+      PAYMENTS_GRPC_URL: payments-api-service:50052
+      ILP_GRPC_URL: ilp-api-service:50053
+      AUTH_GRPC_URL: auth-api-service:50054
+      ADMIN_URL: http://admin-api-service:3001
+      OPEN_PAYMENTS_URL: http://open-payments-resource-service:3002
+      OPEN_PAYMENTS_RESOURCE_SERVICE_URL: http://open-payments-resource-service:3002
+      OPEN_PAYMENTS_AUTH_SERVICE_URL: http://localhost:3003
+      STREAM_SERVER_SECRET: cmFmaWtpLXYyLWRldi1zdHJlYW0tc2VjcmV0LTAwMDE
+      ILP_ADDRESS: private.rhyza.a
+      SESSION_SECRET: local-dev-session-secret-not-for-production
+      IDP_URL: http://localhost:3030/consent
+      IDP_SECRET: idp-secret
+      WEBHOOK_URL: http://ase-mock-service:3000/webhooks
+      NOTIFICATION_BATCH_SIZE: 10
+      RETRY_INTERVAL_MS: 20000
+      ILP_CONNECTOR_HTTP_PORT: 4000
+      ILP_CONNECTOR_PUBLIC_URL: http://ilp-connector-service:4000
+    ports:
+      - '3000:3000'
+      - '3001:3001'
+      - '3002:3002'
+      - '3003:3003'
+      - '3004:3004'
+      - '3010:3010'
+      - '4000:4000'
+      - '50051:50051'
+      - '50052:50052'
+      - '50053:50053'
+      - '50054:50054'
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      rhyza:
+        aliases:
+          - admin-api-service
+          - ase-mock-service
+          - auth-api-service
+          - auth-command-handler-service
+          - auth-event-handler-service
+          - http-signature-service
+          - idp-interaction-service
+          - ilp-api-service
+          - ilp-command-handler-service
+          - ilp-connector-service
+          - ilp-event-handler-service
+          - notifications-command-handler-service
+          - notifications-event-handler-service
+          - open-payments-auth-service
+          - open-payments-resource-service
+          - pal-api-service
+          - pal-event-handler-service
+          - pal-ledger-command-handler-service
+          - payments-api-service
+          - payments-command-handler-service
+          - payments-event-handler-service
+
+  kafka:
+    extends:
+      file: docker-compose.yaml
+      service: kafka
+    mem_limit: 512m
+    environment:
+      KAFKA_HEAP_OPTS: '-Xmx256m -Xms256m'
+      # With a 256MB heap and the default 50 __consumer_offsets partitions, the broker logs
+      # "Java heap space" while writing group metadata and some consumer groups never
+      # stabilize, so the runner never gets ready. Kafka 4.0's group coordinator sizes its
+      # write buffers by message.max.bytes (40MB here), and they seem to be kept per offsets
+      # partition: one partition fixes it, a single coordinator thread doesn't.
+      KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+
+  mongodb:
+    extends:
+      file: docker-compose.yaml
+      service: mongodb
+    mem_limit: 384m
+    command: ['--wiredTigerCacheSizeGB', '0.25']
+
+  redis:
+    extends:
+      file: docker-compose.yaml
+      service: redis
+    mem_limit: 64m
+
+networks:
+  rhyza:
+    driver: bridge
+
+volumes:
+  mongodb-data:
