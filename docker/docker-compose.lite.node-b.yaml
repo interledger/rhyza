@@ -10,9 +10,9 @@ services:
     restart: always
     mem_limit: 384m
     environment:
-      # Every service except http-signature-service and auth-event-handler-service, which
-      # node B doesn't run today.
-      RHYZA_SERVICES: pal-api-service,payments-api-service,ilp-api-service,auth-api-service,pal-ledger-command-handler-service,payments-command-handler-service,ilp-command-handler-service,auth-command-handler-service,notifications-command-handler-service,pal-event-handler-service,payments-event-handler-service,ilp-event-handler-service,notifications-event-handler-service,admin-api-service,open-payments-resource-service,open-payments-auth-service,idp-interaction-service,ilp-connector-service,ase-mock-service
+      # Every lite service except http-signature-service and auth-event-handler-service,
+      # which node B doesn't run today. The ASE mock is ase-mock-service-b below.
+      RHYZA_SERVICES: pal-api-service,payments-api-service,ilp-api-service,auth-api-service,pal-ledger-command-handler-service,payments-command-handler-service,ilp-command-handler-service,auth-command-handler-service,notifications-command-handler-service,pal-event-handler-service,payments-event-handler-service,ilp-event-handler-service,notifications-event-handler-service,admin-api-service,open-payments-resource-service,open-payments-auth-service,idp-interaction-service,ilp-connector-service
       # Union of every app service's environment in docker-compose.node-b.yaml, minus PORT
       # and HOST (each service listens on its own default port, on 0.0.0.0).
       KAFKA_URL: kafka-b:19092
@@ -34,7 +34,9 @@ services:
       SESSION_SECRET: local-dev-session-secret-not-for-production
       IDP_URL: http://localhost:4030/consent
       IDP_SECRET: idp-secret
-      WEBHOOK_URL: http://ase-mock-service-b:3000/webhooks
+      # WEBHOOK_URL_B, not WEBHOOK_URL: the e2e suite exports WEBHOOK_URL with node A's mock
+      # for compose interpolation, and sharing it would send node B's webhooks there.
+      WEBHOOK_URL: ${WEBHOOK_URL_B:-http://ase-mock-service-b:3000/webhooks}
       NOTIFICATION_BATCH_SIZE: 10
       RETRY_INTERVAL_MS: 20000
       ILP_CONNECTOR_HTTP_PORT: 4000
@@ -50,7 +52,6 @@ services:
       - '4053:50053'
       - '4054:50054'
       - '4100:4000'
-      - '4300:3000'
     depends_on:
       kafka-b:
         condition: service_healthy
@@ -62,7 +63,6 @@ services:
       rhyza:
         aliases:
           - admin-api-service-b
-          - ase-mock-service-b
           - auth-api-service-b
           - auth-command-handler-service-b
           - idp-interaction-service-b
@@ -80,6 +80,24 @@ services:
           - payments-api-service-b
           - payments-command-handler-service-b
           - payments-event-handler-service-b
+
+  # Node B's ASE mock, same as ase-mock-service in docker-compose.lite.yaml.
+  ase-mock-service-b:
+    # Built by ase-mock-service in docker-compose.lite.yaml.
+    image: rhyza-lite-ase-mock
+    pull_policy: never
+    profiles: [with-ase-mock]
+    restart: always
+    mem_limit: 128m
+    environment:
+      PORT: 3000
+      ADMIN_URL: http://admin-api-service-b:3001
+    ports:
+      - '4300:3000'
+    depends_on:
+      - rhyza-lite-b
+    networks:
+      - rhyza
 
   # Same caps as node A in docker-compose.lite.yaml (see the comments there).
   kafka-b:
