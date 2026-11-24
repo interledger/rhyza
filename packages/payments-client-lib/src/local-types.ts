@@ -87,6 +87,9 @@ export interface CreateQuoteResult {
   debitAmount: bigint;
   receiveAmount: bigint;
   exchangeRate: number;
+  receiveAssetCode: string;
+  receiveAssetScale: number;
+  paymentIntentRemoteUrl?: string;
 }
 
 export interface CreatePaymentResult {
@@ -140,6 +143,9 @@ export interface GetQuoteResult {
   senderAssetCode?: string;
   errorName?: string;
   message?: string;
+  receiveAssetCode: string;
+  receiveAssetScale: number;
+  paymentIntentRemoteUrl?: string;
 }
 
 export interface IPayment {

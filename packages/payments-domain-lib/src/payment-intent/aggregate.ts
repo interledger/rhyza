@@ -635,7 +635,9 @@ export class PaymentIntentAggregate {
             createdAt: completedQuote.createdAt.toISOString(),
             debitAmount: String(completedQuote.debitAmount),
             receiveAmount: String(completedQuote.receiveAmount),
-            exchangeRate: completedQuote.exchangeRate
+            exchangeRate: completedQuote.exchangeRate,
+            receiveAssetCode: paymentIntent.assetCode,
+            receiveAssetScale: paymentIntent.assetScale
           },
           cmd.requestId
         );
@@ -1023,7 +1025,10 @@ export class PaymentIntentAggregate {
           createdAt: completedQuote.createdAt.toISOString(),
           debitAmount: String(completedQuote.debitAmount),
           receiveAmount: String(completedQuote.receiveAmount),
-          exchangeRate: completedQuote.exchangeRate
+          exchangeRate: completedQuote.exchangeRate,
+          receiveAssetCode: paymentIntent.assetCode,
+          receiveAssetScale: paymentIntent.assetScale,
+          paymentIntentRemoteUrl: paymentIntent.remoteUrl
         },
         cmd.requestId
       );
