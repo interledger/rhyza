@@ -247,28 +247,17 @@ components:
               type: string
               const: payment.failed
             data:
-              type: object
-              required:
-                - id
-                - paymentIntentId
-                - errorName
-                - message
-              properties:
-                id:
-                  type: string
-                  format: uuid
-                paymentIntentId:
-                  type: string
-                  format: uuid
-                errorName:
-                  type: string
-                message:
-                  type: string
-                walletAddressId:
-                  type: string
-                  format: uuid
-                sentAmount:
-                  $ref: '#/components/schemas/amount'
+              allOf:
+                - $ref: '#/components/schemas/paymentEventData'
+                - type: object
+                  properties:
+                    state:
+                      type: string
+                      enum:
+                        - FAILED
+                    failReason:
+                      type: string
+                      description: Failure detail, when known.
     amount:
       type: object
       required:

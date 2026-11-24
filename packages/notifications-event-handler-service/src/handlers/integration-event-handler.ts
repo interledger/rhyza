@@ -11,8 +11,8 @@ import {
 } from 'notifications-domain-lib';
 import {
   PaymentCompletedEvent,
-  PaymentCompleteFailedEvent,
   PaymentCreatedEvent,
+  PaymentFailedEvent,
   PaymentIntentCompletedEvent,
   PaymentIntentCreatedEvent
 } from 'payments-public-types-lib';
@@ -52,7 +52,7 @@ export class IntegrationEventHandler {
         NotificationType.PaymentIntentCompleted,
       [PaymentCreatedEvent.name]: NotificationType.PaymentCreated,
       [PaymentCompletedEvent.name]: NotificationType.PaymentCompleted,
-      [PaymentCompleteFailedEvent.name]: NotificationType.PaymentFailed,
+      [PaymentFailedEvent.name]: NotificationType.PaymentFailed,
       [GrantRevokedEvent.name]: NotificationType.GrantRevoked
     };
 
