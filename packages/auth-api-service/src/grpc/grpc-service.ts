@@ -56,6 +56,7 @@ import {
 } from 'common-types-lib';
 import { decodeCursor, encodeCursor } from 'implementations-lib';
 import { CursorContext } from './cursor';
+import { grantNotFoundServiceError, toServiceError } from './errors';
 import {
   CreateGrantCmd,
   ContinueGrantCmd,
@@ -91,7 +92,6 @@ import {
 } from 'auth-domain-lib';
 import crypto from 'crypto';
 import { IGrantRepository } from 'auth-domain-lib/src';
-import { AppErrorType } from 'common-types-lib/src';
 
 const PUBLIC_TYPES_LIB_PATH = require.resolve('auth-public-types-lib');
 const DEFAULT_RESPONSE_TIMEOUT_MS = 120_000;
@@ -581,6 +581,10 @@ export class AuthServiceServer {
 
     if (grant.finishMethod) response.setFinishMethod(grant.finishMethod);
 
+    if (grant.interactionNonce) {
+      response.setInteractionNonce(grant.interactionNonce);
+    }
+
     if (grant.interaction) {
       const interaction = new Interaction();
       interaction.setExpiresAt(grant.interaction.expiresAt.getTime());
@@ -669,10 +673,7 @@ export class AuthServiceServer {
     try {
       const [grant] = await this._repo.fetchByIds([id]);
       if (!grant) {
-        callback({
-          code: grpc.status.NOT_FOUND,
-          message: `Grant '${id}' not found`
-        });
+        callback(grantNotFoundServiceError());
         return;
       }
 
@@ -777,11 +778,7 @@ export class AuthServiceServer {
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isGrantCreateFailedEvent(event)) {
       const payload: GrantCreateFailedEvent['payload'] = event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isGrantContinuedEvent(event)) {
       const response = new ContinueGrantResponse();
       const payload: GrantContinuedEvent['payload'] = event.payload;
@@ -815,11 +812,7 @@ export class AuthServiceServer {
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isGrantContinueFailedEvent(event)) {
       const payload: GrantContinueFailedEvent['payload'] = event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isGrantRevokedEvent(event)) {
       const response = new RevokeGrantResponse();
       const payload: GrantRevokedEvent['payload'] = event.payload;
@@ -827,11 +820,7 @@ export class AuthServiceServer {
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isGrantRevokeFailedEvent(event)) {
       const payload: GrantRevokeFailedEvent['payload'] = event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isGrantInteractionFinishedEvent(event)) {
       const response = new FinishInteractionResponse();
       const payload: GrantInteractionFinishedEvent['payload'] = event.payload;
@@ -846,11 +835,7 @@ export class AuthServiceServer {
     } else if (AuthDomainEvent.isGrantInteractionFinishFailedEvent(event)) {
       const payload: GrantInteractionFinishFailedEvent['payload'] =
         event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isTokenIntrospectedEvent(event)) {
       const response = new IntrospectTokenResponse();
       const payload: TokenIntrospectedEvent['payload'] = event.payload;
@@ -875,11 +860,7 @@ export class AuthServiceServer {
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isTokenRotationFailedEvent(event)) {
       const payload: TokenRotationFailedEvent['payload'] = event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isTokenRevokedEvent(event)) {
       const response = new RevokeTokenResponse();
       const payload: TokenRevokedEvent['payload'] = event.payload;
@@ -887,11 +868,7 @@ export class AuthServiceServer {
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isTokenRevokeFailedEvent(event)) {
       const payload: TokenRevokeFailedEvent['payload'] = event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isGrantInteractionStartedEvent(event)) {
       const response = new StartInteractionResponse();
       const payload: GrantInteractionStartedEvent['payload'] = event.payload;
@@ -903,11 +880,7 @@ export class AuthServiceServer {
     } else if (AuthDomainEvent.isGrantInteractionStartFailedEvent(event)) {
       const payload: GrantInteractionStartFailedEvent['payload'] =
         event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isGrantInteractionChoiceHandledEvent(event)) {
       const response = new HandleInteractionChoiceResponse();
       response.setSuccess(true);
@@ -915,51 +888,11 @@ export class AuthServiceServer {
     } else if (AuthDomainEvent.isGrantInteractionChoiceFailedEvent(event)) {
       const payload: GrantInteractionChoiceFailedEvent['payload'] =
         event.payload;
-      this._resolvePendingResponse(
-        pending,
-        requestId,
-        this._toServiceError(payload)
-      );
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else {
       console.warn(
         `Unknown response event — msgName: ${message.msgName}, requestId: ${requestId}`
       );
-    }
-  }
-
-  private _toServiceError(payload: {
-    errorName: string;
-    errorType: AppErrorType;
-    message: string;
-  }): grpc.ServiceError {
-    return {
-      code: this._toGrpcStatus(payload.errorType),
-      message: payload.message || 'Command processing failed',
-      details: payload.message,
-      name: payload.errorName || 'CommandError',
-      metadata: new grpc.Metadata()
-    };
-  }
-
-  private _toGrpcStatus(errorType: AppErrorType): grpc.status {
-    switch (errorType) {
-      case 'InvalidArgument':
-        return grpc.status.INVALID_ARGUMENT;
-      case 'NotFound':
-        return grpc.status.NOT_FOUND;
-      case 'AlreadyExists':
-        return grpc.status.ALREADY_EXISTS;
-      case 'FailedPrecondition':
-        return grpc.status.FAILED_PRECONDITION;
-      case 'PermissionDenied':
-        return grpc.status.PERMISSION_DENIED;
-      case 'Unavailable':
-        return grpc.status.UNAVAILABLE;
-      case 'Aborted':
-        return grpc.status.ABORTED;
-      case 'Internal':
-      default:
-        return grpc.status.INTERNAL;
     }
   }
 

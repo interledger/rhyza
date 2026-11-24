@@ -1,9 +1,17 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
-import { AuthClient, SignatureRequestData } from 'auth-client-lib';
+import {
+  AuthClient,
+  AuthClientGrantNotFoundError,
+  AuthClientInsufficientGrantError,
+  AuthClientInvalidRotationError,
+  AuthClientUnknownAccessTokenError,
+  SignatureRequestData
+} from 'auth-client-lib';
 import { tokenRoutes } from '../src/routes/token';
-import { errorHandler } from '../src/errors';
+import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 import { createAccessTokenResponse } from '../src/utils';
 
 const AUTH_SERVER_URL = 'https://auth.example';
@@ -47,15 +55,24 @@ function authClient(calls: { rotate: TokenCall[]; revoke: TokenCall[] }) {
   } as unknown as AuthClient;
 }
 
-async function setup() {
+async function setup(failWith?: Error) {
   const calls = { rotate: [] as TokenCall[], revoke: [] as TokenCall[] };
+  const client = failWith ? failingAuthClient(failWith) : authClient(calls);
   const app = Fastify();
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler(createErrorHandler(new NullLogger()));
   await app.register(tokenRoutes, {
-    authClient: authClient(calls),
+    authClient: client,
     openPaymentsAuthServerUrl: AUTH_SERVER_URL
   });
   return { app, calls };
+}
+
+/** An auth client whose token calls all fail with the given error. */
+function failingAuthClient(error: Error) {
+  const fail = async () => {
+    throw error;
+  };
+  return { rotateToken: fail, revokeToken: fail } as unknown as AuthClient;
 }
 
 /** The access token exactly as a grant response hands it to the client. */
@@ -86,7 +103,7 @@ function tokenRequest(
   };
 }
 
-describe('POST /token/:id', () => {
+describe('rotateToken', () => {
   test('rotates the token by its raw value', async () => {
     const { app, calls } = await setup();
     const token = issuedToken();
@@ -134,9 +151,46 @@ describe('POST /token/:id', () => {
     assert.equal(response.json().error.code, 'invalid_client');
     assert.equal(calls.rotate.length, 0);
   });
+
+  const errorCases: { error: Error; status: number; code: string }[] = [
+    {
+      error: new AuthClientUnknownAccessTokenError(),
+      status: 401,
+      code: 'invalid_client'
+    },
+    {
+      error: new AuthClientGrantNotFoundError(),
+      status: 401,
+      code: 'invalid_client'
+    },
+    {
+      error: new AuthClientInvalidRotationError(),
+      status: 404,
+      code: 'invalid_rotation'
+    },
+    {
+      error: new AuthClientInsufficientGrantError(),
+      status: 500,
+      code: 'request_denied'
+    }
+  ];
+
+  for (const { error, status, code } of errorCases) {
+    test(`answers ${status} ${code} for ${error.name}`, async () => {
+      const { app } = await setup(error);
+      const token = issuedToken();
+
+      const response = await app.inject(
+        tokenRequest('POST', token.manage, token.value)
+      );
+
+      assert.equal(response.statusCode, status);
+      assert.equal(response.json().error.code, code);
+    });
+  }
 });
 
-describe('DELETE /token/:id', () => {
+describe('revokeToken', () => {
   test('revokes the token by its raw value', async () => {
     const { app, calls } = await setup();
     const token = issuedToken();
@@ -181,4 +235,31 @@ describe('DELETE /token/:id', () => {
     assert.equal(response.json().error.code, 'invalid_client');
     assert.equal(calls.revoke.length, 0);
   });
+
+  const errorCases: { error: Error; status: number; code: string }[] = [
+    {
+      error: new AuthClientUnknownAccessTokenError(),
+      status: 401,
+      code: 'invalid_client'
+    },
+    {
+      error: new AuthClientInvalidRotationError(),
+      status: 500,
+      code: 'request_denied'
+    }
+  ];
+
+  for (const { error, status, code } of errorCases) {
+    test(`answers ${status} ${code} for ${error.name}`, async () => {
+      const { app } = await setup(error);
+      const token = issuedToken();
+
+      const response = await app.inject(
+        tokenRequest('DELETE', token.manage, token.value)
+      );
+
+      assert.equal(response.statusCode, status);
+      assert.equal(response.json().error.code, code);
+    });
+  }
 });

@@ -410,6 +410,11 @@ export class PaymentsServiceServer {
       response.setSenderWalletAddress(quote.senderWalletAddress);
       response.setSenderWalletAddressId(quote.senderWalletAddressId);
       response.setCreatedAt(new Date(quote.createdAt).toISOString());
+      response.setReceiveAssetCode(paymentIntent.assetCode);
+      response.setReceiveAssetScale(paymentIntent.assetScale);
+      if (paymentIntent.remoteUrl) {
+        response.setPaymentIntentRemoteUrl(paymentIntent.remoteUrl);
+      }
 
       if (quote.state === 'COMPLETED') {
         response.setExpiresAt(new Date(quote.expiresAt).toISOString());
@@ -813,7 +818,12 @@ export class PaymentsServiceServer {
         .setCreatedAt(evt.payload.createdAt)
         .setDebitAmount(Number(evt.payload.debitAmount))
         .setReceiveAmount(Number(evt.payload.receiveAmount))
-        .setExchangeRate(evt.payload.exchangeRate);
+        .setExchangeRate(evt.payload.exchangeRate)
+        .setReceiveAssetCode(evt.payload.receiveAssetCode)
+        .setReceiveAssetScale(evt.payload.receiveAssetScale);
+      if (evt.payload.paymentIntentRemoteUrl) {
+        response.setPaymentIntentRemoteUrl(evt.payload.paymentIntentRemoteUrl);
+      }
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (PaymentIntentDomainEvent.isQuoteCreateFailedEvent(evt)) {
       this._resolvePendingResponse(

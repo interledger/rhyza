@@ -255,7 +255,12 @@ export class PaymentsClient {
             createdAt: response.getCreatedAt(),
             debitAmount: BigInt(response.getDebitAmount()),
             receiveAmount: BigInt(response.getReceiveAmount()),
-            exchangeRate: response.getExchangeRate()
+            exchangeRate: response.getExchangeRate(),
+            receiveAssetCode: response.getReceiveAssetCode(),
+            receiveAssetScale: response.getReceiveAssetScale(),
+            paymentIntentRemoteUrl: response.hasPaymentIntentRemoteUrl()
+              ? response.getPaymentIntentRemoteUrl()
+              : undefined
           });
         }
       );
@@ -489,7 +494,12 @@ export class PaymentsClient {
             errorName: response.hasErrorName()
               ? response.getErrorName()
               : undefined,
-            message: response.hasMessage() ? response.getMessage() : undefined
+            message: response.hasMessage() ? response.getMessage() : undefined,
+            receiveAssetCode: response.getReceiveAssetCode(),
+            receiveAssetScale: response.getReceiveAssetScale(),
+            paymentIntentRemoteUrl: response.hasPaymentIntentRemoteUrl()
+              ? response.getPaymentIntentRemoteUrl()
+              : undefined
           });
         }
       );

@@ -1,0 +1,50 @@
+meta {
+  name: Start Interaction
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{interactRedirect}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Forwarded-Proto: https
+}
+
+script:pre-request {
+  req.setMaxRedirects(0);
+}
+
+script:post-response {
+  const setCookie = [].concat(res.getHeader("set-cookie") || []);
+  const sessionCookie = setCookie.find((c) => c.startsWith("interactionSessionId="));
+  if (sessionCookie) {
+    bru.setVar("interactionSessionCookie", sessionCookie.split(";")[0]);
+  }
+}
+
+tests {
+  test("redirects to the IDP with a session cookie", function () {
+    expect(res.getStatus()).to.equal(302);
+    expect(res.getHeader("location")).to.include("interactId=");
+    expect(bru.getVar("interactionSessionCookie")).to.be.a("string");
+  });
+}
+
+docs {
+  What the user's browser does when the client sends it to
+  `interact.redirect`. The auth server starts the interaction, stores its
+  nonce in the `interactionSessionId` session, and redirects to the IDP.
+
+  Two local-only details:
+  - The session cookie is `Secure`, and `@fastify/session` won't set a
+    `Secure` cookie on a plain-http request. The auth server trusts proxy
+    headers, so `X-Forwarded-Proto: https` stands in for the TLS-terminating
+    proxy a real deployment has.
+  - Redirects aren't followed (there is no IDP UI behind `IDP_URL`). The
+    cookie is kept in a variable and sent to `/finish` by hand, since a
+    cookie jar won't send a `Secure` cookie over http.
+}

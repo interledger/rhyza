@@ -1,0 +1,47 @@
+meta {
+  name: Get Incoming Payment
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://{{openPaymentsResourceServerUrl}}/incoming-payments/{{incomingPaymentId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: GNAP {{incomingPaymentAccessToken}}
+}
+
+script:pre-request {
+  const scripts = require('./scripts');
+
+  await scripts.addSignatureHeaders();
+
+  // Poll until the payment completes (up to ~10s) so the folder can be run
+  // end to end.
+  const url = scripts.resolveTemplateVariables(req.getUrl());
+  for (let i = 0; i < 20; i++) {
+    const res = await fetch(url, { headers: req.getHeaders() });
+    if ((await res.json()).completed) break;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
+tests {
+  test("completed for the full amount", function () {
+    const body = res.getBody();
+    expect(res.getStatus()).to.equal(200);
+    expect(body.completed).to.equal(true);
+    expect(body.receivedAmount).to.deep.equal(body.incomingAmount);
+  });
+}
+
+docs {
+  Read with the incoming payment grant's token (it has `read`). Expect
+  `completed: true` and `receivedAmount` equal to `incomingAmount`.
+
+  The payment is processed asynchronously, so straight after Create Outgoing
+  Payment it may not be complete yet. Send this again until it is.
+}

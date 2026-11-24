@@ -1,0 +1,58 @@
+meta {
+  name: Continue Grant
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{grantContinueUri}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: GNAP {{grantContinueToken}}
+}
+
+body:json {
+  {
+    "interact_ref": "{{interactRef}}"
+  }
+}
+
+script:pre-request {
+  const scripts = require('./scripts');
+
+  // The auth server rejects a continuation within 5s of the last one (and the
+  // grant request counts). It doesn't send `continue.wait` yet, so wait out
+  // the window from when the grant was requested.
+  const waitMs = 5000 + 500 - (Date.now() - bru.getVar("grantRequestedAt"));
+  if (waitMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+
+  await scripts.addSignatureHeaders();
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body?.access_token?.value) {
+    bru.setVar("outgoingPaymentAccessToken", body.access_token.value);
+  }
+}
+
+docs {
+  Exchanges `interact_ref` for the outgoing payment access token. Signed, and
+  authorized with the continuation token from the grant request.
+
+  Sleeps first: the auth server enforces a 5s gap between the grant request
+  and its continuation (GNAP `continue.wait`, not advertised in the response
+  yet). Sent too early it fails with "Cannot continue grant too soon".
+}
+
+tests {
+  test("issued", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().access_token.value).to.be.a("string");
+  });
+}
