@@ -1275,6 +1275,12 @@ importers:
         specifier: ^4.19.3
         version: 4.19.3
 
+  packages/rhyza-lite-service:
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
   packages/tests-e2e:
     dependencies:
       admin-client-lib:

@@ -1,0 +1,23 @@
+export const SERVICE_START_ORDER: readonly string[] = [
+  'pal-api-service',
+  'payments-api-service',
+  'ilp-api-service',
+  'auth-api-service',
+  'pal-ledger-command-handler-service',
+  'payments-command-handler-service',
+  'ilp-command-handler-service',
+  'auth-command-handler-service',
+  'notifications-command-handler-service',
+  'pal-event-handler-service',
+  'payments-event-handler-service',
+  'ilp-event-handler-service',
+  'auth-event-handler-service',
+  'notifications-event-handler-service',
+  'admin-api-service',
+  'open-payments-resource-service',
+  'open-payments-auth-service',
+  'idp-interaction-service',
+  'http-signature-service',
+  'ilp-connector-service',
+  'ase-mock-service'
+];
