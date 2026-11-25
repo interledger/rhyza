@@ -16,7 +16,6 @@
     "@interledger/docs-design-system": "^0.15.0",
     "@scalar/api-reference": "^1.83.0",
     "astro": "^7.4.13",
-    "mermaid": "^11.17.2",
     "rehype-autolink-headings": "^7.1.0",
     "rehype-mathjax": "^7.1.0",
     "remark-math": "^6.0.0",
