@@ -1,54 +1,58 @@
 # API Changelog 0.0.20 vs. 0.0.21
 
+
 ## API Changes
 
 ### GET /grants
-
 - :warning: for the `query` request parameter `walletAddress`, the maxItems was set to `50`
-- for the `query` request parameter `walletAddress`, the `type` was widened from `string` to `array<string>`
+-  for the `query` request parameter `walletAddress`, the `type` was widened from `string` to `array<string>`
+
+
+
 
 ## Info
-
-- a breaking change was detected but the major version did not increase, from `0.0.20` to `0.0.21`
+-  a breaking change was detected but the major version did not increase, from `0.0.20` to `0.0.21`
 
 # API Changelog 0.0.19 vs. 0.0.20
+
 
 ## API Changes
 
 ### GET /grant/{id}
-
 - :warning: api path removed without deprecation
+
 
 ### POST /grant/{id}
-
 - :warning: api path removed without deprecation
 
-### GET /grants
 
-- endpoint added
+### GET /grants
+-  endpoint added
+
 
 ### GET /grants/{id}
+-  endpoint added
 
-- endpoint added
 
 ### POST /grants/{id}/revoke
+-  endpoint added
 
-- endpoint added
+
+
 
 ## Info
-
-- a breaking change was detected but the major version did not increase, from `0.0.19` to `0.0.20`
+-  a breaking change was detected but the major version did not increase, from `0.0.19` to `0.0.20`
 
 # API Changelog 0.0.18 vs. 0.0.19
+
 
 ## API Changes
 
 ### GET /payment-intents/{intentId}/quotes/{id}
+-  endpoint added
 
-- endpoint added
 
 ### POST /quotes
-
 - :warning: the response's body `type` changed from `object` to `any` for status `201`
 - :warning: removed the required property `debitAmount` from the response with the `201` status
 - :warning: removed the required property `exchangeRate` from the response with the `201` status
@@ -58,37 +62,37 @@
 - :warning: removed the required property `receiveAmount` from the response with the `201` status
 - :warning: removed the required property `senderWalletAddress` from the response with the `201` status
 - :warning: removed the required property `senderWalletAddressId` from the response with the `201` status
-- added `#/components/schemas/QuoteBase, subschema #2` to the response body `allOf` list for the response status `201`
+-  added `#/components/schemas/QuoteBase, subschema #2` to the response body `allOf` list for the response status `201`
+
+
+
 
 ## Components
-
-- removed the schema `Quote`
+-  removed the schema `Quote`
 
 # API Changelog 0.0.17 vs. 0.0.18
+
 
 ## API Changes
 
 ### POST /peers
-
 - :warning: added the new required request property `http/outgoing/callbackEndpoint`
 
 ## Info
-
-- a breaking change was detected but the major version did not increase, from `0.0.17` to `0.0.18`
+-  a breaking change was detected but the major version did not increase, from `0.0.17` to `0.0.18`
 
 # API Changelog 0.0.16 vs. 0.0.17
+
 
 ## API Changes
 
 ### POST /wallet-addresses
-
 - :warning: added the new required request property `pathName`
 - :warning: removed the request property `address`
-- added the non-success response with the status `400`
+-  added the non-success response with the status `400`
 
 ## Info
-
-- a breaking change was detected but the major version did not increase, from `0.0.16` to `0.0.17`
+-  a breaking change was detected but the major version did not increase, from `0.0.16` to `0.0.17`
 
 # API Changelog 0.0.15 vs. 0.0.16
 
@@ -103,8 +107,7 @@
 ## API Changes
 
 ### POST /grant/{id}
-
-- endpoint added
+-  endpoint added
 
 # API Changelog 0.0.13 vs. 0.0.14
 
@@ -228,13 +231,11 @@ No changes to report, but the specs are different
 ## API Changes
 
 ### GET /grant/{id}
-
-- endpoint added
+-  endpoint added
 
 # API Changelog 0.0.4 vs. 0.0.5
 
 ## API Changes
-
 ### POST /liquidity/deposit
 
 - :warning: added the new required request property `amountScale`

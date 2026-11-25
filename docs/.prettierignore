@@ -3,3 +3,7 @@
 dist
 build
 .astro
+# The OpenAPI specs and their changelog: changing admin-api.yaml triggers the
+# Admin OpenAPI Checks, which require a version bump, and CHANGELOG.md holds
+# oasdiff output pasted in as is.
+openapi/
