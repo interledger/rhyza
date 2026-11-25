@@ -573,7 +573,7 @@ paths:
   /payment-intents/{intentId}/quotes/{id}:
     get:
       summary: Get Quote
-      description: Retrieve a quote in any state. The response shape depends on whether the quote is pending, completed, or failed. 
+      description: Retrieve a quote in any state. The response shape depends on whether the quote is pending, completed, or failed.
       tags:
         - quotes
       operationId: getQuote

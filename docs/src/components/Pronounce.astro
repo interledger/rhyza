@@ -11,12 +11,15 @@ const { word, src, lang, ipa } = Astro.props
 <pronounce-word data-src={src}>
   <span lang={lang}>{word}</span>{' '}
   {ipa && <span class='pronounce-ipa'>{`/${ipa}/ `}</span>}
-  <span aria-hidden='true'>(</span><button
+  <span aria-hidden='true'>(</span>
+  <button
     type='button'
     class='pronounce-btn'
     aria-label={`Play pronunciation of ${word}`}
-    ><span aria-hidden='true'>🔊</span></button
-  ><span aria-hidden='true'>)</span>
+  >
+    <span aria-hidden='true'>🔊</span>
+  </button>
+  <span aria-hidden='true'>)</span>
 </pronounce-word>
 
 <script>
