@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WebhookSenderAdapter } from '../src/webhook-sender-adapter';
+import { notificationToWebhookBody } from '../src/webhook-mapper';
 import { Notification, NotificationType } from 'notifications-domain-lib';
+import { PaymentCreatedPayload } from 'payments-public-types-lib';
 import { randomUUID } from 'node:crypto';
 
 test('sends notification to webhook', async () => {
@@ -30,15 +32,20 @@ test('sends notification to webhook', async () => {
       NotificationType.PaymentCreated,
       {
         data: {
-          createdAt: new Date(),
-          expiresAt: new Date(),
-          incomingAmount: '100',
-          receivedAmount: '0',
+          id: randomUUID(),
+          paymentIntentId: randomUUID(),
+          senderWalletAddress: 'https://wallet.example/alice',
+          senderWalletAddressId: '71e202a6-cde9-41f7-b5fd-b1137883dbb7',
+          debitAmount: '100',
+          receiveAmount: '100',
+          sentAmount: '0',
           state: 'CREATED',
-          receiverWalletAddressId: '71e202a6-cde9-41f7-b5fd-b1137883dbb7',
+          createdAt: new Date(),
           assetCode: 'USD',
-          assetScale: 2
-        }
+          assetScale: 2,
+          receiveAssetCode: 'USD',
+          receiveAssetScale: 2
+        } satisfies PaymentCreatedPayload
       }
     );
 
@@ -50,11 +57,7 @@ test('sends notification to webhook', async () => {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        id: notification.id,
-        type: notification.type,
-        data: notification.data
-      })
+      body: JSON.stringify(notificationToWebhookBody(notification))
     });
   } finally {
     globalThis.fetch = originalFetch;

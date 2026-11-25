@@ -4,13 +4,16 @@ import {
   PaymentIntentCompletedPayload,
   PaymentCreatedPayload,
   PaymentCompletedPayload,
-  PaymentCompleteFailedPayload
+  PaymentFailedPayload
 } from 'payments-public-types-lib';
 
 type PaymentIntentPayload =
   | PaymentIntentCreatedPayload
   | PaymentIntentCompletedPayload;
-type PaymentPayload = PaymentCreatedPayload | PaymentCompletedPayload;
+type PaymentPayload =
+  | PaymentCreatedPayload
+  | PaymentCompletedPayload
+  | PaymentFailedPayload;
 
 export function notificationToWebhookBody(notification: INotification) {
   return {
@@ -50,7 +53,8 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
     }
 
     case NotificationType.PaymentCreated:
-    case NotificationType.PaymentCompleted: {
+    case NotificationType.PaymentCompleted:
+    case NotificationType.PaymentFailed: {
       const paymentData = data as PaymentPayload;
       const basePayment = {
         id: paymentData.id,
@@ -73,9 +77,10 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
           assetScale: paymentData.receiveAssetScale
         },
         state: paymentData.state,
-        ...(paymentData.metadata && {
-          metadata: paymentData.metadata
-        })
+        ...('metadata' in paymentData &&
+          paymentData.metadata && {
+            metadata: paymentData.metadata
+          })
       };
       if (type === NotificationType.PaymentCreated) {
         return {
@@ -84,23 +89,10 @@ function getWebhookData(type: NotificationType, data: Record<string, unknown>) {
             .paymentIntentRemoteUrl
         };
       }
+      if ('reason' in paymentData && paymentData.reason) {
+        return { ...basePayment, failReason: paymentData.reason };
+      }
       return basePayment;
-    }
-
-    case NotificationType.PaymentFailed: {
-      const failedData = data as PaymentCompleteFailedPayload;
-      return {
-        id: failedData.id,
-        paymentIntentId: failedData.paymentIntentId,
-        errorName: failedData.errorName,
-        message: failedData.message,
-        sentAmount: {
-          value: failedData.sentAmount,
-          assetCode: failedData.assetCode,
-          assetScale: failedData.assetScale
-        },
-        walletAddressId: failedData.walletAddressId
-      };
     }
 
     case NotificationType.GrantRevoked: {

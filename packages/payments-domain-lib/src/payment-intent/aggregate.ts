@@ -1425,6 +1425,7 @@ export class PaymentIntentAggregate {
           id: payment.id,
           paymentIntentId: payment.paymentIntentId,
           senderWalletAddress: payment.senderWalletAddress,
+          senderWalletAddressId: payment.senderWalletAddressId,
           debitAmount: String(payment.debitAmount),
           receiveAmount:
             payment.receiveAmount === null

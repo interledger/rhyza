@@ -554,6 +554,7 @@ export type PaymentFailedPayload = {
   grantId?: string;
   paymentIntentId: string;
   senderWalletAddress: string;
+  senderWalletAddressId: string;
   debitAmount: string | null;
   receiveAmount: string | null;
   sentAmount: string | null;
