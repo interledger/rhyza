@@ -9,7 +9,6 @@ import {
 } from 'pal-client-lib';
 import {
   CreateQuoteResult,
-  GetPaymentIntentResult,
   GetQuoteResult,
   httpStatusFromGrpcError,
   PaymentsClient
@@ -248,19 +247,6 @@ export async function quoteRoutes(
         );
       }
 
-      let paymentIntent: GetPaymentIntentResult;
-      try {
-        paymentIntent = await paymentsClient.getPaymentIntent(
-          result.paymentIntentId
-        );
-      } catch {
-        throw new OpenPaymentsResourceServerRouteError(
-          500,
-          'Could not create quote',
-          'internal_server_error'
-        );
-      }
-
       const response: components['schemas']['quote'] = {
         id: `${openPaymentsUrl}/quotes/${encodeCompoundId(result.paymentIntentId, result.id)}`,
         walletAddress: result.senderWalletAddress,
@@ -272,13 +258,13 @@ export async function quoteRoutes(
         },
         receiveAmount: {
           value: String(result.receiveAmount),
-          assetCode: paymentIntent.assetCode,
-          assetScale: paymentIntent.assetScale
+          assetCode: result.receiveAssetCode,
+          assetScale: result.receiveAssetScale
         },
         method: 'ilp',
         createdAt: result.createdAt,
         receiver:
-          paymentIntent.remoteUrl ??
+          result.paymentIntentRemoteUrl ??
           `${openPaymentsUrl}/incoming-payments/${result.paymentIntentId}`
       };
 

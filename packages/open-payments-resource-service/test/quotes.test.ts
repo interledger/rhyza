@@ -6,7 +6,6 @@ import { PalClient } from 'pal-client-lib';
 import {
   createServiceError,
   CreateQuoteResult,
-  GetPaymentIntentResult,
   GetQuoteResult,
   PaymentsClient
 } from 'payments-client-lib';
@@ -60,24 +59,14 @@ const quote: GetQuoteResult = {
   createdAt: new Date().toISOString(),
   expiresAt: new Date(Date.now() + 60_000).toISOString(),
   debitAmount: 500n,
-  receiveAmount: 500n
-};
-
-const paymentIntent: GetPaymentIntentResult = {
-  id: PAYMENT_INTENT_ID,
-  receiverWalletAddress: 'bob',
-  state: 'PENDING',
-  destination: 'LOCAL',
-  receivedAmount: 0n,
-  assetCode: 'USD',
-  assetScale: 2,
-  createdAt: new Date().toISOString()
+  receiveAmount: 500n,
+  receiveAssetCode: 'USD',
+  receiveAssetScale: 2
 };
 
 function mockPaymentsClient(createdQuoteIds: string[]): PaymentsClient {
   return {
     getQuote: async () => quote,
-    getPaymentIntent: async () => paymentIntent,
     createQuote: async (id: string): Promise<CreateQuoteResult> => {
       createdQuoteIds.push(id);
       return {
@@ -89,7 +78,9 @@ function mockPaymentsClient(createdQuoteIds: string[]): PaymentsClient {
         createdAt: quote.createdAt,
         debitAmount: 500n,
         receiveAmount: 500n,
-        exchangeRate: 1
+        exchangeRate: 1,
+        receiveAssetCode: 'USD',
+        receiveAssetScale: 2
       };
     }
   } as unknown as PaymentsClient;
@@ -227,50 +218,6 @@ describe('GET /quotes/:id', () => {
     const app = await createTestApp(stubAuthClient(tokenWith(['READ'])), {
       paymentsClient: {
         getQuote: async () => {
-          throw createServiceError(GRPC_INTERNAL, 'unexpected');
-        }
-      } as unknown as Partial<PaymentsClient>
-    });
-
-    const response = await app.inject({
-      method: 'GET',
-      url: QUOTE_PATH,
-      headers: signedAuthHeaders()
-    });
-
-    assert.equal(response.statusCode, 500);
-    assert.deepEqual(response.json().error, {
-      code: 'internal_server_error',
-      description: 'Could not get quote'
-    });
-  });
-
-  test('maps NOT_FOUND on the payment intent to 404 not_found', async () => {
-    const app = await createTestApp(stubAuthClient(tokenWith(['READ'])), {
-      paymentsClient: {
-        getPaymentIntent: async () => {
-          throw createServiceError(GRPC_NOT_FOUND, 'no such intent');
-        }
-      } as unknown as Partial<PaymentsClient>
-    });
-
-    const response = await app.inject({
-      method: 'GET',
-      url: QUOTE_PATH,
-      headers: signedAuthHeaders()
-    });
-
-    assert.equal(response.statusCode, 404);
-    assert.deepEqual(response.json().error, {
-      code: 'not_found',
-      description: 'Quote not found'
-    });
-  });
-
-  test('maps an unexpected grpc error on the payment intent to 500', async () => {
-    const app = await createTestApp(stubAuthClient(tokenWith(['READ'])), {
-      paymentsClient: {
-        getPaymentIntent: async () => {
           throw createServiceError(GRPC_INTERNAL, 'unexpected');
         }
       } as unknown as Partial<PaymentsClient>
@@ -529,32 +476,6 @@ describe('POST /quotes', () => {
       {
         paymentsClient: {
           createQuote: async () => {
-            throw createServiceError(GRPC_INTERNAL, 'unexpected');
-          }
-        } as unknown as Partial<PaymentsClient>
-      }
-    );
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/quotes',
-      headers: signedAuthHeaders(),
-      payload: createQuoteBody
-    });
-
-    assert.equal(response.statusCode, 500);
-    assert.deepEqual(response.json().error, {
-      code: 'internal_server_error',
-      description: 'Could not create quote'
-    });
-  });
-
-  test('maps a payment intent lookup failure after creation to 500', async () => {
-    const app = await createTestApp(
-      stubAuthClient(tokenWith(['CREATE'], WALLET_ADDRESS_URL)),
-      {
-        paymentsClient: {
-          getPaymentIntent: async () => {
             throw createServiceError(GRPC_INTERNAL, 'unexpected');
           }
         } as unknown as Partial<PaymentsClient>
