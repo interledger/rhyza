@@ -45,7 +45,7 @@ import {
   FinishInteractionResponse,
   HandleInteractionChoiceResponse,
   ValidateOutgoingPaymentGrantLimitRequest,
-  GrantSpentAmountsResponse
+  GrantSpentAmounts
 } from 'auth-public-types-lib';
 
 import {
@@ -968,8 +968,8 @@ export class AuthServiceServer {
   private _toPbGrantSpentAmounts(
     grantId: string,
     spentAmounts: ISerializedSpentAmounts
-  ): GrantSpentAmountsResponse {
-    const response = new GrantSpentAmountsResponse();
+  ): GrantSpentAmounts {
+    const response = new GrantSpentAmounts();
     response.setId(grantId);
     response.setTotalSpentDebitAmount(spentAmounts.total.debit);
     response.setTotalSpentReceiveAmount(spentAmounts.total.receive);

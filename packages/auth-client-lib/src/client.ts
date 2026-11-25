@@ -33,7 +33,7 @@ import {
   AccessItem as PbAccessItem,
   SubjectId as PbSubjectId,
   ValidateOutgoingPaymentGrantLimitRequest as PbValidateOutgoingPaymentGrantLimitRequest,
-  GrantSpentAmountsResponse as PbGrantSpentAmountsResponse
+  GrantSpentAmounts as PbGrantSpentAmounts
 } from 'auth-public-types-lib';
 import {
   AccessItem,
@@ -314,11 +314,11 @@ export class AuthClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.validateOutgoingPaymentGrantLimit(
         request,
-        (error: ServiceError | null, response: PbGrantSpentAmountsResponse) => {
+        (error: ServiceError | null, response: PbGrantSpentAmounts) => {
           if (error) {
             reject(clientErrorFromGrpcError(error));
           } else {
-            resolve(fromPbGrantSpentAmountsResponse(response));
+            resolve(fromPbGrantSpentAmounts(response));
           }
         }
       );
@@ -695,13 +695,13 @@ function fromPbIntrospectTokenResponse(
     grantId: response.getGrantId(),
     access: response.getAccessList().map(fromPbAccessItem),
     ...(spentAmounts
-      ? { spentAmounts: fromPbGrantSpentAmountsResponse(spentAmounts) }
+      ? { spentAmounts: fromPbGrantSpentAmounts(spentAmounts) }
       : {})
   };
 }
 
-function fromPbGrantSpentAmountsResponse(
-  response: PbGrantSpentAmountsResponse
+function fromPbGrantSpentAmounts(
+  response: PbGrantSpentAmounts
 ): GrantSpentAmountsResult {
   const intervalDebit = response.getIntervalSpentDebitAmount();
   const intervalReceive = response.getIntervalSpentReceiveAmount();
