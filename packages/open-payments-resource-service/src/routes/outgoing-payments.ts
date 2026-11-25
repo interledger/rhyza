@@ -204,10 +204,6 @@ export async function outgoingPaymentRoutes(
             err instanceof AuthClientInsufficientGrantError ||
             err instanceof AuthClientInvalidGrantError
           ) {
-            reply.header(
-              'WWW-Authenticate',
-              `GNAP as_uri=${openPaymentsAuthServiceUrl}`
-            );
             throw new OpenPaymentsResourceServerRouteError(
               403,
               'Insufficient Grant',

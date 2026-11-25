@@ -479,40 +479,61 @@ describe('POST /outgoing-payments grant spend limit', () => {
     assert.equal(calls[0]?.[6], validateCalls[0].createdAt);
   });
 
-  for (const error of [
-    new AuthClientInsufficientGrantError(),
-    new AuthClientInvalidGrantError()
-  ]) {
-    test(`returns 403 and does not create the payment on ${error.name}`, async () => {
-      const calls: CreatePaymentArgs[] = [];
-      const app = await createTestApp(
-        stubAuthClient(tokenWith(['CREATE']), [], { error }),
-        { createPaymentCalls: calls }
-      );
+  test('returns 403 and does not create the payment on AuthClientInsufficientGrantError', async () => {
+    const calls: CreatePaymentArgs[] = [];
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['CREATE']), [], {
+        error: new AuthClientInsufficientGrantError()
+      }),
+      { createPaymentCalls: calls }
+    );
 
-      for (const payload of [fromQuote(), fromIncomingPayment()]) {
-        const response = await app.inject({
-          method: 'POST',
-          url: '/outgoing-payments',
-          headers: signedAuthHeaders(),
-          payload
-        });
+    for (const payload of [fromQuote(), fromIncomingPayment()]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/outgoing-payments',
+        headers: signedAuthHeaders(),
+        payload
+      });
 
-        assert.equal(response.statusCode, 403);
-        assert.deepEqual(response.json(), {
-          error: {
-            code: 'insufficient_grant',
-            description: 'Insufficient Grant'
-          }
-        });
-        assert.equal(
-          response.headers['www-authenticate'],
-          `GNAP as_uri=${AUTH_SERVER_URL}`
-        );
-      }
-      assert.equal(calls.length, 0);
-    });
-  }
+      assert.equal(response.statusCode, 403);
+      assert.deepEqual(response.json(), {
+        error: {
+          code: 'insufficient_grant',
+          description: 'Insufficient Grant'
+        }
+      });
+    }
+    assert.equal(calls.length, 0);
+  });
+
+  test('returns 403 and does not create the payment on AuthClientInvalidGrantError', async () => {
+    const calls: CreatePaymentArgs[] = [];
+    const app = await createTestApp(
+      stubAuthClient(tokenWith(['CREATE']), [], {
+        error: new AuthClientInvalidGrantError()
+      }),
+      { createPaymentCalls: calls }
+    );
+
+    for (const payload of [fromQuote(), fromIncomingPayment()]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/outgoing-payments',
+        headers: signedAuthHeaders(),
+        payload
+      });
+
+      assert.equal(response.statusCode, 403);
+      assert.deepEqual(response.json(), {
+        error: {
+          code: 'insufficient_grant',
+          description: 'Insufficient Grant'
+        }
+      });
+    }
+    assert.equal(calls.length, 0);
+  });
 
   test('returns 500 and does not create the payment on other auth errors', async () => {
     const calls: CreatePaymentArgs[] = [];
