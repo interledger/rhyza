@@ -1,0 +1,2704 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Rhyza Admin API",
+    "version": "0.0.21",
+    "license": {
+      "name": "ISC",
+      "identifier": "ISC"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Base URL is determined by the Rhyza deployment."
+    }
+  ],
+  "security": [],
+  "tags": [
+    {
+      "name": "assets",
+      "x-displayName": "Assets"
+    },
+    {
+      "name": "wallet-addresses",
+      "x-displayName": "Wallet Addresses"
+    },
+    {
+      "name": "payment-intents",
+      "x-displayName": "Payment Intents"
+    },
+    {
+      "name": "payments",
+      "x-displayName": "Payments"
+    },
+    {
+      "name": "quotes",
+      "x-displayName": "Quotes"
+    },
+    {
+      "name": "peers",
+      "x-displayName": "Peers"
+    },
+    {
+      "name": "liquidity",
+      "x-displayName": "Liquidity"
+    },
+    {
+      "name": "grants",
+      "x-displayName": "Grants"
+    },
+    {
+      "name": "rates",
+      "x-displayName": "Rates"
+    }
+  ],
+  "paths": {
+    "/peers": {
+      "post": {
+        "summary": "Create Peer",
+        "description": "Create a new ILP peer with its asset, settlement and static ILP address, and its ILP connector transport configuration.",
+        "tags": [
+          "peers"
+        ],
+        "operationId": "createPeer",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a peer has been created as a result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerCreateResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Peer already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The peer was created but its ILP connector configuration failed, so the peer has been deactivated. Retry the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Peer creation details",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeerCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/peers/{id}/activate": {
+      "post": {
+        "summary": "Activate Peer",
+        "description": "Activate a peer that was deactivated. The ILP connector can send and receive packets from the peer after activation takes effect. Activating a peer that is already active returns 409.",
+        "tags": [
+          "peers"
+        ],
+        "operationId": "activatePeer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id of the peer.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The peer is activated."
+          },
+          "404": {
+            "description": "Peer not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The peer is already active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/peers/{id}/deactivate": {
+      "post": {
+        "summary": "Deactivate Peer",
+        "description": "Deactivate a peer. The ILP connector stops using it once the deactivation takes effect. Deactivating a peer that is already inactive returns 409.",
+        "tags": [
+          "peers"
+        ],
+        "operationId": "deactivatePeer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id of the peer.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The peer is deactivated."
+          },
+          "404": {
+            "description": "Peer not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The peer is already inactive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assets": {
+      "post": {
+        "summary": "Create Asset",
+        "description": "Create a new asset.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "createAsset",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and an asset has been created as a result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetCreateResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Asset already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Asset creation details",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetCreate"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Get Assets",
+        "description": "Fetch every asset. When the instance has no assets, `assets` is an empty array.",
+        "tags": [
+          "assets"
+        ],
+        "operationId": "getAssets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet-addresses": {
+      "post": {
+        "summary": "Create Wallet Address",
+        "description": "Create a new wallet address.",
+        "tags": [
+          "wallet-addresses"
+        ],
+        "operationId": "createWalletAddress",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a wallet address been created as a result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletAddressCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pathName (must be a single path segment).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Wallet address already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Wallet address creation details",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletAddressCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet-addresses/{id}/activate": {
+      "post": {
+        "summary": "Activate Wallet Address",
+        "description": "Activate a wallet address that was previously deactivated. Once active, the Open Payments wallet address document becomes reachable again.",
+        "tags": [
+          "wallet-addresses"
+        ],
+        "operationId": "activateWalletAddress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The internal Rhyza id of the wallet address.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The wallet address is activated."
+          },
+          "404": {
+            "description": "Wallet address not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The wallet address is already active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet-addresses/{id}/deactivate": {
+      "post": {
+        "summary": "Deactivate Wallet Address",
+        "description": "Deactivate a wallet address. While inactive, the Open Payments wallet address document is not found, and no resources can be created against it. Deactivating a wallet address that is already inactive returns 409.",
+        "tags": [
+          "wallet-addresses"
+        ],
+        "operationId": "deactivateWalletAddress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The internal Rhyza id of the wallet address.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The wallet address is deactivated."
+          },
+          "404": {
+            "description": "Wallet address not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The wallet address is already inactive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet-addresses/{id}/keys": {
+      "post": {
+        "summary": "Register Wallet Address Key",
+        "description": "Register a JWK for a wallet address. A wallet address can have multiple active keys. Use the internal Rhyza id returned from `POST /wallet-addresses`.",
+        "tags": [
+          "wallet-addresses"
+        ],
+        "operationId": "createWalletAddressKey",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The internal Rhyza id of the wallet address.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Ed25519 public JWK to register for the wallet address.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonWebKey"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a wallet address key has been created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletAddressKeyCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The JWK is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Wallet address not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A key with this kid already exists for the wallet address.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet-addresses/{id}/keys/{keyId}/revoke": {
+      "post": {
+        "summary": "Revoke Wallet Address Key",
+        "description": "Soft-revoke a wallet address key. The key record is kept and is no longer served from `GET /jwks.json`. Revoking a key that is already revoked returns 409 and does not change `revokedAt`.",
+        "tags": [
+          "wallet-addresses"
+        ],
+        "operationId": "revokeWalletAddressKey",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The identifier of the wallet address.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyId",
+            "in": "path",
+            "required": true,
+            "description": "The identifier of the wallet address key to revoke.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The key is revoked."
+          },
+          "404": {
+            "description": "Wallet address key not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The wallet address key is already revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/grants": {
+      "get": {
+        "summary": "List Grants",
+        "description": "List grants with cursor pagination, ordered by creation time. Optionally filter by state and by the wallet addresses the granted access applies to.",
+        "tags": [
+          "grants"
+        ],
+        "operationId": "Grants_listGrants",
+        "parameters": [
+          {
+            "name": "walletAddress",
+            "in": "query",
+            "description": "Filter by the wallet addresses the granted access applies to. Repeat the parameter to filter by more than one (`?walletAddress=a&walletAddress=b`), up to 50; a grant is returned when any of its granted accesses applies to any of them. Results remain a single paginated stream across all of them.",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "string"
+              }
+            },
+            "example": [
+              "https://wallet.example.com/alice",
+              "https://wallet.example.com/bob"
+            ]
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Filter by grant state",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/GrantState"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageFirst"
+          },
+          {
+            "$ref": "#/components/parameters/PageLast"
+          },
+          {
+            "$ref": "#/components/parameters/PageSortOrder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pagination parameters, more wallet addresses than the filter allows, or a cursor that was not issued for this query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-intents": {
+      "get": {
+        "summary": "List Payment Intents",
+        "description": "List payment intents with cursor pagination, ordered by creation time. Optionally filter by receiver wallet address id.",
+        "tags": [
+          "payment-intents"
+        ],
+        "operationId": "PaymentIntents_listPaymentIntents",
+        "parameters": [
+          {
+            "name": "walletAddressId",
+            "in": "query",
+            "description": "Filter by receiver wallet address id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageFirst"
+          },
+          {
+            "$ref": "#/components/parameters/PageLast"
+          },
+          {
+            "$ref": "#/components/parameters/PageSortOrder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntentsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pagination parameters, or a cursor that was not issued for this query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Payment Intent",
+        "description": "Create a new payment intent for a receiver's account.",
+        "tags": [
+          "payment-intents"
+        ],
+        "operationId": "createPaymentIntent",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a payment intent has been created as a result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntentCreateResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Wallet address not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Payment intent creation details",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentIntentCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-intents/{id}": {
+      "get": {
+        "summary": "Get Payment Intent",
+        "description": "Retrieve details of a specific payment intent by its unique identifier.",
+        "tags": [
+          "payment-intents"
+        ],
+        "operationId": "getPaymentIntent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique identifier for the payment intent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Payment intent not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-intents/{id}/complete": {
+      "post": {
+        "summary": "Complete Payment Intent",
+        "description": "Complete a payment intent by its unique identifier.",
+        "tags": [
+          "payment-intents"
+        ],
+        "operationId": "completePaymentIntent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique identifier for the payment intent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntentCompleteResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Payment intent not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Payment intent cannot be completed in its current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quotes": {
+      "post": {
+        "summary": "Create Quote",
+        "description": "Create a quote for a payment intent.",
+        "tags": [
+          "quotes"
+        ],
+        "operationId": "createQuote",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a quote has been created as a result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletedQuote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Either paymentIntentId or paymentIntentUrl is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Wallet address not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Quote creation details",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/QuoteCreateFromPaymentIntentId"
+                  },
+                  {
+                    "$ref": "#/components/schemas/QuoteCreateFromPaymentIntentUrl"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-intents/{intentId}/quotes/{id}": {
+      "get": {
+        "summary": "Get Quote",
+        "description": "Retrieve a quote in any state. The response shape depends on whether the quote is pending, completed, or failed.",
+        "tags": [
+          "quotes"
+        ],
+        "operationId": "getQuote",
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "path",
+            "description": "Unique identifier for the payment intent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique identifier for the quote",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PendingQuote"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CompletedQuote"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FailedQuote"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Quote not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments": {
+      "get": {
+        "summary": "List Payments",
+        "description": "List payments with cursor pagination, ordered by creation time. Optionally filter by sender wallet address id and/or parent payment intent id.",
+        "tags": [
+          "payments"
+        ],
+        "operationId": "Payments_listPayments",
+        "parameters": [
+          {
+            "name": "walletAddressId",
+            "in": "query",
+            "description": "Filter by sender wallet address id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentIntentId",
+            "in": "query",
+            "description": "Filter by parent payment intent id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageFirst"
+          },
+          {
+            "$ref": "#/components/parameters/PageLast"
+          },
+          {
+            "$ref": "#/components/parameters/PageSortOrder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pagination parameters, or a cursor that was not issued for this query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Payment",
+        "description": "Create a payment for a sender's account.",
+        "tags": [
+          "payments"
+        ],
+        "operationId": "createPayment",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a payment has been created as a result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCreateResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Wallet address not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Payment creation details",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PaymentCreateFromPaymentIntentId"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PaymentCreateFromPaymentIntentUrl"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-intents/{intentId}/payments/{id}/approve": {
+      "post": {
+        "summary": "Approve Payment",
+        "description": "Approve a payment, allowing it to proceed.",
+        "tags": [
+          "payments"
+        ],
+        "operationId": "approvePayment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PaymentIntentId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique identifier for the payment to be approved",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier of the approved payment"
+                    },
+                    "state": {
+                      "$ref": "#/components/schemas/PaymentState"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-intents/{intentId}/payments/{id}/cancel": {
+      "post": {
+        "summary": "Cancel Payment",
+        "description": "Cancel a pending payment",
+        "tags": [
+          "payments"
+        ],
+        "operationId": "cancelPayment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PaymentIntentId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique identifier for the payment to be cancelled",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentCancel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Unique identifier of the cancelled payment"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payment-intents/{intentId}/payments/{id}": {
+      "get": {
+        "summary": "Get Payment",
+        "description": "Retrieve details of a specific payment by its ID within a payment intent.",
+        "tags": [
+          "payments"
+        ],
+        "operationId": "getPayment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PaymentIntentId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique identifier for the payment",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Payment not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/liquidity/deposit": {
+      "post": {
+        "summary": "Deposit Liquidity",
+        "description": "Add funds to a peer's liquidity account so ILP payments can be sent to them.",
+        "tags": [
+          "liquidity"
+        ],
+        "operationId": "Liquidity_deposit",
+        "parameters": [],
+        "requestBody": {
+          "description": "Deposit details",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "assetCode",
+                  "peerId",
+                  "amount",
+                  "amountScale"
+                ],
+                "properties": {
+                  "assetCode": {
+                    "type": "string",
+                    "description": "Asset code (also the ledger id).",
+                    "example": "USD"
+                  },
+                  "peerId": {
+                    "type": "string",
+                    "description": "The identifier of the peer."
+                  },
+                  "amount": {
+                    "type": "integer",
+                    "description": "Amount in raw ledger units at the asset scale (100000 = 1000.00 at scale 2).",
+                    "example": 100000
+                  },
+                  "amountScale": {
+                    "type": "number",
+                    "description": "The number of decimal places for the amount asset (e.g., 2 for \"USD\")."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deposit accepted and produced to the ledger (not yet confirmed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "The ledger transaction id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Asset or peer not found, or missing ledger accounts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/grants/{id}": {
+      "get": {
+        "summary": "Get Grant",
+        "description": "Get the grant associated with the provided id.",
+        "tags": [
+          "grants"
+        ],
+        "operationId": "getGrant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique identifier for the grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Grant"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Grant not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/grants/{id}/revoke": {
+      "post": {
+        "summary": "Revoke Grant",
+        "description": "Revoke the grant associated with the provided id.",
+        "tags": [
+          "grants"
+        ],
+        "operationId": "revokeGrant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Unique identifier for the grant",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantRevokeResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Grant not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The grant could not be revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rates": {
+      "post": {
+        "summary": "Set Exchange Rate",
+        "description": "Store an exchange rate for payments between wallet addresses on this Rhyza instance,  or a peer's rate used for payments sent to or received from that peer.",
+        "tags": [
+          "rates"
+        ],
+        "operationId": "setFxRate",
+        "parameters": [],
+        "requestBody": {
+          "description": "Exchange rate to store",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FxRateSet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The exchange rate has been stored."
+          },
+          "400": {
+            "description": "sourceAssetCode, destinationAssetCode, rate, or rateTtlSecs is missing, or rate or rateTtlSecs is not greater than 0.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to set the exchange rate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "PageCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque cursor from a previous page's startCursor/endCursor. Valid only for the query that produced it. Reusing a cursor with a different sortOrder or filter returns 400.",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "PageFirst": {
+        "name": "first",
+        "in": "query",
+        "description": "Page size, paginating forward from the cursor. Mutually exclusive with last.",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "PageLast": {
+        "name": "last",
+        "in": "query",
+        "description": "Page size, paginating backward from the cursor (requires cursor). Mutually exclusive with first.",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "PageSortOrder": {
+        "name": "sortOrder",
+        "in": "query",
+        "description": "Ordering by creation time. Defaults to desc (newest first).",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "desc"
+        }
+      },
+      "PaymentIntentId": {
+        "name": "intentId",
+        "in": "path",
+        "description": "Unique identifier for the payment intent",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "FxRateSet": {
+        "type": "object",
+        "description": "Exchange rate to store.",
+        "required": [
+          "sourceAssetCode",
+          "destinationAssetCode",
+          "rate",
+          "peerId",
+          "rateTtlSecs"
+        ],
+        "properties": {
+          "sourceAssetCode": {
+            "type": "string",
+            "description": "Asset code the rate converts from.",
+            "example": "USD"
+          },
+          "destinationAssetCode": {
+            "type": "string",
+            "description": "Asset code the rate converts to.",
+            "example": "EUR"
+          },
+          "rate": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Units of destination asset per one unit of source asset.",
+            "example": 0.92
+          },
+          "peerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Peer whose rate this is. Null stores an intra-FSP rate."
+          },
+          "rateTtlSecs": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Seconds until the stored rate expires.",
+            "example": 60
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Response schema for API errors.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "A descriptive message explaining the error that occurred."
+          }
+        }
+      },
+      "AssetCreate": {
+        "type": "object",
+        "description": "Schema for creating a new asset.",
+        "required": [
+          "code",
+          "scale"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The asset code (e.g., \"USD\", \"EUR\", \"BTC\"). Must be unique per asset. An ISO4217 currency code should be used whenever possible."
+          },
+          "scale": {
+            "type": "number",
+            "description": "The number of decimal places to display for the asset. For example, a USD amount of 1000 with a scale of 2 will display as $10.00. The internal Rhyza ledger operates at a fixed high precision scale of 20."
+          }
+        }
+      },
+      "AssetCreateResponse": {
+        "type": "object",
+        "description": "Response schema after creating an asset.",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The unique code of the created asset."
+          }
+        }
+      },
+      "Asset": {
+        "type": "object",
+        "description": "An asset known to the instance.",
+        "required": [
+          "code",
+          "scale"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The asset code (e.g., \"USD\", \"EUR\", \"BTC\")."
+          },
+          "scale": {
+            "type": "number",
+            "description": "The number of decimal places for the asset."
+          }
+        }
+      },
+      "AssetsResponse": {
+        "type": "object",
+        "description": "Response schema for fetching assets.",
+        "required": [
+          "assets"
+        ],
+        "properties": {
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            }
+          }
+        }
+      },
+      "PeerHttpOutgoing": {
+        "type": "object",
+        "description": "Connector settings for sending ILP packets to this peer.",
+        "required": [
+          "endpoint",
+          "callbackEndpoint",
+          "authToken"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "Where we POST ILP prepares to this peer."
+          },
+          "callbackEndpoint": {
+            "type": "string",
+            "description": "Where we POST fulfills and rejects for prepares this peer sent us."
+          },
+          "authToken": {
+            "type": "string",
+            "description": "The bearer token sent to the peer when dispatching packets."
+          }
+        }
+      },
+      "PeerHttpIncoming": {
+        "type": "object",
+        "description": "Connector settings for authenticating ILP packets received from this peer.",
+        "properties": {
+          "authToken": {
+            "type": "string",
+            "description": "The bearer token this peer must present on incoming packets."
+          }
+        }
+      },
+      "PeerHttp": {
+        "type": "object",
+        "description": "ILP connector transport configuration for a peer.",
+        "required": [
+          "outgoing"
+        ],
+        "properties": {
+          "outgoing": {
+            "$ref": "#/components/schemas/PeerHttpOutgoing"
+          },
+          "incoming": {
+            "$ref": "#/components/schemas/PeerHttpIncoming"
+          }
+        }
+      },
+      "PeerCreate": {
+        "type": "object",
+        "description": "Schema for creating a new peer.",
+        "required": [
+          "id",
+          "name",
+          "assetCode",
+          "assetScale",
+          "ilpStaticAddress",
+          "http"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier for the peer."
+          },
+          "name": {
+            "type": "string",
+            "description": "A human-readable name for the peer."
+          },
+          "assetCode": {
+            "type": "string",
+            "description": "The asset code used for settlement with this peer."
+          },
+          "assetScale": {
+            "type": "number",
+            "description": "The asset scale used for settlement with this peer."
+          },
+          "ilpStaticAddress": {
+            "type": "string",
+            "description": "The static ILP address used to resolve this peer for routing."
+          },
+          "http": {
+            "$ref": "#/components/schemas/PeerHttp"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the ILP connector config for this peer is active. Active by default."
+          }
+        }
+      },
+      "PeerCreateResponse": {
+        "type": "object",
+        "description": "Response schema after creating a peer.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier for the created peer."
+          }
+        }
+      },
+      "WalletAddressCreate": {
+        "type": "object",
+        "description": "Schema for creating a new wallet address.",
+        "required": [
+          "pathName",
+          "assetCode",
+          "publicName"
+        ],
+        "properties": {
+          "pathName": {
+            "type": "string",
+            "description": "The wallet address path name (e.g., \"alice\"). Must be a single path segment — values containing \"/\" or \"://\" are rejected. The full wallet address URL is built from the configured Open Payments resource server base URL plus this pathName."
+          },
+          "assetCode": {
+            "type": "string",
+            "description": "The code of the asset associated with this wallet address."
+          },
+          "publicName": {
+            "type": "string",
+            "description": "The name of the wallet address holder that can be displayed publicly."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the wallet address is active. True by default. While inactive, no resources (payment intents, quotes, or payments) can be created against it, whether as sender or receiver."
+          }
+        }
+      },
+      "WalletAddressCreateResponse": {
+        "type": "object",
+        "description": "Response schema after creating a wallet address.",
+        "required": [
+          "id",
+          "address"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The internal Rhyza id of the created wallet address. Use this for wallet-entity Admin operations such as key registration."
+          },
+          "address": {
+            "type": "string",
+            "description": "The unique identifier (URL) of the created wallet address."
+          }
+        }
+      },
+      "JsonWebKey": {
+        "type": "object",
+        "description": "A JWK representation of an Ed25519 public key.",
+        "required": [
+          "kid",
+          "alg",
+          "kty",
+          "crv",
+          "x"
+        ],
+        "properties": {
+          "kid": {
+            "type": "string",
+            "description": "Unique identifier for the key."
+          },
+          "alg": {
+            "type": "string",
+            "description": "The cryptographic algorithm family used with the key.",
+            "enum": [
+              "EdDSA"
+            ]
+          },
+          "use": {
+            "type": "string",
+            "description": "The intended use of the key.",
+            "enum": [
+              "sig"
+            ]
+          },
+          "kty": {
+            "type": "string",
+            "description": "The key type.",
+            "enum": [
+              "OKP"
+            ]
+          },
+          "crv": {
+            "type": "string",
+            "description": "The cryptographic curve used with the key.",
+            "enum": [
+              "Ed25519"
+            ]
+          },
+          "x": {
+            "type": "string",
+            "description": "The base64url-encoded public key.",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        }
+      },
+      "WalletAddressKeyCreateResponse": {
+        "type": "object",
+        "description": "Response schema after registering a wallet address key.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the created wallet address key."
+          }
+        }
+      },
+      "PaymentIntentCreate": {
+        "type": "object",
+        "description": "Schema for creating a new payment intent.",
+        "required": [
+          "walletAddress"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier for the payment intent."
+          },
+          "walletAddress": {
+            "type": "string",
+            "description": "The wallet address that will receive the funds."
+          },
+          "incomingAmount": {
+            "type": "number",
+            "description": "The maximum amount to be received. The payment intent will complete after reaching this amount."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the payment intent expires."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional arbitrary data associated with the payment intent.",
+            "additionalProperties": true
+          }
+        }
+      },
+      "PaymentIntentCreateResponse": {
+        "type": "object",
+        "description": "Response schema after creating a payment intent.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier for the created payment intent."
+          },
+          "openPaymentsUrl": {
+            "type": "string",
+            "description": "The Open Payments URL for this payment intent."
+          }
+        }
+      },
+      "PaymentIntentCompleteResponse": {
+        "type": "object",
+        "description": "Response schema after completing a payment intent.",
+        "required": [
+          "id",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier for the completed payment intent."
+          },
+          "state": {
+            "type": "string",
+            "description": "The resulting state of the payment intent."
+          }
+        }
+      },
+      "Amount": {
+        "type": "object",
+        "description": "Represents an amount of money with its currency and scale.",
+        "required": [
+          "value",
+          "assetCode",
+          "assetScale"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "The value of the amount."
+          },
+          "assetCode": {
+            "type": "string",
+            "description": "The asset code for the amount."
+          },
+          "assetScale": {
+            "type": "number",
+            "description": "The asset scale for the amount."
+          }
+        }
+      },
+      "PaymentIntent": {
+        "type": "object",
+        "description": "Represents a payment intent which defines a destination and amount for incoming payments.",
+        "required": [
+          "id",
+          "state",
+          "destination",
+          "walletAddress",
+          "receivedAmount",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier for the payment intent."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the payment intent was created."
+          },
+          "state": {
+            "$ref": "#/components/schemas/PaymentIntentState",
+            "description": "The current status of the payment intent."
+          },
+          "destination": {
+            "type": "string",
+            "description": "The destination wallet address or account."
+          },
+          "walletAddress": {
+            "type": "string",
+            "description": "The wallet address that owns this payment intent."
+          },
+          "incomingAmount": {
+            "$ref": "#/components/schemas/Amount",
+            "description": "The target amount to be received."
+          },
+          "receivedAmount": {
+            "$ref": "#/components/schemas/Amount",
+            "description": "The actual amount received so far."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the payment intent expires."
+          },
+          "destinationIlpAddress": {
+            "type": "string",
+            "description": "The ILP address of the payment intent."
+          }
+        }
+      },
+      "QuoteCreateBase": {
+        "type": "object",
+        "description": "Fields common to both ways of creating a quote. Not used directly as a request body — see QuoteCreateFromPaymentIntentId and QuoteCreateFromPaymentIntentUrl.",
+        "required": [
+          "walletAddress"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the quote."
+          },
+          "walletAddress": {
+            "type": "string",
+            "description": "The sender's wallet address."
+          },
+          "debitAmount": {
+            "type": "string",
+            "description": "The amount to be debited from the sender's account."
+          },
+          "receiveAmount": {
+            "type": "string",
+            "description": "The amount to be received by the recipient."
+          }
+        }
+      },
+      "QuoteState": {
+        "type": "string",
+        "description": "The current status of a quote.",
+        "enum": [
+          "PENDING",
+          "COMPLETED",
+          "FAILED"
+        ]
+      },
+      "QuoteCreateFromPaymentIntentId": {
+        "description": "Quotes a payment intent this instance already holds, named by its local id.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QuoteCreateBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "paymentIntentId"
+            ],
+            "properties": {
+              "paymentIntentId": {
+                "type": "string",
+                "description": "The ID of the payment intent this quote is for."
+              }
+            }
+          }
+        ]
+      },
+      "QuoteCreateFromPaymentIntentUrl": {
+        "description": "Quotes a payment intent named by its URL. The intent may be held by another instance, in which case it is imported on first use; the canonical local id is returned as paymentIntentId.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QuoteCreateBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "paymentIntentUrl"
+            ],
+            "properties": {
+              "paymentIntentUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "The URL of the payment intent this quote is for."
+              }
+            }
+          }
+        ]
+      },
+      "QuoteBase": {
+        "type": "object",
+        "description": "Fields common to every quote response.",
+        "required": [
+          "id",
+          "paymentIntentId",
+          "senderWalletAddress",
+          "senderWalletAddressId",
+          "createdAt",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the quote."
+          },
+          "paymentIntentId": {
+            "type": "string",
+            "description": "The ID of the associated payment intent."
+          },
+          "senderWalletAddress": {
+            "type": "string",
+            "description": "The wallet address of the sender."
+          },
+          "senderWalletAddressId": {
+            "type": "string",
+            "description": "The unique identifier of the sender's wallet address."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the quote was created."
+          }
+        }
+      },
+      "PendingQuote": {
+        "description": "A quote that is still being calculated. Optional fields are present only when they have been determined so far.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QuoteBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "const": "PENDING",
+                "description": "The quote is still being calculated."
+              },
+              "debitAmount": {
+                "type": "string",
+                "description": "Amount debited from the sender, when determined."
+              },
+              "receiveAmount": {
+                "type": "string",
+                "description": "Amount received by the recipient, when determined."
+              },
+              "sourceAmount": {
+                "type": "string",
+                "description": "Source amount used while the quote is calculated."
+              },
+              "senderAssetCode": {
+                "type": "string",
+                "description": "Asset code of the sender amount."
+              }
+            }
+          }
+        ]
+      },
+      "CompletedQuote": {
+        "description": "A successfully calculated quote with amounts and exchange rate.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QuoteBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "const": "COMPLETED",
+                "description": "The quote completed successfully."
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the quote expires."
+              },
+              "debitAmount": {
+                "type": "string",
+                "description": "Amount debited from the sender."
+              },
+              "receiveAmount": {
+                "type": "string",
+                "description": "Amount received by the recipient."
+              },
+              "exchangeRate": {
+                "type": "number",
+                "description": "Exchange rate applied to the quote."
+              }
+            }
+          }
+        ]
+      },
+      "FailedQuote": {
+        "description": "A quote that failed during calculation.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/QuoteBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "const": "FAILED",
+                "description": "The quote failed."
+              },
+              "errorName": {
+                "type": "string",
+                "description": "Name of the error that failed the quote."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable failure message."
+              }
+            }
+          }
+        ]
+      },
+      "PaymentCreateBase": {
+        "type": "object",
+        "description": "Fields common to both ways of creating a payment. Not used directly as a request body — see PaymentCreateFromIntentId and PaymentCreateFromIntentUrl.",
+        "required": [
+          "walletAddress"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the payment."
+          },
+          "walletAddress": {
+            "type": "string",
+            "description": "The sender's wallet address."
+          },
+          "quoteId": {
+            "type": "string",
+            "description": "The ID of the quote used for this payment."
+          },
+          "debitAmount": {
+            "type": "number",
+            "description": "The amount to debit from the sender."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional arbitrary data associated with the payment.",
+            "additionalProperties": true
+          }
+        }
+      },
+      "PaymentCreateFromPaymentIntentId": {
+        "description": "Creates a payment against a payment intent this instance already holds, named by its local id.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaymentCreateBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "paymentIntentId"
+            ],
+            "properties": {
+              "paymentIntentId": {
+                "type": "string",
+                "description": "The ID of the payment intent being paid."
+              }
+            }
+          }
+        ]
+      },
+      "PaymentCreateFromPaymentIntentUrl": {
+        "description": "Creates a payment against a payment intent named by its URL. The intent may be held by another instance, in which case it is imported on first use; the canonical local id is returned as paymentIntentId.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaymentCreateBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "paymentIntentUrl"
+            ],
+            "properties": {
+              "paymentIntentUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "The URL of the incoming payment being paid."
+              }
+            }
+          }
+        ]
+      },
+      "PaymentCreateResponse": {
+        "type": "object",
+        "description": "Response schema after initiating a payment.",
+        "required": [
+          "id",
+          "paymentIntentId"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the created payment."
+          },
+          "paymentIntentId": {
+            "type": "string",
+            "description": "The unique identifier for the payment intent."
+          }
+        }
+      },
+      "PaymentCancel": {
+        "type": "object",
+        "required": [
+          "intentId"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Reason why the payment was cancelled."
+          }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "description": "Represents a payment",
+        "required": [
+          "id",
+          "state",
+          "paymentIntentId",
+          "senderWalletAddress",
+          "debitAmount",
+          "receiveAmount",
+          "sentAmount",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the payment."
+          },
+          "state": {
+            "$ref": "#/components/schemas/PaymentState",
+            "description": "The current state of the payment."
+          },
+          "paymentIntentId": {
+            "type": "string",
+            "description": "The parent payment intent's id."
+          },
+          "senderWalletAddress": {
+            "type": "string",
+            "description": "The wallet address of the sender."
+          },
+          "quoteId": {
+            "type": "string",
+            "description": "The ID of the quote associated with this payment."
+          },
+          "debitAmount": {
+            "$ref": "#/components/schemas/Amount",
+            "description": "The amount debited from the sender, in the sender-side asset."
+          },
+          "receiveAmount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The amount received by the destination, in the receive-side asset. Null for a payment created without a quote, which fixes only the debit side."
+          },
+          "sentAmount": {
+            "$ref": "#/components/schemas/Amount",
+            "description": "The total amount sent so far, in the sender-side asset."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the payment was created."
+          },
+          "failReason": {
+            "type": "string",
+            "description": "Failure detail when the payment failed."
+          }
+        }
+      },
+      "GrantsPage": {
+        "type": "object",
+        "description": "A page of grants in the requested creation order.",
+        "required": [
+          "result",
+          "pagination"
+        ],
+        "properties": {
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Grant"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
+      "PageInfo": {
+        "type": "object",
+        "description": "Cursor pagination metadata for a page of results.",
+        "required": [
+          "hasNextPage",
+          "hasPreviousPage"
+        ],
+        "properties": {
+          "startCursor": {
+            "type": "string",
+            "description": "Cursor of the first item in the page; pass as cursor with last to page backward."
+          },
+          "endCursor": {
+            "type": "string",
+            "description": "Cursor of the last item in the page; pass as cursor with first to page forward."
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "description": "Whether more results exist after this page."
+          },
+          "hasPreviousPage": {
+            "type": "boolean",
+            "description": "Whether more results exist before this page."
+          }
+        }
+      },
+      "PaymentIntentsPage": {
+        "type": "object",
+        "description": "A page of payment intents in the requested creation order.",
+        "required": [
+          "result",
+          "pagination"
+        ],
+        "properties": {
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentIntent"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
+      "PaymentsPage": {
+        "type": "object",
+        "description": "A page of payments in the requested creation order.",
+        "required": [
+          "result",
+          "pagination"
+        ],
+        "properties": {
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Payment"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
+      "PaymentIntentState": {
+        "type": "string",
+        "enum": [
+          "CREATED",
+          "COMPLETED"
+        ]
+      },
+      "PaymentState": {
+        "type": "string",
+        "enum": [
+          "CREATED",
+          "PROCESSING",
+          "SENDING",
+          "CONFIRMED",
+          "REJECTED",
+          "COMPLETED",
+          "CANCELLED",
+          "FAILED"
+        ]
+      },
+      "Grant": {
+        "type": "object",
+        "description": "Represents an Open Payments grant.",
+        "required": [
+          "id",
+          "createdAt",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier for the grant."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the grant was created. The sort key for grant listings."
+          },
+          "state": {
+            "$ref": "#/components/schemas/GrantState",
+            "description": "The current state of the grant."
+          },
+          "client": {
+            "$ref": "#/components/schemas/Client",
+            "description": "The client's wallet address, or a JWK if directed identity was used."
+          },
+          "subjectIds": {
+            "type": "array",
+            "description": "The subject identifiers requested by the client.",
+            "items": {
+              "$ref": "#/components/schemas/SubjectId"
+            }
+          },
+          "accesses": {
+            "type": "array",
+            "description": "The accesses requested in the grant.",
+            "items": {
+              "$ref": "#/components/schemas/AccessItem"
+            }
+          },
+          "interaction": {
+            "$ref": "#/components/schemas/Interaction",
+            "description": "The grant's interaction session."
+          }
+        }
+      },
+      "GrantRevokeResponse": {
+        "type": "object",
+        "description": "The result of revoking a grant.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the revoked grant."
+          }
+        },
+        "additionalProperties": false
+      },
+      "GrantState": {
+        "type": "string",
+        "description": "The current state of a grant.",
+        "enum": [
+          "PROCESSING",
+          "PENDING",
+          "APPROVED",
+          "ISSUED",
+          "REJECTED",
+          "REVOKED"
+        ]
+      },
+      "Client": {
+        "description": "Client identification for grant requests.",
+        "oneOf": [
+          {
+            "title": "Wallet address object",
+            "type": "object",
+            "required": [
+              "walletAddress"
+            ],
+            "properties": {
+              "walletAddress": {
+                "type": "string",
+                "format": "uri",
+                "description": "Wallet address of the client instance that is making this request."
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "title": "Directed identity (JWK)",
+            "type": "object",
+            "required": [
+              "jwk"
+            ],
+            "properties": {
+              "jwk": {
+                "$ref": "#/components/schemas/json-web-key"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "title": "Wallet address string (deprecated)",
+            "type": "string",
+            "format": "uri",
+            "description": "DEPRECATED: This string format of the client wallet address is maintained only for backwards compatibility. Migrate to the object form with `jwk` or `walletAddress`.",
+            "deprecated": true
+          }
+        ]
+      },
+      "json-web-key": {
+        "type": "object",
+        "properties": {
+          "kid": {
+            "type": "string"
+          },
+          "alg": {
+            "type": "string",
+            "description": "The cryptographic algorithm family used with the key. The only allowed value is `EdDSA`. ",
+            "enum": [
+              "EdDSA"
+            ]
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "sig"
+            ]
+          },
+          "kty": {
+            "type": "string",
+            "enum": [
+              "OKP"
+            ]
+          },
+          "crv": {
+            "description": "The cryptographic curve used with the key. This parameter identifies the elliptic curve (for EC keys) or the Edwards curve (for OKP keys). The only allowed value is `Ed25519`.",
+            "type": "string",
+            "enum": [
+              "Ed25519"
+            ]
+          },
+          "x": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9-_]+$",
+            "description": "The base64 url-encoded public key."
+          }
+        },
+        "required": [
+          "kid",
+          "alg",
+          "kty",
+          "crv",
+          "x"
+        ],
+        "title": "Ed25519 Public Key",
+        "description": "A JWK representation of an Ed25519 Public Key",
+        "examples": [
+          {
+            "kid": "key-1",
+            "alg": "EdDSA",
+            "use": "sig",
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+          }
+        ]
+      },
+      "AccessItem": {
+        "type": "object",
+        "description": "A single access item requested by a grant.",
+        "required": [
+          "type",
+          "actions"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The type of resource being requested."
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "identifier": {
+            "type": "string",
+            "description": "The wallet address URL the access is referring to, if applicable."
+          },
+          "limits": {
+            "$ref": "#/components/schemas/AccessLimits"
+          }
+        }
+      },
+      "AccessLimits": {
+        "type": "object",
+        "description": "Limits imposed on an access item requested by a grant.",
+        "properties": {
+          "receiver": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string"
+          },
+          "debitAmount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "receiveAmount": {
+            "$ref": "#/components/schemas/Amount"
+          }
+        }
+      },
+      "SubjectId": {
+        "type": "object",
+        "description": "A single subject id requested by a grant.",
+        "required": [
+          "format",
+          "id"
+        ],
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "Interaction": {
+        "type": "object",
+        "description": "An interaction on a grant.",
+        "required": [
+          "interactRef",
+          "state"
+        ],
+        "properties": {
+          "interactRef": {
+            "type": "string",
+            "description": "The reference identifying this interaction."
+          },
+          "clientNonce": {
+            "type": "string",
+            "description": "The nonce the client provided when starting the interaction."
+          },
+          "state": {
+            "type": "string",
+            "description": "The current state of the interaction.",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the interaction expires, as a Unix timestamp."
+          }
+        }
+      }
+    }
+  }
+}

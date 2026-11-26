@@ -1,0 +1,671 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Rhyza Webhooks API",
+    "version": "0.0.0",
+    "description": "The main communication channel between an FSP and their Rhyza instance consists of the Admin API and webhook events. For Rhyza to notify an FSP about webhook events, the FSP must expose a webhook endpoint that listens for the dispatched events. The events provide time-sensitive status updates, warnings, and errors so that the FSP can react accordingly."
+  },
+  "webhooks": {
+    "paymentIntentCreated": {
+      "post": {
+        "summary": "Payment intent created",
+        "description": "Sent when a payment intent is created for a recipient. At this point, the payment intent has not yet received any funds.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/paymentIntentCreatedEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment intent created"
+          }
+        }
+      }
+    },
+    "paymentIntentCompleted": {
+      "post": {
+        "summary": "Payment intent completed",
+        "description": "Sent when a payment intent has received its full incoming amount or if it was completed manually.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/paymentIntentCompletedEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment intent completed"
+          }
+        }
+      }
+    },
+    "paymentCreated": {
+      "post": {
+        "summary": "Payment created",
+        "description": "Sent when a payment is created and awaiting approval. The FSP should verify the sender's account balance and perform any other necessary checks before approving the payment via the Admin API's Approve Payment endpoint.\n\nIf the sender has insufficient funds or if the payment should otherwise not be fulfilled, the FSP can cancel the payment via the Admin API's Cancel Payment endpoint.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/paymentCreatedEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment created"
+          }
+        }
+      }
+    },
+    "paymentCompleted": {
+      "post": {
+        "summary": "Payment completed",
+        "description": "Sent when a payment has completed successfully or when as much as possible was sent to the recipient against the payment intent.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/paymentCompletedEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment completed"
+          }
+        }
+      }
+    },
+    "paymentFailed": {
+      "post": {
+        "summary": "Payment failed",
+        "description": "Sent when a payment failed to send and any retries were unsuccessful. The FSP should remove any holds on the sender's account.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/paymentFailedEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment failed"
+          }
+        }
+      }
+    },
+    "grantRevoked": {
+      "post": {
+        "summary": "Grant revoked",
+        "description": "Sent when a grant is revoked.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/grantRevokedEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grant revoked"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "webhookEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A unique ID that the FSP can use to determine whether the event was previously received, preventing duplicate event processing"
+          },
+          "type": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "paymentIntentCreatedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/webhookEvent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "payment_intent.created"
+              },
+              "data": {
+                "$ref": "#/components/schemas/paymentIntentEventData"
+              }
+            }
+          }
+        ]
+      },
+      "paymentIntentCompletedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/webhookEvent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "payment_intent.completed"
+              },
+              "data": {
+                "$ref": "#/components/schemas/paymentIntentEventData"
+              }
+            }
+          }
+        ]
+      },
+      "paymentIntentEventData": {
+        "type": "object",
+        "required": [
+          "id",
+          "walletAddressId",
+          "createdAt",
+          "expiresAt",
+          "receivedAmount"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "COMPLETED"
+            ]
+          },
+          "walletAddressId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incomingAmount": {
+            "$ref": "#/components/schemas/amount"
+          },
+          "receivedAmount": {
+            "$ref": "#/components/schemas/amount"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "paymentCompletedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/webhookEvent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "payment.completed"
+              },
+              "data": {
+                "$ref": "#/components/schemas/paymentEventData"
+              }
+            }
+          }
+        ]
+      },
+      "paymentEventData": {
+        "type": "object",
+        "required": [
+          "id",
+          "walletAddressId",
+          "createdAt",
+          "debitAmount",
+          "sentAmount",
+          "receiveAmount",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "walletAddressId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "PROCESSING",
+              "SENDING",
+              "CONFIRMED",
+              "REJECTED",
+              "COMPLETED",
+              "CANCELLED",
+              "FAILED"
+            ]
+          },
+          "paymentIntentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "debitAmount": {
+            "$ref": "#/components/schemas/amount"
+          },
+          "sentAmount": {
+            "$ref": "#/components/schemas/amount"
+          },
+          "receiveAmount": {
+            "$ref": "#/components/schemas/amount"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "paymentCreatedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/webhookEvent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "payment.created"
+              },
+              "data": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/paymentEventData"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "CREATED"
+                        ]
+                      },
+                      "paymentIntentRemoteUrl": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "paymentFailedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/webhookEvent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "payment.failed"
+              },
+              "data": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/paymentEventData"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "FAILED"
+                        ]
+                      },
+                      "failReason": {
+                        "type": "string",
+                        "description": "Failure detail, when known."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "amount": {
+        "type": "object",
+        "required": [
+          "value",
+          "assetCode",
+          "assetScale"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "assetCode": {
+            "type": "string"
+          },
+          "assetScale": {
+            "type": "integer"
+          }
+        }
+      },
+      "baseAccessLimit": {
+        "type": "object",
+        "required": [
+          "receiver",
+          "assetCode",
+          "assetScale"
+        ],
+        "properties": {
+          "receiver": {
+            "type": "string",
+            "format": "uri"
+          },
+          "assetCode": {
+            "type": "string"
+          },
+          "assetScale": {
+            "type": "integer"
+          },
+          "interval": {
+            "type": "string"
+          }
+        }
+      },
+      "debitAmountAccessLimit": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/baseAccessLimit"
+          },
+          {
+            "type": "object",
+            "required": [
+              "debitAmount"
+            ],
+            "properties": {
+              "debitAmount": {
+                "type": "string",
+                "format": "uint64"
+              },
+              "receiveAmount": {
+                "type": "string",
+                "format": "uint64"
+              }
+            }
+          }
+        ]
+      },
+      "receiveAmountAccessLimit": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/baseAccessLimit"
+          },
+          {
+            "type": "object",
+            "required": [
+              "receiveAmount"
+            ],
+            "properties": {
+              "debitAmount": {
+                "type": "string",
+                "format": "uint64"
+              },
+              "receiveAmount": {
+                "type": "string",
+                "format": "uint64"
+              }
+            }
+          }
+        ]
+      },
+      "accessLimit": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/debitAmountAccessLimit"
+          },
+          {
+            "$ref": "#/components/schemas/receiveAmountAccessLimit"
+          }
+        ]
+      },
+      "jsonWebKey": {
+        "type": "object",
+        "required": [
+          "kty",
+          "kid",
+          "alg",
+          "crv",
+          "x"
+        ],
+        "properties": {
+          "kty": {
+            "type": "string"
+          },
+          "kid": {
+            "type": "string"
+          },
+          "use": {
+            "type": "string"
+          },
+          "alg": {
+            "type": "string"
+          },
+          "crv": {
+            "type": "string"
+          },
+          "x": {
+            "type": "string"
+          }
+        }
+      },
+      "grantState": {
+        "type": "string",
+        "enum": [
+          "PROCESSING",
+          "PENDING",
+          "APPROVED",
+          "ISSUED",
+          "REVOKED",
+          "REJECTED"
+        ]
+      },
+      "accessAction": {
+        "type": "string",
+        "enum": [
+          "CREATE",
+          "COMPLETE",
+          "READ",
+          "READ_ALL",
+          "LIST",
+          "LIST_ALL"
+        ]
+      },
+      "accessItem": {
+        "type": "object",
+        "required": [
+          "type",
+          "actions"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "INCOMING_PAYMENT",
+              "OUTGOING_PAYMENT",
+              "QUOTE"
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/accessLimit"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/accessAction"
+            }
+          },
+          "identifier": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "grantRevokedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/webhookEvent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "grant.revoked"
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "createdAt",
+                  "status"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "status": {
+                    "$ref": "#/components/schemas/grantState"
+                  },
+                  "access": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/accessItem"
+                    }
+                  },
+                  "client": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      {
+                        "$ref": "#/components/schemas/jsonWebKey"
+                      }
+                    ]
+                  },
+                  "clientName": {
+                    "type": "string"
+                  },
+                  "subjectIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "format"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "interaction": {
+                    "type": "object",
+                    "required": [
+                      "createdAt",
+                      "state"
+                    ],
+                    "properties": {
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "PENDING",
+                          "APPROVED",
+                          "REJECTED"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

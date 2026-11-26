@@ -8,7 +8,9 @@
     "preview": "astro preview",
     "astro": "astro",
     "format": "prettier --write . && eslint --max-warnings=0 --fix .",
-    "lint": "prettier --check . && eslint --max-warnings=0 ."
+    "lint": "prettier --check . && eslint --max-warnings=0 .",
+    "lint:openapi": "redocly lint openapi/* --lint-config error --format=stylish",
+    "generate:json": "redocly bundle openapi/admin/admin-api.yaml --output ./json/admin-api.json && redocly bundle openapi/idp-service-api.yaml --output ./json/idp-service-api.json && redocly bundle openapi/webhooks.yaml --output ./json/webhooks.json"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.0",
@@ -25,6 +27,7 @@
     "starlight-llms-txt": "^0.11.0"
   },
   "devDependencies": {
+    "@redocly/cli": "^2.31.2",
     "@eslint/js": "^10.0.1",
     "@types/js-yaml": "^4.0.9",
     "@typescript-eslint/parser": "^8.69.0",

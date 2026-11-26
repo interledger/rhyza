@@ -22,6 +22,8 @@ import {
   MessageSerializationFactory
 } from 'implementations-lib';
 import crypto from 'crypto';
+import { FastifyOpenApiValidator } from './validator.js';
+import adminOpenApiJsonSchema from '../../../docs/json/admin-api.json';
 
 const BC_NAME = 'ADMIN';
 const APP_NAME = `${BC_NAME}_API_SVC`;
@@ -90,6 +92,20 @@ export class AdminApiService {
         ? (this.logger.internalLogger as FastifyBaseLogger)
         : undefined
     });
+
+    const validator = new FastifyOpenApiValidator(adminOpenApiJsonSchema);
+
+    validator.addFormat('uint64', {
+      validate: (data: string) => {
+        try {
+          const value = BigInt(data);
+          return value >= BigInt(0);
+        } catch {
+          return false;
+        }
+      }
+    });
+    this.server.setValidatorCompiler(({ schema }) => validator.compile(schema));
 
     this.server.register(assetRoutes, {
       palClient: this.palClient

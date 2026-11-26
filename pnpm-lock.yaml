@@ -81,6 +81,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.10.0)
+      '@redocly/cli':
+        specifier: ^2.31.2
+        version: 2.51.1
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9
@@ -123,6 +126,12 @@ importers:
 
   packages/admin-api-service:
     dependencies:
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.20.0)
       auth-client-lib:
         specifier: workspace:*
         version: link:../auth-client-lib
