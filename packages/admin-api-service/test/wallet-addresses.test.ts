@@ -125,7 +125,10 @@ test('POST /wallet-addresses rejects a pathName that contains a slash', async ()
 
 test('POST /wallet-addresses/:id/keys registers a valid JWK', async () => {
   let registered:
-    | { walletAddressId: string; key: Record<string, unknown> }
+    | {
+        walletAddressId: string;
+        key: Parameters<PalClient['addWalletAddressKey']>[1];
+      }
     | undefined;
   const app = await appFor(
     palClient({
