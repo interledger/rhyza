@@ -87,48 +87,67 @@ export async function paymentRoutes(
   const { palClient, paymentsClient } = opts;
 
   server.post<{
-    Body: operations['createPayment']['requestBody']['content']['application/json'];
-  }>('/payments', async (request, reply) => {
-    const { walletAddress, quoteId, debitAmount, metadata } = request.body;
-    const paymentIntent =
-      'paymentIntentUrl' in request.body
-        ? { paymentIntentUrl: request.body.paymentIntentUrl }
-        : { paymentIntentId: request.body.paymentIntentId };
+    Body:
+      | components['schemas']['PaymentCreateFromPaymentIntentId']
+      | components['schemas']['PaymentCreateFromPaymentIntentUrl'];
+  }>(
+    '/payments',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          oneOf: [
+            { $ref: '#/components/schemas/PaymentCreateFromPaymentIntentId#' },
+            { $ref: '#/components/schemas/PaymentCreateFromPaymentIntentUrl#' }
+          ]
+        }
+      }
+    },
+    async (request, reply) => {
+      const { walletAddress, quoteId, debitAmount, metadata } = request.body;
+      const paymentIntent =
+        'paymentIntentUrl' in request.body
+          ? { paymentIntentUrl: request.body.paymentIntentUrl }
+          : { paymentIntentId: request.body.paymentIntentId };
 
-    const id = request.body.id ?? randomUUID();
+      const id = request.body.id ?? randomUUID();
 
-    const pathName = pathNameFromWalletAddress(walletAddress);
+      const pathName = pathNameFromWalletAddress(walletAddress);
 
-    const wallet = await palClient.resolveWalletAddressByAlias(null, pathName);
-    if (!wallet) {
-      return reply
-        .status(404)
-        .send({ error: `Wallet address '${walletAddress}' not found` });
-    }
-
-    try {
-      const result = await paymentsClient.createPayment(
-        id,
-        paymentIntent,
-        wallet.id,
-        walletAddress,
-        quoteId,
-        debitAmount ? Number(debitAmount) : undefined,
-        undefined, // createdAt
-        undefined, // grantId
-        metadata
+      const wallet = await palClient.resolveWalletAddressByAlias(
+        null,
+        pathName
       );
+      if (!wallet) {
+        return reply
+          .status(404)
+          .send({ error: `Wallet address '${walletAddress}' not found` });
+      }
 
-      return reply
-        .status(201)
-        .send({ id: result.id, paymentIntentId: result.paymentIntentId });
-    } catch (err) {
-      server.log.error(err);
-      const httpStatus = httpStatusFromGrpcError(err);
-      const { error } = toClientApiErrorResponse(err);
-      return reply.status(httpStatus).send({ error: error.description });
+      try {
+        const result = await paymentsClient.createPayment(
+          id,
+          paymentIntent,
+          wallet.id,
+          walletAddress,
+          quoteId,
+          debitAmount ? Number(debitAmount) : undefined,
+          undefined, // createdAt
+          undefined, // grantId
+          metadata
+        );
+
+        return reply
+          .status(201)
+          .send({ id: result.id, paymentIntentId: result.paymentIntentId });
+      } catch (err) {
+        server.log.error(err);
+        const httpStatus = httpStatusFromGrpcError(err);
+        const { error } = toClientApiErrorResponse(err);
+        return reply.status(httpStatus).send({ error: error.description });
+      }
     }
-  });
+  );
 
   server.get<{
     Querystring: NonNullable<
@@ -195,6 +214,11 @@ export async function paymentRoutes(
     Body: components['schemas']['PaymentCancel'];
   }>(
     '/payment-intents/:intentId/payments/:id/cancel',
+    {
+      schema: {
+        body: { $ref: '#/components/schemas/PaymentCancel#' }
+      }
+    },
     async (request, reply) => {
       const { id, intentId } = request.params;
       const { reason } = request.body ?? {};

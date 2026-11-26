@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import Fastify from 'fastify';
 import { AuthClient, IPageQuery } from 'auth-client-lib';
 import { grantRoutes } from '../src/routes/grants.js';
 import { MAX_GRANT_WALLET_ADDRESSES } from '../src/pagination.js';
+import { createTestApp } from './helpers.js';
 
 test('GET /grants/:id returns 404 for an unknown grant', async () => {
-  const app = Fastify();
+  const app = createTestApp();
   await app.register(grantRoutes, {
     authClient: {
       getGrant: async () => null
@@ -24,11 +24,11 @@ test('GET /grants/:id returns 404 for an unknown grant', async () => {
 
 /** Captures the page query the route hands to the auth client. */
 function appWithGrantsPageSpy(): {
-  app: ReturnType<typeof Fastify>;
+  app: ReturnType<typeof createTestApp>;
   queries: IPageQuery[];
 } {
   const queries: IPageQuery[] = [];
-  const app = Fastify();
+  const app = createTestApp();
   app.register(grantRoutes, {
     authClient: {
       getGrantsPage: async (query: IPageQuery) => {

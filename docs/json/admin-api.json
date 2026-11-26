@@ -1211,33 +1211,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "assetCode",
-                  "peerId",
-                  "amount",
-                  "amountScale"
-                ],
-                "properties": {
-                  "assetCode": {
-                    "type": "string",
-                    "description": "Asset code (also the ledger id).",
-                    "example": "USD"
-                  },
-                  "peerId": {
-                    "type": "string",
-                    "description": "The identifier of the peer."
-                  },
-                  "amount": {
-                    "type": "integer",
-                    "description": "Amount in raw ledger units at the asset scale (100000 = 1000.00 at scale 2).",
-                    "example": 100000
-                  },
-                  "amountScale": {
-                    "type": "number",
-                    "description": "The number of decimal places for the amount asset (e.g., 2 for \"USD\")."
-                  }
-                }
+                "$ref": "#/components/schemas/LiquidityDeposit"
               }
             }
           }
@@ -1484,6 +1458,36 @@
       }
     },
     "schemas": {
+      "LiquidityDeposit": {
+        "type": "object",
+        "description": "Liquidity deposit details.",
+        "required": [
+          "assetCode",
+          "peerId",
+          "amount",
+          "amountScale"
+        ],
+        "properties": {
+          "assetCode": {
+            "type": "string",
+            "description": "Asset code (also the ledger id).",
+            "example": "USD"
+          },
+          "peerId": {
+            "type": "string",
+            "description": "The identifier of the peer."
+          },
+          "amount": {
+            "type": "integer",
+            "description": "Amount in raw ledger units at the asset scale (100000 = 1000.00 at scale 2).",
+            "example": 100000
+          },
+          "amountScale": {
+            "type": "number",
+            "description": "The number of decimal places for the amount asset (e.g., 2 for \"USD\")."
+          }
+        }
+      },
       "FxRateSet": {
         "type": "object",
         "description": "Exchange rate to store.",
@@ -2259,9 +2263,6 @@
       },
       "PaymentCancel": {
         "type": "object",
-        "required": [
-          "intentId"
-        ],
         "properties": {
           "reason": {
             "type": "string",

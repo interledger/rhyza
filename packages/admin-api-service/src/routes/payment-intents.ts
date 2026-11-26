@@ -87,57 +87,69 @@ export async function paymentIntentRoutes(
 
   server.post<{
     Body: components['schemas']['PaymentIntentCreate'];
-  }>('/payment-intents', async (request, reply) => {
-    const { walletAddress, incomingAmount, expiresAt, metadata } = request.body;
-
-    let expiresAtIso: string | undefined;
-    if (expiresAt != null) {
-      const parsed =
-        typeof expiresAt === 'string' ? new Date(expiresAt) : undefined;
-      if (!parsed || Number.isNaN(parsed.getTime())) {
-        return reply.status(400).send({ error: 'Invalid expiresAt' });
+  }>(
+    '/payment-intents',
+    {
+      schema: {
+        body: { $ref: '#/components/schemas/PaymentIntentCreate#' }
       }
-      expiresAtIso = parsed.toISOString();
-    }
+    },
+    async (request, reply) => {
+      const { walletAddress, incomingAmount, expiresAt, metadata } =
+        request.body;
 
-    const id = request.body.id ?? randomUUID();
+      let expiresAtIso: string | undefined;
+      if (expiresAt != null) {
+        const parsed =
+          typeof expiresAt === 'string' ? new Date(expiresAt) : undefined;
+        if (!parsed || Number.isNaN(parsed.getTime())) {
+          return reply.status(400).send({ error: 'Invalid expiresAt' });
+        }
+        expiresAtIso = parsed.toISOString();
+      }
 
-    const pathName = pathNameFromWalletAddress(walletAddress);
+      const id = request.body.id ?? randomUUID();
 
-    const wallet = await palClient.resolveWalletAddressByAlias(null, pathName);
+      const pathName = pathNameFromWalletAddress(walletAddress);
 
-    if (!wallet) {
-      return reply
-        .status(404)
-        .send({ error: `Wallet address '${walletAddress}' not found` });
-    }
-
-    try {
-      const result = await paymentsClient.createPaymentIntent(
-        id,
-        wallet.id,
-        walletAddress,
-        incomingAmount ? Number(incomingAmount) : undefined,
-        expiresAtIso,
-        metadata
+      const wallet = await palClient.resolveWalletAddressByAlias(
+        null,
+        pathName
       );
 
-      const response: { id: string; openPaymentsUrl?: string } = {
-        id: result.id
-      };
-
-      if (openPaymentsUrl) {
-        response.openPaymentsUrl = `${openPaymentsUrl}/incoming-payments/${result.id}`;
+      if (!wallet) {
+        return reply
+          .status(404)
+          .send({ error: `Wallet address '${walletAddress}' not found` });
       }
 
-      return reply.status(201).send(response);
-    } catch (err) {
-      server.log.error(err);
-      const httpStatus = httpStatusFromGrpcError(err);
-      const { error } = toClientApiErrorResponse(err);
-      return reply.status(httpStatus).send({ error: error.description });
+      try {
+        const result = await paymentsClient.createPaymentIntent(
+          id,
+          wallet.id,
+          walletAddress,
+          incomingAmount ? Number(incomingAmount) : undefined,
+          expiresAtIso,
+          metadata
+        );
+
+        const response: { id: string; openPaymentsUrl?: string } = {
+          id: result.id
+        };
+
+        if (openPaymentsUrl) {
+          response.openPaymentsUrl = `${openPaymentsUrl}/incoming-payments/${result.id}`;
+        }
+
+        return reply.status(201).send(response);
+      } catch (err) {
+        server.log.error(err);
+        const httpStatus = httpStatusFromGrpcError(err);
+        const { error } = toClientApiErrorResponse(err);
+        return reply.status(httpStatus).send({ error: error.description });
+      }
     }
-  });
+  );
 
   server.get<{
     Querystring: NonNullable<
@@ -181,7 +193,6 @@ export async function paymentIntentRoutes(
 
   server.post<{
     Params: operations['completePaymentIntent']['parameters']['path'];
-    Body: { reason?: string };
   }>('/payment-intents/:id/complete', async (request, reply) => {
     const { id } = request.params;
 

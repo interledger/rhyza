@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.21
+  version: 0.0.22
   license:
     name: ISC
     identifier: ISC
@@ -785,29 +785,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - assetCode
-                - peerId
-                - amount
-                - amountScale
-              properties:
-                assetCode:
-                  type: string
-                  description: Asset code (also the ledger id).
-                  example: USD
-                peerId:
-                  type: string
-                  description: The identifier of the peer.
-                amount:
-                  type: integer
-                  description: >-
-                    Amount in raw ledger units at the asset scale
-                    (100000 = 1000.00 at scale 2).
-                  example: 100000
-                amountScale:
-                  type: number
-                  description: The number of decimal places for the amount asset (e.g., 2 for "USD").
+              $ref: '#/components/schemas/LiquidityDeposit'
       responses:
         '200':
           description: >-
@@ -977,6 +955,31 @@ components:
       schema:
         type: string
   schemas:
+    LiquidityDeposit:
+      type: object
+      description: Liquidity deposit details.
+      required:
+        - assetCode
+        - peerId
+        - amount
+        - amountScale
+      properties:
+        assetCode:
+          type: string
+          description: Asset code (also the ledger id).
+          example: USD
+        peerId:
+          type: string
+          description: The identifier of the peer.
+        amount:
+          type: integer
+          description: >-
+            Amount in raw ledger units at the asset scale
+            (100000 = 1000.00 at scale 2).
+          example: 100000
+        amountScale:
+          type: number
+          description: The number of decimal places for the amount asset (e.g., 2 for "USD").
     FxRateSet:
       type: object
       description: Exchange rate to store.
@@ -1553,8 +1556,6 @@ components:
           description: The unique identifier for the payment intent.
     PaymentCancel:
       type: object
-      required:
-        - intentId
       properties:
         reason:
           type: string

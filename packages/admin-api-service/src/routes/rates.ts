@@ -15,40 +15,51 @@ export async function ratesRoutes(
   server.post<{
     Body: components['schemas']['FxRateSet'];
     Reply: components['schemas']['ErrorResponse'] | undefined;
-  }>('/rates', async (request, reply) => {
-    const {
-      sourceAssetCode,
-      destinationAssetCode,
-      rate: fxRate,
-      peerId,
-      rateTtlSecs
-    } = request.body;
-
-    if (!sourceAssetCode || !destinationAssetCode || !fxRate || !rateTtlSecs) {
-      return reply.status(400).send({
-        error:
-          'sourceAssetCode, destinationAssetCode, non-zero rate and non-zero rateTtlSecs are required'
-      });
-    }
-
-    if (fxRate <= 0 || rateTtlSecs <= 0) {
-      return reply.status(400).send({
-        error: 'rate and rateTtlSecs must be greater than 0'
-      });
-    }
-
-    try {
-      await palClient.setFxRate(
+  }>(
+    '/rates',
+    {
+      schema: { body: { $ref: '#/components/schemas/FxRateSet#' } }
+    },
+    async (request, reply) => {
+      const {
         sourceAssetCode,
         destinationAssetCode,
-        fxRate,
+        rate: fxRate,
         peerId,
         rateTtlSecs
-      );
-    } catch {
-      return reply.status(500).send({ error: 'Failed to set FX rate' });
-    }
+      } = request.body;
 
-    return reply.status(204).send();
-  });
+      if (
+        !sourceAssetCode ||
+        !destinationAssetCode ||
+        !fxRate ||
+        !rateTtlSecs
+      ) {
+        return reply.status(400).send({
+          error:
+            'sourceAssetCode, destinationAssetCode, non-zero rate and non-zero rateTtlSecs are required'
+        });
+      }
+
+      if (fxRate <= 0 || rateTtlSecs <= 0) {
+        return reply.status(400).send({
+          error: 'rate and rateTtlSecs must be greater than 0'
+        });
+      }
+
+      try {
+        await palClient.setFxRate(
+          sourceAssetCode,
+          destinationAssetCode,
+          fxRate,
+          peerId,
+          rateTtlSecs
+        );
+      } catch {
+        return reply.status(500).send({ error: 'Failed to set FX rate' });
+      }
+
+      return reply.status(204).send();
+    }
+  );
 }
