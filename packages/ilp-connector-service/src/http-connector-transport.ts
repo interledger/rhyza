@@ -28,6 +28,10 @@ const DEFAULT_ACCEPT_TIMEOUT_MS = 5_000;
 const DEFAULT_CALLBACK_RETRY_DELAY_MS = 500;
 const REQUEST_ID_HEADER = 'request-id';
 const CALLBACK_URL_HEADER = 'callback-url';
+// An inbound Request-Id becomes our packet id, so it must be the UUID that
+// RFC 0035 asks for. Any UUID version is accepted.
+const REQUEST_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface HttpConnectorTransportOptions {
   directory: PeerDirectory;
@@ -312,7 +316,7 @@ export class HttpConnectorTransport implements IConnectorTransport {
     }
 
     const requestId = req.headers[REQUEST_ID_HEADER];
-    if (typeof requestId !== 'string') {
+    if (typeof requestId !== 'string' || !REQUEST_ID_PATTERN.test(requestId)) {
       res.writeHead(400).end();
       return;
     }
