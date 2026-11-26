@@ -35,6 +35,7 @@ import {
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
+  TokenIntrospectionFailedEvent,
   GrantInteractionChoiceFailedEvent,
   GrantInteractionChoiceHandledEvent,
   TokenRevokedEvent,
@@ -145,12 +146,26 @@ async function makeInteractiveGrantCmd(
   });
 }
 
-function makeIntrospectTokenCmd(
-  payload: Partial<IntrospectTokenCmdPayload> &
+type TestKeys = ReturnType<typeof generateTestKeys>;
+
+// Signs the introspection request with the given keys, or with a fresh
+// (unknown to any grant) key pair when none are given.
+async function makeIntrospectTokenCmd(
+  payload: Partial<Omit<IntrospectTokenCmdPayload, 'signatureData'>> &
     Pick<IntrospectTokenCmdPayload, 'id' | 'tokenValue'>,
+  keys: TestKeys = generateTestKeys(),
   requestId: string = randomUUID()
-): IntrospectTokenCmd {
-  return new IntrospectTokenCmd(payload, requestId);
+): Promise<IntrospectTokenCmd> {
+  return new IntrospectTokenCmd(
+    {
+      ...payload,
+      signatureData: await signedSignatureData(
+        keys.privateKey,
+        keys.publicKey.kid
+      )
+    },
+    requestId
+  );
 }
 
 function generateNonce(): string {
@@ -939,7 +954,7 @@ describe('GrantAggregate.handleBatch', () => {
           await createIssuedGrant();
 
         const before = await aggregate.handleBatch([
-          makeIntrospectTokenCmd({ id: grantId, tokenValue })
+          await makeIntrospectTokenCmd({ id: grantId, tokenValue }, keys)
         ]);
         assert.equal(before.events[0].msgName, TokenIntrospectedEvent.name);
         assert.equal(
@@ -973,7 +988,7 @@ describe('GrantAggregate.handleBatch', () => {
         assert.ok(revoked?.revokedAt);
 
         const after = await aggregate.handleBatch([
-          makeIntrospectTokenCmd({ id: grantId, tokenValue })
+          await makeIntrospectTokenCmd({ id: grantId, tokenValue }, keys)
         ]);
         assert.equal(after.events[0].msgName, TokenIntrospectedEvent.name);
         assert.equal(
@@ -1419,7 +1434,7 @@ describe('GrantAggregate.handleBatch', () => {
         access: CreateGrantCmdPayload['access'] = [
           { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
         ]
-      ): Promise<{ id: string; tokenValue: string }> {
+      ): Promise<{ id: string; tokenValue: string; keys: TestKeys }> {
         const keys = generateTestKeys();
         const createCmd = await makeCreateGrantCmd({
           client: JSON.stringify(keys.publicKey),
@@ -1436,7 +1451,8 @@ describe('GrantAggregate.handleBatch', () => {
 
         return {
           id: createCmd.payload.id,
-          tokenValue: payload.accessTokenValue as string
+          tokenValue: payload.accessTokenValue as string,
+          keys
         };
       }
 
@@ -1444,10 +1460,11 @@ describe('GrantAggregate.handleBatch', () => {
         const access = [
           { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
         ];
-        const { id, tokenValue } = await createAndFlushIssuedGrant(access);
+        const { id, tokenValue, keys } =
+          await createAndFlushIssuedGrant(access);
 
         const { events } = await aggregate.handleBatch([
-          makeIntrospectTokenCmd({ id, tokenValue })
+          await makeIntrospectTokenCmd({ id, tokenValue }, keys)
         ]);
 
         assert.equal(events.length, 1);
@@ -1458,11 +1475,73 @@ describe('GrantAggregate.handleBatch', () => {
         assert.deepEqual(payload.access, access);
       });
 
-      it('returns active: false for an access token value that does not match', async () => {
-        const { id } = await createAndFlushIssuedGrant();
+      it('verifies the signature against a client key provided through directed identity', async () => {
+        const { grantId, tokenValue, keys } = await createIssuedGrant();
 
         const { events } = await aggregate.handleBatch([
-          makeIntrospectTokenCmd({ id, tokenValue: 'unknown-token-value' })
+          await makeIntrospectTokenCmd({ id: grantId, tokenValue }, keys)
+        ]);
+
+        assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
+        assert.equal(
+          (events[0] as TokenIntrospectedEvent).payload.active,
+          true
+        );
+      });
+
+      it('verifies the signature against a client key hosted at a wallet address', async () => {
+        const { grantId, tokenValue, keys } = await createIssuedGrant({
+          useWalletAddress: true
+        });
+
+        const { events } = await aggregate.handleBatch([
+          await makeIntrospectTokenCmd({ id: grantId, tokenValue }, keys)
+        ]);
+
+        assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
+        assert.equal(
+          (events[0] as TokenIntrospectedEvent).payload.active,
+          true
+        );
+      });
+
+      it('fails with UnauthorizedRequestError when the request is signed by a different key', async () => {
+        const { id, tokenValue } = await createAndFlushIssuedGrant();
+
+        const { events } = await aggregate.handleBatch([
+          await makeIntrospectTokenCmd({ id, tokenValue }, generateTestKeys())
+        ]);
+
+        assert.equal(events.length, 1);
+        assert.equal(events[0].msgName, TokenIntrospectionFailedEvent.name);
+        const payload = (events[0] as TokenIntrospectionFailedEvent).payload;
+        assert.equal(payload.grantId, id);
+        assert.equal(payload.errorName, 'UnauthorizedRequestError');
+        assert.equal(payload.errorType, 'PermissionDenied');
+      });
+
+      it('fails with UnauthorizedRequestError when the signed request was tampered with', async () => {
+        const { id, tokenValue, keys } = await createAndFlushIssuedGrant();
+        const cmd = await makeIntrospectTokenCmd({ id, tokenValue }, keys);
+        cmd.payload.signatureData.url = 'https://auth.example/other';
+
+        const { events } = await aggregate.handleBatch([cmd]);
+
+        assert.equal(events[0].msgName, TokenIntrospectionFailedEvent.name);
+        assert.equal(
+          (events[0] as TokenIntrospectionFailedEvent).payload.errorName,
+          'UnauthorizedRequestError'
+        );
+      });
+
+      it('returns active: false for an access token value that does not match', async () => {
+        const { id, keys } = await createAndFlushIssuedGrant();
+
+        const { events } = await aggregate.handleBatch([
+          await makeIntrospectTokenCmd(
+            { id, tokenValue: 'unknown-token-value' },
+            keys
+          )
         ]);
 
         assert.equal(events.length, 1);
@@ -1477,14 +1556,14 @@ describe('GrantAggregate.handleBatch', () => {
           { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] },
           { type: AccessType.QUOTE, actions: [AccessAction.CREATE] }
         ];
-        const { id, tokenValue } = await createAndFlushIssuedGrant(access);
+        const { id, tokenValue, keys } =
+          await createAndFlushIssuedGrant(access);
 
         const { events } = await aggregate.handleBatch([
-          makeIntrospectTokenCmd({
-            id,
-            tokenValue,
-            access: [access[0]]
-          })
+          await makeIntrospectTokenCmd(
+            { id, tokenValue, access: [access[0]] },
+            keys
+          )
         ]);
 
         assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
@@ -1493,26 +1572,52 @@ describe('GrantAggregate.handleBatch', () => {
         assert.deepEqual(payload.access, [access[0]]);
       });
 
-      it('returns active: false when the requested access items are not fully covered by the grant', async () => {
+      it('returns active: true with only the covered access items when the grant does not cover every requested item', async () => {
         const access = [
           { type: AccessType.INCOMING_PAYMENT, actions: [AccessAction.READ] }
         ];
-        const { id, tokenValue } = await createAndFlushIssuedGrant(access);
+        const { id, tokenValue, keys } =
+          await createAndFlushIssuedGrant(access);
 
         const { events } = await aggregate.handleBatch([
-          makeIntrospectTokenCmd({
-            id,
-            tokenValue,
-            access: [
-              ...access,
-              { type: AccessType.QUOTE, actions: [AccessAction.CREATE] }
-            ]
-          })
+          await makeIntrospectTokenCmd(
+            {
+              id,
+              tokenValue,
+              access: [
+                ...access,
+                { type: AccessType.QUOTE, actions: [AccessAction.CREATE] }
+              ]
+            },
+            keys
+          )
         ]);
 
         assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
         const payload = (events[0] as TokenIntrospectedEvent).payload;
-        assert.equal(payload.active, false);
+        assert.equal(payload.active, true);
+        assert.deepEqual(payload.access, access);
+      });
+
+      it('returns active: true with no access items when nothing requested is covered', async () => {
+        const { id, tokenValue, keys } = await createAndFlushIssuedGrant();
+
+        const { events } = await aggregate.handleBatch([
+          await makeIntrospectTokenCmd(
+            {
+              id,
+              tokenValue,
+              access: [
+                { type: AccessType.QUOTE, actions: [AccessAction.CREATE] }
+              ]
+            },
+            keys
+          )
+        ]);
+
+        const payload = (events[0] as TokenIntrospectedEvent).payload;
+        assert.equal(payload.active, true);
+        assert.deepEqual(payload.access, []);
       });
 
       it('returns active: false when the grant does not exist', async () => {
@@ -1520,7 +1625,7 @@ describe('GrantAggregate.handleBatch', () => {
         const debugMock = mock.method(logger, 'debug', () => {});
 
         const { events } = await aggregate.handleBatch([
-          makeIntrospectTokenCmd({ id, tokenValue: 'some-token-value' })
+          await makeIntrospectTokenCmd({ id, tokenValue: 'some-token-value' })
         ]);
 
         assert.equal(events.length, 1);
@@ -1538,23 +1643,21 @@ describe('GrantAggregate.handleBatch', () => {
         );
       });
 
-      it('returns active: false and logs the error when introspection fails unexpectedly', async () => {
-        const { id, tokenValue } = await createAndFlushIssuedGrant();
-        const errorMock = mock.method(logger, 'error', () => {});
+      it('fails with TokenIntrospectionFailedEvent when introspection fails unexpectedly', async () => {
+        const { id, tokenValue, keys } = await createAndFlushIssuedGrant();
         mock.method(GrantEntity.prototype, 'introspectAccessToken', () => {
           throw new Error('unexpected failure');
         });
 
         const { events } = await aggregate.handleBatch([
-          makeIntrospectTokenCmd({ id, tokenValue })
+          await makeIntrospectTokenCmd({ id, tokenValue }, keys)
         ]);
 
         assert.equal(events.length, 1);
-        assert.equal(events[0].msgName, TokenIntrospectedEvent.name);
-        const payload = (events[0] as TokenIntrospectedEvent).payload;
-        assert.equal(payload.id, id);
-        assert.equal(payload.active, false);
-        assert.equal(errorMock.mock.callCount(), 1);
+        assert.equal(events[0].msgName, TokenIntrospectionFailedEvent.name);
+        const payload = (events[0] as TokenIntrospectionFailedEvent).payload;
+        assert.equal(payload.grantId, id);
+        assert.equal(payload.message, 'unexpected failure');
       });
     });
 
