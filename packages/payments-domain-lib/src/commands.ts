@@ -94,10 +94,16 @@ export abstract class PaymentIntentCommand extends CommandMsg {
     return cmd.msgName === FinalizeInboundPaymentCmd.name;
   }
 
-  static isMarkInboundPaymentFulfillableCmd(
+  static isMarkInboundPaymentFulfilledCmd(
     cmd: CommandMsg
-  ): cmd is MarkInboundPaymentFulfillableCmd {
-    return cmd.msgName === MarkInboundPaymentFulfillableCmd.name;
+  ): cmd is MarkInboundPaymentFulfilledCmd {
+    return cmd.msgName === MarkInboundPaymentFulfilledCmd.name;
+  }
+
+  static isExpireInboundPaymentCmd(
+    cmd: CommandMsg
+  ): cmd is ExpireInboundPaymentCmd {
+    return cmd.msgName === ExpireInboundPaymentCmd.name;
   }
 }
 
@@ -349,6 +355,7 @@ export type ValidateInboundPaymentCmdPayload = {
   peerId: string;
   sourceAmount: string;
   expiresAt?: string;
+  ledgerTransferId: string;
 };
 
 export class ValidateInboundPaymentCmd extends PaymentIntentCommand {
@@ -364,7 +371,6 @@ export class ValidateInboundPaymentCmd extends PaymentIntentCommand {
 export type AcceptInboundPaymentCmdPayload = {
   inboundPaymentId: string;
   paymentIntentId: string;
-  ledgerTransferId: string;
 };
 
 export class AcceptInboundPaymentCmd extends PaymentIntentCommand {
@@ -377,9 +383,14 @@ export class AcceptInboundPaymentCmd extends PaymentIntentCommand {
   }
 }
 
+// TODO: a step enum may be a smell; consider one command per step
+// (FailInboundPaymentReserveCmd, FailInboundPaymentFulfillCmd).
+export type InboundPaymentFailedStep = 'RESERVE' | 'FULFILL';
+
 export type FailInboundPaymentCmdPayload = {
   inboundPaymentId: string;
   paymentIntentId: string;
+  failedStep: InboundPaymentFailedStep;
   reason?: string;
 };
 
@@ -393,16 +404,16 @@ export class FailInboundPaymentCmd extends PaymentIntentCommand {
   }
 }
 
-export type MarkInboundPaymentFulfillableCmdPayload = {
+export type MarkInboundPaymentFulfilledCmdPayload = {
   inboundPaymentId: string;
   paymentIntentId: string;
 };
 
-export class MarkInboundPaymentFulfillableCmd extends PaymentIntentCommand {
-  payload: MarkInboundPaymentFulfillableCmdPayload;
+export class MarkInboundPaymentFulfilledCmd extends PaymentIntentCommand {
+  payload: MarkInboundPaymentFulfilledCmdPayload;
 
   constructor(
-    payload: MarkInboundPaymentFulfillableCmdPayload,
+    payload: MarkInboundPaymentFulfilledCmdPayload,
     requestId: string
   ) {
     super(payload.paymentIntentId);
@@ -420,6 +431,50 @@ export class FinalizeInboundPaymentCmd extends PaymentIntentCommand {
   payload: FinalizeInboundPaymentCmdPayload;
 
   constructor(payload: FinalizeInboundPaymentCmdPayload, requestId: string) {
+    super(payload.paymentIntentId);
+    this.requestId = requestId;
+    this.payload = payload;
+  }
+}
+
+export type ExpirePaymentIntentCmdPayload = {
+  paymentIntentId: string;
+};
+
+export class ExpirePaymentIntentCmd extends PaymentIntentCommand {
+  payload: ExpirePaymentIntentCmdPayload;
+
+  constructor(payload: ExpirePaymentIntentCmdPayload, requestId: string) {
+    super(payload.paymentIntentId);
+    this.requestId = requestId;
+    this.payload = payload;
+  }
+}
+
+export type ExpireRemotePaymentCmdPayload = {
+  paymentIntentId: string;
+  paymentId: string;
+};
+
+export class ExpireRemotePaymentCmd extends PaymentIntentCommand {
+  payload: ExpireRemotePaymentCmdPayload;
+
+  constructor(payload: ExpireRemotePaymentCmdPayload, requestId: string) {
+    super(payload.paymentIntentId);
+    this.requestId = requestId;
+    this.payload = payload;
+  }
+}
+
+export type ExpireInboundPaymentCmdPayload = {
+  paymentIntentId: string;
+  inboundPaymentId: string;
+};
+
+export class ExpireInboundPaymentCmd extends PaymentIntentCommand {
+  payload: ExpireInboundPaymentCmdPayload;
+
+  constructor(payload: ExpireInboundPaymentCmdPayload, requestId: string) {
     super(payload.paymentIntentId);
     this.requestId = requestId;
     this.payload = payload;

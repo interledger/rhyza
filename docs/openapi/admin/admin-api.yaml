@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Rhyza Admin API
-  version: 0.0.21
+  version: 0.0.22
   license:
     name: ISC
     identifier: ISC
@@ -1671,8 +1671,12 @@ components:
       enum:
         - CREATED
         - COMPLETED
+        - EXPIRED
     PaymentState:
       type: string
+      description: >-
+        EXPIRED means the payment passed its expiry before it was fulfilled. It
+        becomes FAILED once its reserved funds are released.
       enum:
         - CREATED
         - PROCESSING
@@ -1682,6 +1686,7 @@ components:
         - COMPLETED
         - CANCELLED
         - FAILED
+        - EXPIRED
     Grant:
       type: object
       description: Represents an Open Payments grant.

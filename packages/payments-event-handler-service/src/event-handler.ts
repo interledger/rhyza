@@ -1,5 +1,6 @@
 import {
   DomainEventTopics,
+  ILogger,
   IMessage,
   IMessageConsumer,
   IMessageProducer
@@ -15,7 +16,7 @@ import {
   ValidateInboundPaymentCmd,
   AcceptInboundPaymentCmd,
   FailInboundPaymentCmd,
-  MarkInboundPaymentFulfillableCmd,
+  MarkInboundPaymentFulfilledCmd,
   FinalizeInboundPaymentCmd,
   CalculateRemoteQuoteCmd
 } from 'payments-domain-lib';
@@ -43,6 +44,7 @@ import {
   LedgerOutgoingTransferRejectFailedEvent,
   LedgerIncomingTransferReserveFailedEvent,
   LedgerIncomingTransferCommitFailedEvent,
+  LedgerIncomingTransferRejectFailedEvent,
   LedgerHighLevelSuccessResponseEventPayload,
   LedgerHighLevelFailureResponseEventPayload
 } from 'pal-public-types-lib';
@@ -50,10 +52,16 @@ import {
 export class PaymentsEventHandler {
   private _msgConsumer: IMessageConsumer;
   private _msgProducer: IMessageProducer;
+  private _logger: ILogger;
 
-  constructor(msgConsumer: IMessageConsumer, msgProducer: IMessageProducer) {
+  constructor(
+    msgConsumer: IMessageConsumer,
+    msgProducer: IMessageProducer,
+    logger: ILogger
+  ) {
     this._msgConsumer = msgConsumer;
     this._msgProducer = msgProducer;
+    this._logger = logger;
   }
 
   async start(): Promise<void> {
@@ -135,7 +143,8 @@ export class PaymentsEventHandler {
             packetId: payload.packetId,
             peerId: payload.peerId,
             sourceAmount: payload.sourceAmount,
-            expiresAt: payload.expiresAt
+            expiresAt: payload.expiresAt,
+            ledgerTransferId: crypto.randomUUID()
           },
           payload.requestId
         );
@@ -151,8 +160,7 @@ export class PaymentsEventHandler {
         const cmd = new AcceptInboundPaymentCmd(
           {
             inboundPaymentId: payload.paymentId,
-            paymentIntentId: payload.paymentIntentId,
-            ledgerTransferId: payload.transferId
+            paymentIntentId: payload.paymentIntentId
           },
           payload.requestId
         );
@@ -162,7 +170,7 @@ export class PaymentsEventHandler {
       case LedgerIncomingTransferCommittedEvent.name: {
         const payload =
           message.payload as LedgerHighLevelSuccessResponseEventPayload;
-        const cmd = new MarkInboundPaymentFulfillableCmd(
+        const cmd = new FinalizeInboundPaymentCmd(
           {
             inboundPaymentId: payload.paymentId,
             paymentIntentId: payload.paymentIntentId
@@ -175,7 +183,7 @@ export class PaymentsEventHandler {
       case ILPPaymentFulfillmentSentEvent.name: {
         const payload =
           message.payload as ILPPaymentFulfillmentSentEvent['payload'];
-        const cmd = new FinalizeInboundPaymentCmd(
+        const cmd = new MarkInboundPaymentFulfilledCmd(
           {
             inboundPaymentId: payload.inboundPaymentId,
             paymentIntentId: payload.paymentIntentId
@@ -192,6 +200,7 @@ export class PaymentsEventHandler {
           {
             inboundPaymentId: payload.inboundPaymentId,
             paymentIntentId: payload.paymentIntentId,
+            failedStep: 'FULFILL',
             reason: payload.reason ?? 'ILP fulfillment failed'
           },
           payload.requestId
@@ -199,14 +208,14 @@ export class PaymentsEventHandler {
         await this._msgProducer.send(cmd);
         break;
       }
-      case LedgerIncomingTransferInsufficientFundsErrorEvent.name:
-      case LedgerIncomingTransferRejectedEvent.name: {
+      case LedgerIncomingTransferInsufficientFundsErrorEvent.name: {
         const payload =
           message.payload as LedgerHighLevelFailureResponseEventPayload;
         const cmd = new FailInboundPaymentCmd(
           {
             inboundPaymentId: payload.paymentId,
             paymentIntentId: payload.paymentIntentId,
+            failedStep: 'RESERVE',
             reason: payload.errorMessage ?? 'Ledger transfer failed'
           },
           payload.requestId
@@ -221,6 +230,7 @@ export class PaymentsEventHandler {
           {
             inboundPaymentId: payload.paymentId,
             paymentIntentId: payload.paymentIntentId,
+            failedStep: 'RESERVE',
             reason: payload.errorMessage
           },
           payload.requestId
@@ -228,18 +238,24 @@ export class PaymentsEventHandler {
         await this._msgProducer.send(cmd);
         break;
       }
-      case LedgerIncomingTransferCommitFailedEvent.name: {
+      case LedgerIncomingTransferRejectedEvent.name: {
+        // Reply to the void of an already FAILED payment.
+        const payload =
+          message.payload as LedgerHighLevelSuccessResponseEventPayload;
+        this._logger.debug(
+          `Incoming transfer ${payload.transferId} voided for inbound payment ${payload.paymentId}`
+        );
+        break;
+      }
+      case LedgerIncomingTransferCommitFailedEvent.name:
+      case LedgerIncomingTransferRejectFailedEvent.name: {
+        // The fulfill already went out, or the reservation is still held.
+        // TODO: needs reconciliation.
         const payload =
           message.payload as LedgerHighLevelFailureResponseEventPayload;
-        const cmd = new FailInboundPaymentCmd(
-          {
-            inboundPaymentId: payload.paymentId,
-            paymentIntentId: payload.paymentIntentId,
-            reason: payload.errorMessage ?? 'Ledger commit failed'
-          },
-          payload.requestId
+        this._logger.error(
+          `${message.msgName} for inbound payment ${payload.paymentId} of payment intent ${payload.paymentIntentId}, transfer ${payload.transferId}: ${payload.errorMessage}`
         );
-        await this._msgProducer.send(cmd);
         break;
       }
       case LedgerOutgoingTransferReservedEvent.name: {

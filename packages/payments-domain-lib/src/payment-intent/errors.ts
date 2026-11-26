@@ -62,6 +62,13 @@ export class PaymentIntentExpired extends FailedPrecondition {
   }
 }
 
+export class InboundPaymentExpiredError extends FailedPrecondition {
+  constructor(message?: string) {
+    super(message);
+    this.name = 'InboundPaymentExpiredError';
+  }
+}
+
 export class RatesError extends Internal {
   constructor(message?: string) {
     super(message);
