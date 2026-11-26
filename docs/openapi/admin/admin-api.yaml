@@ -992,10 +992,12 @@ components:
       properties:
         sourceAssetCode:
           type: string
+          minLength: 1
           description: Asset code the rate converts from.
           example: USD
         destinationAssetCode:
           type: string
+          minLength: 1
           description: Asset code the rate converts to.
           example: EUR
         rate:
