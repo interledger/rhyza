@@ -27,7 +27,7 @@ export function decodeCompoundId(value: string): {
     throw new OpenPaymentsResourceServerRouteError(
       404,
       'Malformed id',
-      'invalid_request'
+      'not_found'
     );
   }
 

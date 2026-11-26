@@ -1,9 +1,15 @@
 import { FastifyRequest, FastifyReply, FastifyError } from 'fastify';
+import { ILogger } from 'common-types-lib';
 import { components } from './types/generated/resource-server-types.js';
 
 const ResourceServerErrorCode = {
   invalid_request: 'invalid_request',
-  not_found: 'not_found'
+  not_found: 'not_found',
+  invalid_token: 'invalid_token',
+  invalid_signature: 'invalid_signature',
+  inactive_token: 'inactive_token',
+  insufficient_grant: 'insufficient_grant',
+  internal_server_error: 'internal_server_error'
 } as const;
 type ResourceServerErrorCode = keyof typeof ResourceServerErrorCode;
 
@@ -28,41 +34,44 @@ export class OpenPaymentsResourceServerRouteError extends Error {
   }
 }
 
-export function errorHandler(
-  error: FastifyError,
-  _: FastifyRequest,
-  reply: FastifyReply
-) {
-  let resourceServerError: components['schemas']['error-response'];
-  let statusCode: number;
+export function createErrorHandler(logger: ILogger) {
+  return function errorHandler(
+    error: FastifyError,
+    _: FastifyRequest,
+    reply: FastifyReply
+  ) {
+    let resourceServerError: components['schemas']['error-response'];
+    let statusCode: number;
 
-  if (error.validation) {
-    statusCode = 400;
-    resourceServerError = {
-      error: {
-        code: 'invalid_request',
-        description: error.message
-      }
-    };
-  } else if (error instanceof OpenPaymentsResourceServerRouteError) {
-    statusCode = error.status;
-    resourceServerError = {
-      error: {
-        code: error.code,
-        description: error.message
-      }
-    };
-  } else {
-    console.error(error);
+    if (error.validation) {
+      statusCode = 400;
+      resourceServerError = {
+        error: {
+          code: 'invalid_request',
+          description: error.message
+        }
+      };
+    } else if (error instanceof OpenPaymentsResourceServerRouteError) {
+      statusCode = error.status;
+      resourceServerError = {
+        error: {
+          code: error.code,
+          description: error.message,
+          ...(error.details && { details: error.details })
+        }
+      };
+    } else {
+      logger.error(error, 'Unhandled error');
 
-    statusCode = 500;
-    resourceServerError = {
-      error: {
-        code: 'invalid_request',
-        description: 'Unhandled error'
-      }
-    };
-  }
+      statusCode = 500;
+      resourceServerError = {
+        error: {
+          code: 'internal_server_error',
+          description: 'Unhandled error'
+        }
+      };
+    }
 
-  reply.status(statusCode).send(resourceServerError);
+    reply.status(statusCode).send(resourceServerError);
+  };
 }
