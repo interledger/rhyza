@@ -1,17 +1,6 @@
-import {
-  Collection,
-  CollectionInfo,
-  Db,
-  MongoClient,
-  MongoServerError
-} from 'mongodb';
+import { Collection, CollectionInfo, Db, MongoClient } from 'mongodb';
 import { ILogger } from 'common-types-lib';
-import {
-  DuplicatePacket,
-  IPacketCorrelation,
-  IPeer,
-  IPeerStore
-} from 'ilp-domain-lib';
+import { IPacketCorrelation, IPeer, IPeerStore } from 'ilp-domain-lib';
 
 const DB_NAME = 'ilp';
 const PEERS_COLLECTION_NAME = 'peers';
@@ -182,9 +171,6 @@ export class MongoDbPeerRepository implements IPeerStore {
     try {
       await this._packetCollection.insertOne({ ...packet });
     } catch (e) {
-      if (e instanceof MongoServerError && e.code === 11000) {
-        throw new DuplicatePacket(`Packet ${packet.packetId} already exists`);
-      }
       this._logger.error(e);
       throw new Error(
         `Unable to store packet ${packet.packetId} - error: ${(e as Error).message}`

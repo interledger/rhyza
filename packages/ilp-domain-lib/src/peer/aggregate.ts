@@ -20,7 +20,7 @@ import {
   IPeeringClient,
   PacketCorrelation
 } from '../packet';
-import { DuplicatePacket, PacketNotFound } from '../packet/errors';
+import { PacketNotFound } from '../packet/errors';
 import {
   decodeStreamReply,
   encodeOutgoingStreamPrepare,
@@ -754,23 +754,21 @@ export class IlpPeerAggregate {
 
   // An inbound packet id is the peer's Request-Id, so it can match a packet
   // we already hold. Returns false when the prepare must go no further.
+  // ProcessPreparePacketCmd is keyed by packetId, so no other prepare can
+  // store this id between the check and the insert.
   private async storeInboundPacket(
     packet: IPacketCorrelation
   ): Promise<boolean> {
-    try {
+    const existing = await this.peerRepo.fetchPacketById(packet.packetId);
+    if (!existing) {
       await this.peerRepo.storePacket(packet);
       return true;
-    } catch (e) {
-      if (!(e instanceof DuplicatePacket)) {
-        throw e;
-      }
     }
 
-    const existing = await this.peerRepo.fetchPacketById(packet.packetId);
     // The same peer sending the same id again is a redelivered command or a
     // retried POST. The peer matches replies by Request-Id, so any reply here
     // would settle the packet we already hold
-    if (existing?.inboundPrepare && existing.peerId === packet.peerId) {
+    if (existing.inboundPrepare && existing.peerId === packet.peerId) {
       return false;
     }
     await this.rejectInbound(packet, REJECT_CODE_BAD_REQUEST);
