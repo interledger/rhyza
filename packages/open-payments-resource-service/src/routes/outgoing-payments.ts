@@ -9,7 +9,12 @@ import {
   PaymentsClient,
   IPayment
 } from 'payments-client-lib';
-import { AuthClient } from 'auth-client-lib';
+import {
+  AuthClient,
+  AuthClientInsufficientGrantError,
+  AuthClientInvalidGrantError,
+  isAuthClientError
+} from 'auth-client-lib';
 import { OpenPaymentsResourceServerRouteError } from '../errors.js';
 import {
   AccessType,
@@ -153,16 +158,19 @@ export async function outgoingPaymentRoutes(
               debitAmountValue: Number(request.body.debitAmount.value)
             } as const);
 
+      const grantId = request.grantId!;
+
       try {
         // Open Payments requires a receiveAmount on the created outgoing payment, but
         // we will not have one if it is created without a quote (only debit amount).
-        // A quote is created here as a workaround.
+        // A quote is created here as a workaround. Its amounts are also what
+        // the grant spend limit is checked against.
         const quote =
           quoteSource.kind === 'existing'
-            ? {
-                paymentIntentId: quoteSource.paymentIntentId,
-                id: quoteSource.resourceId
-              }
+            ? await paymentsClient.getQuote(
+                quoteSource.paymentIntentId,
+                quoteSource.resourceId
+              )
             : await paymentsClient.createQuote(
                 randomUUID(),
                 { paymentIntentUrl: quoteSource.incomingPaymentUrl },
@@ -171,6 +179,40 @@ export async function outgoingPaymentRoutes(
                 quoteSource.debitAmountValue
               );
 
+        if (
+          quote.debitAmount === undefined ||
+          quote.receiveAmount === undefined
+        ) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Quote has no debit or receive amount',
+            'invalid_request'
+          );
+        }
+
+        const createdAt = new Date().toISOString();
+
+        try {
+          await authClient.validateOutgoingPaymentGrantLimit(
+            grantId,
+            quote.debitAmount,
+            quote.receiveAmount,
+            createdAt
+          );
+        } catch (err) {
+          if (
+            err instanceof AuthClientInsufficientGrantError ||
+            err instanceof AuthClientInvalidGrantError
+          ) {
+            throw new OpenPaymentsResourceServerRouteError(
+              403,
+              'Insufficient Grant',
+              'insufficient_grant'
+            );
+          }
+          throw err;
+        }
+
         const { payment } = await paymentsClient.createPayment(
           randomUUID(),
           { paymentIntentId: quote.paymentIntentId },
@@ -178,8 +220,8 @@ export async function outgoingPaymentRoutes(
           walletAddressUrl,
           quote.id,
           undefined, // debitAmount
-          undefined, // createdAt
-          request.grantId ?? undefined,
+          createdAt,
+          grantId,
           metadata
         );
 
@@ -187,6 +229,12 @@ export async function outgoingPaymentRoutes(
           .status(201)
           .send(toOutgoingPaymentBody(payment, openPaymentsUrl));
       } catch (err) {
+        if (
+          err instanceof OpenPaymentsResourceServerRouteError ||
+          isAuthClientError(err)
+        ) {
+          throw err;
+        }
         const httpStatus = httpStatusFromGrpcError(err);
 
         if (httpStatus === 400 || httpStatus === 409) {

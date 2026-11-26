@@ -14,10 +14,14 @@ import {
   GrantFinish,
   SubjectId,
   AccessLimits,
+  GrantSpentAmountsResult,
   AuthClientUnauthorizedRequestError,
   AuthClientInvalidContinuationError,
   AuthClientInvalidRotationError,
-  AuthClientUnknownAccessTokenError
+  AuthClientUnknownAccessTokenError,
+  AuthClientGrantNotFoundError,
+  AuthClientInsufficientGrantError,
+  AuthClientInvalidGrantError
 } from '../src/';
 
 describe('Auth Client', () => {
@@ -1067,6 +1071,186 @@ describe('Auth Client', () => {
       assert.equal(result.active, false);
     });
   });
+  describe('validateOutgoingPaymentGrantLimit', () => {
+    // Takes an outgoing payment grant through the interaction flow so it is
+    // ISSUED, which is required before spent amounts can be validated.
+    async function createIssuedOutgoingPaymentGrant(
+      limits?: AccessLimits
+    ): Promise<{ id: string }> {
+      const keys = generateTestKeys();
+      const created = await authClient.createGrant(
+        registerWalletAddress(keys.publicKey, `Test Client ${randomUUID()}`),
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
+        {
+          access: [
+            makeAccessItem({
+              type: 'OUTGOING_PAYMENT',
+              actions: ['CREATE'],
+              ...(limits ? { limits } : {})
+            })
+          ],
+          start: ['redirect'],
+          finish: {
+            method: 'REDIRECT',
+            uri: 'https://client.example/finish',
+            nonce: 'finish-nonce'
+          }
+        }
+      );
+
+      const { nonce } = await authClient.startInteraction(created.id);
+      await authClient.acceptInteraction(created.id);
+      const { interactRef } = await authClient.finishInteraction(
+        created.id,
+        nonce
+      );
+
+      // We must wait at least 5 seconds before continuing grant
+      await new Promise((resolve) => setTimeout(resolve, 5_100));
+
+      await authClient.continueGrant(
+        created.id,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
+        created.continueId,
+        created.continueToken,
+        interactRef
+      );
+
+      return { id: created.id };
+    }
+
+    const debitLimit = (value: string): AccessLimits => ({
+      debitAmount: { assetCode: 'USD', assetScale: 2, value }
+    });
+
+    test('adds the amounts to the grant spent totals', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant(debitLimit('100'));
+      const createdAt = new Date().toISOString();
+
+      const first = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        40n,
+        35n,
+        createdAt
+      );
+      assert.deepStrictEqual(first, {
+        grantId: id,
+        totalSpentDebitAmount: 40n,
+        totalSpentReceiveAmount: 35n,
+        intervalSpentDebitAmount: undefined,
+        intervalSpentReceiveAmount: undefined
+      });
+
+      const second = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        60n,
+        50n,
+        createdAt
+      );
+      assert.equal(second.totalSpentDebitAmount, 100n);
+      assert.equal(second.totalSpentReceiveAmount, 85n);
+    });
+
+    test('returns interval spent amounts for a grant with an interval', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant({
+        ...debitLimit('100'),
+        interval: 'R/2026-01-01T00:00:00Z/P1M'
+      });
+
+      const result = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        10n,
+        8n,
+        new Date().toISOString()
+      );
+
+      assert.equal(result.intervalSpentDebitAmount, 10n);
+      assert.equal(result.intervalSpentReceiveAmount, 8n);
+    });
+
+    test('rejects with AuthClientInsufficientGrantError when the debit limit would be exceeded', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant(debitLimit('100'));
+
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(
+          id,
+          101n,
+          90n,
+          new Date().toISOString()
+        ),
+        AuthClientInsufficientGrantError
+      );
+    });
+
+    test('does not overspend the debit limit under concurrent requests', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant(debitLimit('100'));
+      const createdAt = new Date().toISOString();
+
+      const results = await Promise.allSettled([
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt),
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt),
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt)
+      ]);
+
+      const fulfilled = results.filter(
+        (r): r is PromiseFulfilledResult<GrantSpentAmountsResult> =>
+          r.status === 'fulfilled'
+      );
+      const rejected = results.filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected'
+      );
+
+      assert.equal(fulfilled.length, 2);
+      assert.equal(rejected.length, 1);
+      assert.ok(rejected[0].reason instanceof AuthClientInsufficientGrantError);
+      assert.deepStrictEqual(
+        fulfilled.map((r) => r.value.totalSpentDebitAmount).sort(),
+        [40n, 80n]
+      );
+
+      // The remaining 20 can still be spent, landing exactly on the limit
+      const remaining = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        20n,
+        20n,
+        createdAt
+      );
+      assert.equal(remaining.totalSpentDebitAmount, 100n);
+
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(id, 1n, 1n, createdAt),
+        AuthClientInsufficientGrantError
+      );
+    });
+
+    test('rejects with AuthClientInvalidGrantError for a grant that is not issued', async () => {
+      const keys = generateTestKeys();
+      const { id } = await createInteractiveGrant(keys);
+
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(
+          id,
+          10n,
+          10n,
+          new Date().toISOString()
+        ),
+        AuthClientInvalidGrantError
+      );
+    });
+
+    test('rejects with AuthClientGrantNotFoundError for an unknown grant', async () => {
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(
+          randomUUID(),
+          10n,
+          10n,
+          new Date().toISOString()
+        ),
+        AuthClientGrantNotFoundError
+      );
+    });
+  });
+
   describe('startInteraction', () => {
     test('starts the interaction for a pending interactive grant', async () => {
       const { id } = await createInteractiveGrant();

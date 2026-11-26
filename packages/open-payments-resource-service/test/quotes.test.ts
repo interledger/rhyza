@@ -9,10 +9,10 @@ import {
   GetQuoteResult,
   PaymentsClient
 } from 'payments-client-lib';
-import { NullLogger } from 'common-types-lib';
 import resourceServerOpenApiJsonSchema from '../../../open-payments-specifications/json/resource-server.json';
 import { quoteRoutes } from '../src/routes/quotes';
 import { createErrorHandler } from '../src/errors';
+import { NullLogger } from 'common-types-lib';
 import { FastifyOpenApiValidator } from '../src/validator';
 import { encodeCompoundId } from '../src/utils';
 import {

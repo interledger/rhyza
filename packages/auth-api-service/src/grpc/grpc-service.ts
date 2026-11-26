@@ -43,7 +43,9 @@ import {
   Grant,
   FinishInteractionRequest,
   FinishInteractionResponse,
-  HandleInteractionChoiceResponse
+  HandleInteractionChoiceResponse,
+  ValidateOutgoingPaymentGrantLimitRequest,
+  GrantSpentAmountsResponse
 } from 'auth-public-types-lib';
 
 import {
@@ -89,7 +91,10 @@ import {
   GrantInteractionFinishFailedEvent,
   GrantInteractionChoiceFailedEvent,
   GrantState,
-  IGrant
+  IGrant,
+  ValidateOutgoingPaymentGrantLimitCmd,
+  OutgoingPaymentGrantLimitValidatedEvent,
+  OutgoingPaymentGrantLimitValidationFailedEvent
 } from 'auth-domain-lib';
 import crypto from 'crypto';
 import { IGrantRepository } from 'auth-domain-lib/src';
@@ -161,6 +166,7 @@ export class AuthServiceServer {
       createGrant: this._handleUnary.bind(this),
       continueGrant: this._handleUnary.bind(this),
       revokeGrant: this._handleUnary.bind(this),
+      validateOutgoingPaymentGrantLimit: this._handleUnary.bind(this),
       adminRevokeGrant: this._handleUnary.bind(this),
       introspectToken: this._handleUnary.bind(this),
       rotateToken: this._handleUnary.bind(this),
@@ -552,6 +558,22 @@ export class AuthServiceServer {
         commandId
       );
       await this._msgProducer.send(cmd);
+    } else if (
+      call.request instanceof ValidateOutgoingPaymentGrantLimitRequest
+    ) {
+      const commandId = crypto.randomUUID();
+      this._storePendingResponse(commandId, call, callback);
+
+      const cmd = new ValidateOutgoingPaymentGrantLimitCmd(
+        {
+          id: call.request.getId(),
+          debitAmountValue: call.request.getDebitAmountValue(),
+          receiveAmountValue: call.request.getReceiveAmountValue(),
+          createdAt: call.request.getCreatedAt()
+        },
+        commandId
+      );
+      await this._msgProducer.send(cmd);
     } else {
       callback(
         new Error(`Invalid request type: ${call.request.constructor.name}`)
@@ -910,6 +932,31 @@ export class AuthServiceServer {
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isGrantInteractionChoiceFailedEvent(event)) {
       const payload: GrantInteractionChoiceFailedEvent['payload'] =
+        event.payload;
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
+    } else if (
+      AuthDomainEvent.isOutgoingPaymentGrantLimitValidatedEvent(event)
+    ) {
+      const payload: OutgoingPaymentGrantLimitValidatedEvent['payload'] =
+        event.payload;
+      const response = new GrantSpentAmountsResponse();
+      response.setId(payload.id);
+      response.setTotalSpentDebitAmount(payload.spentAmounts.total.debit);
+      response.setTotalSpentReceiveAmount(payload.spentAmounts.total.receive);
+      if (payload.spentAmounts.interval) {
+        response.setIntervalSpentDebitAmount(
+          payload.spentAmounts.interval.total.debit
+        );
+        response.setIntervalSpentReceiveAmount(
+          payload.spentAmounts.interval.total.receive
+        );
+      }
+      this._resolvePendingResponse(pending, requestId, null, response);
+    } else if (
+      AuthDomainEvent.isOutgoingPaymentGrantLimitValidationFailedEvent(event)
+    ) {
+      const payload: OutgoingPaymentGrantLimitValidationFailedEvent['payload'] =
         event.payload;
       this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else {
