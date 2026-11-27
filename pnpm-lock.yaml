@@ -80,13 +80,10 @@ importers:
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
-        version: 10.0.1(eslint@10.10.0)
+        version: 10.0.1(eslint@10.15.0)
       '@redocly/cli':
         specifier: ^2.31.2
         version: 2.51.1
-      '@types/js-yaml':
-        specifier: ^4.0.9
-        version: 4.0.9
       '@types/node':
         specifier: ^24.10.11
         version: 24.10.11
