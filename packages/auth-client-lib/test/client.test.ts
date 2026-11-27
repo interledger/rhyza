@@ -243,6 +243,7 @@ describe('Auth Client', () => {
       assert.ok(result.continueId);
       assert.ok(result.continueToken);
       assert.ok(result.interactionNonce);
+      assert.equal(result.continueWaitSeconds, 5);
       assert.equal(result.accessTokenValue, undefined);
       assert.equal(result.accessTokenManagementId, undefined);
       assert.equal(result.accessTokenExpiresIn, undefined);
@@ -629,6 +630,7 @@ describe('Auth Client', () => {
       assert.ok(result.continueToken);
       assert.notEqual(result.continueToken, created.continueToken);
       assert.notEqual(result.continueId, created.continueId);
+      assert.equal(result.continueWaitSeconds, 5);
       assert.equal(result.accessTokenValue, undefined);
       assert.equal(result.accessTokenManagementId, undefined);
       assert.equal(result.accessTokenExpiresIn, undefined);

@@ -371,6 +371,7 @@ services:
     environment:
       KAFKA_URL: kafka-b:19092
       MONGODB_URL: mongodb://root:mongoPass@mongodb-b:27017
+      GRANT_CONTINUE_WAIT_SECONDS: 5
     depends_on:
       mongodb-b:
         condition: service_healthy

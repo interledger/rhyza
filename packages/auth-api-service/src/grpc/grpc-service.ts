@@ -751,6 +751,9 @@ export class AuthServiceServer {
       if (payload.continueId) {
         response.setContinueId(payload.continueId);
       }
+      if (payload.continueWaitSeconds !== undefined) {
+        response.setContinueWaitSeconds(payload.continueWaitSeconds);
+      }
 
       if (payload.accessTokenValue) {
         response.setAccessTokenValue(payload.accessTokenValue);
@@ -808,6 +811,10 @@ export class AuthServiceServer {
 
       if (payload.continueToken) {
         response.setContinueToken(payload.continueToken);
+      }
+
+      if (payload.continueWaitSeconds !== undefined) {
+        response.setContinueWaitSeconds(payload.continueWaitSeconds);
       }
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isGrantContinueFailedEvent(event)) {

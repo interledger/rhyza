@@ -23,10 +23,12 @@ body:json {
 script:pre-request {
   const scripts = require('./scripts');
 
-  // The auth server rejects a continuation within 5s of the last one (and the
-  // grant request counts). It doesn't send `continue.wait` yet, so wait out
-  // the window from when the grant was requested.
-  const waitMs = 5000 + 500 - (Date.now() - bru.getVar("grantRequestedAt"));
+  // The auth server rejects a continuation within `continue.wait` seconds of
+  // the last one (and the grant request counts), so wait out the window from
+  // when the grant was requested.
+  const waitSeconds = bru.getVar("grantContinueWait");
+  const waitMs =
+    waitSeconds * 1000 + 500 - (Date.now() - bru.getVar("grantRequestedAt"));
   if (waitMs > 0) {
     await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
@@ -45,14 +47,18 @@ docs {
   Exchanges `interact_ref` for the outgoing payment access token. Signed, and
   authorized with the continuation token from the grant request.
 
-  Sleeps first: the auth server enforces a 5s gap between the grant request
-  and its continuation (GNAP `continue.wait`, not advertised in the response
-  yet). Sent too early it fails with "Cannot continue grant too soon".
+  Sleeps first: the auth server enforces a gap between the grant request and
+  its continuation, advertised as `continue.wait` (seconds) in the grant
+  response. Sent too early it fails with "Cannot continue grant too soon".
 }
 
 tests {
   test("issued", function () {
     expect(res.getStatus()).to.equal(200);
     expect(res.getBody().access_token.value).to.be.a("string");
+  });
+
+  test("no continue wait once issued", function () {
+    expect(res.getBody().continue.wait).to.equal(undefined);
   });
 }

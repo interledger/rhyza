@@ -119,6 +119,7 @@ export interface CreateGrantResult {
   accessTokenExpiresIn?: number;
   access: AccessItem[];
   subjectIds: SubjectId[];
+  continueWaitSeconds?: number;
 }
 
 export interface ContinueGrantResult {
@@ -129,6 +130,7 @@ export interface ContinueGrantResult {
   access: AccessItem[];
   continueId: string;
   continueToken: string;
+  continueWaitSeconds?: number;
 }
 
 export interface RevokeGrantResult {

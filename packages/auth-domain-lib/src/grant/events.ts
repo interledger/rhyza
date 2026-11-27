@@ -130,7 +130,7 @@ export interface GrantCreatedPayload {
   id: string;
   continueId?: string;
   continueToken?: string;
-  continueWaitMs?: number;
+  continueWaitSeconds?: number;
   interactionNonce?: string;
   accessTokenValue?: string;
   accessTokenManagementId?: string;
@@ -170,7 +170,7 @@ export interface GrantContinuedPayload {
   access?: IAccessItem[];
   continueId?: string;
   continueToken?: string;
-  continueWaitMs?: number;
+  continueWaitSeconds?: number;
 }
 
 export class GrantContinuedEvent extends AuthDomainEvent {

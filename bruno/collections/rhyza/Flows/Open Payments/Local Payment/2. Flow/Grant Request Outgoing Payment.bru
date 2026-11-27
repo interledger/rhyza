@@ -57,6 +57,7 @@ script:post-response {
     bru.setVar("grantRequestedAt", Date.now());
     bru.setVar("grantContinueUri", body.continue.uri);
     bru.setVar("grantContinueToken", body.continue.access_token.value);
+    bru.setVar("grantContinueWait", body.continue.wait);
   }
 }
 
@@ -66,5 +67,9 @@ tests {
     expect(res.getStatus()).to.equal(200);
     expect(body.interact.redirect).to.be.a("string");
     expect(body.access_token).to.equal(undefined);
+  });
+
+  test("advertises continue wait", function () {
+    expect(res.getBody().continue.wait).to.be.a("number");
   });
 }

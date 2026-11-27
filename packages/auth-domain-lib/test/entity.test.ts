@@ -435,6 +435,22 @@ describe('GrantEntity', () => {
       );
     });
 
+    it('applies the given wait seconds to the poll window', (context) => {
+      context.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+      const { entity } = GrantEntity.create(makeInteractiveCreateInput());
+      const token = entity.continueToken!;
+      const id = entity.continueId!;
+
+      context.mock.timers.tick(2_000);
+      assert.throws(
+        () => entity.continue(token, id, undefined, 3),
+        ContinuationTooFastError
+      );
+
+      context.mock.timers.tick(1_001);
+      assert.doesNotThrow(() => entity.continue(token, id, undefined, 3));
+    });
+
     it('rotates the continue token when the grant is pending and no interact ref is provided', () => {
       const entity = makeContinuableGrant();
       const prevToken = entity.continueToken!;

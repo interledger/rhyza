@@ -126,13 +126,6 @@ export async function grantRoutes(
         throw err;
       }
 
-      const continueResponse = createContinueResponse(
-        result.id,
-        result.continueId,
-        result.continueToken,
-        openPaymentsAuthServerUrl
-      );
-
       if (result.interactionNonce) {
         return reply.status(200).send({
           interact: createInteractResponse(
@@ -140,7 +133,13 @@ export async function grantRoutes(
             result.interactionNonce,
             openPaymentsAuthServerUrl
           ),
-          continue: continueResponse
+          continue: createContinueResponse(
+            result.id,
+            result.continueId,
+            result.continueToken,
+            openPaymentsAuthServerUrl,
+            result.continueWaitSeconds
+          )
         });
       }
 
@@ -165,7 +164,12 @@ export async function grantRoutes(
           access: result.access,
           openPaymentsAuthServerUrl
         }),
-        continue: continueResponse
+        continue: createContinueResponse(
+          result.id,
+          result.continueId,
+          result.continueToken,
+          openPaymentsAuthServerUrl
+        )
       });
     }
   );
@@ -253,19 +257,20 @@ export async function grantRoutes(
         throw err;
       }
 
-      const continueResponse = createContinueResponse(
-        result.id,
-        result.continueId,
-        result.continueToken,
-        openPaymentsAuthServerUrl
-      );
-
       if (
         !result.accessTokenValue ||
         !result.accessTokenManagementId ||
         !result.accessTokenExpiresIn
       ) {
-        return reply.status(200).send({ continue: continueResponse });
+        return reply.status(200).send({
+          continue: createContinueResponse(
+            result.id,
+            result.continueId,
+            result.continueToken,
+            openPaymentsAuthServerUrl,
+            result.continueWaitSeconds
+          )
+        });
       }
 
       return reply.status(200).send({
@@ -277,7 +282,12 @@ export async function grantRoutes(
           access: result.access,
           openPaymentsAuthServerUrl
         }),
-        continue: continueResponse
+        continue: createContinueResponse(
+          result.id,
+          result.continueId,
+          result.continueToken,
+          openPaymentsAuthServerUrl
+        )
       });
     }
   );

@@ -9,7 +9,10 @@ import {
   MongoDbGrantRepo,
   WalletAddressAdapter
 } from 'auth-implementations-lib';
-import { GrantAggregate } from 'auth-domain-lib';
+import {
+  DEFAULT_GRANT_CONTINUE_WAIT_SECONDS,
+  GrantAggregate
+} from 'auth-domain-lib';
 import { AuthCommandHandler } from './cmd-handler';
 import process from 'process';
 import crypto from 'crypto';
@@ -29,6 +32,10 @@ const CONSUMER_BATCH_TIMEOUT_MS =
   (process.env['CONSUMER_BATCH_TIMEOUT_MS'] &&
     parseInt(process.env['CONSUMER_BATCH_TIMEOUT_MS'])) ||
   50;
+const GRANT_CONTINUE_WAIT_SECONDS =
+  (process.env['GRANT_CONTINUE_WAIT_SECONDS'] &&
+    parseInt(process.env['GRANT_CONTINUE_WAIT_SECONDS'])) ||
+  DEFAULT_GRANT_CONTINUE_WAIT_SECONDS;
 
 export class AuthCommandHandlerService {
   private static _logger: ILogger;
@@ -61,7 +68,8 @@ export class AuthCommandHandlerService {
     const aggregate = new GrantAggregate(
       this.repo,
       walletAddressAdapter,
-      this._logger
+      this._logger,
+      { continueWaitSeconds: GRANT_CONTINUE_WAIT_SECONDS }
     );
 
     this.msgProducer = kafkaBuilder.buildProducer({});

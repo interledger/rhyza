@@ -620,7 +620,8 @@ function fromPbCreateGrantResponse(
     accessTokenManagementId: response.getAccessTokenManagementId() || undefined,
     accessTokenExpiresIn: response.getAccessTokenExpiresIn() || undefined,
     access: response.getAccessList().map(fromPbAccessItem),
-    subjectIds: response.getSubIdsList().map(fromPbSubjectId)
+    subjectIds: response.getSubIdsList().map(fromPbSubjectId),
+    continueWaitSeconds: response.getContinueWaitSeconds()
   };
 }
 
@@ -634,7 +635,8 @@ function fromPbContinueGrantResponse(
     accessTokenExpiresIn: response.getAccessTokenExpiresIn() || undefined,
     access: response.getAccessList().map(fromPbAccessItem),
     continueId: response.getContinueId(),
-    continueToken: response.getContinueToken()
+    continueToken: response.getContinueToken(),
+    continueWaitSeconds: response.getContinueWaitSeconds()
   };
 }
 
