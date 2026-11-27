@@ -63,7 +63,9 @@ import {
   IWalletAddressService,
   IRotatedGrantUpdate,
   IRevokedGrantUpdate,
-  IUpdatedSpentAmountGrant
+  IUpdatedSpentAmountGrant,
+  ISpentAmounts,
+  ISerializedSpentAmounts
 } from './interfaces';
 import { GRANT_POLL_MS, GrantEntity } from './entity';
 import { JWK, validateSignature } from '@interledger/http-signature-utils';
@@ -659,12 +661,22 @@ export class GrantAggregate {
 
       const accessToken = grant.introspectAccessToken(tokenValue, access);
 
+      const spentAmounts =
+        cmd.payload.returnSpentAmounts &&
+        accessToken.active &&
+        accessToken.access?.length
+          ? grant.getCurrentSpentAmounts()
+          : undefined;
+
       return new TokenIntrospectedEvent(
         {
           id,
           value: tokenValue,
           active: accessToken.active,
-          access: accessToken.access
+          access: accessToken.access,
+          ...(spentAmounts
+            ? { spentAmounts: serializeSpentAmounts(spentAmounts) }
+            : {})
         },
         cmd.requestId
       );
@@ -927,26 +939,10 @@ export class GrantAggregate {
 
       this.updatedSpentAmountsGrantIds.add(id);
 
-      const intervalSpentAmount = spentAmounts.interval;
       return new OutgoingPaymentGrantLimitValidatedEvent(
         {
           id,
-          spentAmounts: {
-            total: {
-              debit: String(spentAmounts.total.debit),
-              receive: String(spentAmounts.total.receive)
-            },
-            interval: intervalSpentAmount
-              ? {
-                  start: intervalSpentAmount.start,
-                  end: intervalSpentAmount.end,
-                  total: {
-                    debit: String(intervalSpentAmount.total.debit),
-                    receive: String(intervalSpentAmount.total.receive)
-                  }
-                }
-              : undefined
-          }
+          spentAmounts: serializeSpentAmounts(spentAmounts)
         },
         cmd.requestId
       );
@@ -980,7 +976,7 @@ export class GrantAggregate {
       return new RevertedGrantSpentAmountEvent(
         {
           id,
-          spentAmounts
+          spentAmounts: serializeSpentAmounts(spentAmounts)
         },
         cmd.requestId
       );
@@ -1167,4 +1163,26 @@ export class GrantAggregate {
       this.requestIdToClientNameMap.clear();
     }
   }
+}
+
+function serializeSpentAmounts(
+  spentAmounts: ISpentAmounts
+): ISerializedSpentAmounts {
+  const { total, interval } = spentAmounts;
+  return {
+    total: {
+      debit: String(total.debit),
+      receive: String(total.receive)
+    },
+    interval: interval
+      ? {
+          start: interval.start,
+          end: interval.end,
+          total: {
+            debit: String(interval.total.debit),
+            receive: String(interval.total.receive)
+          }
+        }
+      : undefined
+  };
 }

@@ -3,6 +3,7 @@ import {
   AccessItem,
   AuthClient,
   AuthClientPermissionDeniedError,
+  GrantSpentAmountsResult,
   IntrospectTokenResult,
   SignatureRequestData
 } from 'auth-client-lib';
@@ -13,6 +14,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     grantAccess: AccessItem | null;
     grantId: string | null;
+    // Only set when introspecting with `returnSpentAmounts`.
+    grantSpentAmounts: GrantSpentAmountsResult | null;
   }
 }
 
@@ -123,6 +126,7 @@ export interface TokenIntrospectionOptions {
   type: AccessType;
   action: RequestAction;
   identifier?: string;
+  returnSpentAmounts?: boolean;
 }
 
 export async function introspectToken(
@@ -134,6 +138,7 @@ export async function introspectToken(
 
   request.grantAccess = null;
   request.grantId = null;
+  request.grantSpentAmounts = null;
 
   try {
     const token = extractGnapToken(request);
@@ -160,7 +165,8 @@ export async function introspectToken(
         decoded.grantId,
         signatureData,
         decoded.tokenValue,
-        [requestedAccess]
+        [requestedAccess],
+        { returnSpentAmounts: opts.returnSpentAmounts }
       );
     } catch (err) {
       if (err instanceof AuthClientPermissionDeniedError) {
@@ -191,6 +197,7 @@ export async function introspectToken(
 
     request.grantAccess = tokenInfo.access[0]!;
     request.grantId = tokenInfo.grantId;
+    request.grantSpentAmounts = tokenInfo.spentAmounts ?? null;
   } catch (err) {
     if (
       err instanceof OpenPaymentsResourceServerRouteError &&

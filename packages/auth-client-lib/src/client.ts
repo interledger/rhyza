@@ -33,7 +33,7 @@ import {
   AccessItem as PbAccessItem,
   SubjectId as PbSubjectId,
   ValidateOutgoingPaymentGrantLimitRequest as PbValidateOutgoingPaymentGrantLimitRequest,
-  GrantSpentAmountsResponse as PbGrantSpentAmountsResponse
+  GrantSpentAmounts as PbGrantSpentAmounts
 } from 'auth-public-types-lib';
 import {
   AccessItem,
@@ -268,17 +268,22 @@ export class AuthClient {
     });
   }
 
+  // With `returnSpentAmounts`, an active token with the requested access also
+  // returns the grant's spent amounts. Interval amounts are for the interval
+  // containing the time of introspection.
   introspectToken(
     id: string,
     signatureData: SignatureRequestData,
     tokenValue: string,
-    access: AccessItem[]
+    access: AccessItem[],
+    options: { returnSpentAmounts?: boolean } = {}
   ): Promise<IntrospectTokenResult> {
     const request = new PbIntrospectTokenRequest();
     request.setId(id);
     request.setTokenValue(tokenValue);
     request.setAccessList(access.map(toPbAccessItem));
     request.setSignatureData(this.toSignatureData(signatureData));
+    request.setReturnSpentAmounts(options.returnSpentAmounts ?? false);
 
     return new Promise((resolve, reject) => {
       this._grpcClient.introspectToken(
@@ -309,11 +314,11 @@ export class AuthClient {
     return new Promise((resolve, reject) => {
       this._grpcClient.validateOutgoingPaymentGrantLimit(
         request,
-        (error: ServiceError | null, response: PbGrantSpentAmountsResponse) => {
+        (error: ServiceError | null, response: PbGrantSpentAmounts) => {
           if (error) {
             reject(clientErrorFromGrpcError(error));
           } else {
-            resolve(fromPbGrantSpentAmountsResponse(response));
+            resolve(fromPbGrantSpentAmounts(response));
           }
         }
       );
@@ -684,15 +689,19 @@ function fromPbRotateTokenResponse(
 function fromPbIntrospectTokenResponse(
   response: PbIntrospectTokenResponse
 ): IntrospectTokenResult {
+  const spentAmounts = response.getSpentAmounts();
   return {
     active: response.getActive(),
     grantId: response.getGrantId(),
-    access: response.getAccessList().map(fromPbAccessItem)
+    access: response.getAccessList().map(fromPbAccessItem),
+    ...(spentAmounts
+      ? { spentAmounts: fromPbGrantSpentAmounts(spentAmounts) }
+      : {})
   };
 }
 
-function fromPbGrantSpentAmountsResponse(
-  response: PbGrantSpentAmountsResponse
+function fromPbGrantSpentAmounts(
+  response: PbGrantSpentAmounts
 ): GrantSpentAmountsResult {
   const intervalDebit = response.getIntervalSpentDebitAmount();
   const intervalReceive = response.getIntervalSpentReceiveAmount();

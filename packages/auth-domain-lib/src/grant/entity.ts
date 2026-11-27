@@ -596,34 +596,71 @@ export class GrantEntity implements IGrant {
     );
   }
 
-  // Ensures _spentAmounts.interval reflects the repetition that contains
-  // createdAt. Leaves it alone if it already does; otherwise rolls it over
-  // to the repetition of the grant's configured interval that contains
-  // createdAt, if any does.
-  getOrUpdateCurrentInterval(createdAt: Date): void {
-    if (!this._spentAmounts) return;
+  // Resolves the repetition of the grant's configured interval that contains
+  // asOfDate: the stored interval if it still applies, otherwise a fresh
+  // zeroed one. Returns undefined if the grant has no configured interval, or
+  // if no repetition of it contains asOfDate.
+  private resolveCurrentInterval(
+    asOfDate: Date
+  ): ISpentAmounts['interval'] | undefined {
+    const intervalString = this.getGrantIntervalString();
+    if (!intervalString) return undefined;
 
-    const createdAtDateTime = DateTime.fromJSDate(createdAt);
+    const asOfDateTime = DateTime.fromJSDate(asOfDate);
 
-    if (
-      this._spentAmounts.interval &&
-      this.getSpentAmountInterval()?.contains(createdAtDateTime)
-    ) {
-      return;
+    if (this.getSpentAmountInterval()?.contains(asOfDateTime)) {
+      return this._spentAmounts!.interval;
     }
 
-    const outgoingPaymentAccessItem = this.getOutgoingPaymentAccess();
-    const intervalString = outgoingPaymentAccessItem?.limits?.interval;
-    if (!intervalString) return;
+    const interval = getInterval(intervalString, asOfDate);
+    if (!interval?.start || !interval.end || !interval.contains(asOfDateTime)) {
+      return undefined;
+    }
 
-    const interval = getInterval(intervalString, createdAt);
-    if (!interval || !interval.contains(createdAtDateTime))
-      throw new InvalidGrantError();
+    return {
+      start: interval.start.toMillis(),
+      end: interval.end.toMillis(),
+      total: {
+        debit: 0n,
+        receive: 0n
+      }
+    };
+  }
 
-    this._spentAmounts.interval = {
-      start: (interval.start as DateTime).toMillis(),
-      end: (interval.end as DateTime).toMillis(),
-      total: { debit: 0n, receive: 0n }
+  getOrUpdateCurrentInterval(createdAt: Date): void {
+    if (!this._spentAmounts) return;
+    if (!this.getGrantIntervalString()) return;
+
+    const interval = this.resolveCurrentInterval(createdAt);
+    if (!interval) throw new InvalidGrantError();
+
+    this._spentAmounts.interval = interval;
+  }
+
+  getCurrentSpentAmounts(
+    asOfDate: Date = new Date()
+  ): ISpentAmounts | undefined {
+    if (!this._spentAmounts) return undefined;
+
+    const total = {
+      debit: this._spentAmounts.total.debit,
+      receive: this._spentAmounts.total.receive
+    };
+
+    const interval = this.resolveCurrentInterval(asOfDate);
+
+    if (!interval) return { total };
+
+    return {
+      total,
+      interval: {
+        start: interval.start,
+        end: interval.end,
+        total: {
+          debit: interval.total.debit,
+          receive: interval.total.receive
+        }
+      }
     };
   }
 

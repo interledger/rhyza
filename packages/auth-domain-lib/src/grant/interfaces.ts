@@ -73,6 +73,21 @@ export interface ISpentAmounts {
   };
 }
 
+export interface ISerializedSpentAmounts {
+  total: {
+    debit: string;
+    receive: string;
+  };
+  interval?: {
+    start: number;
+    end: number;
+    total: {
+      debit: string;
+      receive: string;
+    };
+  };
+}
+
 export const InteractionState = {
   PENDING: 'PENDING',
   APPROVED: 'APPROVED',

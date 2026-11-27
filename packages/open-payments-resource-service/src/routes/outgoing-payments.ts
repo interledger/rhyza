@@ -10,8 +10,10 @@ import {
   IPayment
 } from 'payments-client-lib';
 import {
+  AccessLimits,
   AuthClient,
   AuthClientInsufficientGrantError,
+  GrantSpentAmountsResult,
   AuthClientInvalidGrantError,
   isAuthClientError
 } from 'auth-client-lib';
@@ -22,7 +24,10 @@ import {
   introspectToken,
   RequestAction
 } from '../auth.js';
-import { components } from '../types/generated/resource-server-types.js';
+import {
+  components,
+  operations
+} from '../types/generated/resource-server-types.js';
 import { decodeCompoundId, encodeCompoundId } from '../utils.js';
 
 interface OutgoingPaymentRouteOptions extends FastifyPluginOptions {
@@ -78,6 +83,43 @@ function toOutgoingPaymentBody(
     sentAmount: toAmountBody(payment.sentAmount),
     createdAt: payment.createdAt,
     ...(payment.metadata ? { metadata: payment.metadata } : {})
+  };
+}
+
+type OutgoingPaymentGrantBody =
+  operations['get-outgoing-payment-grant']['responses'][200]['content']['application/json'];
+
+function toOutgoingPaymentGrantSpentAmountsBody(
+  limits: AccessLimits | undefined,
+  spent: GrantSpentAmountsResult | null
+): OutgoingPaymentGrantBody {
+  if (!spent) return { spentDebitAmount: null, spentReceiveAmount: null };
+
+  const toSpentAmount = (
+    limit: AccessLimits['debitAmount'],
+    total: bigint,
+    interval: bigint | undefined
+  ): components['schemas']['amount'] | null => {
+    if (!limit) return null;
+    const value = limits?.interval ? (interval ?? 0n) : total;
+    return {
+      value: String(value),
+      assetCode: limit.assetCode,
+      assetScale: limit.assetScale
+    };
+  };
+
+  return {
+    spentDebitAmount: toSpentAmount(
+      limits?.debitAmount,
+      spent.totalSpentDebitAmount,
+      spent.intervalSpentDebitAmount
+    ),
+    spentReceiveAmount: toSpentAmount(
+      limits?.receiveAmount,
+      spent.totalSpentReceiveAmount,
+      spent.intervalSpentReceiveAmount
+    )
   };
 }
 
@@ -292,6 +334,28 @@ export async function outgoingPaymentRoutes(
       return reply
         .status(200)
         .send(toOutgoingPaymentBody(payment, openPaymentsUrl));
+    }
+  );
+
+  server.get(
+    '/outgoing-payment-grant',
+    {
+      preHandler: async (request, reply) =>
+        await introspectToken(request, reply, {
+          ...introspectionOpts,
+          action: RequestAction.Create,
+          returnSpentAmounts: true
+        })
+    },
+    async (request, reply) => {
+      return reply
+        .status(200)
+        .send(
+          toOutgoingPaymentGrantSpentAmountsBody(
+            request.grantAccess?.limits,
+            request.grantSpentAmounts
+          )
+        );
     }
   );
 
