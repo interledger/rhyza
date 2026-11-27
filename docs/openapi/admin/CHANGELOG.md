@@ -11,7 +11,7 @@
 
 
 ## Info
--  a breaking change was detected but the major version did not increase, from `0.0.21` to `0.0.22`
+-  the API version changed from `0.0.21` to `0.0.22`
 
 
 
