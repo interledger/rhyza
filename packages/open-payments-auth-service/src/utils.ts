@@ -124,18 +124,21 @@ export function createAccessTokenResponse(
   };
 }
 
+// Pass `wait` only while the grant is still waiting to be continued
+// (interactive grant creation, or polling a pending grant).
 export function createContinueResponse(
   grantId: string,
   continueId: string,
   continueTokenValue: string,
-  openPaymentsAuthServerUrl: string
+  openPaymentsAuthServerUrl: string,
+  wait?: number
 ): components['schemas']['continue'] {
   return {
     access_token: {
       value: continueTokenValue
     },
-    // TODO wait
-    uri: `${openPaymentsAuthServerUrl}/continue/${encodeCompoundId(grantId, continueId)}`
+    uri: `${openPaymentsAuthServerUrl}/continue/${encodeCompoundId(grantId, continueId)}`,
+    ...(wait !== undefined && { wait })
   };
 }
 

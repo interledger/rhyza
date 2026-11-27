@@ -201,3 +201,78 @@ describe('revokeGrant', () => {
       assertErrorResponse(continueRequest('DELETE'), errorCase));
   }
 });
+
+describe('continue wait', () => {
+  const WAIT_SECONDS = 5;
+  const access = [{ type: 'INCOMING_PAYMENT', actions: ['CREATE'] }];
+  const baseResult = {
+    id: 'grant-1',
+    continueId: 'continue-1',
+    continueToken: 'continue-token',
+    access: [],
+    subjectIds: [],
+    continueWaitSeconds: WAIT_SECONDS
+  };
+  const accessTokenResult = {
+    accessTokenValue: 'token-value',
+    accessTokenManagementId: 'token-management-id',
+    accessTokenExpiresIn: 600,
+    access
+  };
+
+  async function setupWithResult(result: object) {
+    const app = Fastify();
+    app.setValidatorCompiler(() => () => true);
+    app.setErrorHandler(createErrorHandler(new NullLogger()));
+    await app.register(grantRoutes, {
+      authClient: {
+        createGrant: async () => result,
+        continueGrant: async () => result
+      } as unknown as AuthClient,
+      openPaymentsAuthServerUrl: AUTH_SERVER_URL
+    });
+    return app;
+  }
+
+  test('is returned for an interactive grant', async () => {
+    const app = await setupWithResult({
+      ...baseResult,
+      interactionNonce: 'nonce'
+    });
+
+    const response = await app.inject(createGrantRequest());
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().continue.wait, WAIT_SECONDS);
+  });
+
+  test('is not returned for a grant that issues an access token', async () => {
+    const app = await setupWithResult({ ...baseResult, ...accessTokenResult });
+
+    const response = await app.inject(createGrantRequest());
+
+    assert.equal(response.statusCode, 200);
+    assert.ok(response.json().access_token);
+    assert.equal(response.json().continue.wait, undefined);
+  });
+
+  test('is returned when polling a pending grant', async () => {
+    const app = await setupWithResult(baseResult);
+
+    const response = await app.inject(continueRequest('POST'));
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().access_token, undefined);
+    assert.equal(response.json().continue.wait, WAIT_SECONDS);
+  });
+
+  test('is not returned when continuing issues an access token', async () => {
+    const app = await setupWithResult({ ...baseResult, ...accessTokenResult });
+
+    const response = await app.inject(continueRequest('POST'));
+
+    assert.equal(response.statusCode, 200);
+    assert.ok(response.json().access_token);
+    assert.equal(response.json().continue.wait, undefined);
+  });
+});

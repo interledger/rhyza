@@ -67,11 +67,16 @@ import {
   ISpentAmounts,
   ISerializedSpentAmounts
 } from './interfaces';
-import { GRANT_POLL_MS, GrantEntity } from './entity';
+import { DEFAULT_GRANT_CONTINUE_WAIT_SECONDS, GrantEntity } from './entity';
 import { JWK, validateSignature } from '@interledger/http-signature-utils';
 
 export interface IGrantService {
   fetchByIds(grantIds: string[]): Promise<IGrant[]>;
+}
+
+export interface GrantAggregateOptions {
+  // Seconds a client must wait between grant continuations (GNAP `continue.wait`).
+  continueWaitSeconds?: number;
 }
 
 export class GrantAggregate {
@@ -98,11 +103,17 @@ export class GrantAggregate {
   private requestIdToClientKeyMap = new Map<string, IJsonWebKey>();
   private requestIdToClientNameMap = new Map<string, string>();
 
+  private readonly _continueWaitSeconds: number;
+
   constructor(
     private _repo: IGrantRepository,
     private _walletAddressService: IWalletAddressService,
-    private _logger: ILogger
-  ) {}
+    private _logger: ILogger,
+    options: GrantAggregateOptions = {}
+  ) {
+    this._continueWaitSeconds =
+      options.continueWaitSeconds ?? DEFAULT_GRANT_CONTINUE_WAIT_SECONDS;
+  }
 
   async handleBatch(cmds: IMessage[]): Promise<{ events: IMessage[] }> {
     this._logger.debug(`handleBatch — ${cmds.length} cmd(s)`);
@@ -428,7 +439,9 @@ export class GrantAggregate {
           id,
           continueId: entity.continueId,
           continueToken: entity.continueToken,
-          continueWaitMs: entity.continueToken ? GRANT_POLL_MS : undefined,
+          continueWaitSeconds: entity.continueToken
+            ? this._continueWaitSeconds
+            : undefined,
           interactionNonce: entity.interactionNonce,
           accessTokenValue: accessToken?.value,
           accessTokenManagementId: accessToken?.managementId,
@@ -483,7 +496,8 @@ export class GrantAggregate {
       const accessToken = grant.continue(
         continueToken,
         continueId,
-        interactRef
+        interactRef,
+        this._continueWaitSeconds
       );
 
       this.grantMap.set(id, grant);
@@ -501,7 +515,9 @@ export class GrantAggregate {
           access: grant.accesses,
           continueId: grant.continueId,
           continueToken: grant.continueToken,
-          continueWaitMs: grant.continueToken ? GRANT_POLL_MS : undefined
+          continueWaitSeconds: grant.continueToken
+            ? this._continueWaitSeconds
+            : undefined
         },
         cmd.requestId
       );

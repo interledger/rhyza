@@ -35,7 +35,7 @@ import {
 import { DateTime, Interval } from 'luxon';
 import { getInterval } from './utils';
 
-export const GRANT_POLL_MS = 5_000; // 5 seconds
+export const DEFAULT_GRANT_CONTINUE_WAIT_SECONDS = 5;
 const INTERACTION_EXPIRY_MS = 600_000; // 10 minutes
 const ACCESS_TOKEN_EXPIRY_MS = 10_000; // 10 seconds
 
@@ -390,18 +390,24 @@ export class GrantEntity implements IGrant {
     }
   }
 
+  // Whether the client must still wait before continuing (GNAP `continue.wait`).
+  private isStillWaiting(waitSeconds: number): boolean {
+    return (
+      !!this._lastContinuedAt &&
+      Date.now() < this._lastContinuedAt.getTime() + waitSeconds * 1000
+    );
+  }
+
   // Continues the grant, if an interaction was required.
   continue(
     continueToken: string,
     continueId: string,
-    interactRef?: string
+    interactRef?: string,
+    waitSeconds: number = DEFAULT_GRANT_CONTINUE_WAIT_SECONDS
   ): IAccessToken | undefined {
     this.assertContinueCredentials(continueToken, continueId);
 
-    if (
-      this._lastContinuedAt &&
-      Date.now() < this._lastContinuedAt.getTime() + GRANT_POLL_MS
-    ) {
+    if (this.isStillWaiting(waitSeconds)) {
       throw new ContinuationTooFastError('Cannot continue grant too soon');
     }
 

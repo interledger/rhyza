@@ -107,6 +107,7 @@ message CreateGrantResponse {
 	optional int32 access_token_expires_in = 7;
 	repeated AccessItem access = 8;
 	repeated SubjectId sub_ids = 9;
+	optional int32 continue_wait_seconds = 10;
 }
 
 message GetGrantRequest {
@@ -162,6 +163,7 @@ message ContinueGrantResponse {
 	repeated AccessItem access = 6;
 	string continue_id = 7;
 	string continue_token = 8;
+	optional int32 continue_wait_seconds = 9;
 }
 
 message RevokeGrantRequest {

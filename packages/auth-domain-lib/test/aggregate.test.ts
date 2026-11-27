@@ -9,7 +9,10 @@ import {
 } from '@interledger/http-signature-utils';
 
 import { GrantAggregate } from '../src/grant/aggregate';
-import { GRANT_POLL_MS, GrantEntity } from '../src/grant/entity';
+import {
+  DEFAULT_GRANT_CONTINUE_WAIT_SECONDS,
+  GrantEntity
+} from '../src/grant/entity';
 import {
   AcceptInteractionCmd,
   AdminRevokeGrantCmd,
@@ -278,7 +281,10 @@ describe('GrantAggregate.handleBatch', () => {
         assert.ok(payload.continueId);
         assert.ok(payload.continueToken);
         assert.ok(payload.interactionNonce);
-        assert.equal(payload.accessTokenValue, undefined);
+        assert.equal(
+          payload.continueWaitSeconds,
+          DEFAULT_GRANT_CONTINUE_WAIT_SECONDS
+        );
         assert.equal(payload.accessTokenValue, undefined);
         assert.equal(payload.accessTokenManagementId, undefined);
         assert.equal(payload.accessTokenExpiresIn, undefined);
@@ -555,7 +561,9 @@ describe('GrantAggregate.handleBatch', () => {
           await createContinuableInteractiveGrant();
         const interactRef = await approveInteraction(grantId);
 
-        context.mock.timers.tick(GRANT_POLL_MS + 1);
+        context.mock.timers.tick(
+          DEFAULT_GRANT_CONTINUE_WAIT_SECONDS * 1000 + 1
+        );
 
         const { events } = await aggregate.handleBatch([
           new ContinueGrantCmd(
@@ -596,7 +604,9 @@ describe('GrantAggregate.handleBatch', () => {
         const { keys, grantId, continueToken, continueId } =
           await createContinuableInteractiveGrant();
 
-        context.mock.timers.tick(GRANT_POLL_MS + 1);
+        context.mock.timers.tick(
+          DEFAULT_GRANT_CONTINUE_WAIT_SECONDS * 1000 + 1
+        );
 
         const { events } = await aggregate.handleBatch([
           new ContinueGrantCmd(
@@ -619,10 +629,59 @@ describe('GrantAggregate.handleBatch', () => {
         assert.equal(payload.id, grantId);
         assert.equal(payload.state, GrantState.PENDING);
         assert.equal(payload.accessTokenValue, undefined);
+        assert.equal(
+          payload.continueWaitSeconds,
+          DEFAULT_GRANT_CONTINUE_WAIT_SECONDS
+        );
         assert.ok(payload.continueToken);
         assert.ok(payload.continueId);
         assert.notEqual(payload.continueToken, continueToken);
         assert.notEqual(payload.continueId, continueId);
+      });
+
+      it('uses the configured continue wait for the poll check and the event', async (context) => {
+        context.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+        const continueWaitSeconds = 30;
+        aggregate = new GrantAggregate(repo, walletAddressService, logger, {
+          continueWaitSeconds
+        });
+
+        const { keys, grantId, continueToken, continueId } =
+          await createContinuableInteractiveGrant();
+
+        const poll = async () =>
+          aggregate.handleBatch([
+            new ContinueGrantCmd(
+              {
+                id: grantId,
+                continueToken,
+                continueId,
+                signatureData: await signedSignatureData(
+                  keys.privateKey,
+                  keys.publicKey.kid
+                )
+              },
+              randomUUID()
+            )
+          ]);
+
+        // Past the default wait, but still within the configured one.
+        context.mock.timers.tick(
+          DEFAULT_GRANT_CONTINUE_WAIT_SECONDS * 1000 + 1
+        );
+        const tooFast = await poll();
+        assert.equal(tooFast.events[0].msgName, GrantContinueFailedEvent.name);
+        assert.equal(
+          (tooFast.events[0] as GrantContinueFailedEvent).payload.errorName,
+          'ContinuationTooFastError'
+        );
+
+        context.mock.timers.tick(continueWaitSeconds * 1000);
+        const { events } = await poll();
+        assert.equal(events[0].msgName, GrantContinuedEvent.name);
+        const payload = (events[0] as GrantContinuedEvent).payload;
+        assert.equal(payload.state, GrantState.PENDING);
+        assert.equal(payload.continueWaitSeconds, continueWaitSeconds);
       });
 
       it('fails with GrantNotFoundError when the grant does not exist', async () => {
@@ -654,7 +713,9 @@ describe('GrantAggregate.handleBatch', () => {
           await createContinuableInteractiveGrant();
         const wrongKeys = generateTestKeys();
 
-        context.mock.timers.tick(GRANT_POLL_MS + 1);
+        context.mock.timers.tick(
+          DEFAULT_GRANT_CONTINUE_WAIT_SECONDS * 1000 + 1
+        );
 
         const { events } = await aggregate.handleBatch([
           new ContinueGrantCmd(
@@ -684,7 +745,9 @@ describe('GrantAggregate.handleBatch', () => {
         const { keys, grantId, continueId } =
           await createContinuableInteractiveGrant();
 
-        context.mock.timers.tick(GRANT_POLL_MS + 1);
+        context.mock.timers.tick(
+          DEFAULT_GRANT_CONTINUE_WAIT_SECONDS * 1000 + 1
+        );
 
         const { events } = await aggregate.handleBatch([
           new ContinueGrantCmd(
@@ -743,7 +806,9 @@ describe('GrantAggregate.handleBatch', () => {
           await createContinuableInteractiveGrant();
         await approveInteraction(grantId);
 
-        context.mock.timers.tick(GRANT_POLL_MS + 1);
+        context.mock.timers.tick(
+          DEFAULT_GRANT_CONTINUE_WAIT_SECONDS * 1000 + 1
+        );
 
         const { events } = await aggregate.handleBatch([
           new ContinueGrantCmd(

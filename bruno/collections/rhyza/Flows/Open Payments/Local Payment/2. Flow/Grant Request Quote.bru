@@ -42,4 +42,8 @@ tests {
     expect(res.getStatus()).to.equal(200);
     expect(res.getBody().access_token.value).to.be.a("string");
   });
+
+  test("no continue wait", function () {
+    expect(res.getBody().continue?.wait).to.equal(undefined);
+  });
 }
