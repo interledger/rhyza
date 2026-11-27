@@ -43,7 +43,9 @@ import {
   Grant,
   FinishInteractionRequest,
   FinishInteractionResponse,
-  HandleInteractionChoiceResponse
+  HandleInteractionChoiceResponse,
+  ValidateOutgoingPaymentGrantLimitRequest,
+  GrantSpentAmountsResponse
 } from 'auth-public-types-lib';
 
 import {
@@ -75,6 +77,7 @@ import {
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
+  TokenIntrospectionFailedEvent,
   TokenRotatedEvent,
   TokenRotationFailedEvent,
   TokenRevokedEvent,
@@ -88,7 +91,10 @@ import {
   GrantInteractionFinishFailedEvent,
   GrantInteractionChoiceFailedEvent,
   GrantState,
-  IGrant
+  IGrant,
+  ValidateOutgoingPaymentGrantLimitCmd,
+  OutgoingPaymentGrantLimitValidatedEvent,
+  OutgoingPaymentGrantLimitValidationFailedEvent
 } from 'auth-domain-lib';
 import crypto from 'crypto';
 import { IGrantRepository } from 'auth-domain-lib/src';
@@ -160,6 +166,7 @@ export class AuthServiceServer {
       createGrant: this._handleUnary.bind(this),
       continueGrant: this._handleUnary.bind(this),
       revokeGrant: this._handleUnary.bind(this),
+      validateOutgoingPaymentGrantLimit: this._handleUnary.bind(this),
       adminRevokeGrant: this._handleUnary.bind(this),
       introspectToken: this._handleUnary.bind(this),
       rotateToken: this._handleUnary.bind(this),
@@ -273,14 +280,15 @@ export class AuthServiceServer {
       const accessList = call.request.getAccessList().map((item: any) => ({
         type: item.getType().toString(),
         actions: item.getActionsList().map((a: any) => a.toString()),
-        identifier: item.getIdentifier(),
+        identifier: item.getIdentifier() || undefined,
         limits: item.getLimits()
           ? {
               receiver: item.getLimits().getReceiver(),
               assetCode: item.getLimits().getAssetCode(),
               assetScale: item.getLimits().getAssetScale(),
-              debitAmount: item.getLimits().getDebitAmountValue(),
-              receiveAmount: item.getLimits().getReceiveAmountValue(),
+              debitAmount: item.getLimits().getDebitAmountValue() || undefined,
+              receiveAmount:
+                item.getLimits().getReceiveAmountValue() || undefined,
               interval: item.getLimits().getInterval()
             }
           : undefined
@@ -448,6 +456,21 @@ export class AuthServiceServer {
       );
       await this._msgProducer.send(cmd);
     } else if (call.request instanceof IntrospectTokenRequest) {
+      const signatureDataMsg = call.request.getSignatureData();
+      if (!signatureDataMsg) {
+        callback(new Error('Missing signature data'));
+        return;
+      }
+      const signatureData = {
+        url: signatureDataMsg.getUrl(),
+        method: signatureDataMsg.getMethod(),
+        body: signatureDataMsg.hasBody()
+          ? signatureDataMsg.getBody()
+          : undefined,
+        headers: JSON.parse(signatureDataMsg.getHeaders()),
+        kid: signatureDataMsg.getKid()
+      };
+
       const commandId = crypto.randomUUID();
       this._storePendingResponse(commandId, call, callback);
 
@@ -455,17 +478,20 @@ export class AuthServiceServer {
         {
           id: call.request.getId(),
           tokenValue: call.request.getTokenValue(),
+          signatureData,
           access: call.request.getAccessList().map((item: any) => ({
             type: item.getType().toString(),
             actions: item.getActionsList().map((a: any) => a.toString()),
-            identifier: item.getIdentifier(),
+            identifier: item.getIdentifier() || undefined,
             limits: item.getLimits()
               ? {
                   receiver: item.getLimits().getReceiver(),
                   assetCode: item.getLimits().getAssetCode(),
                   assetScale: item.getLimits().getAssetScale(),
-                  debitAmount: item.getLimits().getDebitAmountValue(),
-                  receiveAmount: item.getLimits().getReceiveAmountValue(),
+                  debitAmount:
+                    item.getLimits().getDebitAmountValue() || undefined,
+                  receiveAmount:
+                    item.getLimits().getReceiveAmountValue() || undefined,
                   interval: item.getLimits().getInterval()
                 }
               : undefined
@@ -528,6 +554,22 @@ export class AuthServiceServer {
           value: call.request.getTokenValue(),
           managementId: call.request.getManagementId(),
           signatureData
+        },
+        commandId
+      );
+      await this._msgProducer.send(cmd);
+    } else if (
+      call.request instanceof ValidateOutgoingPaymentGrantLimitRequest
+    ) {
+      const commandId = crypto.randomUUID();
+      this._storePendingResponse(commandId, call, callback);
+
+      const cmd = new ValidateOutgoingPaymentGrantLimitCmd(
+        {
+          id: call.request.getId(),
+          debitAmountValue: call.request.getDebitAmountValue(),
+          receiveAmountValue: call.request.getReceiveAmountValue(),
+          createdAt: call.request.getCreatedAt()
         },
         commandId
       );
@@ -845,6 +887,9 @@ export class AuthServiceServer {
         response.addAccess(this.getAccessListResponse(access));
       }
       this._resolvePendingResponse(pending, requestId, null, response);
+    } else if (AuthDomainEvent.isTokenIntrospectionFailedEvent(event)) {
+      const payload: TokenIntrospectionFailedEvent['payload'] = event.payload;
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else if (AuthDomainEvent.isTokenRotatedEvent(event)) {
       const response = new RotateTokenResponse();
       const payload: TokenRotatedEvent['payload'] = event.payload;
@@ -887,6 +932,31 @@ export class AuthServiceServer {
       this._resolvePendingResponse(pending, requestId, null, response);
     } else if (AuthDomainEvent.isGrantInteractionChoiceFailedEvent(event)) {
       const payload: GrantInteractionChoiceFailedEvent['payload'] =
+        event.payload;
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
+      this._resolvePendingResponse(pending, requestId, toServiceError(payload));
+    } else if (
+      AuthDomainEvent.isOutgoingPaymentGrantLimitValidatedEvent(event)
+    ) {
+      const payload: OutgoingPaymentGrantLimitValidatedEvent['payload'] =
+        event.payload;
+      const response = new GrantSpentAmountsResponse();
+      response.setId(payload.id);
+      response.setTotalSpentDebitAmount(payload.spentAmounts.total.debit);
+      response.setTotalSpentReceiveAmount(payload.spentAmounts.total.receive);
+      if (payload.spentAmounts.interval) {
+        response.setIntervalSpentDebitAmount(
+          payload.spentAmounts.interval.total.debit
+        );
+        response.setIntervalSpentReceiveAmount(
+          payload.spentAmounts.interval.total.receive
+        );
+      }
+      this._resolvePendingResponse(pending, requestId, null, response);
+    } else if (
+      AuthDomainEvent.isOutgoingPaymentGrantLimitValidationFailedEvent(event)
+    ) {
+      const payload: OutgoingPaymentGrantLimitValidationFailedEvent['payload'] =
         event.payload;
       this._resolvePendingResponse(pending, requestId, toServiceError(payload));
     } else {

@@ -6,6 +6,15 @@ The website is built with [Starlight](https://starlight.astro.build/), a documen
 
 ## Local Development
 
+### Requirements
+
+- **Node.js 22.23.4 or later on Node 22, 24.16.0 or later on Node 24, or 26.3.0 or later.** The repo's `.nvmrc` sets Node 24, and the Netlify deploy previews use the same file. With nvm, run plain `nvm use` in the repo root: it picks the newest Node 24 already installed on your machine, so make sure that's 24.16.0 or later.
+- **pnpm 10.28.2**, set in `packageManager` in the root `package.json`.
+
+On an unsupported Node, `pnpm i` prints a warning for the docs package: `Unsupported engine: wanted: {"node":"^22.23.4 || ^24.16.0 || >=26.3.0"}`. It doesn't stop the install. Below 22.23.4, `pnpm start` and `pnpm build` then stop with a "Node.js vX is not supported by Astro!" error. On Node 24 before 24.16.0, Astro still runs, but the ESLint plugins the docs use for linting don't declare support for that version, so switch to a supported Node when you see the warning.
+
+### Install and run
+
 - Make sure all the dependencies for the website are installed. Because this is a monorepo, you should run the following command in the root of the project folder:
 
 ```sh

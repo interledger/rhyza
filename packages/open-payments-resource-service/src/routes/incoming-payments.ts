@@ -4,14 +4,19 @@ import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { PalClient, pathNameFromWalletAddress } from 'pal-client-lib';
 import {
   httpStatusFromGrpcError,
-  toClientApiErrorResponse,
   PaymentsClient,
   GetPaymentIntentResult,
   CompletePaymentIntentResult,
   CreatePaymentIntentResult
 } from 'payments-client-lib';
 import { OpenPaymentsResourceServerRouteError } from '../errors.js';
-import { getGnapToken } from '../auth.js';
+import {
+  AccessType,
+  assertGrantIdentifierMatches,
+  introspectToken,
+  RequestAction
+} from '../auth.js';
+import { AuthClient } from 'auth-client-lib';
 import { components } from '../types/generated/resource-server-types.js';
 import { createStreamServer, generateStreamCredentials } from 'ilp-client-lib';
 import { randomUUID } from 'crypto';
@@ -21,6 +26,7 @@ type StreamServer = ReturnType<typeof createStreamServer>;
 interface IncomingPaymentRouteOptions extends FastifyPluginOptions {
   palClient: PalClient;
   paymentsClient: PaymentsClient;
+  authClient: AuthClient;
   streamServer: StreamServer;
   openPaymentsUrl: string;
   openPaymentsAuthServiceUrl: string;
@@ -83,10 +89,17 @@ export async function incomingPaymentRoutes(
   const {
     palClient,
     paymentsClient,
+    authClient,
     streamServer,
     openPaymentsUrl,
     openPaymentsAuthServiceUrl
   } = opts;
+
+  const introspectionOpts = {
+    authClient,
+    authServerUrl: openPaymentsAuthServiceUrl,
+    type: AccessType.IncomingPayment
+  };
 
   server.post<{
     Body: components['schemas']['create-incoming-payment-request'];
@@ -98,7 +111,13 @@ export async function incomingPaymentRoutes(
     {
       schema: {
         body: { $ref: '#/components/schemas/create-incoming-payment-request#' }
-      }
+      },
+      preHandler: async (request, reply) =>
+        await introspectToken(request, reply, {
+          ...introspectionOpts,
+          action: RequestAction.Create,
+          identifier: request.body.walletAddress
+        })
     },
     async (request, reply) => {
       const {
@@ -119,7 +138,7 @@ export async function incomingPaymentRoutes(
 
       if (!walletAddress) {
         throw new OpenPaymentsResourceServerRouteError(
-          400,
+          404,
           'Wallet address not found',
           'not_found'
         );
@@ -131,7 +150,7 @@ export async function incomingPaymentRoutes(
           incomingAmount.assetScale !== walletAddress.assetScale)
       ) {
         throw new OpenPaymentsResourceServerRouteError(
-          404,
+          400,
           'incomingAmount asset does not match wallet address asset',
           'invalid_request'
         );
@@ -148,8 +167,19 @@ export async function incomingPaymentRoutes(
           metadata
         );
       } catch (err) {
-        const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+        if (httpStatusFromGrpcError(err) === 400) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not create incoming payment',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not create incoming payment',
+          'internal_server_error'
+        );
       }
 
       const streamCredentials = generateStreamCredentials(streamServer, {
@@ -183,24 +213,44 @@ export async function incomingPaymentRoutes(
   }>(
     '/incoming-payments/:id',
     {
-      onRequest: async (request) => {
-        getGnapToken(request);
+      preHandler: async (request, reply) => {
+        // Without a token, we return a "public" incoming payment
+        if (!request.headers['authorization']) {
+          return;
+        }
+
+        await introspectToken(request, reply, {
+          ...introspectionOpts,
+          action: RequestAction.Read
+        });
       }
     },
     async (request, reply) => {
       const { id } = request.params;
 
-      if (request.gnapToken) {
-        // TODO: implement token introspection
-      }
-
       let paymentIntent: GetPaymentIntentResult;
       try {
         paymentIntent = await paymentsClient.getPaymentIntent(id);
       } catch (err) {
-        const httpStatus = httpStatusFromGrpcError(err);
-        return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+        if (httpStatusFromGrpcError(err) === 404) {
+          throw new OpenPaymentsResourceServerRouteError(
+            404,
+            'Incoming payment not found',
+            'not_found'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not get incoming payment',
+          'internal_server_error'
+        );
       }
+
+      assertGrantIdentifierMatches(
+        request,
+        paymentIntent.receiverWalletAddress
+      );
 
       const streamCredentials = generateStreamCredentials(streamServer, {
         paymentIntentId: paymentIntent.id,
@@ -208,7 +258,7 @@ export async function incomingPaymentRoutes(
         assetScale: paymentIntent.assetScale
       });
 
-      if (request.gnapToken) {
+      if (request.grantAccess) {
         const response: components['schemas']['incoming-payment-with-access-token'] =
           {
             ...toIncomingPaymentDetails(
@@ -251,76 +301,154 @@ export async function incomingPaymentRoutes(
       first?: string;
       last?: string;
     };
-  }>('/incoming-payments', async (request, reply) => {
-    const walletAddressUrl = request.query['wallet-address'];
+  }>(
+    '/incoming-payments',
+    {
+      preHandler: async (request, reply) =>
+        await introspectToken(request, reply, {
+          ...introspectionOpts,
+          action: RequestAction.List,
+          identifier: request.query['wallet-address']
+        })
+    },
+    async (request, reply) => {
+      const walletAddressUrl = request.query['wallet-address'];
 
-    if (!walletAddressUrl) {
-      throw new OpenPaymentsResourceServerRouteError(
-        400,
-        "Missing required query parameter 'wallet-address'",
-        'invalid_request'
+      if (!walletAddressUrl) {
+        throw new OpenPaymentsResourceServerRouteError(
+          400,
+          "Missing required query parameter 'wallet-address'",
+          'invalid_request'
+        );
+      }
+
+      const pathName = pathNameFromWalletAddress(walletAddressUrl);
+
+      const walletAddress = await palClient.resolveWalletAddressByAlias(
+        null,
+        pathName
       );
+
+      if (!walletAddress) {
+        return reply.status(200).send({
+          pagination: { hasNextPage: false, hasPreviousPage: false },
+          result: []
+        });
+      }
+
+      try {
+        // Open Payments does not expose a sort order, so it is pinned here
+        // rather than inherited from the payments-side default. This ensures
+        // consistency with Rafiki.
+        const page = await paymentsClient.getPaymentIntentsPage({
+          sortOrder: 'desc',
+          walletAddressId: walletAddress.id,
+          cursor: request.query.cursor,
+          first:
+            request.query.first != null
+              ? Number(request.query.first)
+              : undefined,
+          last:
+            request.query.last != null ? Number(request.query.last) : undefined
+        });
+
+        return reply.status(200).send({
+          pagination: page.pagination,
+          result: page.items.map((item) =>
+            toIncomingPaymentDetails(item, openPaymentsUrl, item.metadata)
+          )
+        });
+      } catch (err) {
+        if (httpStatusFromGrpcError(err) === 400) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not list incoming payments',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not list incoming payments',
+          'internal_server_error'
+        );
+      }
     }
-
-    const pathName = pathNameFromWalletAddress(walletAddressUrl);
-
-    const walletAddress = await palClient.resolveWalletAddressByAlias(
-      null,
-      pathName
-    );
-
-    if (!walletAddress) {
-      return reply.status(200).send({
-        pagination: { hasNextPage: false, hasPreviousPage: false },
-        result: []
-      });
-    }
-
-    try {
-      // Open Payments does not expose a sort order, so it is pinned here
-      // rather than inherited from the payments-side default. This ensures
-      // consistency with Rafiki.
-      const page = await paymentsClient.getPaymentIntentsPage({
-        sortOrder: 'desc',
-        walletAddressId: walletAddress.id,
-        cursor: request.query.cursor,
-        first:
-          request.query.first != null ? Number(request.query.first) : undefined,
-        last:
-          request.query.last != null ? Number(request.query.last) : undefined
-      });
-
-      return reply.status(200).send({
-        pagination: page.pagination,
-        result: page.items.map((item) =>
-          toIncomingPaymentDetails(item, openPaymentsUrl, item.metadata)
-        )
-      });
-    } catch (err) {
-      const httpStatus = httpStatusFromGrpcError(err);
-      return reply.status(httpStatus).send(toClientApiErrorResponse(err));
-    }
-  });
+  );
 
   server.post<{
     Params: { id: string };
     Reply:
       | components['schemas']['incoming-payment']
       | components['schemas']['error-response'];
-  }>('/incoming-payments/:id/complete', async (request, reply) => {
-    const { id } = request.params;
+  }>(
+    '/incoming-payments/:id/complete',
+    {
+      preHandler: async (request, reply) =>
+        await introspectToken(request, reply, {
+          ...introspectionOpts,
+          action: RequestAction.Complete
+        })
+    },
+    async (request, reply) => {
+      const { id } = request.params;
 
-    let paymentIntent: CompletePaymentIntentResult;
-    try {
-      paymentIntent = await paymentsClient.completePaymentIntent(id);
-    } catch (err) {
-      const httpStatus = httpStatusFromGrpcError(err);
-      return reply.status(httpStatus).send(toClientApiErrorResponse(err));
+      // Check the grant's wallet address scope before completing.
+      if (request.grantAccess?.identifier) {
+        let existing: GetPaymentIntentResult;
+        try {
+          existing = await paymentsClient.getPaymentIntent(id);
+        } catch (err) {
+          if (httpStatusFromGrpcError(err) === 404) {
+            throw new OpenPaymentsResourceServerRouteError(
+              404,
+              'Incoming payment not found',
+              'not_found'
+            );
+          }
+
+          throw new OpenPaymentsResourceServerRouteError(
+            500,
+            'Could not get incoming payment',
+            'internal_server_error'
+          );
+        }
+        assertGrantIdentifierMatches(request, existing.receiverWalletAddress);
+      }
+
+      let paymentIntent: CompletePaymentIntentResult;
+      try {
+        paymentIntent = await paymentsClient.completePaymentIntent(id);
+      } catch (err) {
+        const httpStatus = httpStatusFromGrpcError(err);
+
+        if (httpStatus === 404) {
+          throw new OpenPaymentsResourceServerRouteError(
+            404,
+            'Incoming payment not found',
+            'not_found'
+          );
+        }
+
+        if (httpStatus === 400 || httpStatus === 409) {
+          throw new OpenPaymentsResourceServerRouteError(
+            400,
+            'Could not complete incoming payment',
+            'invalid_request'
+          );
+        }
+
+        throw new OpenPaymentsResourceServerRouteError(
+          500,
+          'Could not complete incoming payment',
+          'internal_server_error'
+        );
+      }
+
+      const response: components['schemas']['incoming-payment'] =
+        toIncomingPaymentDetails(paymentIntent, openPaymentsUrl);
+
+      return reply.status(200).send(response);
     }
-
-    const response: components['schemas']['incoming-payment'] =
-      toIncomingPaymentDetails(paymentIntent, openPaymentsUrl);
-
-    return reply.status(200).send(response);
-  });
+  );
 }

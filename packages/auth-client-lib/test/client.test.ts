@@ -14,9 +14,14 @@ import {
   GrantFinish,
   SubjectId,
   AccessLimits,
+  GrantSpentAmountsResult,
+  AuthClientUnauthorizedRequestError,
   AuthClientInvalidContinuationError,
   AuthClientInvalidRotationError,
-  AuthClientUnknownAccessTokenError
+  AuthClientUnknownAccessTokenError,
+  AuthClientGrantNotFoundError,
+  AuthClientInsufficientGrantError,
+  AuthClientInvalidGrantError
 } from '../src/';
 
 describe('Auth Client', () => {
@@ -472,6 +477,7 @@ describe('Auth Client', () => {
 
       const before = await authClient.introspectToken(
         grantId,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         tokenValue,
         access
       );
@@ -494,6 +500,7 @@ describe('Auth Client', () => {
 
       const after = await authClient.introspectToken(
         grantId,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         tokenValue,
         access
       );
@@ -509,6 +516,7 @@ describe('Auth Client', () => {
 
       const before = await authClient.introspectToken(
         grantId,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         tokenValue,
         access
       );
@@ -531,6 +539,7 @@ describe('Auth Client', () => {
 
       const after = await authClient.introspectToken(
         grantId,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
         tokenValue,
         access
       );
@@ -938,9 +947,11 @@ describe('Auth Client', () => {
   });
 
   describe('introspectToken', () => {
-    async function createIssuedGrant(
-      access: AccessItem[]
-    ): Promise<{ id: string; tokenValue: string }> {
+    async function createIssuedGrant(access: AccessItem[]): Promise<{
+      id: string;
+      tokenValue: string;
+      keys: ReturnType<typeof generateTestKeys>;
+    }> {
       const keys = generateTestKeys();
       const signatureData = await signedSignatureData(
         keys.privateKey,
@@ -954,31 +965,58 @@ describe('Auth Client', () => {
 
       return {
         id: createResult.id,
-        tokenValue: createResult.accessTokenValue as string
+        tokenValue: createResult.accessTokenValue as string,
+        keys
       };
     }
+
+    const sign = (keys: ReturnType<typeof generateTestKeys>) =>
+      signedSignatureData(keys.privateKey, keys.publicKey.kid);
 
     test('returns active: true for a valid access token', async () => {
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
-      const { id, tokenValue } = await createIssuedGrant(access);
+      const { id, tokenValue, keys } = await createIssuedGrant(access);
 
-      const result = await authClient.introspectToken(id, tokenValue, access);
+      const result = await authClient.introspectToken(
+        id,
+        await sign(keys),
+        tokenValue,
+        access
+      );
 
       assert.equal(result.active, true);
       assert.equal(result.grantId, id);
       assert.deepStrictEqual(result.access, access);
     });
 
+    test('rejects with AuthClientUnauthorizedRequestError when signed by a different key', async () => {
+      const access = [
+        makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
+      ];
+      const { id, tokenValue } = await createIssuedGrant(access);
+
+      await assert.rejects(
+        authClient.introspectToken(
+          id,
+          await sign(generateTestKeys()),
+          tokenValue,
+          access
+        ),
+        AuthClientUnauthorizedRequestError
+      );
+    });
+
     test('returns active: false for a token value that does not match', async () => {
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
-      const { id } = await createIssuedGrant(access);
+      const { id, keys } = await createIssuedGrant(access);
 
       const result = await authClient.introspectToken(
         id,
+        await sign(keys),
         'unknown-token-value',
         []
       );
@@ -992,33 +1030,40 @@ describe('Auth Client', () => {
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] }),
         makeAccessItem({ type: 'QUOTE', actions: ['CREATE'] })
       ];
-      const { id, tokenValue } = await createIssuedGrant(access);
+      const { id, tokenValue, keys } = await createIssuedGrant(access);
 
-      const result = await authClient.introspectToken(id, tokenValue, [
-        access[0]
-      ]);
+      const result = await authClient.introspectToken(
+        id,
+        await sign(keys),
+        tokenValue,
+        [access[0]]
+      );
 
       assert.equal(result.active, true);
       assert.deepStrictEqual(result.access, [access[0]]);
     });
 
-    test('returns active: false when the requested access items are not fully covered by the grant', async () => {
+    test('returns only the covered access items when the grant does not cover every requested item', async () => {
       const access = [
         makeAccessItem({ type: 'INCOMING_PAYMENT', actions: ['READ'] })
       ];
-      const { id, tokenValue } = await createIssuedGrant(access);
+      const { id, tokenValue, keys } = await createIssuedGrant(access);
 
-      const result = await authClient.introspectToken(id, tokenValue, [
-        ...access,
-        makeAccessItem({ type: 'QUOTE', actions: ['CREATE'] })
-      ]);
+      const result = await authClient.introspectToken(
+        id,
+        await sign(keys),
+        tokenValue,
+        [...access, makeAccessItem({ type: 'QUOTE', actions: ['CREATE'] })]
+      );
 
-      assert.equal(result.active, false);
+      assert.equal(result.active, true);
+      assert.deepStrictEqual(result.access, access);
     });
 
     test('returns active: false when the grant does not exist', async () => {
       const result = await authClient.introspectToken(
         randomUUID(),
+        await sign(generateTestKeys()),
         'some-token-value',
         []
       );
@@ -1026,6 +1071,186 @@ describe('Auth Client', () => {
       assert.equal(result.active, false);
     });
   });
+  describe('validateOutgoingPaymentGrantLimit', () => {
+    // Takes an outgoing payment grant through the interaction flow so it is
+    // ISSUED, which is required before spent amounts can be validated.
+    async function createIssuedOutgoingPaymentGrant(
+      limits?: AccessLimits
+    ): Promise<{ id: string }> {
+      const keys = generateTestKeys();
+      const created = await authClient.createGrant(
+        registerWalletAddress(keys.publicKey, `Test Client ${randomUUID()}`),
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
+        {
+          access: [
+            makeAccessItem({
+              type: 'OUTGOING_PAYMENT',
+              actions: ['CREATE'],
+              ...(limits ? { limits } : {})
+            })
+          ],
+          start: ['redirect'],
+          finish: {
+            method: 'REDIRECT',
+            uri: 'https://client.example/finish',
+            nonce: 'finish-nonce'
+          }
+        }
+      );
+
+      const { nonce } = await authClient.startInteraction(created.id);
+      await authClient.acceptInteraction(created.id);
+      const { interactRef } = await authClient.finishInteraction(
+        created.id,
+        nonce
+      );
+
+      // We must wait at least 5 seconds before continuing grant
+      await new Promise((resolve) => setTimeout(resolve, 5_100));
+
+      await authClient.continueGrant(
+        created.id,
+        await signedSignatureData(keys.privateKey, keys.publicKey.kid),
+        created.continueId,
+        created.continueToken,
+        interactRef
+      );
+
+      return { id: created.id };
+    }
+
+    const debitLimit = (value: string): AccessLimits => ({
+      debitAmount: { assetCode: 'USD', assetScale: 2, value }
+    });
+
+    test('adds the amounts to the grant spent totals', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant(debitLimit('100'));
+      const createdAt = new Date().toISOString();
+
+      const first = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        40n,
+        35n,
+        createdAt
+      );
+      assert.deepStrictEqual(first, {
+        grantId: id,
+        totalSpentDebitAmount: 40n,
+        totalSpentReceiveAmount: 35n,
+        intervalSpentDebitAmount: undefined,
+        intervalSpentReceiveAmount: undefined
+      });
+
+      const second = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        60n,
+        50n,
+        createdAt
+      );
+      assert.equal(second.totalSpentDebitAmount, 100n);
+      assert.equal(second.totalSpentReceiveAmount, 85n);
+    });
+
+    test('returns interval spent amounts for a grant with an interval', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant({
+        ...debitLimit('100'),
+        interval: 'R/2026-01-01T00:00:00Z/P1M'
+      });
+
+      const result = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        10n,
+        8n,
+        new Date().toISOString()
+      );
+
+      assert.equal(result.intervalSpentDebitAmount, 10n);
+      assert.equal(result.intervalSpentReceiveAmount, 8n);
+    });
+
+    test('rejects with AuthClientInsufficientGrantError when the debit limit would be exceeded', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant(debitLimit('100'));
+
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(
+          id,
+          101n,
+          90n,
+          new Date().toISOString()
+        ),
+        AuthClientInsufficientGrantError
+      );
+    });
+
+    test('does not overspend the debit limit under concurrent requests', async () => {
+      const { id } = await createIssuedOutgoingPaymentGrant(debitLimit('100'));
+      const createdAt = new Date().toISOString();
+
+      const results = await Promise.allSettled([
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt),
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt),
+        authClient.validateOutgoingPaymentGrantLimit(id, 40n, 40n, createdAt)
+      ]);
+
+      const fulfilled = results.filter(
+        (r): r is PromiseFulfilledResult<GrantSpentAmountsResult> =>
+          r.status === 'fulfilled'
+      );
+      const rejected = results.filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected'
+      );
+
+      assert.equal(fulfilled.length, 2);
+      assert.equal(rejected.length, 1);
+      assert.ok(rejected[0].reason instanceof AuthClientInsufficientGrantError);
+      assert.deepStrictEqual(
+        fulfilled.map((r) => r.value.totalSpentDebitAmount).sort(),
+        [40n, 80n]
+      );
+
+      // The remaining 20 can still be spent, landing exactly on the limit
+      const remaining = await authClient.validateOutgoingPaymentGrantLimit(
+        id,
+        20n,
+        20n,
+        createdAt
+      );
+      assert.equal(remaining.totalSpentDebitAmount, 100n);
+
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(id, 1n, 1n, createdAt),
+        AuthClientInsufficientGrantError
+      );
+    });
+
+    test('rejects with AuthClientInvalidGrantError for a grant that is not issued', async () => {
+      const keys = generateTestKeys();
+      const { id } = await createInteractiveGrant(keys);
+
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(
+          id,
+          10n,
+          10n,
+          new Date().toISOString()
+        ),
+        AuthClientInvalidGrantError
+      );
+    });
+
+    test('rejects with AuthClientGrantNotFoundError for an unknown grant', async () => {
+      await assert.rejects(
+        authClient.validateOutgoingPaymentGrantLimit(
+          randomUUID(),
+          10n,
+          10n,
+          new Date().toISOString()
+        ),
+        AuthClientGrantNotFoundError
+      );
+    });
+  });
+
   describe('startInteraction', () => {
     test('starts the interaction for a pending interactive grant', async () => {
       const { id } = await createInteractiveGrant();

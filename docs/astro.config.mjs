@@ -13,6 +13,11 @@ import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 export default defineConfig({
   site: 'https://rhyza.dev',
   outDir: './build',
+  // Starlight 0.43 stopped setting this, so Astro's default ('attribute')
+  // would apply. 'where' keeps the scoping from before the upgrade and
+  // matches the other Interledger docs sites: a parent's scoped styles
+  // still reach a child component that only applies the `class` it receives.
+  scopedStyleStrategy: 'where',
   // The three specs had a page each before they merged onto /apis/.
   redirects: {
     '/apis/scalar/admin-api': '/apis/#tag/admin-api-overview',

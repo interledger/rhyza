@@ -30,6 +30,7 @@ import {
   GrantRevokedEvent,
   GrantRevokeFailedEvent,
   TokenIntrospectedEvent,
+  TokenIntrospectionFailedEvent,
   TokenRotatedEvent,
   TokenRotationFailedEvent,
   TokenRevokedEvent,
@@ -139,7 +140,8 @@ export class GrantAggregate {
         cmd.msgName === ContinueGrantCmd.name ||
         cmd.msgName === RevokeGrantCmd.name ||
         cmd.msgName === RotateTokenCmd.name ||
-        cmd.msgName === RevokeTokenCmd.name
+        cmd.msgName === RevokeTokenCmd.name ||
+        cmd.msgName === IntrospectTokenCmd.name
       ) {
         grantIdSet.add(
           (
@@ -148,6 +150,7 @@ export class GrantAggregate {
               | RevokeGrantCmd
               | RotateTokenCmd
               | RevokeTokenCmd
+              | IntrospectTokenCmd
           ).payload.id
         );
         this.clientKeysToResolve.push({
@@ -158,6 +161,7 @@ export class GrantAggregate {
               | RevokeGrantCmd
               | RotateTokenCmd
               | RevokeTokenCmd
+              | IntrospectTokenCmd
           ).requestId,
           kid: (
             cmd as
@@ -165,11 +169,11 @@ export class GrantAggregate {
               | RevokeGrantCmd
               | RotateTokenCmd
               | RevokeTokenCmd
+              | IntrospectTokenCmd
           ).payload.signatureData.kid
         });
       } else if (
         cmd.msgName === AdminRevokeGrantCmd.name ||
-        cmd.msgName === IntrospectTokenCmd.name ||
         cmd.msgName === StartInteractionCmd.name ||
         cmd.msgName === AcceptInteractionCmd.name ||
         cmd.msgName === RejectInteractionCmd.name ||
@@ -182,7 +186,6 @@ export class GrantAggregate {
             cmd as
               | RevokeGrantCmd
               | AdminRevokeGrantCmd
-              | IntrospectTokenCmd
               | RotateTokenCmd
               | RevokeTokenCmd
               | StartInteractionCmd
@@ -253,7 +256,9 @@ export class GrantAggregate {
       } else if (cmd.msgName === AdminRevokeGrantCmd.name) {
         event = this.handleAdminRevokeGrantCommand(cmd as AdminRevokeGrantCmd);
       } else if (cmd.msgName === IntrospectTokenCmd.name) {
-        event = this.handleIntrospectTokenCommand(cmd as IntrospectTokenCmd);
+        event = await this.handleIntrospectTokenCommand(
+          cmd as IntrospectTokenCmd
+        );
       } else if (cmd.msgName === RotateTokenCmd.name) {
         event = await this.handleRotateTokenCommand(cmd as RotateTokenCmd);
       } else if (cmd.msgName === RevokeTokenCmd.name) {
@@ -612,7 +617,7 @@ export class GrantAggregate {
     }
   }
 
-  private handleIntrospectTokenCommand(cmd: IntrospectTokenCmd) {
+  private async handleIntrospectTokenCommand(cmd: IntrospectTokenCmd) {
     const { id, tokenValue, access } = cmd.payload;
     try {
       const grant = this.grantMap.get(id);
@@ -630,9 +635,30 @@ export class GrantAggregate {
         );
       }
 
+      // The request must be signed by the client the grant was issued to.
+      const clientKey =
+        this.requestIdToClientKeyMap.get(cmd.requestId) ??
+        this.resolveClientKeyForDirectedIdentityGrant(grant);
+      if (!clientKey) {
+        throw new UnauthorizedRequestError();
+      }
+
+      const {
+        signatureData: { url, method, body, headers }
+      } = cmd.payload;
+      const isValidSignature = await this.validateRequestSignature(
+        clientKey as JWK,
+        url,
+        method,
+        headers,
+        body
+      );
+      if (!isValidSignature) {
+        throw new UnauthorizedRequestError();
+      }
+
       const accessToken = grant.introspectAccessToken(tokenValue, access);
 
-      this.grantMap.set(id, grant);
       return new TokenIntrospectedEvent(
         {
           id,
@@ -643,20 +669,10 @@ export class GrantAggregate {
         cmd.requestId
       );
     } catch (err) {
-      this._logger.error(
+      return new TokenIntrospectionFailedEvent(
         {
-          grantId: cmd.payload.id,
-          value: tokenValue,
-          errorName: (err as Error).constructor.name,
-          message: (err as Error).message
-        },
-        `Failed to introspect token ${tokenValue} for grant ${cmd.payload.id}`
-      );
-      return new TokenIntrospectedEvent(
-        {
-          id: cmd.payload.id,
-          value: tokenValue,
-          active: false
+          grantId: id,
+          ...getErrorDetails(err)
         },
         cmd.requestId
       );
@@ -938,8 +954,7 @@ export class GrantAggregate {
       return new OutgoingPaymentGrantLimitValidationFailedEvent(
         {
           grantId: id,
-          errorName: (err as Error).constructor.name,
-          message: (err as Error).message
+          ...getErrorDetails(err)
         },
         cmd.requestId
       );

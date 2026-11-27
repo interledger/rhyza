@@ -69,6 +69,12 @@ export abstract class AuthDomainEvent extends DomainEvent {
     return evt.msgName === TokenIntrospectedEvent.name;
   }
 
+  static isTokenIntrospectionFailedEvent(
+    evt: DomainEvent
+  ): evt is TokenIntrospectionFailedEvent {
+    return evt.msgName === TokenIntrospectionFailedEvent.name;
+  }
+
   static isTokenRotatedEvent(evt: DomainEvent): evt is TokenRotatedEvent {
     return evt.msgName === TokenRotatedEvent.name;
   }
@@ -123,6 +129,18 @@ export abstract class AuthDomainEvent extends DomainEvent {
     evt: DomainEvent
   ): evt is GrantInteractionChoiceFailedEvent {
     return evt.msgName === GrantInteractionChoiceFailedEvent.name;
+  }
+
+  static isOutgoingPaymentGrantLimitValidatedEvent(
+    evt: DomainEvent
+  ): evt is OutgoingPaymentGrantLimitValidatedEvent {
+    return evt.msgName === OutgoingPaymentGrantLimitValidatedEvent.name;
+  }
+
+  static isOutgoingPaymentGrantLimitValidationFailedEvent(
+    evt: DomainEvent
+  ): evt is OutgoingPaymentGrantLimitValidationFailedEvent {
+    return evt.msgName === OutgoingPaymentGrantLimitValidationFailedEvent.name;
   }
 }
 
@@ -264,6 +282,18 @@ export class TokenRotatedEvent extends AuthDomainEvent {
   constructor(payload: TokenRotatedPayload, requestId: string) {
     super(payload.id, requestId);
     this.isErrorEvent = false;
+    this.payload = payload;
+  }
+}
+
+export type TokenIntrospectionFailedPayload = GrantDomainErrorPayload;
+
+export class TokenIntrospectionFailedEvent extends AuthDomainEvent {
+  payload: TokenIntrospectionFailedPayload;
+
+  constructor(payload: TokenIntrospectionFailedPayload, requestId: string) {
+    super(payload.grantId, requestId);
+    this.isErrorEvent = true;
     this.payload = payload;
   }
 }
@@ -433,11 +463,8 @@ export class OutgoingPaymentGrantLimitValidatedEvent extends AuthDomainEvent {
   }
 }
 
-export interface OutgoingPaymentGrantLimitValidationFailedPayload {
-  grantId: string;
-  errorName: string;
-  message: string;
-}
+export type OutgoingPaymentGrantLimitValidationFailedPayload =
+  GrantDomainErrorPayload;
 
 export class OutgoingPaymentGrantLimitValidationFailedEvent extends AuthDomainEvent {
   payload: OutgoingPaymentGrantLimitValidationFailedPayload;
