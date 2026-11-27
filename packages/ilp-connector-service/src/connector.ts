@@ -21,8 +21,7 @@ export class IlpConnector {
     private readonly _producer: IMessageProducer,
     private readonly _transport: IConnectorTransport,
     private readonly _correlationStore: ITransportCorrelationStore,
-    private readonly _logger: ILogger = new ConsoleLogger(),
-    private readonly _ilpAddress?: string
+    private readonly _logger: ILogger = new ConsoleLogger()
   ) {}
 
   init(): void {
@@ -31,9 +30,6 @@ export class IlpConnector {
     );
     this._transport.onInboundPrepare((prepare) =>
       this._handleInboundPrepare(prepare)
-    );
-    this._transport.onOutboundPrepareAccepted?.((prepare) =>
-      this._onOutboundPrepareAccepted(prepare)
     );
   }
 
@@ -108,22 +104,6 @@ export class IlpConnector {
     }
   }
 
-  // Called by OutboundExpiryWorker. Claims due packetIds from the shared
-  // store, then takeOutboundCorrelation. If a peer callback already took the
-  // entry, this is a no-op.
-  async processExpiredOutboundPackets(): Promise<void> {
-    const packetIds = await this._correlationStore.claimExpiredOutbound(100);
-    for (const packetId of packetIds) {
-      await this._handleWireResponse({
-        kind: 'REJECT',
-        packetId,
-        rejectCode: 'R00',
-        rejectMessage: 'no fulfill/reject callback received before expiry',
-        triggeredBy: this._ilpAddress
-      });
-    }
-  }
-
   private async _handleDispatchPrepare(
     payload: DispatchPreparePacketCmd['payload']
   ): Promise<void> {
@@ -147,21 +127,11 @@ export class IlpConnector {
     });
   }
 
-  private async _onOutboundPrepareAccepted(
-    prepare: WirePrepare
-  ): Promise<void> {
-    await this._correlationStore.scheduleOutboundExpiry(
-      prepare.packetId,
-      prepare.expiresAt
-    );
-  }
-
   private async _handleWireResponse(response: WireResponse): Promise<void> {
     this._logger.debug(
       `Wire response — ${response.kind} packet ${response.packetId}` +
         (response.kind === 'REJECT' ? ` rejectCode ${response.rejectCode}` : '')
     );
-    await this._correlationStore.cancelOutboundExpiry(response.packetId);
 
     const correlation = await this._correlationStore.takeOutboundCorrelation(
       response.packetId

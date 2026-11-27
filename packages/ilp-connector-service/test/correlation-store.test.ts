@@ -3,6 +3,29 @@
 import assert from 'node:assert';
 import { describe, test } from 'node:test';
 import { InMemoryTransportCorrelationStore } from '../src/correlation/in-memory-store';
+import { outboundCorrelationTtlMs } from '../src/correlation/expiry';
+
+// The aggregate does not clock-check replies, so this TTL alone keeps a reply
+// that arrives after expiresAt from being applied.
+describe('outboundCorrelationTtlMs', () => {
+  test('an outbound correlation lives until expiresAt and no longer', () => {
+    const ttl = outboundCorrelationTtlMs(
+      new Date(Date.now() + 10_000).toISOString()
+    );
+    assert.ok(ttl <= 10_000, `expected no grace past expiresAt, got ${ttl}ms`);
+    assert.ok(
+      ttl > 9_000,
+      `expected the time left until expiresAt, got ${ttl}ms`
+    );
+  });
+
+  test('an already expired packet gets the minimum TTL', () => {
+    assert.equal(
+      outboundCorrelationTtlMs(new Date(Date.now() - 1_000).toISOString()),
+      1
+    );
+  });
+});
 
 describe('InMemoryTransportCorrelationStore', () => {
   test('outbound correlations are taken exactly once across replicas', async () => {
@@ -18,22 +41,5 @@ describe('InMemoryTransportCorrelationStore', () => {
 
     const second = await store.takeOutboundCorrelation('packet-1');
     assert.equal(second, undefined);
-  });
-
-  test('claimExpiredOutbound returns due packetIds and leaves future ones scheduled', async () => {
-    const store = new InMemoryTransportCorrelationStore();
-    await store.scheduleOutboundExpiry(
-      'due',
-      new Date(Date.now() - 1_000).toISOString()
-    );
-    await store.scheduleOutboundExpiry(
-      'future',
-      new Date(Date.now() + 60_000).toISOString()
-    );
-
-    const claimed = await store.claimExpiredOutbound();
-    assert.deepEqual(claimed, ['due']);
-
-    assert.deepEqual(await store.claimExpiredOutbound(), []);
   });
 });

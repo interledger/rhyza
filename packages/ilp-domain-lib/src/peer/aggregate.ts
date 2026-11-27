@@ -772,6 +772,9 @@ export class IlpPeerAggregate {
     if (!stored) {
       throw new PacketNotFound(`Packet ${payload.packetId} not found`);
     }
+    if (stored.state === 'EXPIRED') {
+      return [];
+    }
 
     // Read before transitioning: going terminal drops the secret so it isn't
     // left at rest in the correlation.
@@ -779,25 +782,6 @@ export class IlpPeerAggregate {
       stored.kind === 'PAYMENT' ? stored.sharedSecret : undefined;
 
     if (stored.kind === 'PAYMENT') {
-      if (packetHasExpired(stored.expiresAt)) {
-        const expired = PacketCorrelation.fromObject(stored)
-          .expire()
-          .toObject();
-        await this.peerRepo.updatePacket(expired);
-        return [
-          new ILPPaymentFailedEvent(
-            {
-              peerId: stored.peerId,
-              paymentIntentId: stored.paymentIntentId,
-              paymentId: stored.paymentId,
-              failedAt: payload.fulfilledAt,
-              reason: 'EXPIRED'
-            },
-            stored.requestId
-          )
-        ];
-      }
-
       const fulfillment = payload.fulfillment
         ? Buffer.from(payload.fulfillment, 'base64')
         : Buffer.alloc(0);
@@ -877,6 +861,9 @@ export class IlpPeerAggregate {
     if (!stored) {
       throw new PacketNotFound(`Packet ${payload.packetId} not found`);
     }
+    if (stored.state === 'EXPIRED') {
+      return [];
+    }
     // Read before transitioning: going terminal drops the secret so it isn't
     // left at rest in the correlation.
     const quoteSecret =
@@ -955,9 +942,13 @@ export class IlpPeerAggregate {
 
   private async handleExpirePacket(cmd: ExpirePacketCmd): Promise<IMessage[]> {
     const payload = cmd.payload;
-    const stored = await this.peerRepo.fetchPacketById(payload.packetId);
-    if (!stored) {
-      throw new PacketNotFound(`Packet ${payload.packetId} not found`);
+    const stored = payload.packetId
+      ? await this.peerRepo.fetchPacketById(payload.packetId)
+      : payload.paymentId
+        ? await this.peerRepo.fetchPendingPaymentPacket(payload.paymentId)
+        : undefined;
+    if (!stored || stored.state !== 'PENDING') {
+      return [];
     }
     const transitioned = PacketCorrelation.fromObject(stored)
       .expire()

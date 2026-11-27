@@ -68,6 +68,7 @@ export class MongoDbPeerRepository implements IPeerStore {
         { packetId: 1 },
         { unique: true }
       );
+      await this._packetCollection.createIndex({ paymentId: 1, state: 1 });
       await this._packetCollection.createIndex(
         { expiresAt: 1 },
         { expireAfterSeconds: PACKET_RETENTION_SECONDS }
@@ -161,6 +162,26 @@ export class MongoDbPeerRepository implements IPeerStore {
       this._logger.error(e);
       throw new Error(
         `Unable to fetch packet ${packetId} - error: ${(e as Error).message}`
+      );
+    }
+  }
+
+  async fetchPendingPaymentPacket(
+    paymentId: string
+  ): Promise<IPacketCorrelation | undefined> {
+    this._checkInitialisedOrThrow();
+
+    try {
+      const doc = await this._packetCollection.findOne({
+        paymentId,
+        kind: 'PAYMENT',
+        state: 'PENDING'
+      });
+      return doc ?? undefined;
+    } catch (e) {
+      this._logger.error(e);
+      throw new Error(
+        `Unable to fetch pending packet for payment ${paymentId} - error: ${(e as Error).message}`
       );
     }
   }

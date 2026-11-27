@@ -1565,6 +1565,12 @@ export class PaymentIntentAggregate {
           `Payment ${paymentId} not found for ${paymentIntentId} payment intent`
         );
       }
+      if (existingPayment.state === 'EXPIRED') {
+        this._logger.debug(
+          `Ignoring ILP failure for already expired payment ${paymentId}`
+        );
+        return [];
+      }
       errorContext = {
         sentAmount: existingPayment.sentAmount.toString(),
         walletAddressId: existingPayment.senderWalletAddressId,
