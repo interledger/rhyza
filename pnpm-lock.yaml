@@ -1283,9 +1283,15 @@ importers:
 
   packages/tests-e2e:
     dependencies:
+      '@interledger/open-payments':
+        specifier: ^7.4.0
+        version: 7.4.0
       admin-client-lib:
         specifier: workspace:*
         version: link:../admin-client-lib
+      implementations-lib:
+        specifier: workspace:*
+        version: link:../implementations-lib
     devDependencies:
       testcontainers:
         specifier: ^12.0.4
