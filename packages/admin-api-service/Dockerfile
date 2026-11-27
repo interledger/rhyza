@@ -21,6 +21,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm deploy --legacy --prod --
 FROM node:24-alpine AS runner
 WORKDIR /workspace
 COPY --from=build /out ./packages/admin-api-service
+# imported via ../../../docs relative to dist
+COPY --from=build /workspace/docs/json/admin-api.json ./docs/json/admin-api.json
 USER node
 
 CMD ["node", "packages/admin-api-service/dist/index.js"]
