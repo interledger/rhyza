@@ -33,8 +33,8 @@ models/GrantState.ts
 models/GrantsPage.ts
 models/Interaction.ts
 models/JsonWebKey.ts
+models/LiquidityDeposit.ts
 models/LiquidityDeposit200Response.ts
-models/LiquidityDepositRequest.ts
 models/PageInfo.ts
 models/Payment.ts
 models/PaymentCancel.ts

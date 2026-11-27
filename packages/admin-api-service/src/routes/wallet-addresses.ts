@@ -27,47 +27,57 @@ export async function walletAddressRoutes(
 
   server.post<{
     Body: components['schemas']['WalletAddressCreate'];
-  }>('/wallet-addresses', async (request, reply) => {
-    const { pathName, publicName, assetCode, isActive } = request.body;
+  }>(
+    '/wallet-addresses',
+    {
+      schema: {
+        body: { $ref: '#/components/schemas/WalletAddressCreate#' }
+      }
+    },
+    async (request, reply) => {
+      const { pathName, publicName, assetCode, isActive } = request.body;
 
-    try {
-      assertValidWalletAddressPathName(pathName);
-    } catch (err) {
-      return reply.status(400).send({
-        error: err instanceof Error ? err.message : String(err)
+      try {
+        assertValidWalletAddressPathName(pathName);
+      } catch (err) {
+        return reply.status(400).send({
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
+
+      let result;
+      try {
+        result = await palClient.createWalletAddress(
+          null,
+          pathName,
+          publicName,
+          assetCode,
+          isActive
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (err: any) {
+        // TODO: PAL service returns gRPC code 2 (UNKNOWN) for duplicates — should probably
+        // be code 6 (ALREADY_EXISTS) so we can check err.code instead of string matching.
+        if (
+          err.message?.includes('already exists') ||
+          err.details?.includes('already exists')
+        ) {
+          return reply.status(409).send({ error: err.message });
+        }
+        throw err;
+      }
+
+      const baseUrl = openPaymentsUrl?.replace(/\/$/, '');
+      const address = baseUrl
+        ? `${baseUrl}/${result.pathName}`
+        : result.pathName;
+
+      return reply.status(201).send({
+        id: result.id,
+        address
       });
     }
-
-    let result;
-    try {
-      result = await palClient.createWalletAddress(
-        null,
-        pathName,
-        publicName,
-        assetCode,
-        isActive
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      // TODO: PAL service returns gRPC code 2 (UNKNOWN) for duplicates — should probably
-      // be code 6 (ALREADY_EXISTS) so we can check err.code instead of string matching.
-      if (
-        err.message?.includes('already exists') ||
-        err.details?.includes('already exists')
-      ) {
-        return reply.status(409).send({ error: err.message });
-      }
-      throw err;
-    }
-
-    const baseUrl = openPaymentsUrl?.replace(/\/$/, '');
-    const address = baseUrl ? `${baseUrl}/${result.pathName}` : result.pathName;
-
-    return reply.status(201).send({
-      id: result.id,
-      address
-    });
-  });
+  );
 
   server.post<{
     Params: { id: string };
@@ -106,26 +116,34 @@ export async function walletAddressRoutes(
   server.post<{
     Params: { id: string };
     Body: components['schemas']['JsonWebKey'];
-  }>('/wallet-addresses/:id/keys', async (request, reply) => {
-    try {
-      const id = await palClient.addWalletAddressKey(
-        request.params.id,
-        request.body
-      );
-      return reply.status(201).send({ id });
-    } catch (err) {
-      if (err instanceof PalClientWalletAddressNotFoundError) {
-        return reply.status(404).send({ error: err.message });
+  }>(
+    '/wallet-addresses/:id/keys',
+    {
+      schema: {
+        body: { $ref: '#/components/schemas/JsonWebKey#' }
       }
-      if (err instanceof PalClientInvalidWalletAddressJwkError) {
-        return reply.status(400).send({ error: err.message });
+    },
+    async (request, reply) => {
+      try {
+        const id = await palClient.addWalletAddressKey(
+          request.params.id,
+          request.body
+        );
+        return reply.status(201).send({ id });
+      } catch (err) {
+        if (err instanceof PalClientWalletAddressNotFoundError) {
+          return reply.status(404).send({ error: err.message });
+        }
+        if (err instanceof PalClientInvalidWalletAddressJwkError) {
+          return reply.status(400).send({ error: err.message });
+        }
+        if (err instanceof PalClientDuplicateWalletAddressKeyError) {
+          return reply.status(409).send({ error: err.message });
+        }
+        throw err;
       }
-      if (err instanceof PalClientDuplicateWalletAddressKeyError) {
-        return reply.status(409).send({ error: err.message });
-      }
-      throw err;
     }
-  });
+  );
 
   server.post<{
     Params: { id: string; keyId: string };

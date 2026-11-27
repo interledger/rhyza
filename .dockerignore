@@ -26,5 +26,7 @@ docker
 docs
 # admin-api-service generates its types from this spec at build time
 !docs/openapi/admin/admin-api.yaml
+# admin-api-service imports the bundled schema at build time and runtime
+!docs/json/admin-api.json
 dev-docs
 *.md

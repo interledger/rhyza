@@ -1,3 +1,21 @@
+# API Changelog 0.0.21 vs. 0.0.22
+
+
+## API Changes
+
+### POST /rates
+- :warning: the `destinationAssetCode` request property's minLength was set to `1`
+- :warning: the `sourceAssetCode` request property's minLength was set to `1`
+
+
+
+
+## Info
+-  the API version changed from `0.0.21` to `0.0.22`
+
+
+
+
 # API Changelog 0.0.20 vs. 0.0.21
 
 

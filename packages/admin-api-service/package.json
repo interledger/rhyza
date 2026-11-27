@@ -3,7 +3,6 @@
   "main": "dist/index.js",
   "version": "0.0.1",
   "types": "dist/index.d.ts",
-  "type": "module",
   "scripts": {
     "start": "node dist/index.js",
     "dev": "node --import tsx src/index.ts",
@@ -17,6 +16,8 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "auth-client-lib": "workspace:*",
     "common-types-lib": "workspace:*",
     "fastify": "~5.3.3",

@@ -101,47 +101,66 @@ export async function quoteRoutes(
   const { palClient, paymentsClient } = opts;
 
   server.post<{
-    Body: operations['createQuote']['requestBody']['content']['application/json'];
+    Body:
+      | components['schemas']['QuoteCreateFromPaymentIntentId']
+      | components['schemas']['QuoteCreateFromPaymentIntentUrl'];
     Reply:
       | components['schemas']['CompletedQuote']
       | components['schemas']['ErrorResponse'];
-  }>('/quotes', async (request, reply) => {
-    const { walletAddress, debitAmount, receiveAmount } = request.body;
-    const paymentIntent =
-      'paymentIntentUrl' in request.body
-        ? { paymentIntentUrl: request.body.paymentIntentUrl }
-        : { paymentIntentId: request.body.paymentIntentId };
+  }>(
+    '/quotes',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          oneOf: [
+            { $ref: '#/components/schemas/QuoteCreateFromPaymentIntentId#' },
+            { $ref: '#/components/schemas/QuoteCreateFromPaymentIntentUrl#' }
+          ]
+        }
+      }
+    },
+    async (request, reply) => {
+      const { walletAddress, debitAmount, receiveAmount } = request.body;
+      const paymentIntent =
+        'paymentIntentUrl' in request.body
+          ? { paymentIntentUrl: request.body.paymentIntentUrl }
+          : { paymentIntentId: request.body.paymentIntentId };
 
-    const id = request.body.id ?? randomUUID();
+      const id = request.body.id ?? randomUUID();
 
-    const pathName = pathNameFromWalletAddress(walletAddress);
+      const pathName = pathNameFromWalletAddress(walletAddress);
 
-    const wallet = await palClient.resolveWalletAddressByAlias(null, pathName);
-    if (!wallet) {
-      return reply
-        .status(404)
-        .send({ error: `Wallet address '${walletAddress}' not found` });
-    }
-
-    try {
-      const result = await paymentsClient.createQuote(
-        id,
-        paymentIntent,
-        wallet.id,
-        walletAddress,
-        debitAmount ? Number(debitAmount) : undefined,
-        receiveAmount ? Number(receiveAmount) : undefined
+      const wallet = await palClient.resolveWalletAddressByAlias(
+        null,
+        pathName
       );
-      return reply
-        .status(201)
-        .send(toQuoteBody(result) as components['schemas']['CompletedQuote']);
-    } catch (err) {
-      server.log.error(err);
-      const httpStatus = httpStatusFromGrpcError(err);
-      const { error } = toClientApiErrorResponse(err);
-      return reply.status(httpStatus).send({ error: error.description });
+      if (!wallet) {
+        return reply
+          .status(404)
+          .send({ error: `Wallet address '${walletAddress}' not found` });
+      }
+
+      try {
+        const result = await paymentsClient.createQuote(
+          id,
+          paymentIntent,
+          wallet.id,
+          walletAddress,
+          debitAmount ? Number(debitAmount) : undefined,
+          receiveAmount ? Number(receiveAmount) : undefined
+        );
+        return reply
+          .status(201)
+          .send(toQuoteBody(result) as components['schemas']['CompletedQuote']);
+      } catch (err) {
+        server.log.error(err);
+        const httpStatus = httpStatusFromGrpcError(err);
+        const { error } = toClientApiErrorResponse(err);
+        return reply.status(httpStatus).send({ error: error.description });
+      }
     }
-  });
+  );
 
   server.get<{
     Params: operations['getQuote']['parameters']['path'];
