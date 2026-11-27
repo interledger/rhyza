@@ -66,3 +66,44 @@ test('POST /rates forwards a validated exchange rate', async () => {
   assert.equal(response.statusCode, 204);
   assert.deepEqual(calls, [['USD', 'EUR', 0.9, null, 60]]);
 });
+
+test('POST /liquidity/deposit validates integer amounts', async () => {
+  const app = createTestApp();
+  app.register(liquidityRoutes, { palClient: {} as PalClient });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/liquidity/deposit',
+    payload: {
+      assetCode: 'USD',
+      peerId: 'peer-1',
+      amount: 1.5,
+      amountScale: 2
+    }
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().code, 'FST_ERR_VALIDATION');
+  assert.match(response.json().message, /amount/);
+});
+
+test('POST /rates validates positive rates', async () => {
+  const app = createTestApp();
+  app.register(ratesRoutes, { palClient: {} as PalClient });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/rates',
+    payload: {
+      sourceAssetCode: 'USD',
+      destinationAssetCode: 'EUR',
+      rate: 0,
+      peerId: null,
+      rateTtlSecs: 60
+    }
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().code, 'FST_ERR_VALIDATION');
+  assert.match(response.json().message, /rate/);
+});

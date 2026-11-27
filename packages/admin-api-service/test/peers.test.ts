@@ -103,3 +103,27 @@ test('POST /peers returns 409 without creating ILP config for a duplicate', asyn
   assert.equal(response.statusCode, 409);
   assert.equal(ilpCalled, false);
 });
+
+test('POST /peers validates required fields', async () => {
+  const app = createTestApp();
+  app.register(peerRoutes, {
+    palClient: {} as PalClient,
+    ilpClient: {} as IlpClient
+  });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/peers',
+    payload: {
+      id: peerPayload.id,
+      name: peerPayload.name,
+      assetCode: peerPayload.assetCode,
+      assetScale: peerPayload.assetScale,
+      ilpStaticAddress: peerPayload.ilpStaticAddress
+    }
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().code, 'FST_ERR_VALIDATION');
+  assert.match(response.json().message, /http/);
+});

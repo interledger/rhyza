@@ -67,3 +67,18 @@ test('GET /assets returns mapped assets', async () => {
     ]
   });
 });
+
+test('POST /assets validates required fields', async () => {
+  const app = createTestApp();
+  app.register(assetRoutes, { palClient: {} as PalClient });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/assets',
+    payload: { code: 'USD' }
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().code, 'FST_ERR_VALIDATION');
+  assert.match(response.json().message, /scale/);
+});

@@ -160,3 +160,23 @@ test('POST /wallet-addresses/:id/keys registers a valid JWK', async () => {
     key
   });
 });
+
+test('POST /wallet-addresses/:id/keys validates the JWK', async () => {
+  const app = await appFor();
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/wallet-addresses/wallet-1/keys',
+    payload: {
+      kid: 'key-1',
+      alg: 'RS256',
+      kty: 'OKP',
+      crv: 'Ed25519',
+      x: 'public_key'
+    }
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().code, 'FST_ERR_VALIDATION');
+  assert.match(response.json().message, /alg/);
+});
