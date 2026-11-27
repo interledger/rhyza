@@ -13,7 +13,7 @@
     "format": "prettier --write . && eslint --max-warnings=0 --fix .",
     "lint": "prettier --check . && eslint --max-warnings=0 .",
     "lint:openapi": "redocly lint openapi/* --lint-config error --format=stylish",
-    "generate:json": "redocly bundle openapi/admin/admin-api.yaml --output ./json/admin-api.json && redocly bundle openapi/idp-service-api.yaml --output ./json/idp-service-api.json && redocly bundle openapi/webhooks.yaml --output ./json/webhooks.json"
+    "generate:json": "redocly bundle openapi/admin/admin-api.yaml --output ./json/admin-api.json"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.10",

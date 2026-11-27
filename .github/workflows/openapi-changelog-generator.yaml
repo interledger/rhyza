@@ -6,8 +6,8 @@ on:
       - 'docs/openapi/admin/admin-api.yaml'
 
 jobs:
-  check-client-generation:
-    name: Check if admin-client was generated
+  check-generated-artifacts:
+    name: Check generated Admin API artifacts
     runs-on: ubuntu-latest
     steps:
       - name: Checkout codebase
@@ -25,11 +25,14 @@ jobs:
       - name: Generate SDK
         run: pnpm generate
 
+      - name: Generate Admin API JSON
+        run: pnpm --dir docs generate:json
+
       - name: Check for unstaged changes
         run: |
           if [[ -n $(git status --porcelain) ]]; then
-             echo "ERROR: The generated admin client is out of sync with the API spec."
-             echo "Please run 'pnpm generate' locally and commit the updated files."
+             echo "ERROR: Generated Admin API artifacts are out of sync with the API spec."
+             echo "Please run 'pnpm generate' and 'pnpm --dir docs generate:json' locally, then commit the updated files."
              echo ""
              echo "Files changed:"
              git status --porcelain
@@ -38,7 +41,7 @@ jobs:
              
              exit 1
            else
-             echo "Admin client is up to date!"
+             echo "Generated Admin API artifacts are up to date!"
            fi
 
   check-changelog:
